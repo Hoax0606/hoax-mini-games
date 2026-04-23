@@ -1,0 +1,101 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 200" fill="none">
+  <!-- 배경: 파스텔 핑크→민트 그라데이션 (에어하키 썸네일과 동일 톤) -->
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#ffe4ee"/>
+      <stop offset="1" stop-color="#e0fff4"/>
+    </linearGradient>
+  </defs>
+  <rect width="320" height="200" rx="22" fill="url(#bg)"/>
+
+  <!-- 배경 데코: 점 -->
+  <circle cx="30" cy="28" r="3" fill="#ffc9dd"/>
+  <circle cx="292" cy="38" r="2.5" fill="#b8f5e0"/>
+  <circle cx="296" cy="172" r="3" fill="#d9c7ff"/>
+  <circle cx="28" cy="176" r="2.2" fill="#ffeec2"/>
+  <circle cx="18" cy="100" r="2" fill="#ffc9dd"/>
+  <circle cx="302" cy="100" r="2" fill="#b8f5e0"/>
+
+  <!-- 작은 별 데코 -->
+  <path d="M 50,48 L 52,52 L 57,52 L 53,55 L 55,60 L 50,57 L 45,60 L 47,55 L 43,52 L 48,52 Z"
+        fill="#ffc9dd" opacity="0.7"/>
+  <path d="M 270,150 L 272,154 L 277,154 L 273,157 L 275,162 L 270,159 L 265,162 L 267,157 L 263,154 L 268,154 Z"
+        fill="#b8f5e0" opacity="0.7"/>
+
+  <!-- 중앙 미니 필드 (테트리스 보드 느낌) -->
+  <g transform="translate(108, 28)">
+    <!-- 필드 외곽 -->
+    <rect x="-3" y="-3" width="100" height="150" rx="6" fill="#fbf7ff" stroke="#d9c7ff" stroke-width="1.5"/>
+
+    <!-- 쌓여 있는 블록 (바닥 3~4줄) — 10열 × 10px 셀 -->
+    <!-- Row bottom (y=135) -->
+    <rect x="0"  y="135" width="10" height="10" rx="1.5" fill="#86d4ee" stroke="#5dafd2" stroke-width="0.8"/>
+    <rect x="10" y="135" width="10" height="10" rx="1.5" fill="#86d4ee" stroke="#5dafd2" stroke-width="0.8"/>
+    <rect x="20" y="135" width="10" height="10" rx="1.5" fill="#86e8c4" stroke="#5dc9a7" stroke-width="0.8"/>
+    <rect x="30" y="135" width="10" height="10" rx="1.5" fill="#86e8c4" stroke="#5dc9a7" stroke-width="0.8"/>
+    <rect x="40" y="135" width="10" height="10" rx="1.5" fill="#ffd454" stroke="#c9a01f" stroke-width="0.8"/>
+    <rect x="50" y="135" width="10" height="10" rx="1.5" fill="#ffd454" stroke="#c9a01f" stroke-width="0.8"/>
+    <rect x="60" y="135" width="10" height="10" rx="1.5" fill="#ff82ac" stroke="#ff5a92" stroke-width="0.8"/>
+    <rect x="70" y="135" width="10" height="10" rx="1.5" fill="#ff82ac" stroke="#ff5a92" stroke-width="0.8"/>
+    <rect x="80" y="135" width="10" height="10" rx="1.5" fill="#b89aff" stroke="#9c7aeb" stroke-width="0.8"/>
+
+    <!-- Row above (y=125) -->
+    <rect x="10" y="125" width="10" height="10" rx="1.5" fill="#86d4ee" stroke="#5dafd2" stroke-width="0.8"/>
+    <rect x="30" y="125" width="10" height="10" rx="1.5" fill="#86e8c4" stroke="#5dc9a7" stroke-width="0.8"/>
+    <rect x="40" y="125" width="10" height="10" rx="1.5" fill="#86e8c4" stroke="#5dc9a7" stroke-width="0.8"/>
+    <rect x="60" y="125" width="10" height="10" rx="1.5" fill="#ff82ac" stroke="#ff5a92" stroke-width="0.8"/>
+    <rect x="80" y="125" width="10" height="10" rx="1.5" fill="#b89aff" stroke="#9c7aeb" stroke-width="0.8"/>
+
+    <!-- Row above (y=115) -->
+    <rect x="30" y="115" width="10" height="10" rx="1.5" fill="#86e8c4" stroke="#5dc9a7" stroke-width="0.8"/>
+    <rect x="80" y="115" width="10" height="10" rx="1.5" fill="#b89aff" stroke="#9c7aeb" stroke-width="0.8"/>
+
+    <!-- 떨어지는 T 피스 (상단 공중) — 라벤더 -->
+    <g transform="translate(30, 30)">
+      <rect x="0"  y="0" width="10" height="10" rx="1.5" fill="#b89aff" stroke="#9c7aeb" stroke-width="0.8"/>
+      <rect x="10" y="0" width="10" height="10" rx="1.5" fill="#b89aff" stroke="#9c7aeb" stroke-width="0.8"/>
+      <rect x="20" y="0" width="10" height="10" rx="1.5" fill="#b89aff" stroke="#9c7aeb" stroke-width="0.8"/>
+      <rect x="10" y="10" width="10" height="10" rx="1.5" fill="#b89aff" stroke="#9c7aeb" stroke-width="0.8"/>
+    </g>
+
+    <!-- 고스트 피스 (T 피스 예상 착지 — 반투명) -->
+    <g opacity="0.3">
+      <rect x="30" y="105" width="10" height="10" rx="1.5" fill="#b89aff"/>
+      <rect x="40" y="105" width="10" height="10" rx="1.5" fill="#b89aff"/>
+      <rect x="50" y="105" width="10" height="10" rx="1.5" fill="#b89aff"/>
+      <rect x="40" y="115" width="10" height="10" rx="1.5" fill="#b89aff"/>
+    </g>
+  </g>
+
+  <!-- 좌측 떠 있는 L 피스 (오렌지 파스텔) -->
+  <g transform="translate(30, 62) rotate(-8)">
+    <rect x="0"  y="0"  width="14" height="14" rx="2" fill="#ffb386" stroke="#e08047" stroke-width="1.2"/>
+    <rect x="0"  y="14" width="14" height="14" rx="2" fill="#ffb386" stroke="#e08047" stroke-width="1.2"/>
+    <rect x="0"  y="28" width="14" height="14" rx="2" fill="#ffb386" stroke="#e08047" stroke-width="1.2"/>
+    <rect x="14" y="28" width="14" height="14" rx="2" fill="#ffb386" stroke="#e08047" stroke-width="1.2"/>
+  </g>
+
+  <!-- 우측 떠 있는 I 피스 (시안 파스텔, 수직) -->
+  <g transform="translate(235, 42) rotate(6)">
+    <rect x="0" y="0"  width="14" height="14" rx="2" fill="#86d4ee" stroke="#5dafd2" stroke-width="1.2"/>
+    <rect x="0" y="14" width="14" height="14" rx="2" fill="#86d4ee" stroke="#5dafd2" stroke-width="1.2"/>
+    <rect x="0" y="28" width="14" height="14" rx="2" fill="#86d4ee" stroke="#5dafd2" stroke-width="1.2"/>
+    <rect x="0" y="42" width="14" height="14" rx="2" fill="#86d4ee" stroke="#5dafd2" stroke-width="1.2"/>
+  </g>
+
+  <!-- 우측 하단 떠 있는 O 피스 (노랑) -->
+  <g transform="translate(240, 130) rotate(-5)">
+    <rect x="0"  y="0"  width="14" height="14" rx="2" fill="#ffd876" stroke="#c9a01f" stroke-width="1.2"/>
+    <rect x="14" y="0"  width="14" height="14" rx="2" fill="#ffd876" stroke="#c9a01f" stroke-width="1.2"/>
+    <rect x="0"  y="14" width="14" height="14" rx="2" fill="#ffd876" stroke="#c9a01f" stroke-width="1.2"/>
+    <rect x="14" y="14" width="14" height="14" rx="2" fill="#ffd876" stroke="#c9a01f" stroke-width="1.2"/>
+  </g>
+
+  <!-- 좌측 하단 떠 있는 S 피스 (민트 파스텔) -->
+  <g transform="translate(34, 140) rotate(4)">
+    <rect x="14" y="0"  width="13" height="13" rx="2" fill="#86e8c4" stroke="#5dc9a7" stroke-width="1.2"/>
+    <rect x="27" y="0"  width="13" height="13" rx="2" fill="#86e8c4" stroke="#5dc9a7" stroke-width="1.2"/>
+    <rect x="0"  y="13" width="13" height="13" rx="2" fill="#86e8c4" stroke="#5dc9a7" stroke-width="1.2"/>
+    <rect x="14" y="13" width="13" height="13" rx="2" fill="#86e8c4" stroke="#5dc9a7" stroke-width="1.2"/>
+  </g>
+</svg>

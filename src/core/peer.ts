@@ -73,28 +73,38 @@ export type JoinDecision =
 
 /**
  * 호스트 세션.
- * - create()로 생성하면 짧은 방 코드가 할당됨
- * - 게스트가 연결 요청하면 onJoinRequest 콜백으로 방 로직에 판단 위임
- * - 수락되면 이후 메시지는 onMessage로 전달됨
  *
- * 이 세션은 동시에 **게스트 한 명만** 수락한다. 이미 수락된 상태에서 오는
- * 다른 연결은 즉시 'room_full'로 거절하고 끊는다.
+ * 다중 연결 지원 (Phase 1-A):
+ *   - 내부는 Map<peerId, DataConnection>로 여러 게스트 관리
+ *   - maxAccepted 프로퍼티로 수락할 게스트 수 제어 (기본 1 = 2인 게임 호환)
+ *   - `send(msg)`는 모든 수락된 게스트에게 broadcast
+ *   - `sendTo(peerId, msg)`로 특정 게스트에게만 전달
+ *
+ * 콜백 호환성:
+ *   기존 `(msg) => {...}` / `(name) => {...}` 할당은 그대로 유효.
+ *   TS가 callback 인자 축소를 허용하므로 peerId 같은 추가 인자는 무시해도 됨.
  */
 export class HostSession {
   readonly roomId: string;
   private peer: Peer;
-  private acceptedConn: DataConnection | null = null;
+  /** peerId → 수락된 conn. 다중 게스트 지원 */
+  private acceptedConns = new Map<string, DataConnection>();
+  /**
+   * 수락할 최대 게스트 수. 기본 1 = 방장 포함 2인 게임.
+   * 생성 후 외부(createRoom)가 게임 maxPlayers 기반으로 세팅.
+   */
+  maxAccepted = 1;
 
   // ----- 콜백 (방 로직이 할당) -----
 
-  /** 게스트가 입장 요청. 반환값으로 수락/거절 결정 */
-  onJoinRequest: ((req: JoinRequest) => JoinDecision) | null = null;
+  /** 게스트가 입장 요청. 반환값으로 수락/거절 결정. fromPeerId는 출처 식별용(Phase 1+) */
+  onJoinRequest: ((req: JoinRequest, fromPeerId: string) => JoinDecision) | null = null;
   /** 게스트가 수락되어 준비 완료 */
-  onGuestConnected: ((nickname: string) => void) | null = null;
+  onGuestConnected: ((nickname: string, peerId: string) => void) | null = null;
   /** 수락된 게스트로부터 메시지 수신 (join_request는 제외 — 내부 처리됨) */
-  onMessage: ((msg: NetworkMessage) => void) | null = null;
+  onMessage: ((msg: NetworkMessage, fromPeerId: string) => void) | null = null;
   /** 게스트 연결 끊김 */
-  onGuestDisconnected: (() => void) | null = null;
+  onGuestDisconnected: ((peerId: string) => void) | null = null;
 
   private constructor(peer: Peer, roomId: string) {
     this.peer = peer;
@@ -103,6 +113,11 @@ export class HostSession {
     this.peer.on('error', (err) => {
       console.warn('[host] peer error', err);
     });
+  }
+
+  /** 내 PeerJS ID (방장 이양/target 메시지 주소용) */
+  get myPeerId(): string {
+    return this.peer.id;
   }
 
   /**
@@ -135,8 +150,10 @@ export class HostSession {
   }
 
   private handleIncoming(conn: DataConnection): void {
-    // 이미 게스트 수락된 상태 — 새 연결은 즉시 거절
-    if (this.acceptedConn) {
+    const fromPeerId = conn.peer;
+
+    // 이미 수락 한도 가득 참 — 즉시 거절
+    if (this.acceptedConns.size >= this.maxAccepted) {
       conn.on('open', () => {
         safeSend(conn, { type: 'join_rejected', reason: 'room_full' });
         setTimeout(() => conn.close(), 150);
@@ -147,37 +164,36 @@ export class HostSession {
     conn.on('data', (raw) => {
       const msg = raw as NetworkMessage;
 
-      // 아직 수락 전 상태라면 join_request만 처리
-      if (this.acceptedConn !== conn) {
+      // 수락 전: join_request만 처리
+      if (!this.acceptedConns.has(fromPeerId)) {
         if (msg.type !== 'join_request') {
           // 프로토콜 위반 — 조용히 무시
           return;
         }
 
         const decision: JoinDecision = this.onJoinRequest
-          ? this.onJoinRequest({ nickname: msg.nickname, password: msg.password })
+          ? this.onJoinRequest({ nickname: msg.nickname, password: msg.password }, fromPeerId)
           : { accept: false, reason: 'room_full' };
 
         if (decision.accept) {
-          this.acceptedConn = conn;
+          this.acceptedConns.set(fromPeerId, conn);
           safeSend(conn, { type: 'join_accepted', roomState: decision.roomState });
-          this.onGuestConnected?.(msg.nickname);
+          this.onGuestConnected?.(msg.nickname, fromPeerId);
         } else {
           safeSend(conn, { type: 'join_rejected', reason: decision.reason });
-          // 상대가 메시지를 받고 닫을 시간 여유
           setTimeout(() => conn.close(), 150);
         }
         return;
       }
 
       // 수락된 연결의 일반 메시지 → 방 로직으로 전달
-      this.onMessage?.(msg);
+      this.onMessage?.(msg, fromPeerId);
     });
 
     conn.on('close', () => {
-      if (this.acceptedConn === conn) {
-        this.acceptedConn = null;
-        this.onGuestDisconnected?.();
+      if (this.acceptedConns.get(fromPeerId) === conn) {
+        this.acceptedConns.delete(fromPeerId);
+        this.onGuestDisconnected?.(fromPeerId);
       }
     });
 
@@ -186,17 +202,30 @@ export class HostSession {
     });
   }
 
-  /** 게스트에게 메시지 전송. 연결이 없거나 아직 안 열려 있으면 조용히 무시 */
+  /** 모든 수락된 게스트에게 메시지 broadcast */
   send(msg: NetworkMessage): void {
-    if (this.acceptedConn?.open) {
-      safeSend(this.acceptedConn, msg);
+    for (const conn of this.acceptedConns.values()) {
+      if (conn.open) safeSend(conn, msg);
     }
   }
 
-  /** 방 종료 — 연결 끊고 브로커에서 해제 */
+  /** 특정 peerId 게스트에게만 전송 */
+  sendTo(peerId: string, msg: NetworkMessage): void {
+    const conn = this.acceptedConns.get(peerId);
+    if (conn?.open) safeSend(conn, msg);
+  }
+
+  /** 현재 수락된 게스트 peerId 목록 (방장 이양/참가자 UI용) */
+  listGuestPeerIds(): string[] {
+    return Array.from(this.acceptedConns.keys());
+  }
+
+  /** 방 종료 — 모든 연결 끊고 브로커에서 해제 */
   close(): void {
-    this.acceptedConn?.close();
-    this.acceptedConn = null;
+    for (const conn of this.acceptedConns.values()) {
+      conn.close();
+    }
+    this.acceptedConns.clear();
     this.peer.destroy();
   }
 }
@@ -234,6 +263,11 @@ export class GuestSession {
     peer.on('error', (err) => {
       console.warn('[guest] peer error', err);
     });
+  }
+
+  /** 내 PeerJS ID — 호스트가 참가자 목록에 포함시킬 때 알아내는 용도 */
+  get myPeerId(): string {
+    return this.peer.id;
   }
 
   /**

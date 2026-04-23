@@ -484,6 +484,21 @@ input {
   font-size: 18px;
   font-weight: 700;
   color: var(--text-main);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.game-card-players {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-inverse);
+  background: var(--lavender-300);
+  padding: 3px 8px;
+  border-radius: var(--radius-full);
+  letter-spacing: 0.3px;
 }
 
 .game-card-desc {
@@ -806,6 +821,13 @@ input {
   font-weight: 500;
 }
 
+.participant-you {
+  font-size: 12px;
+  color: var(--text-muted);
+  font-weight: 600;
+  margin-left: 4px;
+}
+
 .participant-empty .participant-name {
   color: var(--text-muted);
   font-style: italic;
@@ -815,8 +837,9 @@ input {
 /* 방 설정 요약 (읽기 전용 정보) */
 .room-info {
   display: flex;
+  flex-wrap: wrap;
   justify-content: center;
-  gap: 20px;
+  gap: 14px 20px;
   font-size: 13px;
   color: var(--text-muted);
   margin-bottom: 20px;

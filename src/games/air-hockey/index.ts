@@ -131,7 +131,13 @@ class AirHockeyGame implements GameModule {
 
   private loop = (): void => {
     this.rafId = requestAnimationFrame(this.loop);
-    if (this.gameEnded) return;
+
+    if (this.gameEnded) {
+      // 종료 후엔 물리·입력 중단 — 다만 파티클/골 이펙트 fade-out은 자연스럽게 유지.
+      // 이렇게 해야 "결과 화면 대기 중"에 화면이 얼어붙은 느낌이 안 남.
+      this.renderer.render(this.state, []);
+      return;
+    }
 
     // 입력 확정 (키보드는 매 프레임 누적 이동 반영)
     this.applyKeyboardInput();

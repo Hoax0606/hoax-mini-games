@@ -24,7 +24,10 @@ export function createGameListScreen(): Screen {
             ${games.map(g => `
               <button class="game-card" data-game-id="${escapeAttr(g.meta.id)}">
                 <img class="game-card-thumb" src="${escapeAttr(g.meta.thumbnail)}" alt="${escapeAttr(g.meta.name)}" />
-                <div class="game-card-name">${escapeHtml(g.meta.name)}</div>
+                <div class="game-card-name">
+                  ${escapeHtml(g.meta.name)}
+                  <span class="game-card-players">${playersBadge(g.meta.minPlayers, g.meta.maxPlayers)}</span>
+                </div>
                 <div class="game-card-desc">${escapeHtml(g.meta.description)}</div>
               </button>
             `).join('')}
@@ -45,6 +48,11 @@ export function createGameListScreen(): Screen {
       return el;
     },
   };
+}
+
+function playersBadge(min: number, max: number): string {
+  if (min === max) return `${min}인 전용`;
+  return `${min}~${max}인`;
 }
 
 function escapeHtml(s: string): string {

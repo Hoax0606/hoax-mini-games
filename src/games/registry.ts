@@ -11,6 +11,7 @@
 
 import type { GameEntry } from './types';
 import airHockeyThumbnail from './air-hockey/thumbnail.svg';
+import battleTetrisThumbnail from './battle-tetris/thumbnail.svg';
 
 export const games: GameEntry[] = [
   {
@@ -35,10 +36,47 @@ export const games: GameEntry[] = [
         },
       ],
     },
-    // 실제 게임 모듈을 lazy import로 로드 (게임 시작 버튼 눌렀을 때만)
     load: async () => {
       const mod = await import('./air-hockey');
       return mod.createAirHockeyGame();
+    },
+  },
+  {
+    meta: {
+      id: 'battle-tetris',
+      name: '배틀 테트리스',
+      description: '떨어지는 블록으로 라인을 지우고 공격을 보내 상대를 밀어내라! 마지막까지 살아남으면 승리.',
+      thumbnail: battleTetrisThumbnail,
+      minPlayers: 2,
+      maxPlayers: 4,
+      roomOptions: [
+        {
+          key: 'garbageStrength',
+          label: '공격 강도',
+          type: 'select',
+          choices: [
+            { value: 'weak', label: '약 · 슬슬' },
+            { value: 'normal', label: '보통' },
+            { value: 'strong', label: '강 · 치열하게' },
+          ],
+          defaultValue: 'normal',
+        },
+        {
+          key: 'speed',
+          label: '낙하 속도',
+          type: 'select',
+          choices: [
+            { value: 'slow', label: '느림' },
+            { value: 'normal', label: '보통' },
+            { value: 'fast', label: '빠름' },
+          ],
+          defaultValue: 'normal',
+        },
+      ],
+    },
+    load: async () => {
+      const mod = await import('./battle-tetris');
+      return mod.createBattleTetrisGame();
     },
   },
 ];

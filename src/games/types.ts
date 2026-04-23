@@ -77,6 +77,23 @@ export interface GameMessage {
 }
 
 /**
+ * 플레이어 정보 — 방에 들어온 사람 한 명.
+ * RoomState.players 배열에 들어간다. 배열 첫 번째(players[0])는 항상 방장.
+ */
+export interface Player {
+  /** PeerJS 내부 식별자 (방장 이양 / target 메시지용). 호스트 자신은 host.roomId 기반 */
+  peerId: string;
+  nickname: string;
+  isHost: boolean;
+  /**
+   * 게임에서의 역할.
+   * - 'player': 실제 참여
+   * - 'spectator': 관전 (Phase 2에서 구현)
+   */
+  role: 'player' | 'spectator';
+}
+
+/**
  * 플랫폼이 게임에 주입하는 컨텍스트.
  * 게임은 이걸 통해 캔버스에 그리고, 상대에게 메시지 보내고, 종료를 알린다.
  */
@@ -85,13 +102,27 @@ export interface GameContext {
   canvas: HTMLCanvasElement;
   /** 이 클라이언트가 호스트인지 게스트인지 */
   role: 'host' | 'guest';
+  /** 내 PeerJS ID (players 배열에서 자신을 찾거나, 상대 target 지정 시 사용) */
+  myPlayerId: string;
+  /** 내 관전자 여부 (Phase 2용) */
+  isSpectator: boolean;
+  /** 방 전체 플레이어 목록 (자신 포함). 최신은 플랫폼이 갱신해 참조로 전달 */
+  players: Player[];
+
+  /** (호환용) 내 닉네임 — 2인 게임 단순 접근. 다인 게임은 players에서 조회 권장 */
   myNickname: string;
+  /** (호환용) 2인 게임 상대 닉네임. N인 게임은 players 사용 */
   opponentNickname: string;
+
   /** 방 만들 때 방장이 선택한 옵션 값 (예: { winScore: "7" }) */
   roomOptions: Record<string, string>;
 
-  /** 상대에게 게임 메시지 전송 */
-  sendToPeer(message: GameMessage): void;
+  /**
+   * 게임 메시지 전송.
+   * @param options.target 특정 peerId에게만 전달 (생략 시 전체 broadcast).
+   *                       호스트가 아닌 쪽에서 target 지정하면 호스트가 relay.
+   */
+  sendToPeer(message: GameMessage, options?: { target?: string }): void;
 
   /**
    * 게임 종료를 플랫폼에 알림 → 결과 화면으로 이동.
@@ -134,9 +165,18 @@ export interface RoomState {
   /** 사람 친화 5자 코드 (예: "PK4M9") */
   roomId: string;
   gameId: string;
+
+  /**
+   * 방에 들어온 모든 사람. 첫 번째(players[0])는 항상 방장.
+   * 4인 지원 이후 주 데이터 소스. N=2 게임도 이 배열에 2명이 들어있음.
+   */
+  players: Player[];
+
+  /** (호환용) 방장 닉네임 — players[0].nickname과 동일 */
   hostNickname: string;
-  /** 아직 게스트가 안 들어왔으면 null */
+  /** (호환용) 2인 전용 게임용. players[1]?.nickname — 없으면 null */
   guestNickname: string | null;
+
   /** 비공개방이면 true (비번 있음) */
   isPrivate: boolean;
   /** 방장이 선택한 게임 옵션 값 */
@@ -155,6 +195,7 @@ export type NetworkMessage =
   | JoinAcceptedMsg
   | JoinRejectedMsg
   | RoomStateMsg
+  | PlayerJoinedMsg
   | PlayerLeftMsg
   | GameStartMsg
   | GameEndMsg
@@ -186,9 +227,16 @@ export interface RoomStateMsg {
   roomState: RoomState;
 }
 
-/** 상대가 나감 알림 (나간 쪽의 PeerJS close 이벤트로 감지 후 로컬에서 생성) */
+/** 호스트 → 전체: 새 플레이어 입장 알림 (자기 포함한 RoomState도 따로 갱신 broadcast) */
+export interface PlayerJoinedMsg {
+  type: 'player_joined';
+  player: Player;
+}
+
+/** 호스트 → 전체: 플레이어 퇴장 알림 */
 export interface PlayerLeftMsg {
   type: 'player_left';
+  peerId: string;
   nickname: string;
 }
 
@@ -207,4 +255,11 @@ export interface GameEndMsg {
 export interface GameMsg {
   type: 'game_msg';
   payload: GameMessage;
+  /**
+   * 특정 peer에게만 전달 (생략 시 전체 broadcast).
+   * 호스트가 아닌 쪽에서 설정하면 호스트가 relay.
+   */
+  target?: string;
+  /** 원 발신자 peerId (호스트가 relay 시 채워서 수신 측이 출처 식별 가능) */
+  from?: string;
 }

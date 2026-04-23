@@ -2,7 +2,7 @@ import type { Screen } from '../core/screen';
 import { router } from '../core/screen';
 import type { HostSession, GuestSession } from '../core/peer';
 import { getGameById } from '../games/registry';
-import type { GameContext, GameModule, GameResult, RoomState } from '../games/types';
+import type { GameContext, GameModule, RoomState } from '../games/types';
 import { createMenuScreen } from './menu';
 import { createResultScreenAsHostScreen, createResultScreenAsGuestScreen } from './resultScreen';
 
@@ -121,23 +121,44 @@ export function createGameScreenAsHostScreen(args: GameScreenAsHostArgs): Screen
       let lastHostScore = 0;
       let lastGuestScore = 0;
 
+      const myPlayerId = host.myPeerId;
+      const players = roomState.players;
+
       // GameContext — 호스트 시점
       const ctx: GameContext = {
         canvas,
         role: 'host',
+        myPlayerId,
+        isSpectator: false,
+        players,
         myNickname: hostNickname,
         opponentNickname: guestNickname,
         roomOptions: roomState.roomOptions,
-        sendToPeer: (msg) => host.send({ type: 'game_msg', payload: msg }),
+        sendToPeer: (msg, options) => {
+          // target 있으면 특정 게스트에게만, 없으면 모든 게스트에게 broadcast
+          if (options?.target) {
+            if (options.target !== myPlayerId) {
+              host.sendTo(options.target, {
+                type: 'game_msg',
+                payload: msg,
+                target: options.target,
+                from: myPlayerId,
+              });
+            }
+          } else {
+            host.send({ type: 'game_msg', payload: msg, from: myPlayerId });
+          }
+        },
         endGame: (result) => {
-          // GOAL! 이펙트가 끝난 직후 결과 화면으로 전환 (1.2초 지연)
+          // GOAL! 이펙트를 잠깐 여운으로 보여준 뒤 결과 화면 전환
+          // (loop는 계속 돌고 파티클이 자연스럽게 fade-out 하므로 정지 느낌 없음)
           window.setTimeout(() => {
             if (disposed) return;
             closeOnDispose = false; // host 소유권을 결과 화면에 넘김
             router.replace(() =>
               createResultScreenAsHostScreen({ host, roomState, result })
             );
-          }, 1200);
+          }, 900);
         },
         onStatusUpdate: (status) => {
           const h = Number(status['hostScore']) || 0;
@@ -155,10 +176,23 @@ export function createGameScreenAsHostScreen(args: GameScreenAsHostArgs): Screen
         },
       };
 
-      // HostSession의 메시지 중 'game_msg'만 GameModule에 전달
-      host.onMessage = (msg) => {
-        if (msg.type === 'game_msg' && gameModule) {
-          gameModule.onPeerMessage(msg.payload);
+      // HostSession 메시지 라우팅 — game_msg를 (필요시 다른 게스트에) relay + 호스트 로컬 소비
+      host.onMessage = (msg, fromPeerId) => {
+        if (msg.type !== 'game_msg') return;
+        // target이 다른 게스트를 향하면 그 쪽으로만 forward
+        if (msg.target && msg.target !== myPlayerId) {
+          host.sendTo(msg.target, { ...msg, from: fromPeerId });
+          return;
+        }
+        // target이 없거나 나(호스트)를 향한 경우 → 로컬 소비
+        gameModule?.onPeerMessage(msg.payload);
+        // target 없으면 다른 게스트들에게도 broadcast (송신자 제외)
+        if (!msg.target) {
+          for (const pid of host.listGuestPeerIds()) {
+            if (pid !== fromPeerId) {
+              host.sendTo(pid, { ...msg, from: fromPeerId });
+            }
+          }
         }
       };
 
@@ -247,14 +281,29 @@ export function createGameScreenAsGuestScreen(args: GameScreenAsGuestArgs): Scre
       let lastHostScore = 0;
       let lastGuestScore = 0;
 
+      const myPlayerId = guest.myPeerId;
+      const players = roomState.players;
+
       // GameContext — 게스트 시점
       const ctx: GameContext = {
         canvas,
         role: 'guest',
+        myPlayerId,
+        isSpectator: false,
+        players,
         myNickname: guestNickname,
         opponentNickname: hostNickname,
         roomOptions: roomState.roomOptions,
-        sendToPeer: (msg) => guest.send({ type: 'game_msg', payload: msg }),
+        sendToPeer: (msg, options) => {
+          // 게스트는 호스트에게만 직접 전송. target 있으면 호스트가 relay
+          const netMsg: { type: 'game_msg'; payload: typeof msg; from: string; target?: string } = {
+            type: 'game_msg',
+            payload: msg,
+            from: myPlayerId,
+          };
+          if (options?.target) netMsg.target = options.target;
+          guest.send(netMsg);
+        },
         endGame: (result) => {
           window.setTimeout(() => {
             if (disposed) return;
@@ -262,7 +311,7 @@ export function createGameScreenAsGuestScreen(args: GameScreenAsGuestArgs): Scre
             router.replace(() =>
               createResultScreenAsGuestScreen({ guest, roomState, result })
             );
-          }, 1200);
+          }, 900);
         },
         onStatusUpdate: (status) => {
           const h = Number(status['hostScore']) || 0;
@@ -281,9 +330,10 @@ export function createGameScreenAsGuestScreen(args: GameScreenAsGuestArgs): Scre
       };
 
       guest.onMessage = (msg) => {
-        if (msg.type === 'game_msg' && gameModule) {
-          gameModule.onPeerMessage(msg.payload);
-        }
+        if (msg.type !== 'game_msg') return;
+        // target이 나를 향하지 않으면 무시 (호스트가 relay 단계에서 거름)
+        if (msg.target && msg.target !== myPlayerId) return;
+        gameModule?.onPeerMessage(msg.payload);
       };
 
       guest.onDisconnect = () => {

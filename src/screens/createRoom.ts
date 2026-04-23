@@ -141,6 +141,10 @@ export function createCreateRoomScreen(gameId: string): Screen {
             host.close();
             return;
           }
+
+          // 게임의 최대 인원 - 1 명의 게스트까지 수락 (방장 본인은 제외)
+          host.maxAccepted = Math.max(1, game.meta.maxPlayers - 1);
+
           // host 소유권을 대기실로 넘긴다. 이 시점 이후엔 host 정리는 대기실의 책임.
           pendingHost = null;
 
