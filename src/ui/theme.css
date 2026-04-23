@@ -240,6 +240,7 @@ input {
   gap: 12px;
   width: 100%;
   max-width: 340px;
+  margin: 0 auto; /* 부모의 text-align 영향을 못 받는 block 요소라 auto 마진으로 중앙 정렬 */
 }
 
 /* 방 코드 입력 (방 참여 화면) - 모노스페이스 큰 글씨 */
