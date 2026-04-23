@@ -85,7 +85,14 @@ class AirHockeyGame implements GameModule {
 
     this.renderer = new Renderer({ canvas: this.canvas });
 
-    this.attachInput();
+    // 관전자는 입력 송신이 필요 없음 — 마우스/키보드 리스너 자체를 붙이지 않는다.
+    // 호스트의 ah:state broadcast 만 받아서 renderer 로 그대로 표시.
+    if (!ctx.isSpectator) {
+      this.attachInput();
+    }
+
+    // 게임 BGM 시작 (관전자도 같이 들음)
+    sound.startBgm('air-hockey');
 
     // 루프 시작
     this.rafId = requestAnimationFrame(this.loop);
@@ -93,13 +100,13 @@ class AirHockeyGame implements GameModule {
 
   onPeerMessage(msg: GameMessage): void {
     if (this.ctx.role === 'host') {
-      // 호스트는 게스트 input만 기대
+      // 호스트는 게스트 input만 기대 (관전자는 input 송신 안 함)
       const t = decodeInput(msg);
       if (t) this.opponentTarget = t;
       return;
     }
 
-    // 게스트: state 또는 end
+    // 게스트/관전자: state 는 공통으로 받아서 렌더링
     const snap = decodeState(msg);
     if (snap) {
       this.state = snap.state;
@@ -108,6 +115,12 @@ class AirHockeyGame implements GameModule {
       }
       return;
     }
+
+    // ah:end 는 "게스트 시점으로 winner 뒤집힌" 결과라서 관전자가 그대로 받으면
+    // 호스트 승리를 '내 패배'로 오해하게 된다. 관전자는 이 메시지를 무시하고
+    // 플랫폼 game_end broadcast(호스트 원본 시점) 로만 결과 화면에 진입한다.
+    if (this.ctx.isSpectator) return;
+
     const end = decodeEnd(msg);
     if (end) {
       this.gameEnded = true;
@@ -123,6 +136,7 @@ class AirHockeyGame implements GameModule {
     }
     this.detachInput();
     this.renderer?.destroy();
+    sound.stopBgm();
   }
 
   // ============================================
@@ -136,6 +150,15 @@ class AirHockeyGame implements GameModule {
       // 종료 후엔 물리·입력 중단 — 다만 파티클/골 이펙트 fade-out은 자연스럽게 유지.
       // 이렇게 해야 "결과 화면 대기 중"에 화면이 얼어붙은 느낌이 안 남.
       this.renderer.render(this.state, []);
+      return;
+    }
+
+    // 관전자는 호스트가 broadcast 한 state 를 그대로 렌더만. 입력/예측/송신 없음.
+    if (this.ctx.isSpectator) {
+      this.renderer.render(this.state, this.pendingEvents);
+      this.playEventSounds(this.pendingEvents);
+      this.pendingEvents.length = 0;
+      this.publishStatus();
       return;
     }
 

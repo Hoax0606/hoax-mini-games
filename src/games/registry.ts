@@ -12,6 +12,7 @@
 import type { GameEntry } from './types';
 import airHockeyThumbnail from './air-hockey/thumbnail.svg';
 import battleTetrisThumbnail from './battle-tetris/thumbnail.svg';
+import appleGameThumbnail from './apple-game/thumbnail.svg';
 
 export const games: GameEntry[] = [
   {
@@ -77,6 +78,21 @@ export const games: GameEntry[] = [
     load: async () => {
       const mod = await import('./battle-tetris');
       return mod.createBattleTetrisGame();
+    },
+  },
+  {
+    meta: {
+      id: 'apple-game',
+      name: '사과 게임',
+      description: '숫자 사과를 드래그로 묶어 합이 10이 되면 터트려! 2분 안에 최대한 많이 터트리면 승리.',
+      thumbnail: appleGameThumbnail,
+      minPlayers: 1,
+      maxPlayers: 4,
+      roomOptions: [],
+    },
+    load: async () => {
+      const mod = await import('./apple-game');
+      return mod.createAppleGame();
     },
   },
 ];

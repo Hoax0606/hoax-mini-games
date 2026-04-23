@@ -608,6 +608,150 @@ input {
   border-radius: var(--radius-sm);
 }
 
+/* ── 테트리스 전용 결과 화면 ── */
+/* 승패/등수 위에 추가 stats & 전체 랭킹. 정보량 많아 카드 폭 살짝 확장. */
+.result-card.result-card-tetris {
+  min-width: 480px;
+  max-width: 560px;
+}
+
+.result-tetris-rank {
+  font-size: 16px;
+  color: var(--text-muted);
+  margin: -20px 0 24px;
+  font-weight: 600;
+}
+.result-tetris-rank-num {
+  font-size: 22px;
+  color: var(--accent-hover);
+  font-weight: 800;
+  font-family: var(--font-mono);
+}
+
+.result-tetris-stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+  margin: 8px 0 22px;
+}
+.result-tetris-stat {
+  background: var(--bg-subtle);
+  border-radius: var(--radius-sm);
+  padding: 10px 8px 12px;
+  border: 1px solid var(--border-soft);
+}
+.result-tetris-stat-label {
+  font-size: 11px;
+  color: var(--text-muted);
+  font-weight: 600;
+  margin-bottom: 4px;
+  letter-spacing: 0.5px;
+}
+.result-tetris-stat-value {
+  font-family: var(--font-mono);
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--text-main);
+  line-height: 1.1;
+}
+.result-tetris-stat-unit {
+  font-family: var(--font-main);
+  font-size: 11px;
+  color: var(--text-muted);
+  font-weight: 500;
+  margin-left: 2px;
+}
+
+.result-tetris-rankings {
+  margin: 8px 0 20px;
+  border-top: 1px dashed var(--border-soft);
+  padding-top: 14px;
+}
+.result-tetris-rankings-title {
+  font-size: 12px;
+  color: var(--text-muted);
+  font-weight: 600;
+  margin-bottom: 8px;
+  letter-spacing: 0.5px;
+}
+.result-tetris-rank-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 10px;
+  border-radius: var(--radius-sm);
+  background: var(--bg-subtle);
+  margin-bottom: 4px;
+}
+.result-tetris-rank-row.is-me {
+  background: var(--pink-100);
+  border: 1px solid var(--pink-200);
+}
+.result-tetris-rank-badge {
+  font-family: var(--font-mono);
+  font-size: 14px;
+  font-weight: 800;
+  width: 26px;
+  height: 26px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: var(--border-soft);
+  color: var(--text-main);
+  flex-shrink: 0;
+}
+.result-tetris-rank-badge.rank-1 { background: var(--accent-hover); color: #fff; }
+.result-tetris-rank-badge.rank-2 { background: var(--lavender-300); color: #fff; }
+.result-tetris-rank-badge.rank-3 { background: var(--mint-300); color: #fff; }
+.result-tetris-rank-name {
+  flex: 1;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-main);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.result-tetris-rank-me-tag {
+  font-size: 11px;
+  color: var(--accent-hover);
+  font-weight: 700;
+}
+
+/* ── 사과 게임 전용 결과 화면 추가 스타일 ── */
+.result-apple-myscore {
+  background: linear-gradient(135deg, var(--pink-100), var(--cream-100));
+  border: 2px solid var(--pink-200);
+  border-radius: var(--radius-md);
+  padding: 14px 16px 18px;
+  margin: 4px 0 22px;
+  text-align: center;
+}
+.result-apple-myscore-label {
+  font-size: 12px;
+  color: var(--text-muted);
+  font-weight: 600;
+  margin-bottom: 4px;
+  letter-spacing: 0.5px;
+}
+.result-apple-myscore-value {
+  font-family: var(--font-mono);
+  font-size: 48px;
+  font-weight: 800;
+  color: var(--accent-hover);
+  line-height: 1;
+}
+
+.result-apple-rank-score {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-main);
+  margin-left: auto;
+  padding-left: 8px;
+}
+
 /* 헤더 점수 번쩍임 */
 @keyframes scoreFlash {
   0%   { transform: scale(1);    filter: drop-shadow(0 0 0 transparent); }
@@ -693,6 +837,18 @@ input {
 .game-score-home { color: var(--accent-hover); font-size: 36px; }
 .game-score-away { color: var(--lavender-300); font-size: 36px; }
 .game-score-sep  { color: var(--text-muted); font-size: 24px; }
+
+/* 관전 중 배지 — 점수판 대체 */
+.game-score-spectator {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--lavender-300);
+  background: var(--lavender-100);
+  border: 1px solid var(--lavender-300);
+  border-radius: 999px;
+  padding: 6px 14px;
+  letter-spacing: 0.5px;
+}
 
 .game-room-info {
   font-size: 12px;

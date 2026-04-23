@@ -120,8 +120,16 @@ export class TetrisRenderer {
     this.ro.disconnect();
   }
 
-  /** 매 프레임 호출 */
-  render(me: EngineState, opponents: OpponentSnapshot[]): void {
+  /** 매 프레임 호출.
+   *
+   * opts.spectator = true 일 땐 "나" 관점의 UI(메인 필드/HOLD/NEXT/STATS)를 그리지 않고
+   * 해당 영역에 "관전 중" 오버레이만 둔다. 상대 미니뷰는 계속 그린다 (최대 4명까지).
+   */
+  render(
+    me: EngineState,
+    opponents: OpponentSnapshot[],
+    opts: { spectator?: boolean } = {},
+  ): void {
     const ctx = this.ctx;
     const rect = this.canvas.getBoundingClientRect();
     const dpr = window.devicePixelRatio || 1;
@@ -138,35 +146,71 @@ export class TetrisRenderer {
     ctx.fillStyle = COLORS.bg;
     ctx.fillRect(0, 0, CANVAS_W, CANVAS_H);
 
-    // 메인 필드 + 현재 피스 + 고스트
-    this.drawField(me.field, FIELD_X, FIELD_Y, CELL);
-    if (me.currentPiece && !me.toppedOut) {
-      this.drawGhost(me.field, me.currentPiece);
-      this.drawPiece(me.currentPiece, FIELD_X, FIELD_Y, CELL);
+    if (opts.spectator) {
+      // 관전자: 메인 필드/HOLD/NEXT/STATS 자리에 안내 오버레이
+      this.drawSpectatorCenter();
+    } else {
+      // 메인 필드 + 현재 피스 + 고스트
+      this.drawField(me.field, FIELD_X, FIELD_Y, CELL);
+      if (me.currentPiece && !me.toppedOut) {
+        this.drawGhost(me.field, me.currentPiece);
+        this.drawPiece(me.currentPiece, FIELD_X, FIELD_Y, CELL);
+      }
+      // 필드 테두리
+      ctx.strokeStyle = COLORS.fieldBorder;
+      ctx.lineWidth = 2;
+      ctx.strokeRect(FIELD_X - 1, FIELD_Y - 1, FIELD_PX_W + 2, FIELD_PX_H + 2);
+
+      // 탑아웃 오버레이
+      if (me.toppedOut) {
+        ctx.fillStyle = COLORS.toppedOverlay;
+        ctx.fillRect(FIELD_X, FIELD_Y, FIELD_PX_W, FIELD_PX_H);
+        ctx.fillStyle = COLORS.gaugeGarbage;
+        ctx.font = `900 28px ${FONT}`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText('GAME OVER', FIELD_X + FIELD_PX_W / 2, FIELD_Y + FIELD_PX_H / 2);
+      }
+
+      // 좌측: HOLD + STATS
+      this.drawHoldBox(me.holdPiece, me.holdUsed);
+      this.drawStats(me);
+
+      // 우측: NEXT
+      this.drawNextBoxes(me.nextPieces);
     }
-    // 필드 테두리
-    ctx.strokeStyle = COLORS.fieldBorder;
+
+    // 상대 미니뷰는 양쪽 모드 모두 그림. 관전자일 땐 최대 4명까지.
+    this.drawOpponents(opponents, opts.spectator ?? false);
+  }
+
+  /** 관전자 모드 중앙 오버레이 — 메인/HOLD/NEXT 자리에 "👀 관전 중" 안내 */
+  private drawSpectatorCenter(): void {
+    const ctx = this.ctx;
+    // 외곽 카드 배경 (메인 필드 영역과 얼추 같은 위치)
+    const cardX = 60;
+    const cardY = 60;
+    const cardW = 450;
+    const cardH = 280;
+    ctx.fillStyle = COLORS.boxBg;
+    ctx.fillRect(cardX, cardY, cardW, cardH);
+    ctx.strokeStyle = COLORS.boxBorder;
     ctx.lineWidth = 2;
-    ctx.strokeRect(FIELD_X - 1, FIELD_Y - 1, FIELD_PX_W + 2, FIELD_PX_H + 2);
+    ctx.strokeRect(cardX, cardY, cardW, cardH);
 
-    // 탑아웃 오버레이
-    if (me.toppedOut) {
-      ctx.fillStyle = COLORS.toppedOverlay;
-      ctx.fillRect(FIELD_X, FIELD_Y, FIELD_PX_W, FIELD_PX_H);
-      ctx.fillStyle = COLORS.gaugeGarbage;
-      ctx.font = `900 28px ${FONT}`;
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText('GAME OVER', FIELD_X + FIELD_PX_W / 2, FIELD_Y + FIELD_PX_H / 2);
-    }
+    ctx.fillStyle = COLORS.textMain;
+    ctx.font = `900 44px ${FONT}`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('👀', cardX + cardW / 2, cardY + cardH / 2 - 30);
 
-    // 좌측: HOLD + STATS
-    this.drawHoldBox(me.holdPiece, me.holdUsed);
-    this.drawStats(me);
+    ctx.fillStyle = COLORS.labelAccent;
+    ctx.font = `800 28px ${FONT}`;
+    ctx.fillText('관전 중', cardX + cardW / 2, cardY + cardH / 2 + 30);
 
-    // 우측: NEXT + 상대
-    this.drawNextBoxes(me.nextPieces);
-    this.drawOpponents(opponents);
+    ctx.fillStyle = COLORS.textMuted;
+    ctx.font = `500 13px ${FONT}`;
+    ctx.fillText('오른쪽에서 플레이어들의 경기를 지켜보세요', cardX + cardW / 2, cardY + cardH / 2 + 62);
   }
 
   // ============================================
@@ -370,14 +414,15 @@ export class TetrisRenderer {
   // 상대 미니뷰
   // ============================================
 
-  private drawOpponents(opponents: OpponentSnapshot[]): void {
+  private drawOpponents(opponents: OpponentSnapshot[], spectator: boolean): void {
     const ctx = this.ctx;
     ctx.fillStyle = COLORS.textMuted;
     ctx.font = `700 11px ${FONT}`;
     ctx.textAlign = 'left';
-    ctx.fillText('VS', OPP_X0, OPP_Y0 - 8);
+    ctx.fillText(spectator ? 'PLAYERS' : 'VS', OPP_X0, OPP_Y0 - 8);
 
-    const maxShow = 3;
+    // 관전자는 상대가 없고 '플레이어 전원'이라 최대 4명까지 표시 (4인 게임 기준)
+    const maxShow = spectator ? 4 : 3;
     const count = Math.min(opponents.length, maxShow);
     for (let i = 0; i < count; i++) {
       const opp = opponents[i]!;

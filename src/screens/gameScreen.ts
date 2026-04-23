@@ -1,8 +1,8 @@
 import type { Screen } from '../core/screen';
 import { router } from '../core/screen';
-import type { HostSession, GuestSession } from '../core/peer';
+import type { HostSession, GuestSession, JoinRequest, JoinDecision } from '../core/peer';
 import { getGameById } from '../games/registry';
-import type { GameContext, GameModule, RoomState } from '../games/types';
+import type { GameContext, GameModule, Player, RoomState } from '../games/types';
 import { createMenuScreen } from './menu';
 import { createResultScreenAsHostScreen, createResultScreenAsGuestScreen } from './resultScreen';
 
@@ -42,7 +42,19 @@ function buildHeaderHTML(args: {
   hostNickname: string;
   guestNickname: string;
   optionSummary: string;
+  /** 관전자 뷰면 점수판 대신 "관전 중" 배지 표시 */
+  spectator?: boolean;
 }): string {
+  const centerHTML = args.spectator
+    ? `<div class="game-score game-score-spectator">👀 관전 중</div>`
+    : `
+      <div class="game-score">
+        <span class="game-score-home" id="score-home">0</span>
+        <span class="game-score-sep">:</span>
+        <span class="game-score-away" id="score-away">0</span>
+      </div>
+    `;
+
   return `
     <div class="game-header">
       <button class="back-btn-inline" id="leave-btn" title="나가기">×</button>
@@ -52,11 +64,7 @@ function buildHeaderHTML(args: {
         <span class="game-player-name">${escapeHtml(args.hostNickname)}</span>
       </div>
 
-      <div class="game-score">
-        <span class="game-score-home" id="score-home">0</span>
-        <span class="game-score-sep">:</span>
-        <span class="game-score-away" id="score-away">0</span>
-      </div>
+      ${centerHTML}
 
       <div class="game-header-player game-header-player-guest">
         <span class="game-player-name">${escapeHtml(args.guestNickname)}</span>
@@ -87,14 +95,30 @@ function flashScore(el: HTMLElement): void {
 export interface GameScreenAsHostArgs {
   host: HostSession;
   roomState: RoomState;
+  /** 비공개방 여부 — 게임 중 관전자 입장 요청 시 비번 검증에 사용 */
+  isPrivate: boolean;
+  /** 방장이 방 만들 때 지정한 비번 (공개방이면 빈 문자열) — 관전자 입장 비번 검증용 */
+  password: string;
 }
 
 export function createGameScreenAsHostScreen(args: GameScreenAsHostArgs): Screen {
-  const { host, roomState } = args;
+  const { host, roomState, isPrivate, password } = args;
   let gameModule: GameModule | null = null;
   let disposed = false;
   // 결과 화면으로 이동할 땐 세션 소유권 넘기므로 close 하지 않음
   let closeOnDispose = true;
+
+  // 게임 시작 시점에 들어와 있던 플레이어들 (관전자와 구분).
+  // 게임 도중에 들어오는 사람은 전부 spectators 로. role='spectator' 마킹.
+  const activePlayers: Player[] = [...roomState.players];
+  const spectators: Player[] = [];
+
+  /** 현재 방 상태 스냅샷 — 관전자에게 join_accepted 보낼 때 + player_joined broadcast 시 사용 */
+  const snapshotRoomState = (): RoomState => ({
+    ...roomState,
+    players: [...activePlayers, ...spectators],
+    status: 'playing',
+  });
 
   return {
     render() {
@@ -150,13 +174,18 @@ export function createGameScreenAsHostScreen(args: GameScreenAsHostArgs): Screen
           }
         },
         endGame: (result) => {
+          // 플랫폼 레벨 game_end broadcast — 관전자도 받아서 결과 화면으로 이동.
+          // 기존 플레이어들은 각 게임의 내부 메시지(bt:end / ah:end)로 이미 이동 경로가 있으므로
+          // game_end 를 추가로 받아도 게스트 쪽에서 isSpectator 체크 후 무시한다.
+          host.send({ type: 'game_end', result });
+
           // GOAL! 이펙트를 잠깐 여운으로 보여준 뒤 결과 화면 전환
           // (loop는 계속 돌고 파티클이 자연스럽게 fade-out 하므로 정지 느낌 없음)
           window.setTimeout(() => {
             if (disposed) return;
             closeOnDispose = false; // host 소유권을 결과 화면에 넘김
             router.replace(() =>
-              createResultScreenAsHostScreen({ host, roomState, result })
+              createResultScreenAsHostScreen({ host, roomState, result, isPrivate, password })
             );
           }, 900);
         },
@@ -196,8 +225,50 @@ export function createGameScreenAsHostScreen(args: GameScreenAsHostArgs): Screen
         }
       };
 
-      // 게스트가 연결 끊김 → 게임 즉시 종료
-      host.onGuestDisconnected = () => {
+      // 게임 중에 새로 들어오는 연결 = 관전자 후보.
+      // 비공개방이면 비번 검증. 통과하면 spectator로 수락, RoomState(status='playing') 반환.
+      host.onJoinRequest = (req: JoinRequest, fromPeerId: string): JoinDecision => {
+        if (isPrivate && req.password !== password) {
+          return { accept: false, reason: 'wrong_password' };
+        }
+        const newSpec: Player = {
+          peerId: fromPeerId,
+          nickname: req.nickname,
+          isHost: false,
+          role: 'spectator',
+        };
+        // preview: spectators 배열에 선반영해서 돌려준다 (아직 실제 add는 onGuestConnected 에서)
+        const preview: RoomState = {
+          ...snapshotRoomState(),
+          players: [...activePlayers, ...spectators, newSpec],
+        };
+        return { accept: true, roomState: preview, asSpectator: true };
+      };
+
+      // 관전자 수락 완료 → spectators 배열에 확정 추가 + 기존 연결 전원에게 알림
+      host.onGuestConnected = (nickname, peerId) => {
+        const newSpec: Player = {
+          peerId,
+          nickname,
+          isHost: false,
+          role: 'spectator',
+        };
+        spectators.push(newSpec);
+        // 기존 피어들(플레이어+기존 관전자)에게 새 관전자 알림. 게스트 gameScreen에서 이 메시지는
+        // 로그/토스트 용도. ctx.players 자동 업데이트는 하지 않는다(MVP 범위 밖).
+        host.send({ type: 'player_joined', player: newSpec });
+      };
+
+      // 연결 끊김: 플레이어 이탈이면 게임 즉시 종료, 관전자 이탈이면 조용히 제거만.
+      host.onGuestDisconnected = (peerId) => {
+        const specIdx = spectators.findIndex((s) => s.peerId === peerId);
+        if (specIdx >= 0) {
+          const [removed] = spectators.splice(specIdx, 1);
+          if (removed) {
+            host.send({ type: 'player_left', peerId, nickname: removed.nickname });
+          }
+          return;
+        }
         alert('상대가 게임을 나갔어요');
         router.reset(() => createMenuScreen());
       };
@@ -257,6 +328,12 @@ export function createGameScreenAsGuestScreen(args: GameScreenAsGuestArgs): Scre
   let disposed = false;
   let closeOnDispose = true;
 
+  // "나"의 role 판정 — roomState.players 에서 내 peerId 찾아 role='spectator' 면 관전 모드.
+  // (게임 중 입장한 관전자는 roomState가 호스트에서 build 된 시점에 이미 role='spectator' 마킹되어 있음)
+  const myPlayerId = guest.myPeerId;
+  const mySelf = roomState.players.find((p) => p.peerId === myPlayerId);
+  const isSpectator = mySelf?.role === 'spectator';
+
   return {
     render() {
       const game = getGameById(roomState.gameId);
@@ -266,30 +343,30 @@ export function createGameScreenAsGuestScreen(args: GameScreenAsGuestArgs): Scre
       }
 
       const hostNickname = roomState.hostNickname;
-      const guestNickname = roomState.guestNickname ?? '나';
+      const guestNickname = roomState.guestNickname ?? (isSpectator ? '관전자' : '나');
       const optionSummary = buildOptionSummary(roomState.gameId, roomState.roomOptions);
 
       const el = document.createElement('div');
       el.className = 'game-screen';
-      el.innerHTML = buildHeaderHTML({ hostNickname, guestNickname, optionSummary });
+      el.innerHTML = buildHeaderHTML({ hostNickname, guestNickname, optionSummary, spectator: isSpectator });
 
       const canvas = el.querySelector<HTMLCanvasElement>('#game-canvas')!;
-      const scoreHome = el.querySelector<HTMLSpanElement>('#score-home')!;
-      const scoreAway = el.querySelector<HTMLSpanElement>('#score-away')!;
+      // 관전자 뷰는 점수판 대신 "관전 중" 배지라 score-home/away 엘리먼트가 없다.
+      const scoreHome = el.querySelector<HTMLSpanElement>('#score-home');
+      const scoreAway = el.querySelector<HTMLSpanElement>('#score-away');
       const leaveBtn = el.querySelector<HTMLButtonElement>('#leave-btn')!;
 
       let lastHostScore = 0;
       let lastGuestScore = 0;
 
-      const myPlayerId = guest.myPeerId;
       const players = roomState.players;
 
-      // GameContext — 게스트 시점
+      // GameContext — 게스트(또는 관전자) 시점
       const ctx: GameContext = {
         canvas,
         role: 'guest',
         myPlayerId,
-        isSpectator: false,
+        isSpectator,
         players,
         myNickname: guestNickname,
         opponentNickname: hostNickname,
@@ -314,6 +391,8 @@ export function createGameScreenAsGuestScreen(args: GameScreenAsGuestArgs): Scre
           }, 900);
         },
         onStatusUpdate: (status) => {
+          // 관전자 뷰는 점수판 DOM이 없으므로 업데이트 스킵
+          if (!scoreHome || !scoreAway) return;
           const h = Number(status['hostScore']) || 0;
           const g = Number(status['guestScore']) || 0;
           if (scoreHome.textContent !== String(h)) {
@@ -330,6 +409,17 @@ export function createGameScreenAsGuestScreen(args: GameScreenAsGuestArgs): Scre
       };
 
       guest.onMessage = (msg) => {
+        // 관전자 전용 종료 경로 — 플레이어들은 각 게임의 내부 메시지(bt:end / ah:end) 로
+        // ctx.endGame 을 통해 이미 이동하므로 game_end 는 무시해도 된다.
+        if (msg.type === 'game_end') {
+          if (isSpectator && !disposed) {
+            closeOnDispose = false;
+            router.replace(() =>
+              createResultScreenAsGuestScreen({ guest, roomState, result: msg.result })
+            );
+          }
+          return;
+        }
         if (msg.type !== 'game_msg') return;
         // target이 나를 향하지 않으면 무시 (호스트가 relay 단계에서 거름)
         if (msg.target && msg.target !== myPlayerId) return;
@@ -337,7 +427,7 @@ export function createGameScreenAsGuestScreen(args: GameScreenAsGuestArgs): Scre
       };
 
       guest.onDisconnect = () => {
-        alert('방장이 게임을 나갔어요');
+        alert(isSpectator ? '방이 닫혔어요' : '방장이 게임을 나갔어요');
         router.reset(() => createMenuScreen());
       };
 

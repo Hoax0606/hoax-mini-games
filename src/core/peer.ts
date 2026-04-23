@@ -62,9 +62,15 @@ export interface JoinRequest {
   password?: string;
 }
 
-/** 호스트가 입장 요청에 대해 내리는 결정 */
+/**
+ * 호스트가 입장 요청에 대해 내리는 결정.
+ *
+ * asSpectator=true 로 수락하면 peer.ts 는 그냥 "accepted conn"으로 등록만 하고
+ * 실제 "플레이어 vs 관전자" 구분은 방 로직(RoomState.players[].role) 쪽에서 한다.
+ * peer 계층은 전송만 담당 — 관전자도 다른 수락된 연결과 똑같이 broadcast 대상이다.
+ */
 export type JoinDecision =
-  | { accept: true; roomState: RoomState }
+  | { accept: true; roomState: RoomState; asSpectator?: boolean }
   | { accept: false; reason: JoinRejectedMsg['reason'] };
 
 // ============================================
@@ -152,14 +158,9 @@ export class HostSession {
   private handleIncoming(conn: DataConnection): void {
     const fromPeerId = conn.peer;
 
-    // 이미 수락 한도 가득 참 — 즉시 거절
-    if (this.acceptedConns.size >= this.maxAccepted) {
-      conn.on('open', () => {
-        safeSend(conn, { type: 'join_rejected', reason: 'room_full' });
-        setTimeout(() => conn.close(), 150);
-      });
-      return;
-    }
+    // 주의: 예전엔 여기서 "acceptedConns >= maxAccepted" 즉시 room_full 거절 방어가 있었지만,
+    // 관전자 수락을 지원하려면 방 로직(onJoinRequest)이 완전한 결정권을 가져야 해서 제거됨.
+    // waitingRoom 상태면 여전히 room_full 로 거절되고, gameScreen(=playing) 상태면 spectator로 수락 가능.
 
     conn.on('data', (raw) => {
       const msg = raw as NetworkMessage;

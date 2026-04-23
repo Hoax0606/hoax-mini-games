@@ -250,10 +250,18 @@ export function forEachMino(
   }
 }
 
-/** 피스 스폰 위치 (표준 SRS: 중앙 상단) */
+/** 피스 스폰 위치 (표준 SRS: 중앙 상단)
+ *
+ * y = -1 로 스폰하는 이유 (버그 수정):
+ *   대부분의 피스 shape는 row 0에 블록이 있어서, y=0 스폰이면
+ *   필드 맨 위 한 줄이라도 차 있으면 즉시 탑아웃 됐다. 현대 테트리스 가이드라인은
+ *   상단 hidden buffer 2줄에서 스폰하는데, 여기선 간단히 y=-1로 해서
+ *   shape row 0의 블록은 field row -1(범위 밖)에 위치 → collides()의
+ *   "row < 0 은 허용" 규칙 덕에 충돌 검사를 통과한다. 첫 프레임엔 살짝
+ *   걸쳐 보이다가 중력으로 자연스럽게 내려오면서 다 보임.
+ */
 export function spawnPosition(pieceId: PieceId): PieceState {
-  // 4x4 shape 기준 좌상단 좌표
-  // I는 2열부터 시작하는 느낌이라 x=3 (col 3~6 위치), 나머지는 x=3으로 통일해도 10열 중앙
-  // 단순화: 모든 피스 x=3 (col 3~6). O는 shape이 [_,X,X,_]이라 실제 블록은 4,5열
-  return { id: pieceId, x: 3, y: 0, rotation: 0 };
+  // 모든 피스 x=3 (4x4 shape 좌상단 기준 → col 3~6, 10열 필드의 중앙).
+  // O는 shape이 [_,X,X,_]이라 실제 블록은 col 4,5열에 떨어짐.
+  return { id: pieceId, x: 3, y: -1, rotation: 0 };
 }

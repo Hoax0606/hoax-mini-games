@@ -49,8 +49,16 @@ export interface EngineState {
   /** 상대가 보낸 가비지가 쌓이는 큐 — 내 피스 고정 시 주입됨 */
   pendingGarbage: number;
   toppedOut: boolean;
-  /** 누적 라인 클리어 수 (통계용) */
+
+  // --- 통계 (결과 화면용) ---
+  /** 누적 라인 클리어 수 */
   totalLinesCleared: number;
+  /** 피스 고정 횟수 (하드드롭 포함 — PPS 계산용) */
+  piecesPlaced: number;
+  /** 4줄 동시 클리어("테트리스") 횟수 */
+  tetrisCount: number;
+  /** 이번 게임에서 나온 최대 콤보 (연속 라인클리어 락 체인 중 최대치) */
+  maxCombo: number;
 }
 
 export type TickEvent =
@@ -103,6 +111,12 @@ export class TetrisEngine {
   private gravityAcc = 0;
   private lockTimer = 0;
 
+  /**
+   * 현재 이어지는 콤보 카운트 (라인을 지운 락이 연속될수록 +1).
+   * 라인 못 지운 락이 오면 0으로 리셋. 피크는 state.maxCombo에 반영.
+   */
+  private comboStreak = 0;
+
   /** 이번 update 중 쌓인 이벤트 — update()가 반환하면서 비움 */
   private pending: TickEvent[] = [];
 
@@ -125,6 +139,9 @@ export class TetrisEngine {
       pendingGarbage: 0,
       toppedOut: false,
       totalLinesCleared: 0,
+      piecesPlaced: 0,
+      tetrisCount: 0,
+      maxCombo: 0,
     };
   }
 
@@ -305,10 +322,24 @@ export class TetrisEngine {
     if (!this.state.currentPiece) return;
 
     placePiece(this.state.field, this.state.currentPiece);
+    this.state.piecesPlaced++;
 
     // 라인 클리어
     const lines = clearFullLines(this.state.field);
     this.state.totalLinesCleared += lines;
+
+    // 콤보: 라인을 지운 락이 연속될수록 +1, 못 지운 락이 오면 0으로 리셋
+    if (lines > 0) {
+      this.comboStreak++;
+      if (this.comboStreak > this.state.maxCombo) {
+        this.state.maxCombo = this.comboStreak;
+      }
+    } else {
+      this.comboStreak = 0;
+    }
+
+    // 테트리스(4줄 동시) 횟수 집계
+    if (lines >= 4) this.state.tetrisCount++;
 
     // 공격 계산 + 가비지 상쇄
     const baseAttack = linesToGarbage(lines);

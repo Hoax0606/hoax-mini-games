@@ -25,6 +25,7 @@ import type {
   GameResult,
   Player,
 } from '../types';
+import { sound } from '../../core/sound';
 import { TetrisEngine, type TickEvent } from './engine';
 import { TetrisRenderer, type OpponentSnapshot } from './render';
 import { createEmptyField } from './field';
@@ -48,8 +49,10 @@ const STATE_BROADCAST_MS = 100;
 
 /** 키 반복 시작까지 지연 (DAS) — 좌우/아래 이동만 반복 */
 const DAS_DELAY_MS = 160;
-/** 키 반복 간격 (ARR) */
+/** 좌우 이동 반복 간격 (ARR) */
 const DAS_INTERVAL_MS = 45;
+/** 소프트드롭(↓) 반복 간격 — 좌우보다 빠르게. 대략 40칸/초 */
+const SOFT_DROP_INTERVAL_MS = 25;
 
 // ============================================
 // 옵션 파싱 (방 만들기 화면에서 선택된 값)
@@ -106,6 +109,12 @@ class BattleTetrisGame implements GameModule {
   private gameFinished = false;
   private destroyed = false;
 
+  /** 통계: 게임 시작 시각 (performance.now 기준), 보낸/받은 가비지 누적.
+   *  각자 로컬에서만 추적 — 결과 화면은 "내 기준" stats만 보여준다 (타인 stats는 수집 X). */
+  private startedAt = 0;
+  private garbageSentTotal = 0;
+  private garbageReceivedTotal = 0;
+
   // 입력 상태
   private pressedKeys = new Set<string>();
   private repeatTimers = new Map<string, { timeout?: number; interval?: number }>();
@@ -119,7 +128,9 @@ class BattleTetrisGame implements GameModule {
     this.myPeerId = ctx.myPlayerId;
     this.isHost = ctx.role === 'host';
 
-    // 엔진 생성 (방 옵션 반영)
+    // 엔진은 관전자에게도 생성은 해둠(타입/렌더 공용 편의상), 다만 관전자는 update/input/broadcast 를
+    // 전부 호출하지 않으므로 상태가 초기값에서 움직이지 않는다. 렌더러는 isSpectator 를 보고 메인 필드를
+    // 숨기고 "관전 중" 오버레이로 덮는다.
     const gravityMs = parseGravityMs(ctx.roomOptions['speed']);
     const attackMultiplier = parseAttackMultiplier(ctx.roomOptions['garbageStrength']);
     this.engine = new TetrisEngine({ gravityMs, attackMultiplier });
@@ -127,9 +138,10 @@ class BattleTetrisGame implements GameModule {
     // 렌더러
     this.renderer = new TetrisRenderer({ canvas: ctx.canvas });
 
-    // 상대 초기화
+    // 상대 초기화 — 관전자 기준으로는 "모든 role==='player'" 가 상대. 본인/다른 관전자 제외.
     for (const p of ctx.players) {
       if (p.peerId === this.myPeerId) continue;
+      if (p.role !== 'player') continue;
       this.opponents.set(p.peerId, {
         peerId: p.peerId,
         nickname: p.nickname,
@@ -139,21 +151,33 @@ class BattleTetrisGame implements GameModule {
       });
     }
 
-    // 호스트면 랭킹 집계용 state 생성
+    // 호스트면 랭킹 집계용 state 생성 (관전자는 호스트가 아니므로 영향 없음)
     if (this.isHost) {
       this.playerRanks = new Map();
       for (const p of ctx.players) {
+        // 관전자는 승패 판정 대상이 아님 — 호스트가 게임 시작 시점 플레이어만 관리.
+        // (게임 중 합류한 관전자는 애초에 playerRanks 에 들어올 기회가 없음)
+        if (p.role !== 'player') continue;
         this.playerRanks.set(p.peerId, {
           alive: true,
           rank: null,
           nickname: p.nickname,
         });
       }
-      this.nextRankToAssign = ctx.players.length;
+      this.nextRankToAssign = this.playerRanks.size;
     }
 
-    // 입력 등록 + 루프 시작
-    this.attachInput();
+    // 통계 시작 시각 기록 (관전자는 사실상 안 씀)
+    this.startedAt = performance.now();
+
+    // 관전자는 입력/루프 broadcast 전부 없음. 렌더 루프만 돌린다.
+    if (!ctx.isSpectator) {
+      this.attachInput();
+    }
+
+    // 게임 BGM 시작 (관전자도 함께)
+    sound.startBgm('battle-tetris');
+
     this.rafId = requestAnimationFrame(this.loop);
   }
 
@@ -172,9 +196,10 @@ class BattleTetrisGame implements GameModule {
       return;
     }
 
-    // 2) 가비지 공격 (내 수신 큐에 쌓음)
+    // 2) 가비지 공격 (내 수신 큐에 쌓음) — 관전자한테는 오지 않아야 하지만 방어적으로 무시
     const garbage = decodeGarbageAttack(msg);
     if (garbage) {
+      if (this.ctx.isSpectator) return;
       if (!this.engine.state.toppedOut && !this.gameFinished) {
         this.engine.queueGarbage(garbage.count);
       }
@@ -190,13 +215,43 @@ class BattleTetrisGame implements GameModule {
       return;
     }
 
-    // 4) 게임 종료 (게스트 전용 — 호스트는 자기 finishGame에서 처리)
+    // 4) 게임 종료 — 플레이어(게스트)는 이 경로로 결과 화면 이동.
+    //    관전자는 자기 기준 rank/rankings 가 맞지 않고 플랫폼 game_end broadcast 가 따로 오므로 무시.
     const end = decodeEnd(msg);
     if (end) {
+      if (this.ctx.isSpectator) return;
       this.gameFinished = true;
-      this.ctx.endGame(end);
+      // 호스트가 보낸 rankings/rank 에 내 로컬 stats 를 합쳐서 결과 화면에 넘김
+      this.ctx.endGame({
+        winner: end.winner,
+        summary: { ...end.summary, ...this.buildMyStatsSummary() },
+      });
       return;
     }
+  }
+
+  /**
+   * 결과 화면용 "내 기준" stats 묶음.
+   * rank/rankings 같은 판정 정보는 호스트 쪽 finishGame이 채워 넣는다.
+   * 이 함수는 "내 플레이 내용(라인/공격/수신/시간 등)" 만 책임.
+   */
+  private buildMyStatsSummary(): Record<string, unknown> {
+    const s = this.engine.state;
+    return {
+      // gameId 마커 — resultScreen이 테트리스 전용 UI로 분기할 때 사용
+      gameId: 'battle-tetris',
+      // 결과 화면이 rankings 리스트에서 "나" 행을 강조하려고 peerId 필요
+      myPeerId: this.myPeerId,
+      myStats: {
+        linesCleared: s.totalLinesCleared,
+        garbageSent: this.garbageSentTotal,
+        garbageReceived: this.garbageReceivedTotal,
+        durationMs: Math.max(0, performance.now() - this.startedAt),
+        piecesPlaced: s.piecesPlaced,
+        tetrisCount: s.tetrisCount,
+        maxCombo: s.maxCombo,
+      },
+    };
   }
 
   destroy(): void {
@@ -208,6 +263,7 @@ class BattleTetrisGame implements GameModule {
     }
     this.detachInput();
     this.renderer?.destroy();
+    sound.stopBgm();
   }
 
   // ============================================
@@ -222,8 +278,8 @@ class BattleTetrisGame implements GameModule {
     const dt = this.lastFrameTime === 0 ? 16 : Math.min(now - this.lastFrameTime, 100);
     this.lastFrameTime = now;
 
-    // 게임 진행 (탑아웃 후엔 engine.update가 no-op이지만 호출은 유지)
-    if (!this.gameFinished) {
+    // 관전자는 engine.update / broadcast 스킵 — 상대 스냅샷 받은 것만 렌더
+    if (!this.ctx.isSpectator && !this.gameFinished) {
       const events = this.engine.update(dt);
       if (events.length > 0) this.handleEngineEvents(events);
 
@@ -234,20 +290,35 @@ class BattleTetrisGame implements GameModule {
       }
     }
 
-    // 렌더는 매 프레임 (탑아웃 오버레이 + 상대 미니뷰 최신 반영)
-    this.renderer.render(this.engine.state, [...this.opponents.values()]);
+    // 렌더는 매 프레임 (탑아웃 오버레이 + 상대 미니뷰 최신 반영).
+    // 관전자는 spectator 옵션 켜서 메인 필드/HOLD/NEXT 대신 "관전 중" 오버레이 표시.
+    this.renderer.render(
+      this.engine.state,
+      [...this.opponents.values()],
+      { spectator: this.ctx.isSpectator },
+    );
   };
 
   private handleEngineEvents(events: readonly TickEvent[]): void {
     for (const ev of events) {
       switch (ev.kind) {
         case 'piece_locked':
+          // 사운드: 4줄 동시면 "테트리스", 1~3줄이면 "clear", 못 지웠으면 "lock"
+          if (ev.linesCleared >= 4) {
+            sound.play('tetris_tetris');
+          } else if (ev.linesCleared > 0) {
+            sound.play('tetris_clear');
+          } else {
+            sound.play('tetris_lock');
+          }
           if (ev.garbageSent > 0) {
+            this.garbageSentTotal += ev.garbageSent;
             this.sendGarbageToRandomAlive(ev.garbageSent);
           }
           break;
 
         case 'topped_out':
+          sound.play('tetris_topout');
           // 내 탑아웃: broadcast + (호스트면) 자기 집계
           this.ctx.sendToPeer(encodeToppedOut(this.myPeerId));
           // 상대들의 UI에도 즉시 반영되도록 내 snapshot 한 번 더
@@ -256,7 +327,8 @@ class BattleTetrisGame implements GameModule {
           break;
 
         case 'garbage_injected':
-          // 이펙트 훅 자리 (파티클 등) — 지금은 무처리
+          this.garbageReceivedTotal += ev.count;
+          sound.play('tetris_garbage');
           break;
       }
     }
@@ -339,7 +411,7 @@ class BattleTetrisGame implements GameModule {
       this.ctx.sendToPeer(encodeEnd(peerResult), { target: peerId });
     }
 
-    // 내 결과로 endGame
+    // 내 결과로 endGame (rankings + 내 로컬 stats 합성)
     const myState = this.playerRanks.get(this.myPeerId);
     const myResult: GameResult = {
       winner:
@@ -349,6 +421,7 @@ class BattleTetrisGame implements GameModule {
         rank: myState?.rank ?? totalPlayers,
         totalPlayers,
         rankings,
+        ...this.buildMyStatsSummary(),
       },
     };
     this.ctx.endGame(myResult);
@@ -420,13 +493,15 @@ class BattleTetrisGame implements GameModule {
 
   private startRepeating(code: string): void {
     if (!this.pressedKeys.has(code)) return;
+    // 아래키(소프트드롭)는 좌우 이동보다 빠른 간격으로 반복
+    const intervalMs = code === 'ArrowDown' ? SOFT_DROP_INTERVAL_MS : DAS_INTERVAL_MS;
     const interval = window.setInterval(() => {
       if (!this.pressedKeys.has(code)) {
         window.clearInterval(interval);
         return;
       }
       this.performKey(code);
-    }, DAS_INTERVAL_MS);
+    }, intervalMs);
     const existing = this.repeatTimers.get(code) ?? {};
     this.repeatTimers.set(code, { ...existing, interval });
   }
@@ -439,12 +514,21 @@ class BattleTetrisGame implements GameModule {
       case 'ArrowRight': this.engine.moveRight(); break;
       case 'ArrowDown':  this.engine.softDrop(); break;
       case 'ArrowUp':
-      case 'KeyX':       this.engine.rotateCW(); break;
-      case 'KeyZ':       this.engine.rotateCCW(); break;
-      case 'Space':      this.engine.hardDrop(); break;
+      case 'KeyX':
+        if (this.engine.rotateCW()) sound.play('tetris_rotate');
+        break;
+      case 'KeyZ':
+        if (this.engine.rotateCCW()) sound.play('tetris_rotate');
+        break;
+      case 'Space':
+        this.engine.hardDrop();
+        sound.play('tetris_harddrop');
+        break;
       case 'ShiftLeft':
       case 'ShiftRight':
-      case 'KeyC':       this.engine.hold(); break;
+      case 'KeyC':
+        if (this.engine.hold()) sound.play('tetris_hold');
+        break;
     }
   }
 

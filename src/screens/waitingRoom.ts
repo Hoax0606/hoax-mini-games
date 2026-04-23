@@ -255,7 +255,8 @@ export function createWaitingRoomAsHostScreen(args: WaitingRoomAsHostArgs): Scre
 
         closeOnDispose = false;
         const rs: RoomState = { ...snapshotRoomState(), status: 'playing' };
-        router.replace(() => createGameScreenAsHostScreen({ host, roomState: rs }));
+        // 게임 도중 관전자 입장 요청 시 비번 검증을 위해 password/isPrivate 도 gameScreen 에 넘김
+        router.replace(() => createGameScreenAsHostScreen({ host, roomState: rs, isPrivate, password }));
       });
 
       // ---- 방 나가기 ----

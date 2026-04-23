@@ -4,6 +4,7 @@ import { storage } from '../core/storage';
 import { GuestSession, type PeerConnectError } from '../core/peer';
 import type { NetworkMessage } from '../games/types';
 import { createWaitingRoomAsGuestScreen } from './waitingRoom';
+import { createGameScreenAsGuestScreen } from './gameScreen';
 
 /**
  * 방 참여 화면
@@ -189,14 +190,21 @@ export function createJoinRoomScreen(_gameId: string): Screen {
         }
 
         if (response.type === 'join_accepted') {
-          // 수락: 게스트 소유권을 대기실로 넘김
+          // 수락: 게스트 소유권을 넘김.
+          // 방이 이미 게임 중(status='playing')이면 관전자로 바로 gameScreen 진입.
+          // 호스트 쪽에서 내 role='spectator' 로 이미 마킹해서 roomState를 내려줬으므로
+          // gameScreen 에서 isSpectator 를 자동으로 인식한다.
           pendingGuest = null;
-          router.replace(() =>
-            createWaitingRoomAsGuestScreen({
-              guest,
-              initialRoomState: response.roomState,
-            })
-          );
+          const rs = response.roomState;
+          if (rs.status === 'playing') {
+            router.replace(() =>
+              createGameScreenAsGuestScreen({ guest, roomState: rs })
+            );
+          } else {
+            router.replace(() =>
+              createWaitingRoomAsGuestScreen({ guest, initialRoomState: rs })
+            );
+          }
           return;
         }
       };
