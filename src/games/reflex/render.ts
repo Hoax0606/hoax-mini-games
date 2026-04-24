@@ -224,23 +224,23 @@ export class ReflexRenderer {
         ctx.fillText(`${phase.ms}ms`, cx, cy - 5);
         ctx.font = `700 13px ${FONT}`;
         ctx.fillStyle = COLORS.textMuted;
-        ctx.fillText('다음 라운드 자동 시작', cx, cy + 26);
+        ctx.fillText('다음 라운드 준비 중…', cx, cy + 26);
         break;
       }
       case 'foul': {
         ctx.font = `900 32px ${FONT}`;
         ctx.fillText('너무 빨라요!', cx, cy - 5);
         ctx.font = `700 13px ${FONT}`;
-        ctx.fillText('실격 처리', cx, cy + 22);
+        ctx.fillText('실격!', cx, cy + 22);
         break;
       }
       case 'done': {
         ctx.font = `900 22px ${FONT}`;
         ctx.fillStyle = COLORS.textMain;
-        ctx.fillText('끝!', cx, cy - 18);
+        ctx.fillText('완료!', cx, cy - 18);
         ctx.font = `900 28px ${FONT}`;
         ctx.fillText(
-          phase.finalAvgMs > 0 ? `평균 ${Math.round(phase.finalAvgMs)}ms` : '전부 실격',
+          phase.finalAvgMs > 0 ? `평균 ${Math.round(phase.finalAvgMs)}ms` : '모두 실격',
           cx, cy + 12,
         );
         break;
@@ -256,11 +256,11 @@ export class ReflexRenderer {
     ctx.textBaseline = 'alphabetic';
     let msg = '';
     switch (phase.kind) {
-      case 'idle':    msg = '🚀 준비되면 원을 클릭하세요'; break;
-      case 'waiting': msg = '빨간 동안은 절대 누르지 마세요'; break;
-      case 'go':      msg = '초록! 지금 빨리 클릭!'; break;
-      case 'result':  msg = '잠깐… 다음 라운드 대기 중'; break;
-      case 'foul':    msg = '다음 라운드 대기 중'; break;
+      case 'idle':    msg = '🚀 원을 클릭해서 시작하세요'; break;
+      case 'waiting': msg = '빨간색일 때 누르면 실격이에요'; break;
+      case 'go':      msg = '초록이에요! 지금 클릭!'; break;
+      case 'result':  msg = '다음 라운드 준비 중…'; break;
+      case 'foul':    msg = '다음 라운드 준비 중…'; break;
       case 'done':    msg = '상대의 결과를 기다려요'; break;
     }
     ctx.fillText(msg, CANVAS_W / 2, 308);

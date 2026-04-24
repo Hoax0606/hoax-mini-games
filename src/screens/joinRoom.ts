@@ -118,7 +118,7 @@ export function createJoinRoomScreen(
 
       const setBusy = (busy: boolean): void => {
         joinBtn.disabled = busy;
-        joinBtn.textContent = busy ? '연결 중...' : '참여하기';
+        joinBtn.textContent = busy ? '연결 중…' : '참여하기';
       };
 
       const tryJoin = async (): Promise<void> => {

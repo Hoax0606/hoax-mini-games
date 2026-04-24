@@ -34,7 +34,7 @@ function winnerVisuals(myWinner: 'me' | 'opponent' | null): {
   titleClass: string;
 } {
   if (myWinner === 'me')       return { emoji: '🏆', title: '승리!',   titleClass: 'result-title-win' };
-  if (myWinner === 'opponent') return { emoji: '💫', title: '패배...', titleClass: 'result-title-lose' };
+  if (myWinner === 'opponent') return { emoji: '💫', title: '패배…', titleClass: 'result-title-lose' };
   return                              { emoji: '⚖️', title: '무승부',   titleClass: 'result-title-draw' };
 }
 

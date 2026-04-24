@@ -82,8 +82,8 @@ interface FlightPhysics {
 }
 
 /** 픽업 다트 중심 좌표 (render.ts drawPickupDart 와 일치 유지 필요) */
-const PICKUP_X = 260;
-const PICKUP_Y = 315;
+const PICKUP_X = 220;
+const PICKUP_Y = 375;
 /** 이 반경 안에서 mousedown 해야 투척 시작으로 인정 */
 const PICKUP_HIT_RADIUS = 60;
 
@@ -112,6 +112,9 @@ class DartsGameModule implements GameModule {
   private rafId: number | null = null;
   private destroyed = false;
 
+  /** canvas 바깥 HTML 힌트 (pickup 다트 설명). start 에서 삽입, destroy 에서 제거. */
+  private hintEl: HTMLDivElement | null = null;
+
   // ============================================
   // GameModule 인터페이스
   // ============================================
@@ -139,6 +142,17 @@ class DartsGameModule implements GameModule {
     ctx.canvas.addEventListener('mousedown', this.onMouseDown);
     window.addEventListener('mousemove', this.onMouseMove);
     window.addEventListener('mouseup', this.onMouseUp);
+
+    // pickup 설명 힌트 — canvas 바로 아래 DOM 에 삽입. 관전자는 던질 일이 없으니 안 보임.
+    if (!this.isSpectator) {
+      const wrap = ctx.canvas.parentElement;
+      if (wrap) {
+        this.hintEl = document.createElement('div');
+        this.hintEl.className = 'darts-hint';
+        this.hintEl.textContent = '🎯 클릭 → 아래로 당겼다가 위로 휘둘러 던지기';
+        wrap.appendChild(this.hintEl);
+      }
+    }
 
     sound.startBgm('darts');
 
@@ -188,6 +202,8 @@ class DartsGameModule implements GameModule {
     window.removeEventListener('mousemove', this.onMouseMove);
     window.removeEventListener('mouseup', this.onMouseUp);
     if (this.ctx?.canvas) this.ctx.canvas.style.cursor = '';
+    this.hintEl?.remove();
+    this.hintEl = null;
     this.renderer?.destroy();
     sound.stopBgm();
   }

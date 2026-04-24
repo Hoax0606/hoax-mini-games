@@ -131,7 +131,7 @@ export function createCreateRoomScreen(gameId: string): Screen {
 
         // 로딩 상태
         createBtn.disabled = true;
-        createBtn.textContent = '방 만드는 중...';
+        createBtn.textContent = '방 만드는 중…';
 
         try {
           const host = await HostSession.create();

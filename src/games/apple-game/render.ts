@@ -215,7 +215,7 @@ export class AppleRenderer {
     ctx.fillText('관전 중', cx, cy + 14);
     ctx.fillStyle = COLORS.textMuted;
     ctx.font = `500 12px ${FONT}`;
-    ctx.fillText('우측 랭킹을 확인하세요', cx, cy + 42);
+    ctx.fillText('오른쪽 랭킹을 확인하세요', cx, cy + 42);
   }
 
   // ============================================

@@ -1016,10 +1016,25 @@ input {
 .game-canvas-wrap {
   flex: 1;
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
   padding: 20px;
+  gap: 10px;
   min-height: 0; /* flex child가 부모 넘치지 않게 */
+}
+
+/* 게임별 canvas 바깥 힌트 (예: 다트 pickup 설명) */
+.darts-hint {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-muted);
+  background: var(--bg-card);
+  border: 1px dashed var(--border-soft);
+  border-radius: 999px;
+  padding: 6px 16px;
+  letter-spacing: 0.2px;
+  user-select: none;
 }
 
 .game-canvas {

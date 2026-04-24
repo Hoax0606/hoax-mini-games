@@ -494,7 +494,7 @@ export function createGameScreenAsGuestScreen(args: GameScreenAsGuestArgs): Scre
       };
 
       leaveBtn.addEventListener('click', () => {
-        if (window.confirm('게임을 나가시겠어요? 방에서 완전히 나가요.')) {
+        if (window.confirm('게임을 나가면 방도 같이 나가요. 나가시겠어요?')) {
           router.reset(() => createMenuScreen());
         }
       });

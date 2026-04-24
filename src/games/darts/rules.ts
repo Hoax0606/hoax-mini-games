@@ -384,7 +384,7 @@ export function toPlayerDisplays(game: DartsGame): PlayerDisplay[] {
         primaryValue = p.countupTotal;
         break;
       case 'low-countup':
-        primaryLabel = '총점 (낮을수록 ↑)';
+        primaryLabel = '총점 (낮을수록 유리)';
         primaryValue = p.countupTotal;
         break;
       case 'cricket':
@@ -433,7 +433,7 @@ export function gameOverSubtitle(game: DartsGame): string {
     case 'low-countup':
       return `${w.nickname} · ${w.countupTotal}점 (최저)`;
     case 'cricket':
-      return `${w.nickname} · ${w.cricketScore}점 · 전 타겟 close`;
+      return `${w.nickname} · ${w.cricketScore}점 · 모든 타겟 close`;
   }
 }
 

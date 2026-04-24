@@ -527,8 +527,8 @@ export class GomokuRenderer {
       title = `${truncate(winnerNick, 8)} 승!`;
       switch (go.reason) {
         case 'five': sub = '5목 완성'; break;
-        case 'timeout': sub = '상대 시간초과'; break;
-        case 'resign': sub = '상대 포기'; break;
+        case 'timeout': sub = '상대 시간 초과'; break;
+        case 'resign': sub = '상대 기권'; break;
         case 'draw': sub = ''; break;
       }
     }
