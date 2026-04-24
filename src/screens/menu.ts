@@ -4,6 +4,7 @@ import { storage } from '../core/storage';
 import { createSettingsScreen } from './settings';
 import { createNicknameScreen } from './nickname';
 import { createGameListScreen } from './gameList';
+import { createStatsScreen } from './statsScreen';
 
 /**
  * 메인 메뉴
@@ -24,6 +25,9 @@ export function createMenuScreen(): Screen {
             <button class="btn btn-primary btn-lg btn-block" id="btn-start">
               🎮 게임 시작
             </button>
+            <button class="btn btn-secondary btn-block" id="btn-stats">
+              📊 통계
+            </button>
             <button class="btn btn-secondary btn-block" id="btn-nickname">
               ✏️ 닉네임 변경
             </button>
@@ -36,6 +40,10 @@ export function createMenuScreen(): Screen {
 
       el.querySelector('#btn-start')!.addEventListener('click', () => {
         router.push(() => createGameListScreen());
+      });
+
+      el.querySelector('#btn-stats')!.addEventListener('click', () => {
+        router.push(() => createStatsScreen());
       });
 
       el.querySelector('#btn-nickname')!.addEventListener('click', () => {

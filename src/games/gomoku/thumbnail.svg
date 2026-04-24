@@ -1,0 +1,81 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 200" fill="none">
+  <!-- 배경 (다른 게임과 같은 톤) -->
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#ffe4ee"/>
+      <stop offset="1" stop-color="#e0fff4"/>
+    </linearGradient>
+  </defs>
+  <rect width="320" height="200" rx="22" fill="url(#bg)"/>
+
+  <!-- 배경 데코 점 -->
+  <circle cx="28" cy="28" r="3" fill="#ffc9dd"/>
+  <circle cx="292" cy="38" r="2.5" fill="#b8f5e0"/>
+  <circle cx="296" cy="172" r="3" fill="#d9c7ff"/>
+  <circle cx="28" cy="174" r="2.2" fill="#ffeec2"/>
+
+  <!-- 작은 별 데코 -->
+  <path d="M 48,50 L 50,54 L 55,54 L 51,57 L 53,62 L 48,59 L 43,62 L 45,57 L 41,54 L 46,54 Z"
+        fill="#ffc9dd" opacity="0.7"/>
+  <path d="M 272,148 L 274,152 L 279,152 L 275,155 L 277,160 L 272,157 L 267,160 L 269,155 L 265,152 L 270,152 Z"
+        fill="#b8f5e0" opacity="0.7"/>
+
+  <!-- 오목판 (중앙, 일부만 확대해서 보여줌) -->
+  <g transform="translate(90, 32)">
+    <!-- 판 배경 (크림 톤) -->
+    <rect x="-4" y="-4" width="148" height="144" rx="8" fill="#fff9e8" stroke="#d9c7ff" stroke-width="2"/>
+
+    <!-- 격자 (9x8, cell 16px) — 바둑판처럼 교차점에 돌 -->
+    <g stroke="#c4b4d8" stroke-width="0.8" stroke-linecap="round">
+      <!-- 세로선 -->
+      <line x1="8"   y1="8" x2="8"   y2="128"/>
+      <line x1="24"  y1="8" x2="24"  y2="128"/>
+      <line x1="40"  y1="8" x2="40"  y2="128"/>
+      <line x1="56"  y1="8" x2="56"  y2="128"/>
+      <line x1="72"  y1="8" x2="72"  y2="128"/>
+      <line x1="88"  y1="8" x2="88"  y2="128"/>
+      <line x1="104" y1="8" x2="104" y2="128"/>
+      <line x1="120" y1="8" x2="120" y2="128"/>
+      <line x1="136" y1="8" x2="136" y2="128"/>
+      <!-- 가로선 -->
+      <line x1="8" y1="8"   x2="136" y2="8"/>
+      <line x1="8" y1="24"  x2="136" y2="24"/>
+      <line x1="8" y1="40"  x2="136" y2="40"/>
+      <line x1="8" y1="56"  x2="136" y2="56"/>
+      <line x1="8" y1="72"  x2="136" y2="72"/>
+      <line x1="8" y1="88"  x2="136" y2="88"/>
+      <line x1="8" y1="104" x2="136" y2="104"/>
+      <line x1="8" y1="120" x2="136" y2="120"/>
+    </g>
+
+    <!-- 별점 (중앙) -->
+    <circle cx="72" cy="56" r="2" fill="#9c7aeb"/>
+
+    <!-- 흑돌들 (대각선 5목 진행 중) — 진한 회색 -->
+    <g>
+      <circle cx="24" cy="24"  r="6.5" fill="#3a2a3a" stroke="#1a0a1a" stroke-width="0.8"/>
+      <circle cx="40" cy="40"  r="6.5" fill="#3a2a3a" stroke="#1a0a1a" stroke-width="0.8"/>
+      <circle cx="56" cy="56"  r="6.5" fill="#3a2a3a" stroke="#1a0a1a" stroke-width="0.8"/>
+      <circle cx="72" cy="72"  r="6.5" fill="#3a2a3a" stroke="#1a0a1a" stroke-width="0.8"/>
+      <!-- 5번째 자리(88, 88)는 비어있어 "한 수 남은" 긴장감 -->
+    </g>
+
+    <!-- 백돌들 (방어 시도) — 크림 -->
+    <g>
+      <circle cx="56" cy="40"  r="6.5" fill="#fafaf5" stroke="#a89c86" stroke-width="0.9"/>
+      <circle cx="72" cy="56"  r="4"   fill="none" stroke="none"/>
+      <circle cx="88" cy="56"  r="6.5" fill="#fafaf5" stroke="#a89c86" stroke-width="0.9"/>
+      <circle cx="40" cy="72"  r="6.5" fill="#fafaf5" stroke="#a89c86" stroke-width="0.9"/>
+      <circle cx="104" cy="88" r="6.5" fill="#fafaf5" stroke="#a89c86" stroke-width="0.9"/>
+    </g>
+
+    <!-- 다음 수 힌트: 88,88에 반투명 흑돌 미리보기 -->
+    <circle cx="88" cy="88" r="6.5" fill="#3a2a3a" opacity="0.3"/>
+  </g>
+
+  <!-- 우측 상단 작은 회색 돌 장식 -->
+  <circle cx="262" cy="52" r="9" fill="#3a2a3a" stroke="#1a0a1a" stroke-width="1"/>
+
+  <!-- 좌측 하단 작은 크림 돌 장식 -->
+  <circle cx="54" cy="158" r="9" fill="#fafaf5" stroke="#a89c86" stroke-width="1.2"/>
+</svg>

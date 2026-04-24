@@ -199,7 +199,11 @@ export type NetworkMessage =
   | PlayerLeftMsg
   | GameStartMsg
   | GameEndMsg
-  | GameMsg;
+  | GameMsg
+  | PingReqMsg
+  | PingAckMsg
+  | PingReportMsg
+  | ReactionMsg;
 
 /** 게스트 → 호스트: 방 입장 요청 (연결 직후 첫 메시지) */
 export interface JoinRequestMsg {
@@ -262,4 +266,36 @@ export interface GameMsg {
   target?: string;
   /** 원 발신자 peerId (호스트가 relay 시 채워서 수신 측이 출처 식별 가능) */
   from?: string;
+}
+
+// --- Ping 프로토콜 (peer.ts가 자동 처리 — 게임 모듈은 신경 X) ---
+
+/** 호스트 → 게스트: RTT 측정용 핑 요청. t = 호스트의 performance.now() */
+export interface PingReqMsg {
+  type: 'ping_req';
+  t: number;
+}
+
+/** 게스트 → 호스트: 받은 t 그대로 반환. 호스트가 RTT 계산 */
+export interface PingAckMsg {
+  type: 'ping_ack';
+  t: number;
+}
+
+/** 호스트 → 게스트: 계산된 ping(ms)을 해당 게스트에게 알림 (UI 표시용) */
+export interface PingReportMsg {
+  type: 'ping_report';
+  ms: number;
+}
+
+/**
+ * 이모지 반응 (대기실/게임 중 가벼운 소통).
+ * 누군가 버튼 누르면 broadcast, 호스트가 타 게스트로 relay.
+ * 수신 측은 화면 하단에 풍선 애니메이션으로 잠깐 띄운다.
+ */
+export interface ReactionMsg {
+  type: 'reaction';
+  emoji: string;
+  /** 송신자 닉네임 (풍선에 같이 표시) */
+  nickname: string;
 }

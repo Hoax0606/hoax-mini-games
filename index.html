@@ -5,8 +5,74 @@
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Hoax Minigames</title>
+    <style>
+      /* 로딩 splash — JS 번들 다운로드되기 전의 빈 화면 방지 + 첫인상.
+         main.ts 가 #app 을 렌더하면 자동으로 자리를 차지해 splash 는 가려진다.
+         또한 CSS transition 으로 페이드아웃 해서 라우팅 완료 후 자연스럽게 사라짐.
+         `.splash-hidden` 은 main.ts 에서 성공 시 body 에 추가. */
+      html, body { margin: 0; padding: 0; min-height: 100%; }
+      body {
+        background: #fff5f8;
+        background-image:
+          radial-gradient(circle at 20% 10%, #ffe4ee 0%, transparent 40%),
+          radial-gradient(circle at 80% 90%, #f0e8ff 0%, transparent 40%),
+          radial-gradient(circle at 50% 50%, #e0fff4 0%, transparent 60%);
+        background-attachment: fixed;
+        font-family: 'Pretendard', 'Apple SD Gothic Neo', 'Noto Sans KR', system-ui, sans-serif;
+      }
+      #splash {
+        position: fixed; inset: 0;
+        display: flex; flex-direction: column;
+        align-items: center; justify-content: center;
+        gap: 28px;
+        z-index: 9999;
+        pointer-events: none;
+        transition: opacity 0.4s ease-out, visibility 0.4s;
+      }
+      body.splash-hidden #splash { opacity: 0; visibility: hidden; }
+      .splash-logo {
+        font-size: 56px;
+        font-weight: 800;
+        background: linear-gradient(135deg, #ff82ac, #b89aff);
+        -webkit-background-clip: text;
+        background-clip: text;
+        -webkit-text-fill-color: transparent;
+        letter-spacing: -2px;
+        animation: splashFloat 2.4s ease-in-out infinite;
+      }
+      .splash-tagline {
+        font-size: 14px;
+        color: #8a7a8a;
+        letter-spacing: 0.6px;
+      }
+      .splash-dots {
+        display: flex; gap: 10px; margin-top: 8px;
+      }
+      .splash-dots span {
+        width: 10px; height: 10px; border-radius: 50%;
+        background: #ff82ac;
+        animation: splashBounce 1.1s ease-in-out infinite;
+      }
+      .splash-dots span:nth-child(2) { background: #b89aff; animation-delay: 0.15s; }
+      .splash-dots span:nth-child(3) { background: #86e8c4; animation-delay: 0.3s; }
+      @keyframes splashFloat {
+        0%, 100% { transform: translateY(0); }
+        50%      { transform: translateY(-6px); }
+      }
+      @keyframes splashBounce {
+        0%, 80%, 100% { transform: translateY(0); opacity: 0.6; }
+        40%           { transform: translateY(-10px); opacity: 1; }
+      }
+    </style>
   </head>
   <body>
+    <div id="splash">
+      <div class="splash-logo">Hoax Minigames</div>
+      <div class="splash-tagline">친구와 함께하는 작은 게임들</div>
+      <div class="splash-dots">
+        <span></span><span></span><span></span>
+      </div>
+    </div>
     <div id="app"></div>
     <script type="module" src="/src/main.ts"></script>
   </body>

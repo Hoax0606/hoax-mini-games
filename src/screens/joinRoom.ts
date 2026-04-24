@@ -23,15 +23,22 @@ import { createGameScreenAsGuestScreen } from './gameScreen';
  *
  * @param gameId 로비에서 선택한 게임 (참여 직후 화면 플로우 일관성용이지만,
  *               실제 수락된 roomState의 gameId가 정답이라서 서로 다를 경우 후자를 따름)
+ * @param options.initialCode  방 코드 필드를 이 값으로 미리 채움 (URL 공유 입장용)
+ * @param options.autoJoin     initialCode가 5자 완전하면 화면 뜨자마자 자동 join 시도
  */
-export function createJoinRoomScreen(_gameId: string): Screen {
+export function createJoinRoomScreen(
+  _gameId: string,
+  options?: { initialCode?: string; autoJoin?: boolean },
+): Screen {
   let disposed = false;
   /** 연결 중에 뒤로가기 누르면 정리하기 위한 레퍼런스 */
   let pendingGuest: GuestSession | null = null;
 
   return {
     render() {
-      let roomCode = '';
+      // URL 공유 입장: 코드 미리 채움 + 필요시 자동 시도
+      const initialCodeRaw = (options?.initialCode ?? '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+      let roomCode = initialCodeRaw.slice(0, 5);
       let password = '';
       let needsPassword = false;
 
@@ -83,6 +90,10 @@ export function createJoinRoomScreen(_gameId: string): Screen {
       const errorEl = el.querySelector<HTMLDivElement>('#error-message')!;
       const joinBtn = el.querySelector<HTMLButtonElement>('#join-btn')!;
 
+      // 미리 채움: URL 공유로 들어온 경우
+      if (roomCode.length > 0) {
+        codeInput.value = roomCode;
+      }
       setTimeout(() => codeInput.focus(), 50);
 
       // 방 코드는 대문자 + 영숫자만 허용 (서버 영문+숫자 조합)
@@ -217,6 +228,14 @@ export function createJoinRoomScreen(_gameId: string): Screen {
         if (e.key === 'Enter') tryJoin();
       });
       el.querySelector('#back-btn')!.addEventListener('click', () => router.back());
+
+      // 자동 join — URL 공유 입장에서만 발동. 코드가 5자 유효일 때만.
+      if (options?.autoJoin && roomCode.length === 5) {
+        // DOM mount 후 살짝 지연 (피어 브로커 핸드셰이크 여유)
+        window.setTimeout(() => {
+          if (!disposed) void tryJoin();
+        }, 200);
+      }
 
       return el;
     },

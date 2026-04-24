@@ -21,7 +21,7 @@
 
 import { storage } from './storage';
 
-export type BgmId = 'air-hockey' | 'battle-tetris' | 'apple-game';
+export type BgmId = 'air-hockey' | 'battle-tetris' | 'apple-game' | 'gomoku';
 
 // ============================================
 // 음이름 → 주파수 테이블 (십이평균율, A4=440)
@@ -71,38 +71,54 @@ interface BgmPattern {
 // 각 패턴은 8마디(=128 × 16분) 또는 4마디(64) 수준의 짧은 루프.
 // 계산: 한 마디(4/4) = 16 × 16분음표.
 
-// --- 에어하키: C 메이저, 130 BPM, 경쾌 ---
-// 8마디 = 128 × 16분. 멜로디는 16분~8분 위주로 속도감.
+// --- 에어하키: C 메이저, 140 BPM, 활기차고 캐치한 훅 ---
+// 개선판(2026-04-25): 기존보다 템포 ↑ (130→140) + 반복되는 모티프(훅)로 중독성 강화.
+// 베이스는 4분+8분 섞어서 리듬감 확실히.
 const PATTERN_AIR_HOCKEY: BgmPattern = {
-  bpm: 130,
+  bpm: 140,
   lengthSixteenths: 128,
   melodyWave: 'square', // 8-bit 경쾌 느낌
   melody: [
-    // 마디 1-2: C 메이저 상승 아르페지오
-    { f: NOTES.C5, d: 2 }, { f: NOTES.E5, d: 2 }, { f: NOTES.G5, d: 2 }, { f: NOTES.E5, d: 2 },
-    { f: NOTES.C5, d: 2 }, { f: NOTES.E5, d: 2 }, { f: NOTES.G5, d: 2 }, { f: NOTES.C6, d: 2 },
-    // 마디 3-4: 하강 후 회복
-    { f: NOTES.B4, d: 2 }, { f: NOTES.D5, d: 2 }, { f: NOTES.F5, d: 2 }, { f: NOTES.D5, d: 2 },
-    { f: NOTES.C5, d: 4 }, { f: NOTES.E5, d: 4 },               { f: R,       d: 4 },
-    // 마디 5-6: 비슷한 진행, 살짝 변형
-    { f: NOTES.C5, d: 2 }, { f: NOTES.E5, d: 2 }, { f: NOTES.G5, d: 2 }, { f: NOTES.E5, d: 2 },
-    { f: NOTES.A4, d: 2 }, { f: NOTES.C5, d: 2 }, { f: NOTES.E5, d: 2 }, { f: NOTES.A5, d: 2 },
-    // 마디 7-8: 마무리
-    { f: NOTES.G5, d: 2 }, { f: NOTES.F5, d: 2 }, { f: NOTES.E5, d: 2 }, { f: NOTES.D5, d: 2 },
-    { f: NOTES.C5, d: 8 }, { f: R,        d: 8 },
+    // 마디 1: 메인 훅 (C-G-E-G 리듬감)
+    { f: NOTES.C5, d: 2 }, { f: NOTES.G5, d: 2 }, { f: NOTES.E5, d: 2 }, { f: NOTES.G5, d: 2 },
+    { f: NOTES.C5, d: 2 }, { f: NOTES.G5, d: 2 }, { f: NOTES.E5, d: 2 }, { f: NOTES.C6, d: 2 },
+    // 마디 2: D 방향 변주
+    { f: NOTES.D5, d: 2 }, { f: NOTES.A5, d: 2 }, { f: NOTES.F5, d: 2 }, { f: NOTES.A5, d: 2 },
+    { f: NOTES.D5, d: 2 }, { f: NOTES.A5, d: 2 }, { f: NOTES.F5, d: 2 }, { f: NOTES.D5, d: 2 },
+    // 마디 3: 상승 라인
+    { f: NOTES.E5, d: 2 }, { f: NOTES.G5, d: 2 }, { f: NOTES.C6, d: 2 }, { f: NOTES.G5, d: 2 },
+    { f: NOTES.E5, d: 2 }, { f: NOTES.C5, d: 2 }, { f: NOTES.G4, d: 2 }, { f: NOTES.E5, d: 2 },
+    // 마디 4: F-A 훅 + 해결
+    { f: NOTES.F5, d: 2 }, { f: NOTES.A5, d: 2 }, { f: NOTES.G5, d: 2 }, { f: NOTES.E5, d: 2 },
+    { f: NOTES.C5, d: 4 }, { f: NOTES.G4, d: 4 },
+    // 마디 5: 메인 훅 재사용
+    { f: NOTES.C5, d: 2 }, { f: NOTES.G5, d: 2 }, { f: NOTES.E5, d: 2 }, { f: NOTES.G5, d: 2 },
+    { f: NOTES.C5, d: 2 }, { f: NOTES.G5, d: 2 }, { f: NOTES.E5, d: 2 }, { f: NOTES.C6, d: 2 },
+    // 마디 6: 하강 계단
+    { f: NOTES.B5, d: 2 }, { f: NOTES.A5, d: 2 }, { f: NOTES.G5, d: 2 }, { f: NOTES.F5, d: 2 },
+    { f: NOTES.E5, d: 4 }, { f: NOTES.D5, d: 4 },
+    // 마디 7: 빌드업
+    { f: NOTES.E5, d: 2 }, { f: NOTES.G5, d: 2 }, { f: NOTES.C6, d: 2 }, { f: NOTES.G5, d: 2 },
+    { f: NOTES.E5, d: 2 }, { f: NOTES.G5, d: 2 }, { f: NOTES.C6, d: 4 },
+    // 마디 8: 해결
+    { f: NOTES.C5, d: 8 }, { f: R, d: 8 },
   ],
   bass: [
-    // 마디 1-2: C-G 반복
-    { f: NOTES.C3, d: 4 }, { f: NOTES.C3, d: 4 }, { f: NOTES.G3, d: 4 }, { f: NOTES.G3, d: 4 },
-    { f: NOTES.C3, d: 4 }, { f: NOTES.C3, d: 4 }, { f: NOTES.G3, d: 4 }, { f: NOTES.G3, d: 4 },
-    // 마디 3-4: F-G-C
-    { f: NOTES.F3, d: 4 }, { f: NOTES.F3, d: 4 }, { f: NOTES.G3, d: 4 }, { f: NOTES.G3, d: 4 },
-    { f: NOTES.C3, d: 8 }, { f: NOTES.G3, d: 8 },
-    // 마디 5-6
-    { f: NOTES.C3, d: 4 }, { f: NOTES.C3, d: 4 }, { f: NOTES.G3, d: 4 }, { f: NOTES.G3, d: 4 },
-    { f: NOTES.A3, d: 4 }, { f: NOTES.A3, d: 4 }, { f: NOTES.E3, d: 4 }, { f: NOTES.E3, d: 4 },
-    // 마디 7-8
+    // 마디 1: C 팝핑
+    { f: NOTES.C3, d: 4 }, { f: NOTES.G3, d: 2 }, { f: NOTES.C3, d: 2 }, { f: NOTES.G3, d: 4 }, { f: NOTES.C3, d: 4 },
+    // 마디 2: D
+    { f: NOTES.D3, d: 4 }, { f: NOTES.A3, d: 2 }, { f: NOTES.D3, d: 2 }, { f: NOTES.A3, d: 4 }, { f: NOTES.D3, d: 4 },
+    // 마디 3: C 복귀 + E-G 컬러
+    { f: NOTES.C3, d: 4 }, { f: NOTES.E3, d: 2 }, { f: NOTES.G3, d: 2 }, { f: NOTES.C3, d: 4 }, { f: NOTES.G3, d: 4 },
+    // 마디 4: F-G-C 해결
     { f: NOTES.F3, d: 4 }, { f: NOTES.G3, d: 4 }, { f: NOTES.C3, d: 8 },
+    // 마디 5: 다시 C 팝핑
+    { f: NOTES.C3, d: 4 }, { f: NOTES.G3, d: 2 }, { f: NOTES.C3, d: 2 }, { f: NOTES.G3, d: 4 }, { f: NOTES.C3, d: 4 },
+    // 마디 6: A 마이너 컬러
+    { f: NOTES.A3, d: 4 }, { f: NOTES.E3, d: 4 }, { f: NOTES.F3, d: 4 }, { f: NOTES.G3, d: 4 },
+    // 마디 7: 빌드업 4분 pulse
+    { f: NOTES.C3, d: 4 }, { f: NOTES.G3, d: 4 }, { f: NOTES.C3, d: 4 }, { f: NOTES.G3, d: 4 },
+    // 마디 8: 길게
     { f: NOTES.C3, d: 16 },
   ],
 };
@@ -165,10 +181,48 @@ const PATTERN_APPLE_GAME: BgmPattern = {
   ],
 };
 
+// --- 오목: D 마이너, 72 BPM, 잔잔·사색적 ---
+// 전략 게임 분위기. 한 수 한 수 신중하게 두도록 템포 느리고 차분한 triangle.
+const PATTERN_GOMOKU: BgmPattern = {
+  bpm: 72,
+  lengthSixteenths: 128,
+  melodyWave: 'triangle',
+  melody: [
+    // 마디 1: D 마이너 토닉 (D-F-A)
+    { f: NOTES.D4, d: 4 }, { f: NOTES.F4, d: 4 }, { f: NOTES.A4, d: 4 }, { f: NOTES.F4, d: 4 },
+    // 마디 2: 상승 + 지속
+    { f: NOTES.G4, d: 4 }, { f: NOTES.A4, d: 4 }, { f: NOTES.D5, d: 8 },
+    // 마디 3: 고음 대화
+    { f: NOTES.C5, d: 4 }, { f: NOTES.A4, d: 4 }, { f: NOTES.F4, d: 4 }, { f: NOTES.A4, d: 4 },
+    // 마디 4: 긴 호흡으로 하강
+    { f: NOTES.G4, d: 8 }, { f: NOTES.F4, d: 8 },
+    // 마디 5: Bb 컬러 (D 마이너의 6도)
+    { f: NOTES.A4, d: 4 }, { f: NOTES.Bb4, d: 4 }, { f: NOTES.A4, d: 4 }, { f: NOTES.G4, d: 4 },
+    // 마디 6: 해결 준비
+    { f: NOTES.F4, d: 4 }, { f: NOTES.E4, d: 4 }, { f: NOTES.D4, d: 8 },
+    // 마디 7: 낮은 음역
+    { f: NOTES.D4, d: 4 }, { f: NOTES.A3, d: 4 }, { f: NOTES.D4, d: 8 },
+    // 마디 8: 토닉 길게 — 다음 루프와 자연스럽게 이어짐
+    { f: NOTES.D4, d: 16 },
+  ],
+  bass: [
+    // 매 마디 d=8 × 2 = 16 sixteenths. 잔잔한 2박 펄스
+    { f: NOTES.D3,  d: 8 }, { f: NOTES.A3,  d: 8 },
+    { f: NOTES.D3,  d: 8 }, { f: NOTES.A3,  d: 8 },
+    { f: NOTES.F3,  d: 8 }, { f: NOTES.C3,  d: 8 },
+    { f: NOTES.D3,  d: 8 }, { f: NOTES.A3,  d: 8 },
+    { f: NOTES.Bb2, d: 8 }, { f: NOTES.F3,  d: 8 },
+    { f: NOTES.A2,  d: 8 }, { f: NOTES.E3,  d: 8 },
+    { f: NOTES.G2,  d: 8 }, { f: NOTES.D3,  d: 8 },
+    { f: NOTES.D3,  d: 16 },
+  ],
+};
+
 const PATTERNS: Record<BgmId, BgmPattern> = {
   'air-hockey':    PATTERN_AIR_HOCKEY,
   'battle-tetris': PATTERN_BATTLE_TETRIS,
   'apple-game':    PATTERN_APPLE_GAME,
+  'gomoku':        PATTERN_GOMOKU,
 };
 
 // ============================================

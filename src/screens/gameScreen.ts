@@ -5,6 +5,8 @@ import { getGameById } from '../games/registry';
 import type { GameContext, GameModule, Player, RoomState } from '../games/types';
 import { createMenuScreen } from './menu';
 import { createResultScreenAsHostScreen, createResultScreenAsGuestScreen } from './resultScreen';
+import { buildReactionBarHTML, wireReactionBar, showReactionBubble } from '../ui/reactions';
+import { storage } from '../core/storage';
 
 /**
  * 게임 실행 화면 (호스트용 / 게스트용 factory 2종)
@@ -71,12 +73,17 @@ function buildHeaderHTML(args: {
         <span class="participant-badge participant-badge-lavender">🐻 손님</span>
       </div>
 
-      <div class="game-room-info">${escapeHtml(args.optionSummary)}</div>
+      <div class="game-room-info">
+        <span class="game-room-info-text">${escapeHtml(args.optionSummary)}</span>
+        <span class="ping-badge ping-pending" id="ping-badge">⏳ 측정 중</span>
+      </div>
     </div>
 
     <div class="game-canvas-wrap">
       <canvas id="game-canvas" class="game-canvas"></canvas>
     </div>
+
+    <div class="reaction-bar-floating">${buildReactionBarHTML()}</div>
   `;
 }
 
@@ -86,6 +93,22 @@ function flashScore(el: HTMLElement): void {
   // 강제 reflow — 동일 클래스 다시 추가해도 애니메이션이 새로 시작되도록
   void el.offsetWidth;
   el.classList.add('score-flash');
+}
+
+/** ping(ms)를 배지 엘리먼트에 반영. null = 끊김/측정불가 */
+function updatePingBadge(el: HTMLElement, ms: number | null): void {
+  if (ms === null) {
+    el.textContent = '⚠️ 끊김';
+    el.className = 'ping-badge ping-dead';
+    return;
+  }
+  let cls: string;
+  let icon: string;
+  if (ms < 60)       { cls = 'ping-good'; icon = '🟢'; }
+  else if (ms < 150) { cls = 'ping-ok';   icon = '🟡'; }
+  else               { cls = 'ping-slow'; icon = '🔴'; }
+  el.textContent = `${icon} ${ms}ms`;
+  el.className = `ping-badge ${cls}`;
 }
 
 // ============================================
@@ -207,6 +230,14 @@ export function createGameScreenAsHostScreen(args: GameScreenAsHostArgs): Screen
 
       // HostSession 메시지 라우팅 — game_msg를 (필요시 다른 게스트에) relay + 호스트 로컬 소비
       host.onMessage = (msg, fromPeerId) => {
+        // 이모지 반응: 내 화면에 표시 + 다른 게스트들에게 forward
+        if (msg.type === 'reaction') {
+          showReactionBubble(msg.emoji, msg.nickname);
+          for (const pid of host.listGuestPeerIds()) {
+            if (pid !== fromPeerId) host.sendTo(pid, msg);
+          }
+          return;
+        }
         if (msg.type !== 'game_msg') return;
         // target이 다른 게스트를 향하면 그 쪽으로만 forward
         if (msg.target && msg.target !== myPlayerId) {
@@ -224,6 +255,13 @@ export function createGameScreenAsHostScreen(args: GameScreenAsHostArgs): Screen
           }
         }
       };
+
+      // 이모지 반응 버튼 (게임 중에도 사용 가능)
+      wireReactionBar(el, (emoji) => {
+        const myNick = storage.getNickname();
+        showReactionBubble(emoji, myNick);
+        host.send({ type: 'reaction', emoji, nickname: myNick });
+      });
 
       // 게임 중에 새로 들어오는 연결 = 관전자 후보.
       // 비공개방이면 비번 검증. 통과하면 spectator로 수락, RoomState(status='playing') 반환.
@@ -280,6 +318,17 @@ export function createGameScreenAsHostScreen(args: GameScreenAsHostArgs): Screen
         }
       });
 
+      // Ping 배지: 여러 게스트 중 "가장 느린" 쪽을 대표로 표시 (호스트 시점 가장 나쁜 연결)
+      const pingBadgeEl = el.querySelector<HTMLSpanElement>('#ping-badge')!;
+      host.onPingChanged = (pings) => {
+        if (pings.size === 0) {
+          updatePingBadge(pingBadgeEl, null);
+          return;
+        }
+        const worstPing = Math.max(...pings.values());
+        updatePingBadge(pingBadgeEl, worstPing);
+      };
+
       // 게임 모듈 lazy 로드 + 시작
       (async () => {
         try {
@@ -308,6 +357,7 @@ export function createGameScreenAsHostScreen(args: GameScreenAsHostArgs): Screen
       host.onGuestDisconnected = null;
       host.onJoinRequest = null;
       host.onGuestConnected = null;
+      host.onPingChanged = null;
       if (closeOnDispose) host.close();
     },
   };
@@ -409,6 +459,11 @@ export function createGameScreenAsGuestScreen(args: GameScreenAsGuestArgs): Scre
       };
 
       guest.onMessage = (msg) => {
+        // 이모지 반응 — 호스트가 broadcast/relay 한 것
+        if (msg.type === 'reaction') {
+          showReactionBubble(msg.emoji, msg.nickname);
+          return;
+        }
         // 관전자 전용 종료 경로 — 플레이어들은 각 게임의 내부 메시지(bt:end / ah:end) 로
         // ctx.endGame 을 통해 이미 이동하므로 game_end 는 무시해도 된다.
         if (msg.type === 'game_end') {
@@ -426,6 +481,13 @@ export function createGameScreenAsGuestScreen(args: GameScreenAsGuestArgs): Scre
         gameModule?.onPeerMessage(msg.payload);
       };
 
+      // 이모지 반응 버튼 (게임 중) — 게스트는 호스트에게만 송신
+      wireReactionBar(el, (emoji) => {
+        const myNick = storage.getNickname();
+        showReactionBubble(emoji, myNick);
+        guest.send({ type: 'reaction', emoji, nickname: myNick });
+      });
+
       guest.onDisconnect = () => {
         alert(isSpectator ? '방이 닫혔어요' : '방장이 게임을 나갔어요');
         router.reset(() => createMenuScreen());
@@ -436,6 +498,10 @@ export function createGameScreenAsGuestScreen(args: GameScreenAsGuestArgs): Scre
           router.reset(() => createMenuScreen());
         }
       });
+
+      // Ping 배지 — 호스트가 보고해주는 내 편도 지연 표시
+      const pingBadgeEl = el.querySelector<HTMLSpanElement>('#ping-badge')!;
+      guest.onPingChanged = (ms) => updatePingBadge(pingBadgeEl, ms);
 
       (async () => {
         try {
@@ -462,6 +528,7 @@ export function createGameScreenAsGuestScreen(args: GameScreenAsGuestArgs): Scre
       gameModule = null;
       guest.onMessage = null;
       guest.onDisconnect = null;
+      guest.onPingChanged = null;
       if (closeOnDispose) guest.close();
     },
   };

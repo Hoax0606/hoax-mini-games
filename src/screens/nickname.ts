@@ -6,9 +6,17 @@ import { createMenuScreen } from './menu';
 /**
  * 닉네임 입력 화면
  * 최초 실행 시 또는 닉네임 변경 시 사용
+ *
+ * @param options.backToMenu  닉네임 변경 모드(취소 버튼 표시)
+ * @param options.onDone      입력 완료 후 실행할 콜백 — 없으면 기본: 메뉴로 이동.
+ *                            URL 방 코드로 진입 시 "입력 완료 → 바로 joinRoom" 용도로 씀.
  */
-export function createNicknameScreen(options?: { backToMenu?: boolean }): Screen {
+export function createNicknameScreen(options?: {
+  backToMenu?: boolean;
+  onDone?: () => void;
+}): Screen {
   const backToMenu = options?.backToMenu ?? false;
+  const onDone = options?.onDone;
 
   return {
     render() {
@@ -59,7 +67,11 @@ export function createNicknameScreen(options?: { backToMenu?: boolean }): Screen
           return;
         }
         storage.setNickname(name);
-        router.reset(() => createMenuScreen());
+        if (onDone) {
+          onDone();
+        } else {
+          router.reset(() => createMenuScreen());
+        }
       };
 
       confirmBtn.addEventListener('click', confirm);

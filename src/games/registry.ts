@@ -13,6 +13,8 @@ import type { GameEntry } from './types';
 import airHockeyThumbnail from './air-hockey/thumbnail.svg';
 import battleTetrisThumbnail from './battle-tetris/thumbnail.svg';
 import appleGameThumbnail from './apple-game/thumbnail.svg';
+import gomokuThumbnail from './gomoku/thumbnail.svg';
+import reflexThumbnail from './reflex/thumbnail.svg';
 
 export const games: GameEntry[] = [
   {
@@ -93,6 +95,47 @@ export const games: GameEntry[] = [
     load: async () => {
       const mod = await import('./apple-game');
       return mod.createAppleGame();
+    },
+  },
+  {
+    meta: {
+      id: 'gomoku',
+      name: '오목',
+      description: '교차점에 돌을 놓아 가로·세로·대각선으로 정확히 5목을 먼저 완성하면 승리. 한 턴당 30초 제한.',
+      thumbnail: gomokuThumbnail,
+      minPlayers: 2,
+      maxPlayers: 2,
+      roomOptions: [
+        {
+          key: 'boardSize',
+          label: '보드 크기',
+          type: 'select',
+          choices: [
+            { value: '15', label: '15 × 15 · 표준' },
+            { value: '19', label: '19 × 19 · 바둑판' },
+          ],
+          defaultValue: '15',
+        },
+      ],
+    },
+    load: async () => {
+      const mod = await import('./gomoku');
+      return mod.createGomokuGame();
+    },
+  },
+  {
+    meta: {
+      id: 'reflex',
+      name: '반응속도',
+      description: '빨강이 초록으로 바뀌는 순간을 가장 빨리 잡아라! 5라운드 평균으로 승부.',
+      thumbnail: reflexThumbnail,
+      minPlayers: 1,
+      maxPlayers: 4,
+      roomOptions: [],
+    },
+    load: async () => {
+      const mod = await import('./reflex');
+      return mod.createReflexGame();
     },
   },
 ];

@@ -112,6 +112,15 @@ export class HostSession {
   /** 게스트 연결 끊김 */
   onGuestDisconnected: ((peerId: string) => void) | null = null;
 
+  // ----- Ping (연결 상태/지연 표시용) -----
+  /** peerId → 편도 핑(ms). 측정 전이거나 응답 없는 경우 entry 없음 */
+  private _pings = new Map<string, number>();
+  /** 게스트별 마지막 ack 수신 시각 (performance.now) — 5초 이상 없으면 끊김 간주 */
+  private _lastAckAt = new Map<string, number>();
+  /** ping 변화 콜백 — gameScreen 이 UI 업데이트용으로 구독 */
+  onPingChanged: ((pings: ReadonlyMap<string, number>) => void) | null = null;
+  private pingIntervalId: number | null = null;
+
   private constructor(peer: Peer, roomId: string) {
     this.peer = peer;
     this.roomId = roomId;
@@ -119,6 +128,13 @@ export class HostSession {
     this.peer.on('error', (err) => {
       console.warn('[host] peer error', err);
     });
+    // 2초마다 모든 게스트에게 ping 날림. HostSession 수명 내내 돌고 close() 에서 정리.
+    this.pingIntervalId = window.setInterval(() => this.runPingSweep(), 2000);
+  }
+
+  /** 읽기 전용 ping 맵 (gameScreen 이 참조) */
+  get pings(): ReadonlyMap<string, number> {
+    return this._pings;
   }
 
   /** 내 PeerJS ID (방장 이양/target 메시지 주소용) */
@@ -187,6 +203,19 @@ export class HostSession {
         return;
       }
 
+      // ping_ack 는 peer.ts 가 직접 소비 (게임 로직에 노출 X)
+      if (msg.type === 'ping_ack') {
+        const rtt = performance.now() - msg.t;
+        const oneWay = Math.max(0, Math.round(rtt / 2));
+        this._pings.set(fromPeerId, oneWay);
+        this._lastAckAt.set(fromPeerId, performance.now());
+        // 측정된 ping 을 해당 게스트에게도 알림 (게스트 UI 표시용)
+        safeSend(conn, { type: 'ping_report', ms: oneWay });
+        this.onPingChanged?.(this._pings);
+        return;
+      }
+      // ping_req 는 게스트→호스트 용이 아니라 오용. 무시.
+      if (msg.type === 'ping_req') return;
       // 수락된 연결의 일반 메시지 → 방 로직으로 전달
       this.onMessage?.(msg, fromPeerId);
     });
@@ -194,6 +223,9 @@ export class HostSession {
     conn.on('close', () => {
       if (this.acceptedConns.get(fromPeerId) === conn) {
         this.acceptedConns.delete(fromPeerId);
+        this._pings.delete(fromPeerId);
+        this._lastAckAt.delete(fromPeerId);
+        this.onPingChanged?.(this._pings);
         this.onGuestDisconnected?.(fromPeerId);
       }
     });
@@ -216,6 +248,26 @@ export class HostSession {
     if (conn?.open) safeSend(conn, msg);
   }
 
+  /** 모든 게스트에게 ping_req broadcast. 5초 이상 ack 못 받은 게스트는 ping 맵에서 제거 → 끊김 신호 */
+  private runPingSweep(): void {
+    const now = performance.now();
+    // 5초 이상 ack 없는 peer는 "측정 불가" 상태로 간주 → 맵에서 제거
+    let removed = false;
+    for (const [peerId, lastAt] of this._lastAckAt) {
+      if (now - lastAt > 5000 && this._pings.has(peerId)) {
+        this._pings.delete(peerId);
+        removed = true;
+      }
+    }
+    if (removed) this.onPingChanged?.(this._pings);
+
+    // 새 ping 전송
+    const reqMsg: NetworkMessage = { type: 'ping_req', t: now };
+    for (const conn of this.acceptedConns.values()) {
+      if (conn.open) safeSend(conn, reqMsg);
+    }
+  }
+
   /** 현재 수락된 게스트 peerId 목록 (방장 이양/참가자 UI용) */
   listGuestPeerIds(): string[] {
     return Array.from(this.acceptedConns.keys());
@@ -223,10 +275,16 @@ export class HostSession {
 
   /** 방 종료 — 모든 연결 끊고 브로커에서 해제 */
   close(): void {
+    if (this.pingIntervalId !== null) {
+      window.clearInterval(this.pingIntervalId);
+      this.pingIntervalId = null;
+    }
     for (const conn of this.acceptedConns.values()) {
       conn.close();
     }
     this.acceptedConns.clear();
+    this._pings.clear();
+    this._lastAckAt.clear();
     this.peer.destroy();
   }
 }
@@ -248,12 +306,33 @@ export class GuestSession {
   onMessage: ((msg: NetworkMessage) => void) | null = null;
   onDisconnect: (() => void) | null = null;
 
+  // ----- Ping (호스트가 보고해주는 내 편도 지연 ms) -----
+  /** 내 편도 ping (ms). 호스트 ping_report 로 갱신. null = 아직 측정 안 됨 */
+  private _myPing: number | null = null;
+  /** 마지막 ping_report 수신 시각 (performance.now). 5초 이상 지나면 끊김 간주 */
+  private _lastPingAt = 0;
+  onPingChanged: ((ms: number | null) => void) | null = null;
+  private staleCheckId: number | null = null;
+
   private constructor(peer: Peer, conn: DataConnection) {
     this.peer = peer;
     this.conn = conn;
 
     conn.on('data', (raw) => {
-      this.onMessage?.(raw as NetworkMessage);
+      const msg = raw as NetworkMessage;
+      // ping_req 받으면 즉시 ack 응답 (peer.ts 내부 자동)
+      if (msg.type === 'ping_req') {
+        safeSend(this.conn, { type: 'ping_ack', t: msg.t });
+        return;
+      }
+      // ping_report — 내 편도 지연 (호스트가 계산해서 보내줌)
+      if (msg.type === 'ping_report') {
+        this._myPing = msg.ms;
+        this._lastPingAt = performance.now();
+        this.onPingChanged?.(this._myPing);
+        return;
+      }
+      this.onMessage?.(msg);
     });
     conn.on('close', () => {
       this.onDisconnect?.();
@@ -264,6 +343,19 @@ export class GuestSession {
     peer.on('error', (err) => {
       console.warn('[guest] peer error', err);
     });
+
+    // 3초마다 "최근 ping 갱신 안 됐으면 null 로 무효화" 체크
+    this.staleCheckId = window.setInterval(() => {
+      if (this._myPing !== null && performance.now() - this._lastPingAt > 5000) {
+        this._myPing = null;
+        this.onPingChanged?.(null);
+      }
+    }, 3000);
+  }
+
+  /** 현재 내 편도 ping. null = 아직 측정 전이거나 끊김 */
+  get myPing(): number | null {
+    return this._myPing;
   }
 
   /** 내 PeerJS ID — 호스트가 참가자 목록에 포함시킬 때 알아내는 용도 */
@@ -308,6 +400,10 @@ export class GuestSession {
   }
 
   close(): void {
+    if (this.staleCheckId !== null) {
+      window.clearInterval(this.staleCheckId);
+      this.staleCheckId = null;
+    }
     this.conn.close();
     this.peer.destroy();
   }

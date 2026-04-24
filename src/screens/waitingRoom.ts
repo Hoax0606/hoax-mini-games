@@ -5,6 +5,7 @@ import type { HostSession, GuestSession, JoinRequest, JoinDecision } from '../co
 import { getGameById } from '../games/registry';
 import type { Player, RoomState } from '../games/types';
 import { createGameScreenAsHostScreen, createGameScreenAsGuestScreen } from './gameScreen';
+import { buildReactionBarHTML, wireReactionBar, showReactionBubble } from '../ui/reactions';
 
 /**
  * 대기실 — 호스트 측 / 게스트 측 factory 2종.
@@ -55,6 +56,16 @@ function renderParticipantsHTML(
     }
   }
   return cells.join('');
+}
+
+/** 현재 URL에 ?room=XXXXX 붙여 공유용 링크 생성 (base 경로/호스트 자동 유지) */
+function buildRoomShareUrl(roomCode: string): string {
+  const url = new URL(window.location.href);
+  // 방 안의 ?는 기존에 있을 리 없지만 안전하게 set
+  url.searchParams.set('room', roomCode);
+  // hash는 제거 (혹시라도 있을 경우 깔끔한 링크 유지)
+  url.hash = '';
+  return url.toString();
 }
 
 function buildOptionSummary(roomState: RoomState, gameId: string): string {
@@ -139,9 +150,10 @@ export function createWaitingRoomAsHostScreen(args: WaitingRoomAsHostArgs): Scre
             <div class="room-code-label">방 코드</div>
             <div class="room-code-row">
               <span class="room-code" id="room-code-text">${escapeHtml(host.roomId)}</span>
-              <button class="btn btn-secondary btn-sm" id="copy-btn">📋 복사</button>
+              <button class="btn btn-secondary btn-sm" id="copy-btn">📋 코드</button>
+              <button class="btn btn-secondary btn-sm" id="share-btn">🔗 링크</button>
             </div>
-            <div class="room-code-hint">이 코드를 친구에게 공유하세요</div>
+            <div class="room-code-hint">코드 또는 링크를 친구에게 공유하세요</div>
           </div>
 
           <div class="participants" id="participants"></div>
@@ -155,6 +167,8 @@ export function createWaitingRoomAsHostScreen(args: WaitingRoomAsHostArgs): Scre
           <button class="btn btn-primary btn-lg btn-block" id="start-btn" disabled>
             친구를 기다리는 중...
           </button>
+
+          <div style="margin-top: 14px;">${buildReactionBarHTML()}</div>
         </div>
 
         <div class="toast" id="toast"></div>
@@ -163,6 +177,7 @@ export function createWaitingRoomAsHostScreen(args: WaitingRoomAsHostArgs): Scre
       const participantsEl = el.querySelector<HTMLDivElement>('#participants')!;
       const startBtn = el.querySelector<HTMLButtonElement>('#start-btn')!;
       const copyBtn = el.querySelector<HTMLButtonElement>('#copy-btn')!;
+      const shareBtn = el.querySelector<HTMLButtonElement>('#share-btn')!;
       const leaveBtn = el.querySelector<HTMLButtonElement>('#leave-btn')!;
       const toastEl = el.querySelector<HTMLDivElement>('#toast')!;
       const playerCountEl = el.querySelector<HTMLSpanElement>('#player-count')!;
@@ -231,9 +246,24 @@ export function createWaitingRoomAsHostScreen(args: WaitingRoomAsHostArgs): Scre
         showToast(`${removed?.nickname ?? '게스트'} 님이 나갔어요`);
       };
 
-      host.onMessage = (msg) => {
+      host.onMessage = (msg, fromPeerId) => {
+        // 이모지 반응: 내 화면에 표시 + 다른 게스트들에게 forward (호스트 = relay 허브)
+        if (msg.type === 'reaction') {
+          showReactionBubble(msg.emoji, msg.nickname);
+          for (const pid of host.listGuestPeerIds()) {
+            if (pid !== fromPeerId) host.sendTo(pid, msg);
+          }
+          return;
+        }
         console.debug('[waitingRoom] message from guest:', msg);
       };
+
+      // 이모지 반응 버튼 배선 (호스트 측) — 클릭 시 자기 화면 + 모든 게스트에게 broadcast
+      wireReactionBar(el, (emoji) => {
+        const myNick = storage.getNickname();
+        showReactionBubble(emoji, myNick);
+        host.send({ type: 'reaction', emoji, nickname: myNick });
+      });
 
       // ---- 방 코드 복사 ----
       copyBtn.addEventListener('click', async () => {
@@ -243,6 +273,18 @@ export function createWaitingRoomAsHostScreen(args: WaitingRoomAsHostArgs): Scre
         } catch {
           const ok = window.prompt('방 코드를 복사하세요:', host.roomId);
           if (ok !== null) showToast('방 코드를 확인했어요');
+        }
+      });
+
+      // ---- 방 링크 복사 (카톡 등 공유 편의용) ----
+      shareBtn.addEventListener('click', async () => {
+        const shareUrl = buildRoomShareUrl(host.roomId);
+        try {
+          await navigator.clipboard.writeText(shareUrl);
+          showToast('링크를 복사했어요! 카톡에 붙여넣으세요');
+        } catch {
+          const ok = window.prompt('링크를 복사하세요:', shareUrl);
+          if (ok !== null) showToast('링크를 확인했어요');
         }
       });
 
@@ -349,6 +391,8 @@ export function createWaitingRoomAsGuestScreen(args: WaitingRoomAsGuestArgs): Sc
           <button class="btn btn-secondary btn-lg btn-block" id="waiting-label" disabled>
             방장이 시작하기를 기다리는 중...
           </button>
+
+          <div style="margin-top: 14px;">${buildReactionBarHTML()}</div>
         </div>
       `;
 
@@ -372,6 +416,10 @@ export function createWaitingRoomAsGuestScreen(args: WaitingRoomAsGuestArgs): Sc
           case 'player_left':
             // 호스트가 뒤이어 room_state도 보내므로 여기선 무시 (UI는 room_state 때 갱신)
             break;
+          case 'reaction':
+            // 호스트가 broadcast/relay 한 이모지 반응
+            showReactionBubble(msg.emoji, msg.nickname);
+            break;
           case 'game_start': {
             closeOnDispose = false;
             const rs: RoomState = { ...roomState, status: 'playing' };
@@ -383,6 +431,13 @@ export function createWaitingRoomAsGuestScreen(args: WaitingRoomAsGuestArgs): Sc
             break;
         }
       };
+
+      // 이모지 반응 버튼 — 게스트: 호스트에게만 송신 (호스트가 다른 게스트로 relay)
+      wireReactionBar(el, (emoji) => {
+        const myNick = storage.getNickname();
+        showReactionBubble(emoji, myNick);
+        guest.send({ type: 'reaction', emoji, nickname: myNick });
+      });
 
       guest.onDisconnect = () => {
         alert('방장이 방을 나갔어요');
