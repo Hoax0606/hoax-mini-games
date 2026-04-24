@@ -3,7 +3,7 @@
 다른 머신(집)에서 이 프로젝트를 이어서 작업할 때 읽는 문서.
 **Claude Code 첫 프롬프트로 "HANDOFF.md 정독하고 이어서 진행해줘" 라고 시작하면 됨.**
 
-마지막 업데이트: **2026-04-24** (사과 게임 + 게임별 BGM 추가)
+마지막 업데이트: **2026-04-24** (오목 / 반응속도 / 다트 + 플랫폼 확장: ping·리액션·URL공유·통계 화면)
 
 ---
 
@@ -32,9 +32,10 @@ npm run dev       # http://localhost:5173
 | 4 | 배틀 테트리스 | ✅ 완료 |
 | 5 | 결과 화면 다인용 | ✅ 테트리스/사과 전용으로 완료. 범용화는 보류 |
 
-**다음 작업 (2026-04-25 예정)**:
-- 🅐 **Phase 3 방장 이양** — 방장 나가면 남은 사람 중 하나가 새 방장 돼서 게임 이어가기
-- 🅑 **새 게임: 오목** — 2인 턴제 보드 게임. 19×19 격자, 5목 완성 승
+**다음 작업**:
+- 🅐 **Phase 3 방장 이양** — 방장 나가면 남은 사람 중 하나가 새 방장 돼서 게임 이어가기. 여전히 미구현.
+- 🅑 **다트 네트워크 동기화** — `src/games/darts/index.ts` 주석에 "Phase C"로 남겨둠. 현재 같은 기기 로컬 턴제만 동작. `dt:` 메시지로 투척/턴 동기화 필요.
+- (선택) 오목/반응속도/다트 플레이테스트 피드백 반영
 
 ---
 
@@ -43,10 +44,13 @@ npm run dev       # http://localhost:5173
 **한 줄**: 친구끼리 즐기는 웹 P2P 미니게임 모음집.
 - **스택**: Vite + TypeScript + Canvas + PeerJS (WebRTC, 서버리스 P2P) + GitHub Pages
 - **분위기**: 산리오풍 파스텔. 한국어 UI. PC 전용.
-- **현재 게임 (3종)**:
+- **현재 게임 (6종)**:
   - 에어하키 (2인, 호스트 authoritative 물리)
   - 배틀 테트리스 (2~4인, 로컬 시뮬레이션)
   - 사과 게임 (1~4인, 숫자 사과 합 10 터트리기, 2분)
+  - 오목 (2인, 15×15 또는 19×19, 30초 턴, 호스트 authoritative)
+  - 반응속도 (1~4인, 5라운드 평균 ms 경쟁)
+  - 다트 (1~4인, 6모드 — 301/201/101 Normal·Hard / Count-up / Low Count-up / Cricket) ⚠️ **현재 로컬 턴제만. 네트워크 동기화 미완성**
 - **배포 URL**: https://hoax0606.github.io/hoax-mini-games/
 
 ---
@@ -56,33 +60,39 @@ npm run dev       # http://localhost:5173
 ### 파일 구조
 ```
 src/
-├── main.ts                      # 엔트리 + 글로벌 버튼 사운드 훅
+├── main.ts                      # 엔트리 + 글로벌 버튼 사운드 훅 + ?room= URL 자동 입장
 ├── core/
 │   ├── peer.ts                  # PeerJS 래퍼 (HostSession 다중 conn, GuestSession)
-│   │                            #   JoinDecision.asSpectator 로 관전자 수락 표현
+│   │                            #   JoinDecision.asSpectator, ping 측정(2s 주기 RTT)
 │   ├── screen.ts                # 화면 라우터
-│   ├── storage.ts               # localStorage 래퍼
+│   ├── storage.ts               # localStorage 래퍼 (nickname/settings/GameStats)
 │   ├── sound.ts                 # Web Audio SFX 합성 (에어하키 5종 + 테트리스 8종)
 │   │                            #   startBgm/stopBgm 래퍼로 bgm.ts 위임
-│   └── bgm.ts                   # 게임별 BGM 시퀀서 (멜로디+베이스 루프, chiptune 스타일)
+│   └── bgm.ts                   # 게임별 BGM 시퀀서 (5종: ah/bt/ag/gomoku/darts)
 ├── games/
-│   ├── types.ts                 # GameContext, Player(role), NetworkMessage
-│   ├── registry.ts              # 등록된 게임 목록
+│   ├── types.ts                 # GameContext, Player(role), NetworkMessage + ping/reaction
+│   ├── registry.ts              # 등록된 게임 목록 (6종)
 │   ├── air-hockey/              # 2인 호스트 authoritative
 │   ├── battle-tetris/           # 2-4인 로컬 시뮬레이션
-│   └── apple-game/              # 1-4인 독립 보드 + 점수 경쟁
-│       ├── rng.ts               #   Mulberry32 PRNG (seed 공유로 동일 보드)
-│       ├── board.ts             #   17×10 + 드래그 영역 합 10 판정
-│       ├── render.ts            #   Canvas (보드 + 좌측 타이머/점수 + 우측 플레이어)
-│       ├── netSync.ts           #   ag:hello / ag:seed / ag:score / ag:end
-│       └── index.ts             #   마우스 드래그 + 타이머 + 호스트 랭킹 판정
+│   ├── apple-game/              # 1-4인 독립 보드 + 점수 경쟁 (17×10)
+│   ├── gomoku/                  # 2인 턴제, 호스트 authoritative, 15/19, 30초 턴
+│   │                            #   go:request_move / go:move / go:sync / go:hello / go:end
+│   ├── reflex/                  # 1-4인 5라운드 반응속도. rx:round_done / rx:player_done / rx:end
+│   └── darts/                   # 1-4인 6모드 다트 (⚠️ 로컬 턴제만, 네트워크 미완)
+│       ├── rules.ts             #   순수 상태머신 (X01 Normal/Hard, Count-up, Low, Cricket)
+│       ├── board.ts             #   과녁 좌표 → HitResult 판정
+│       └── index.ts             #   플릭 투척 물리 + 턴 진행
 ├── screens/
 │   ├── menu.ts, nickname.ts, settings.ts, gameList.ts, lobby.ts
-│   ├── createRoom.ts, joinRoom.ts
-│   ├── waitingRoom.ts           # 호스트/게스트 factory
-│   ├── gameScreen.ts            # 호스트/게스트, onJoinRequest로 관전자 수락
-│   └── resultScreen.ts          # 테트리스/사과 전용 결과 분기 + 기본 2인 점수판
-├── ui/theme.css                 # 팔레트 + 컴포넌트 스타일
+│   ├── createRoom.ts, joinRoom.ts    # joinRoom: initialCode/autoJoin 지원 (URL 공유 입장)
+│   ├── waitingRoom.ts           # 호스트/게스트 factory + "🔗 링크" 공유 + 리액션 바
+│   ├── gameScreen.ts            # 관전자 수락 + ping 배지 + 리액션 바
+│   ├── statsScreen.ts           # 게임별 누적 전적/최고기록 (localStorage)
+│   └── resultScreen.ts          # 테트리스/사과/오목/반응속도/다트 전용 결과 분기
+├── ui/
+│   ├── theme.css                # 팔레트 + 컴포넌트 스타일
+│   ├── reactions.ts             # 이모지 6종 버튼 + 하단 풍선 애니 (400ms throttle)
+│   └── logo.png                 # 메인 로고 이미지
 └── .github/workflows/deploy.yml # GitHub Pages 자동 배포
 ```
 
@@ -93,11 +103,16 @@ src/
 - `room_state` / `player_joined` / `player_left`
 - `game_start` / `game_end` — game_end 는 **관전자 결과 화면 이동 경로**
 - `game_msg` — 게임별 메시지 wrapper. `target?: string`, `from?: string`
+- `ping_req` / `ping_ack` / `ping_report` — peer.ts 가 자동 처리 (2초 주기 RTT 측정). 게임 모듈은 신경 X.
+- `reaction` — 이모지 반응 broadcast. 대기실/게임 화면에 풍선 뜸.
 
 **GameMessage** (게임 내부):
 - 에어하키: `ah:state` / `ah:input` / `ah:end`
 - 테트리스: `bt:state` (10Hz) / `bt:garbage` / `bt:topped` / `bt:end`
 - 사과 게임: `ag:hello` (게스트 → 호스트 seed 요청) / `ag:seed` / `ag:score` / `ag:end`
+- 오목: `go:request_move` / `go:move` / `go:sync` / `go:hello` / `go:end`
+- 반응속도: `rx:round_done` / `rx:player_done` / `rx:end`
+- 다트: (아직 네트워크 메시지 없음 — 로컬만 동작)
 
 ### 역할 (GameContext.role + isSpectator)
 - `role: 'host'` — 방장. 승리 판정자.
@@ -109,8 +124,11 @@ src/
 1. **에어하키** = 호스트 authoritative 물리, 60Hz state broadcast.
 2. **배틀 테트리스** = 로컬 시뮬레이션, 10Hz 스냅샷. 호스트는 승리 판정만.
 3. **사과 게임** = 독립 보드(같은 seed로 동일 배치) + 게임 중 상대 점수 비공개. 타이머 만료 시점에만 점수 공유, 호스트 1초 grace period 후 랭킹 집계.
-4. **게임 모듈 확장성**: `src/games/<id>/` + `GameModule` + registry. 플랫폼 수정 X.
-5. **관전자 결과 화면 이동**: 플레이어는 게임 내부 end 메시지, 관전자는 플랫폼 `game_end` broadcast.
+4. **오목** = 호스트 authoritative. 게스트는 `go:request_move` 로 의사 전달 → 호스트 검증 후 `go:move` broadcast. 각 턴 30초, 타임아웃은 호스트가 판정.
+5. **반응속도** = 각자 독립 5라운드. 라운드 종료 시점에만 broadcast. 호스트가 전원 완료 감지 → per-peer `rx:end`.
+6. **다트** = 현재 로컬 turn-based 만. rules.ts 순수 상태머신 + 플릭 투척 물리. 멀티 동기화 (Phase C) 미완.
+7. **게임 모듈 확장성**: `src/games/<id>/` + `GameModule` + registry. 플랫폼 수정 X.
+8. **관전자 결과 화면 이동**: 플레이어는 게임 내부 end 메시지, 관전자는 플랫폼 `game_end` broadcast.
 
 ---
 
@@ -124,9 +142,41 @@ src/
 - 끊김 없는 루프 (한 루프 끝 50ms 전에 다음 루프 스케줄)
 
 **각 BGM 특징**:
-- 에어하키: C 메이저 · 130 BPM · square 파형 · 경쾌
+- 에어하키: C 메이저 · 140 BPM · square · 경쾌 (2026-04-24 훅 강화판)
 - 배틀 테트리스: A 마이너 · 110 BPM · triangle · 긴장감
 - 사과 게임: F 메이저 · 95 BPM · triangle · 밝고 느긋
+- 오목: 자체 루프
+- 다트: 자체 루프
+- 반응속도: BGM 없음 (짧은 라운드라 생략)
+
+---
+
+## 🧩 플랫폼 확장 기능 (2026-04-24 회사컴 추가)
+
+### Ping 측정 (peer.ts)
+- HostSession 이 2초마다 모든 게스트에게 `ping_req` 전송
+- 게스트 자동 `ping_ack` 회신 → 호스트가 RTT/2 를 편도 ms 로 기록
+- 호스트가 `ping_report` 로 해당 게스트에 ms 통지 (게스트 UI 표시용)
+- `HostSession.onPingChanged(ReadonlyMap<peerId, ms>)` 콜백
+- gameScreen 헤더에 배지: ⏳(측정 중) / 🟢(<60ms) / 🟡(<150ms) / 🔴(그 이상) / ⚠️(끊김)
+
+### 이모지 리액션 (src/ui/reactions.ts)
+- 버튼 6종: 👍 😂 🔥 👏 😭 🫢
+- 클릭 시 `reaction` 메시지 broadcast → 모든 화면에 풍선 애니 (2.4s fade)
+- 400ms throttle 스팸 방지
+- 대기실 / 게임 화면 / (결과 화면) 어디서든 재사용
+
+### URL 공유 입장 (main.ts, waitingRoom.ts, joinRoom.ts)
+- 대기실에 "🔗 링크" 버튼 → 현재 URL 에 `?room=XXXXX` 붙여 복사
+- 친구가 링크로 접속 시 main.ts 가 감지 → `createJoinRoomScreen('', { initialCode, autoJoin: true })` 자동 진입
+- 닉네임 없으면 닉네임 입력 후 자동으로 join
+- 새로고침 시 재입장 루프 방지를 위해 URL 에서 `room` 파라미터 즉시 제거
+
+### 통계 화면 (statsScreen.ts + storage.GameStats)
+- localStorage 에 게임별 plays/wins/losses/draws/lastPlayedAt + custom best record
+- `storage.recordGameResult(gameId, winner, bestEntries)` — 결과 화면에서 호출
+- best 는 자유 스키마: `{ key, value, higherIsBetter }` 배열. 게임마다 의미 다름 (사과 bestScore, 반응속도 bestMs 등)
+- **머신별 독립** — 집/회사 PC 에서 기록 따로 쌓임
 
 ---
 
@@ -198,8 +248,10 @@ src/
 - **게임별 분기** (`summary.gameId` 마커):
   - 테트리스: stats 그리드 7개(라인/공격/수신/시간/콤보/테트리스/피스) + 다인 랭킹
   - 사과 게임: 내 점수 큰 카드 + 최종 랭킹 (닉+점수)
+  - 오목 / 반응속도 / 다트: 각자 전용 HTML (상세는 resultScreen.ts)
   - 기본(에어하키): 2인 점수판
 - **내 기준 stats 만 추적** — 다른 플레이어 stats 집계 안 함 (관전자 rankings 에 "나" 없으면 `isSpectator` 자동 인식).
+- **통계 누적** — 결과 화면 진입 시 `storage.recordGameResult` 호출. 관전자는 기록 X.
 
 ### 사운드 (SFX)
 - `sound.ts` Web Audio 합성. `SfxId` 타입에 게임별 SFX 추가.
@@ -232,10 +284,12 @@ src/
 ## 🐛 알려진 이슈 / 개선 여지
 
 - **Phase 3 (방장 이양) 미구현** — 방장 나가면 방 종료.
+- **다트 네트워크 동기화 미완성** — `src/games/darts/index.ts` 주석 "Phase C". 현재 같은 기기 로컬 턴제만 동작. 여러 기기에서 방 만들어 붙어도 각 기기가 독립 state 로 돌아가 엇갈림.
 - **테트리스 관전 뷰 v2 (2×2 격자) 미구현** — 현재 "관전 중" 오버레이만.
 - **에어하키 관전자 비주얼** — 점수판 대신 "관전 중" 배지만.
 - **사과 게임 솔버블 보장 X** — 단순 랜덤이라 운 나쁘면 덜 풀림.
 - **사과 게임 관전자 뷰** — 보드 영역 전체 "관전 중" 오버레이. 어떤 플레이어 보드 보여주기 같은 개선 여지 있음.
+- **통계 화면 머신별 독립** — localStorage 기반이라 집/회사 PC 에서 기록 따로 쌓임. 의도된 동작.
 - **Windows 라인엔딩** — git LF→CRLF 경고. 무해.
 
 ---
