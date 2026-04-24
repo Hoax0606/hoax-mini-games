@@ -541,6 +541,119 @@ function buildReflexResultHTML(args: {
 }
 
 // ============================================
+// 다트 전용 결과 HTML
+// ============================================
+
+interface DartsRankEntry {
+  peerId: string;
+  nickname: string;
+  rank: number;
+  score: number;
+  scoreLabel: string;
+}
+
+interface DartsSummary {
+  myPeerId: string;
+  rank: number;
+  totalPlayers: number;
+  modeLabel: string;
+  winnerNickname: string | null;
+  rankings: DartsRankEntry[];
+  rounds: number;
+}
+
+function parseDartsSummary(summary: Record<string, unknown>): DartsSummary | null {
+  if (summary['gameId'] !== 'darts') return null;
+  const myPeerId = typeof summary['myPeerId'] === 'string' ? (summary['myPeerId'] as string) : null;
+  const rank = typeof summary['rank'] === 'number' ? (summary['rank'] as number) : null;
+  const totalPlayers = typeof summary['totalPlayers'] === 'number' ? (summary['totalPlayers'] as number) : null;
+  const modeLabel = typeof summary['modeLabel'] === 'string' ? (summary['modeLabel'] as string) : '';
+  const winnerNickname = typeof summary['winnerNickname'] === 'string' ? (summary['winnerNickname'] as string) : null;
+  const rounds = typeof summary['rounds'] === 'number' ? (summary['rounds'] as number) : 0;
+  if (!myPeerId || rank === null || totalPlayers === null) return null;
+
+  const rawRankings = summary['rankings'] as unknown;
+  const rankings: DartsRankEntry[] = Array.isArray(rawRankings)
+    ? (rawRankings as Partial<DartsRankEntry>[])
+        .filter((r) =>
+          typeof r.peerId === 'string' &&
+          typeof r.nickname === 'string' &&
+          typeof r.rank === 'number' &&
+          typeof r.score === 'number'
+        )
+        .map((r) => ({
+          peerId: r.peerId!,
+          nickname: r.nickname!,
+          rank: r.rank!,
+          score: r.score!,
+          scoreLabel: typeof r.scoreLabel === 'string' ? r.scoreLabel : '점수',
+        }))
+    : [];
+
+  return { myPeerId, rank, totalPlayers, modeLabel, winnerNickname, rankings, rounds };
+}
+
+function buildDartsResultHTML(args: {
+  myWinner: 'me' | 'opponent' | null;
+  summary: DartsSummary;
+  isHost: boolean;
+  isSpectator: boolean;
+}): string {
+  const { myWinner, summary, isHost, isSpectator } = args;
+  const { emoji, title, titleClass } = isSpectator
+    ? { emoji: '🎯', title: '다트 대결 종료', titleClass: 'result-title-draw' }
+    : winnerVisuals(myWinner);
+  const actionsHTML = buildActionsHTML(isHost);
+
+  const myEntry = summary.rankings.find((r) => r.peerId === summary.myPeerId);
+  const myBlock = isSpectator || !myEntry ? '' : `
+    <div class="result-tetris-rank">
+      <span class="result-tetris-rank-num">${summary.rank}</span> / ${summary.totalPlayers}위
+    </div>
+    <div class="result-apple-myscore">
+      <div class="result-apple-myscore-label">🎯 ${escapeHtml(myEntry.scoreLabel)}</div>
+      <div class="result-apple-myscore-value">${myEntry.score}</div>
+    </div>
+  `;
+
+  const rankingsHTML = summary.rankings.length >= 1 ? `
+    <div class="result-tetris-rankings">
+      <div class="result-tetris-rankings-title">🏅 최종 랭킹</div>
+      ${summary.rankings.map((r) => {
+        const isMe = r.peerId === summary.myPeerId;
+        const badgeClass = r.rank <= 3 ? `rank-${r.rank}` : '';
+        return `
+          <div class="result-tetris-rank-row ${isMe ? 'is-me' : ''}">
+            <span class="result-tetris-rank-badge ${badgeClass}">${r.rank}</span>
+            <span class="result-tetris-rank-name">${escapeHtml(r.nickname)}</span>
+            <span class="result-apple-rank-score">${r.score}</span>
+            ${isMe ? '<span class="result-tetris-rank-me-tag">나</span>' : ''}
+          </div>
+        `;
+      }).join('')}
+    </div>
+  ` : '';
+
+  const modeRoundBadge = summary.rounds > 0
+    ? `<div class="result-gomoku-reason">${escapeHtml(summary.modeLabel)} · ${summary.rounds} 라운드</div>`
+    : `<div class="result-gomoku-reason">${escapeHtml(summary.modeLabel)}</div>`;
+
+  return `
+    <div class="result-card result-card-tetris">
+      <div class="result-emoji">${emoji}</div>
+      <div class="result-title ${titleClass}">${title}</div>
+      ${modeRoundBadge}
+      ${myBlock}
+      ${rankingsHTML}
+
+      <div class="result-actions">
+        ${actionsHTML}
+      </div>
+    </div>
+  `;
+}
+
+// ============================================
 // 호스트 결과 화면
 // ============================================
 
@@ -570,6 +683,7 @@ export function createResultScreenAsHostScreen(args: ResultScreenAsHostArgs): Sc
       const apple = parseAppleSummary(result.summary);
       const gomoku = parseGomokuSummary(result.summary);
       const reflex = parseReflexSummary(result.summary);
+      const darts = parseDartsSummary(result.summary);
       if (tetris) {
         el.innerHTML = buildTetrisResultHTML({
           myWinner: result.winner,
@@ -587,6 +701,13 @@ export function createResultScreenAsHostScreen(args: ResultScreenAsHostArgs): Sc
           totalPlayers: reflex.totalPlayers,
           rankings: reflex.rankings,
           myPeerId: reflex.myPeerId,
+          isHost: true,
+          isSpectator: false,
+        });
+      } else if (darts) {
+        el.innerHTML = buildDartsResultHTML({
+          myWinner: result.winner,
+          summary: darts,
           isHost: true,
           isSpectator: false,
         });
@@ -687,6 +808,7 @@ export function createResultScreenAsGuestScreen(args: ResultScreenAsGuestArgs): 
       const apple = parseAppleSummary(result.summary);
       const gomoku = parseGomokuSummary(result.summary);
       const reflex = parseReflexSummary(result.summary);
+      const darts = parseDartsSummary(result.summary);
       // 관전자는 summary.myPeerId 가 자기가 아닐 수 있음 — 자기 peerId 는 guest.myPeerId.
       // rankings 에 "나" 가 없으면 관전자로 간주.
       const myPeerIdForResult = guest.myPeerId;
@@ -708,6 +830,14 @@ export function createResultScreenAsGuestScreen(args: ResultScreenAsGuestArgs): 
           totalPlayers: reflex.totalPlayers,
           rankings: reflex.rankings,
           myPeerId: isSpec ? myPeerIdForResult : reflex.myPeerId,
+          isHost: false,
+          isSpectator: isSpec,
+        });
+      } else if (darts) {
+        const isSpec = !darts.rankings.some((r) => r.peerId === myPeerIdForResult);
+        el.innerHTML = buildDartsResultHTML({
+          myWinner: result.winner,
+          summary: isSpec ? { ...darts, myPeerId: myPeerIdForResult } : darts,
           isHost: false,
           isSpectator: isSpec,
         });
@@ -820,6 +950,35 @@ export function recordResultToStats(
     if (mine && mine.avgMs > 0) {
       // 낮을수록 좋음 (빠른 반응속도)
       bestEntries.push({ key: 'bestMs', value: Math.round(mine.avgMs), higherIsBetter: false });
+    }
+  } else if (id === 'darts') {
+    // 모드별 최고기록 키 분리 — 각 모드가 "승리 의미"와 지표가 다르므로
+    const mode = typeof summary['mode'] === 'string' ? (summary['mode'] as string) : '';
+    const rounds = Number(summary['rounds']);
+    const rankings = summary['rankings'] as Array<{ peerId: string; score: number }> | undefined;
+    const myPeerId = summary['myPeerId'] as string | undefined;
+    const mine = rankings?.find(r => r.peerId === myPeerId);
+    const myScore = mine ? Number(mine.score) : NaN;
+    const isWinner = winner === 'me';
+
+    if (mode === '101' || mode === '201' || mode === '301') {
+      // X01 은 이긴 판의 소요 라운드만 의미 있음 (적을수록 잘 침)
+      if (isWinner && Number.isFinite(rounds) && rounds > 0) {
+        bestEntries.push({ key: `bestX01_${mode}_rounds`, value: rounds, higherIsBetter: false });
+      }
+    } else if (mode === 'countup') {
+      if (Number.isFinite(myScore)) {
+        bestEntries.push({ key: 'bestCountupHigh', value: myScore, higherIsBetter: true });
+      }
+    } else if (mode === 'low-countup') {
+      // 0점은 한 번도 못 던진 상태라 의미 없음 — 0 보다 클 때만 기록
+      if (Number.isFinite(myScore) && myScore > 0) {
+        bestEntries.push({ key: 'bestLowCountup', value: myScore, higherIsBetter: false });
+      }
+    } else if (mode === 'cricket') {
+      if (Number.isFinite(myScore)) {
+        bestEntries.push({ key: 'bestCricketScore', value: myScore, higherIsBetter: true });
+      }
     }
   }
   // 에어하키/오목은 승/패만 기록

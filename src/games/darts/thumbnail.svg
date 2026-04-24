@@ -1,0 +1,84 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 200" fill="none">
+  <!-- 배경: 다른 게임과 같은 톤 -->
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#ffe4ee"/>
+      <stop offset="1" stop-color="#e0fff4"/>
+    </linearGradient>
+  </defs>
+  <rect width="320" height="200" rx="22" fill="url(#bg)"/>
+
+  <!-- 배경 점 데코 -->
+  <circle cx="28" cy="28" r="3" fill="#ffc9dd"/>
+  <circle cx="292" cy="38" r="2.5" fill="#b8f5e0"/>
+  <circle cx="296" cy="172" r="3" fill="#d9c7ff"/>
+  <circle cx="28" cy="174" r="2.2" fill="#ffeec2"/>
+
+  <!-- 별 데코 -->
+  <path d="M 50,48 L 52,52 L 57,52 L 53,55 L 55,60 L 50,57 L 45,60 L 47,55 L 43,52 L 48,52 Z"
+        fill="#ffc9dd" opacity="0.7"/>
+  <path d="M 270,150 L 272,154 L 277,154 L 273,157 L 275,162 L 270,159 L 265,162 L 267,157 L 263,154 L 268,154 Z"
+        fill="#b8f5e0" opacity="0.7"/>
+
+  <!-- 중앙 다트보드 (단순화된 버전) -->
+  <g transform="translate(160 100)">
+    <!-- 외곽 -->
+    <circle r="74" fill="#2e2438" stroke="#1a0a1a" stroke-width="1.5"/>
+
+    <!-- Double 링 (빨/초 교차 단순화: 파스텔 핑크/민트) -->
+    <g>
+      <!-- 각 섹터 60도(단순화: 6분할로 가정하고 12개 섹터 느낌만) -->
+      <!-- 간단히 더블 링을 파스텔로 그리되 세그먼트 구분은 생략 -->
+      <circle r="70" fill="none" stroke="#ff82ac" stroke-width="6"/>
+    </g>
+
+    <!-- 주요 숫자 영역 (어두운 녹색/베이지 세그먼트 느낌 — 파스텔로) -->
+    <circle r="64" fill="#fff9e8" stroke="#d9c7ff" stroke-width="0.5"/>
+
+    <!-- 세그먼트 구분선 (간단히 20개) -->
+    <g stroke="#b89aff" stroke-width="0.6" opacity="0.5">
+      <line x1="-64" y1="0" x2="64" y2="0"/>
+      <line x1="0" y1="-64" x2="0" y2="64"/>
+      <line x1="-45.2" y1="-45.2" x2="45.2" y2="45.2"/>
+      <line x1="-45.2" y1="45.2" x2="45.2" y2="-45.2"/>
+    </g>
+
+    <!-- Triple 링 -->
+    <circle r="38" fill="none" stroke="#86e8c4" stroke-width="4"/>
+
+    <!-- 내부 -->
+    <circle r="34" fill="#fff9e8"/>
+
+    <!-- Bull's eye -->
+    <circle r="10" fill="#86e8c4" stroke="#2e8a70" stroke-width="1"/>
+    <circle r="5" fill="#ff82ac" stroke="#c93d73" stroke-width="1"/>
+  </g>
+
+  <!-- 꽂힌 다트 2개 (과녁에 박힌 모습) -->
+  <!-- 다트 1: 불스아이 근처 -->
+  <g transform="translate(165 95) rotate(28)">
+    <!-- 뒷깃 (flight) -->
+    <polygon points="-1,-22 -6,-18 -1,-14" fill="#b89aff" stroke="#9c7aeb" stroke-width="0.6"/>
+    <polygon points="1,-22 6,-18 1,-14" fill="#ff82ac" stroke="#c93d73" stroke-width="0.6"/>
+    <!-- 몸체 -->
+    <rect x="-1" y="-18" width="2" height="18" fill="#faf7e6" stroke="#8a7a8a" stroke-width="0.4"/>
+    <!-- 팁 -->
+    <polygon points="-1,0 1,0 0,4" fill="#5a4a5a"/>
+  </g>
+
+  <!-- 다트 2: 트리플 영역 -->
+  <g transform="translate(140 80) rotate(-15)">
+    <polygon points="-1,-22 -6,-18 -1,-14" fill="#ffd454" stroke="#c49a1f" stroke-width="0.6"/>
+    <polygon points="1,-22 6,-18 1,-14" fill="#86e8c4" stroke="#2e8a70" stroke-width="0.6"/>
+    <rect x="-1" y="-18" width="2" height="18" fill="#faf7e6" stroke="#8a7a8a" stroke-width="0.4"/>
+    <polygon points="-1,0 1,0 0,4" fill="#5a4a5a"/>
+  </g>
+
+  <!-- 우측 하단 "스코어" 풍선 -->
+  <g transform="translate(260 160)">
+    <rect x="-30" y="-14" width="60" height="28" rx="14"
+          fill="#fff" stroke="#9c7aeb" stroke-width="1.4"/>
+    <text x="0" y="5" text-anchor="middle" font-family="Pretendard, system-ui, sans-serif"
+          font-size="13" font-weight="900" fill="#9c7aeb">180!</text>
+  </g>
+</svg>

@@ -15,6 +15,7 @@ import battleTetrisThumbnail from './battle-tetris/thumbnail.svg';
 import appleGameThumbnail from './apple-game/thumbnail.svg';
 import gomokuThumbnail from './gomoku/thumbnail.svg';
 import reflexThumbnail from './reflex/thumbnail.svg';
+import dartsThumbnail from './darts/thumbnail.svg';
 
 export const games: GameEntry[] = [
   {
@@ -121,6 +122,46 @@ export const games: GameEntry[] = [
     load: async () => {
       const mod = await import('./gomoku');
       return mod.createGomokuGame();
+    },
+  },
+  {
+    meta: {
+      id: 'darts',
+      name: '다트',
+      description: '드래그로 조준하고 놓는 순간 날아간다! 101/201/301, Count-up, Low Count-up, Cricket.',
+      thumbnail: dartsThumbnail,
+      minPlayers: 1,
+      maxPlayers: 4,
+      roomOptions: [
+        {
+          key: 'mode',
+          label: '모드',
+          type: 'select',
+          choices: [
+            { value: '301', label: '301' },
+            { value: '201', label: '201' },
+            { value: '101', label: '101' },
+            { value: 'countup', label: 'Count-up · 높은 점수 승' },
+            { value: 'low-countup', label: 'Low Count-up · 낮은 점수 승' },
+            { value: 'cricket', label: 'Cricket' },
+          ],
+          defaultValue: '301',
+        },
+        {
+          key: 'x01Variant',
+          label: 'X01 난이도',
+          type: 'select',
+          choices: [
+            { value: 'normal', label: 'Normal · 0 맞추면 승' },
+            { value: 'hard', label: 'Hard · Double 로 0 맞춰야 승' },
+          ],
+          defaultValue: 'normal',
+        },
+      ],
+    },
+    load: async () => {
+      const mod = await import('./darts');
+      return mod.createDartsGame();
     },
   },
   {

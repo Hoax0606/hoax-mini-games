@@ -2,7 +2,7 @@
 <html lang="ko">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="icon" type="image/png" href="/logo.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Hoax Minigames</title>
     <style>
@@ -31,14 +31,13 @@
       }
       body.splash-hidden #splash { opacity: 0; visibility: hidden; }
       .splash-logo {
-        font-size: 56px;
-        font-weight: 800;
-        background: linear-gradient(135deg, #ff82ac, #b89aff);
-        -webkit-background-clip: text;
-        background-clip: text;
-        -webkit-text-fill-color: transparent;
-        letter-spacing: -2px;
+        /* Henry 로고 이미지. 높이 기준으로 맞추고 가로는 auto */
+        height: 140px;
+        width: auto;
+        max-width: 80vw;
+        object-fit: contain;
         animation: splashFloat 2.4s ease-in-out infinite;
+        filter: drop-shadow(0 4px 12px rgba(255, 130, 172, 0.3));
       }
       .splash-tagline {
         font-size: 14px;
@@ -67,7 +66,7 @@
   </head>
   <body>
     <div id="splash">
-      <div class="splash-logo">Hoax Minigames</div>
+      <img src="/logo.png" alt="Hoax Minigames" class="splash-logo" />
       <div class="splash-tagline">친구와 함께하는 작은 게임들</div>
       <div class="splash-dots">
         <span></span><span></span><span></span>

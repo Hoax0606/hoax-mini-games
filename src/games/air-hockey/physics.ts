@@ -350,13 +350,12 @@ function resetAfterGoal(state: GameState): void {
   state.puck.vx = 0;
   state.puck.vy = 0;
 
-  // 말렛도 시작 위치로 복귀
-  state.mallets.host.x = FIELD.WIDTH * 0.20;
-  state.mallets.host.y = FIELD.HEIGHT / 2;
+  // 말렛은 강제로 옮기지 않음. goal_pause 동안 updateMallet 이 매 프레임
+  // 호출되므로 말렛은 이미 각 플레이어의 현재 커서 위치를 따라다녔음.
+  // 여기서 고정 좌표로 snap 하면 재개 직후 말렛이 MAX_SPEED 로 커서까지 "zoom"
+  // 하는 버그가 생기므로 건드리지 말 것. 속도만 0 으로 초기화해서 퍽 충돌 초기화.
   state.mallets.host.vx = 0;
   state.mallets.host.vy = 0;
-  state.mallets.guest.x = FIELD.WIDTH * 0.80;
-  state.mallets.guest.y = FIELD.HEIGHT / 2;
   state.mallets.guest.vx = 0;
   state.mallets.guest.vy = 0;
 

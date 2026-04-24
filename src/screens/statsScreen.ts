@@ -120,6 +120,15 @@ function renderBestRecords(gameId: string, best?: Record<string, number>): strin
     case 'reflex':
       if (best['bestMs'] != null) items.push({ label: '최고 기록', formatted: `${best['bestMs']}ms` });
       break;
+    case 'darts':
+      // X01 모드는 승리 시 걸린 라운드 수 (적을수록 좋음)
+      if (best['bestX01_101_rounds'] != null) items.push({ label: '101 최소 라운드', formatted: `${best['bestX01_101_rounds']}R` });
+      if (best['bestX01_201_rounds'] != null) items.push({ label: '201 최소 라운드', formatted: `${best['bestX01_201_rounds']}R` });
+      if (best['bestX01_301_rounds'] != null) items.push({ label: '301 최소 라운드', formatted: `${best['bestX01_301_rounds']}R` });
+      if (best['bestCountupHigh']   != null) items.push({ label: 'Count-up 최고점', formatted: `${best['bestCountupHigh']}점` });
+      if (best['bestLowCountup']    != null) items.push({ label: 'Low Count-up 최저점', formatted: `${best['bestLowCountup']}점` });
+      if (best['bestCricketScore']  != null) items.push({ label: 'Cricket 최고점', formatted: `${best['bestCricketScore']}점` });
+      break;
     // 에어하키/오목은 승/패만
   }
   if (items.length === 0) return '';
