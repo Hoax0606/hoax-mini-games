@@ -3,7 +3,7 @@
 다른 머신(집)에서 이 프로젝트를 이어서 작업할 때 읽는 문서.
 **Claude Code 첫 프롬프트로 "HANDOFF.md 정독하고 이어서 진행해줘" 라고 시작하면 됨.**
 
-마지막 업데이트: **2026-04-25** (다트 UI 전면 리디자인 + 전체 한글 UI 정돈)
+마지막 업데이트: **2026-04-25** (다트 UI 리디자인 + 한글 정돈 + 인게임 메뉴/일시정지 + 다트 hello 핸드셰이크 + 반응속도 BGM + 에어하키 stuck 제거)
 
 ---
 
@@ -34,8 +34,9 @@ npm run dev       # http://localhost:5173
 
 **다음 작업**:
 - 🅐 **Phase 3 방장 이양** — 방장 나가면 남은 사람 중 하나가 새 방장 돼서 게임 이어가기. 여전히 미구현.
-- 🅑 **다트 네트워크 동기화** — `src/games/darts/index.ts` 주석에 "Phase C"로 남겨둠. 현재 같은 기기 로컬 턴제만 동작. `dt:` 메시지로 투척/턴 동기화 필요.
-- (선택) 오목/반응속도/다트 플레이테스트 피드백 반영
+- 🅑 **테트리스 관전 뷰 v2** — 현재 "관전 중" 오버레이만. 4인 필드 2×2 격자 풀사이즈로 개선 가능 (render.ts 큰 수술).
+- 🅒 **새 게임 추가** — 플랫폼(N인/관전/일시정지/통계) 다 갖춰져서 게임 모듈만 짜면 됨. 후보: 카드 메모리, 스피드 타이핑, 스네이크 다인전 등.
+- (선택) Medium 리팩토링 — `escapeHtml` 헬퍼 추출 / `GameModule.renderResultCard` 범용화 / gameScreen factory 공통화
 
 ---
 
@@ -50,7 +51,7 @@ npm run dev       # http://localhost:5173
   - 사과 게임 (1~4인, 숫자 사과 합 10 터트리기, 2분)
   - 오목 (2인, 15×15 또는 19×19, 30초 턴, 호스트 authoritative)
   - 반응속도 (1~4인, 5라운드 평균 ms 경쟁)
-  - 다트 (1~4인, 6모드 — 301/201/101 Normal·Hard / Count-up / Low Count-up / Cricket) ⚠️ **현재 로컬 턴제만. 네트워크 동기화 미완성**
+  - 다트 (1~4인, 6모드 — 301/201/101 Normal·Hard / Count-up / Low Count-up / Cricket). 투척/턴/종료/관전자 hello 핸드셰이크까지 ✅ 모두 동작.
 - **배포 URL**: https://hoax0606.github.io/hoax-mini-games/
 
 ---
@@ -78,7 +79,7 @@ src/
 │   ├── gomoku/                  # 2인 턴제, 호스트 authoritative, 15/19, 30초 턴
 │   │                            #   go:request_move / go:move / go:sync / go:hello / go:end
 │   ├── reflex/                  # 1-4인 5라운드 반응속도. rx:round_done / rx:player_done / rx:end
-│   └── darts/                   # 1-4인 6모드 다트 (⚠️ 로컬 턴제만, 네트워크 미완)
+│   └── darts/                   # 1-4인 6모드 다트 (투척/종료 net ✅, 관전자 핸드셰이크만 미완)
 │       ├── rules.ts             #   순수 상태머신 (X01 Normal/Hard, Count-up, Low, Cricket)
 │       ├── board.ts             #   과녁 좌표 → HitResult 판정
 │       └── index.ts             #   플릭 투척 물리 + 턴 진행
@@ -105,6 +106,7 @@ src/
 - `game_msg` — 게임별 메시지 wrapper. `target?: string`, `from?: string`
 - `ping_req` / `ping_ack` / `ping_report` — peer.ts 가 자동 처리 (2초 주기 RTT 측정). 게임 모듈은 신경 X.
 - `reaction` — 이모지 반응 broadcast. 대기실/게임 화면에 풍선 뜸.
+- `pause` / `resume` — 인게임 메뉴 모달 열림/닫힘 시 broadcast. 호스트가 다른 게스트에 relay. 모든 클라이언트가 dim overlay + `gameModule.setPaused` 호출.
 
 **GameMessage** (게임 내부):
 - 에어하키: `ah:state` / `ah:input` / `ah:end`
@@ -112,7 +114,7 @@ src/
 - 사과 게임: `ag:hello` (게스트 → 호스트 seed 요청) / `ag:seed` / `ag:score` / `ag:end`
 - 오목: `go:request_move` / `go:move` / `go:sync` / `go:hello` / `go:end`
 - 반응속도: `rx:round_done` / `rx:player_done` / `rx:end`
-- 다트: (아직 네트워크 메시지 없음 — 로컬만 동작)
+- 다트: `dart:hello` / `dart:sync` (관전자 합류 시 현재 game state + stuckDarts 동기화) / `dart:throw` (투척자 초기 속도/위치 broadcast) / `dart:end` (호스트 per-peer 결과)
 
 ### 역할 (GameContext.role + isSpectator)
 - `role: 'host'` — 방장. 승리 판정자.
@@ -126,7 +128,7 @@ src/
 3. **사과 게임** = 독립 보드(같은 seed로 동일 배치) + 게임 중 상대 점수 비공개. 타이머 만료 시점에만 점수 공유, 호스트 1초 grace period 후 랭킹 집계.
 4. **오목** = 호스트 authoritative. 게스트는 `go:request_move` 로 의사 전달 → 호스트 검증 후 `go:move` broadcast. 각 턴 30초, 타임아웃은 호스트가 판정.
 5. **반응속도** = 각자 독립 5라운드. 라운드 종료 시점에만 broadcast. 호스트가 전원 완료 감지 → per-peer `rx:end`.
-6. **다트** = 현재 로컬 turn-based 만. rules.ts 순수 상태머신 + 플릭 투척 물리. 멀티 동기화 (Phase C) 미완.
+6. **다트** = rules.ts 순수 상태머신 + 플릭 투척 물리. 각 클라이언트가 결정론적 시뮬레이션 — 투척자가 `dart:throw`(초기 속도) broadcast 하면 수신 측이 같은 파라미터로 물리 재생해 착지점·점수 수렴. 호스트가 `dart:end`로 per-peer 결과. 관전자 중간 합류 snapshot 만 미완.
 7. **게임 모듈 확장성**: `src/games/<id>/` + `GameModule` + registry. 플랫폼 수정 X.
 8. **관전자 결과 화면 이동**: 플레이어는 게임 내부 end 메시지, 관전자는 플랫폼 `game_end` broadcast.
 
@@ -147,7 +149,7 @@ src/
 - 사과 게임: F 메이저 · 95 BPM · triangle · 밝고 느긋
 - 오목: 자체 루프
 - 다트: 자체 루프
-- 반응속도: BGM 없음 (짧은 라운드라 생략)
+- 반응속도: G 메이저 · 105 BPM · square (2026-04-25 추가, "반복 모티프 + 가벼운 긴장감")
 
 ---
 
@@ -177,6 +179,25 @@ src/
 - `storage.recordGameResult(gameId, winner, bestEntries)` — 결과 화면에서 호출
 - best 는 자유 스키마: `{ key, value, higherIsBetter }` 배열. 게임마다 의미 다름 (사과 bestScore, 반응속도 bestMs 등)
 - **머신별 독립** — 집/회사 PC 에서 기록 따로 쌓임
+
+### 인게임 메뉴 모달 + 멀티 일시정지 (2026-04-25 추가)
+- 게임 화면 우측 상단 ⚙️ 버튼 또는 **Esc 키** → 모달 토글
+- 모달 내용: 마스터 볼륨 슬라이더 / BGM 토글 / SFX 토글 / "메뉴로 (방 나가기)"
+- 모달 열림 → `pause` 메시지 broadcast (호스트가 다른 게스트에 relay) + 자기 `gameModule.setPaused(true)` 호출
+- 다른 플레이어 화면: 반투명 dim overlay + `⏸️ {닉네임} 가 잠시 멈췄어요` 안내 + canvas 마우스 입력 차단
+- 모달 닫힘 / "계속하기" → `resume` broadcast → 모두 정상 재개
+
+### `GameModule.setPaused(paused)` 선택 메서드 (게임별 정지)
+인터페이스 (types.ts):
+```ts
+setPaused?(paused: boolean): void;
+```
+- 에어하키: stepPhysics + ah:state broadcast 정지
+- 테트리스: engine.update + bt:state broadcast 정지, lastFrameTime 리셋
+- 사과: 타이머 보정 (paused 동안 startedAt 더해줌)
+- 오목: turnStartedAt + startedAt 보정
+- 반응속도: 모든 setTimeout 정지, phase 별 재개 (waiting → 재시작 / go → waitStartedAt 보정 / result/foul → setTimeout 재시작)
+- 다트: flight 진행 정지, 진행 중 windup 취소
 
 ---
 
@@ -237,6 +258,8 @@ src/
 - **사과 게임 스포일러 전면 제거 (2026-04-24)** → 드래그 박스의 합 숫자 표시 X, 합 상태별 색 힌트 X (10/초과/미만 색 분기 폐기). 단일 연분홍.
 - **사과 게임 실시간 점수 비공개 (2026-04-24)** → 게임 중엔 상대 점수 공유 X. 타이머 만료 시점에만 자기 최종 점수 한 번 송신, 호스트는 1초 grace period 후 랭킹.
 - **사과 게임 초기 seed race condition (2026-04-24)** → 게스트가 gameScreen 진입 후 game.load() 중에 호스트의 첫 seed broadcast 를 놓침. 해결: 게스트 start 끝에 `ag:hello` 송신 → 호스트가 해당 peerId 에 target 으로 seed 재전송.
+- **에어하키 stuck 자동 리셋 제거 (2026-04-25)** → 퍽이 3초 정지 시 중앙으로 자동 이동하는 규칙 폐지. "친구끼리 하는 게임이라 끼임 거의 없고, 일시정지/재개 시 누적 timer 가 트리거 돼 퍽이 튀는 버그 발생". `MIN_STUCK_SPEED` / `STUCK_FRAMES` / `state.stuckTimer` / `stuck_reset` 이벤트 / 관련 파티클 모두 삭제.
+- **다트 관전자 hello 핸드셰이크 (2026-04-25)** → 게임 중 합류 관전자가 누적 게임 state(턴/점수/꽂힌 다트) 를 받도록. 게스트/관전자 start 끝에 `dart:hello` 송신 → 호스트가 `dart:sync({ game, stuckDarts })` 를 그 peerId 에 target 송신 → 수신 측이 game state 교체.
 
 ### UX
 - **메인 메뉴 정렬** → `.menu-list`에 `margin: 0 auto`.
@@ -304,8 +327,8 @@ src/
 ## 🐛 알려진 이슈 / 개선 여지
 
 - **Phase 3 (방장 이양) 미구현** — 방장 나가면 방 종료.
-- **다트 네트워크 동기화 미완성** — `src/games/darts/index.ts` 주석 "Phase C". 현재 같은 기기 로컬 턴제만 동작. 여러 기기에서 방 만들어 붙어도 각 기기가 독립 state 로 돌아가 엇갈림.
 - **테트리스 관전 뷰 v2 (2×2 격자) 미구현** — 현재 "관전 중" 오버레이만.
+- **일시정지 키보드 입력 차단 안 됨** — pause overlay 가 canvas 위에 올라가서 마우스는 차단되지만, 게임 모듈이 `window` 레벨로 keydown 을 listen 하면 키 입력은 그대로 전달. 다만 각 게임 `setPaused(true)` 시 `performKey`/`onCanvasClick` 등에 paused 가드 추가돼서 실질 동작은 안 함.
 - **에어하키 관전자 비주얼** — 점수판 대신 "관전 중" 배지만.
 - **사과 게임 솔버블 보장 X** — 단순 랜덤이라 운 나쁘면 덜 풀림.
 - **사과 게임 관전자 뷰** — 보드 영역 전체 "관전 중" 오버레이. 어떤 플레이어 보드 보여주기 같은 개선 여지 있음.

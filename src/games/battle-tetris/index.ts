@@ -115,6 +115,9 @@ class BattleTetrisGame implements GameModule {
   private garbageSentTotal = 0;
   private garbageReceivedTotal = 0;
 
+  /** 일시정지 — true 면 engine.update / broadcast / 키 입력 모두 스킵 */
+  private paused = false;
+
   // 입력 상태
   private pressedKeys = new Set<string>();
   private repeatTimers = new Map<string, { timeout?: number; interval?: number }>();
@@ -266,6 +269,15 @@ class BattleTetrisGame implements GameModule {
     sound.stopBgm();
   }
 
+  /** 일시정지 토글. paused 풀릴 때 lastFrameTime 리셋해 dt 폭주 방지. */
+  setPaused(paused: boolean): void {
+    if (paused === this.paused) return;
+    this.paused = paused;
+    if (!paused) {
+      this.lastFrameTime = 0;
+    }
+  }
+
   // ============================================
   // 메인 루프
   // ============================================
@@ -278,8 +290,8 @@ class BattleTetrisGame implements GameModule {
     const dt = this.lastFrameTime === 0 ? 16 : Math.min(now - this.lastFrameTime, 100);
     this.lastFrameTime = now;
 
-    // 관전자는 engine.update / broadcast 스킵 — 상대 스냅샷 받은 것만 렌더
-    if (!this.ctx.isSpectator && !this.gameFinished) {
+    // 관전자/일시정지 시 engine.update / broadcast 스킵 — 상대 스냅샷 받은 것만 렌더
+    if (!this.ctx.isSpectator && !this.gameFinished && !this.paused) {
       const events = this.engine.update(dt);
       if (events.length > 0) this.handleEngineEvents(events);
 
@@ -507,7 +519,7 @@ class BattleTetrisGame implements GameModule {
   }
 
   private performKey(code: string): void {
-    if (this.gameFinished || this.engine.state.toppedOut) return;
+    if (this.gameFinished || this.engine.state.toppedOut || this.paused) return;
 
     switch (code) {
       case 'ArrowLeft':  this.engine.moveLeft(); break;

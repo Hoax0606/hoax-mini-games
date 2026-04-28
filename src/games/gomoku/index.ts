@@ -95,6 +95,10 @@ class GomokuGame implements GameModule {
   /** 게임 시작 시각 (performance.now). 결과 화면 소요시간 표시용 */
   private startedAt = 0;
 
+  /** 일시정지 — paused 동안 turnStartedAt / startedAt 보정 */
+  private paused = false;
+  private pauseStart = 0;
+
   // ============================================
   // GameModule interface
   // ============================================
@@ -198,6 +202,21 @@ class GomokuGame implements GameModule {
     if (this.ctx?.canvas) this.ctx.canvas.style.cursor = '';
     this.renderer?.destroy();
     sound.stopBgm();
+  }
+
+  /** 일시정지 토글. paused 동안 흐른 만큼 turnStartedAt / startedAt 더해 타이머 정지. */
+  setPaused(paused: boolean): void {
+    if (paused === this.paused) return;
+    this.paused = paused;
+    if (paused) {
+      this.pauseStart = performance.now();
+      this.hoverCell = null;
+    } else if (this.pauseStart > 0) {
+      const pausedDuration = performance.now() - this.pauseStart;
+      this.turnStartedAt += pausedDuration;
+      this.startedAt += pausedDuration;
+      this.pauseStart = 0;
+    }
   }
 
   // ============================================
@@ -433,7 +452,7 @@ class GomokuGame implements GameModule {
   }
 
   private onMouseMove = (e: MouseEvent): void => {
-    if (this.gameFinished) { this.hoverCell = null; return; }
+    if (this.gameFinished || this.paused) { this.hoverCell = null; return; }
     if (this.currentTurn !== this.mySide) { this.hoverCell = null; return; }
 
     const rect = this.ctx.canvas.getBoundingClientRect();
@@ -454,7 +473,7 @@ class GomokuGame implements GameModule {
   };
 
   private onClick = (e: MouseEvent): void => {
-    if (this.gameFinished) return;
+    if (this.gameFinished || this.paused) return;
     if (this.currentTurn !== this.mySide) return;
 
     const rect = this.ctx.canvas.getBoundingClientRect();

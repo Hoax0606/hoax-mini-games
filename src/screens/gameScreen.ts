@@ -76,6 +76,7 @@ function buildHeaderHTML(args: {
       <div class="game-room-info">
         <span class="game-room-info-text">${escapeHtml(args.optionSummary)}</span>
         <span class="ping-badge ping-pending" id="ping-badge">⏳ 측정 중</span>
+        <button class="game-menu-btn" id="game-menu-btn" title="게임 설정 (Esc)">⚙️</button>
       </div>
     </div>
 
@@ -84,7 +85,157 @@ function buildHeaderHTML(args: {
     </div>
 
     <div class="reaction-bar-floating">${buildReactionBarHTML()}</div>
+
+    ${buildGameMenuModalHTML()}
+
+    <div class="game-pause-overlay" id="game-pause-overlay" hidden>
+      <div class="game-pause-card">
+        <div class="game-pause-icon">⏸️</div>
+        <div class="game-pause-title" id="pause-title">일시정지</div>
+        <div class="game-pause-sub">다시 시작될 때까지 기다려 주세요</div>
+      </div>
+    </div>
   `;
+}
+
+/** 다른 플레이어가 일시정지했을 때 dim 오버레이 표시 */
+function showPauseOverlay(el: HTMLElement, byNickname: string): void {
+  const overlay = el.querySelector<HTMLDivElement>('#game-pause-overlay');
+  const title = el.querySelector<HTMLDivElement>('#pause-title');
+  if (!overlay || !title) return;
+  title.textContent = `⏸️ ${byNickname} 님이 잠시 멈췄어요`;
+  overlay.hidden = false;
+}
+
+function hidePauseOverlay(el: HTMLElement): void {
+  const overlay = el.querySelector<HTMLDivElement>('#game-pause-overlay');
+  if (overlay) overlay.hidden = true;
+}
+
+/**
+ * 인게임 설정 모달 HTML.
+ * 게임 화면 안에서 BGM/SFX/볼륨 빠르게 조정 + 메뉴로 나가기.
+ * 멀티플레이라 게임 자체는 정지하지 않고 모달만 떠있음.
+ */
+function buildGameMenuModalHTML(): string {
+  return `
+    <div class="game-menu-overlay" id="game-menu-overlay" hidden>
+      <div class="game-menu-card">
+        <div class="game-menu-title">⚙️ 게임 설정</div>
+
+        <div class="slider-row">
+          <span class="slider-label">🔊 마스터 볼륨</span>
+          <input type="range" class="slider" id="gm-vol" min="0" max="100" value="70" />
+          <span class="slider-value" id="gm-vol-val">70</span>
+        </div>
+
+        <div class="toggle-row">
+          <span class="toggle-label">🎵 배경음악 (BGM)</span>
+          <div class="toggle" id="gm-bgm-toggle"></div>
+        </div>
+
+        <div class="toggle-row">
+          <span class="toggle-label">🔔 효과음 (SFX)</span>
+          <div class="toggle" id="gm-sfx-toggle"></div>
+        </div>
+
+        <button class="btn btn-primary btn-block" id="gm-close" style="margin-top: 16px;">
+          계속하기
+        </button>
+        <button class="btn btn-ghost btn-block" id="gm-leave">
+          메뉴로 (방 나가기)
+        </button>
+      </div>
+    </div>
+  `;
+}
+
+/**
+ * 인게임 메뉴 모달 와이어링.
+ * - ⚙️ 버튼 클릭 / Esc 키 → 토글
+ * - 오버레이 빈 영역 / "계속하기" → 닫기
+ * - "메뉴로" → callbacks.onLeaveRequest
+ * - 모달 열림/닫힘 시 callbacks.onOpen / onClose (pause broadcast 용)
+ * - 슬라이더/토글 변경 → storage 저장 + sound.refreshBgmSettings()
+ *
+ * 반환값: window 키 리스너 해제 cleanup 함수. dispose 에서 호출.
+ */
+interface GameMenuCallbacks {
+  onLeaveRequest: () => void;
+  onOpen?: () => void;
+  onClose?: () => void;
+}
+function wireGameMenuModal(el: HTMLElement, callbacks: GameMenuCallbacks): () => void {
+  const overlay = el.querySelector<HTMLDivElement>('#game-menu-overlay')!;
+  const menuBtn = el.querySelector<HTMLButtonElement>('#game-menu-btn')!;
+  const closeBtn = overlay.querySelector<HTMLButtonElement>('#gm-close')!;
+  const leaveBtn = overlay.querySelector<HTMLButtonElement>('#gm-leave')!;
+  const volInput = overlay.querySelector<HTMLInputElement>('#gm-vol')!;
+  const volVal = overlay.querySelector<HTMLSpanElement>('#gm-vol-val')!;
+  const bgmToggle = overlay.querySelector<HTMLDivElement>('#gm-bgm-toggle')!;
+  const sfxToggle = overlay.querySelector<HTMLDivElement>('#gm-sfx-toggle')!;
+
+  const syncFromStorage = (): void => {
+    const s = storage.getSettings();
+    volInput.value = String(s.masterVolume);
+    volVal.textContent = String(s.masterVolume);
+    bgmToggle.classList.toggle('on', s.bgmEnabled);
+    sfxToggle.classList.toggle('on', s.sfxEnabled);
+  };
+
+  const open = (): void => {
+    if (!overlay.hidden) return;
+    syncFromStorage();
+    overlay.hidden = false;
+    callbacks.onOpen?.();
+  };
+  const close = (): void => {
+    if (overlay.hidden) return;
+    overlay.hidden = true;
+    callbacks.onClose?.();
+  };
+
+  menuBtn.addEventListener('click', open);
+  closeBtn.addEventListener('click', close);
+  leaveBtn.addEventListener('click', () => { close(); callbacks.onLeaveRequest(); });
+
+  // 오버레이 빈 영역 클릭 시 닫기 (카드 내부 클릭은 stopPropagation 안 해도 e.target 으로 거름)
+  overlay.addEventListener('click', (e) => {
+    if (e.target === overlay) close();
+  });
+
+  volInput.addEventListener('input', () => {
+    const v = Number(volInput.value);
+    volVal.textContent = String(v);
+    storage.setSettings({ masterVolume: v });
+    sound.refreshBgmSettings();
+  });
+
+  bgmToggle.addEventListener('click', () => {
+    const on = bgmToggle.classList.toggle('on');
+    storage.setSettings({ bgmEnabled: on });
+    sound.refreshBgmSettings();
+  });
+
+  sfxToggle.addEventListener('click', () => {
+    const on = sfxToggle.classList.toggle('on');
+    storage.setSettings({ sfxEnabled: on });
+    if (on) sound.play('pop');
+  });
+
+  // Esc 토글 — 게임 키와 충돌 없음 (게임 입력은 키 코드 기반)
+  const onKey = (e: KeyboardEvent): void => {
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      if (overlay.hidden) open();
+      else close();
+    }
+  };
+  window.addEventListener('keydown', onKey);
+
+  return (): void => {
+    window.removeEventListener('keydown', onKey);
+  };
 }
 
 /** 점수 DOM에 번쩍임 애니메이션 재시작 */
@@ -130,6 +281,8 @@ export function createGameScreenAsHostScreen(args: GameScreenAsHostArgs): Screen
   let disposed = false;
   // 결과 화면으로 이동할 땐 세션 소유권 넘기므로 close 하지 않음
   let closeOnDispose = true;
+  /** 인게임 메뉴 모달 cleanup (window keydown 리스너 해제) */
+  let cleanupMenu: (() => void) | null = null;
 
   // 게임 시작 시점에 들어와 있던 플레이어들 (관전자와 구분).
   // 게임 도중에 들어오는 사람은 전부 spectators 로. role='spectator' 마킹.
@@ -228,7 +381,7 @@ export function createGameScreenAsHostScreen(args: GameScreenAsHostArgs): Screen
         },
       };
 
-      // HostSession 메시지 라우팅 — game_msg를 (필요시 다른 게스트에) relay + 호스트 로컬 소비
+      // HostSession 메시지 라우팅 — reaction/pause/resume 처리 + game_msg relay/소비
       host.onMessage = (msg, fromPeerId) => {
         // 이모지 반응: 내 화면에 표시 + 다른 게스트들에게 forward
         if (msg.type === 'reaction') {
@@ -236,6 +389,23 @@ export function createGameScreenAsHostScreen(args: GameScreenAsHostArgs): Screen
           for (const pid of host.listGuestPeerIds()) {
             if (pid !== fromPeerId) host.sendTo(pid, msg);
           }
+          return;
+        }
+        // 일시정지/재개: 다른 게스트에 forward + 호스트 자기 dim 처리 + 게임 모듈에 알림
+        if (msg.type === 'pause') {
+          for (const pid of host.listGuestPeerIds()) {
+            if (pid !== fromPeerId) host.sendTo(pid, msg);
+          }
+          showPauseOverlay(el, msg.byNickname);
+          gameModule?.setPaused?.(true);
+          return;
+        }
+        if (msg.type === 'resume') {
+          for (const pid of host.listGuestPeerIds()) {
+            if (pid !== fromPeerId) host.sendTo(pid, msg);
+          }
+          hidePauseOverlay(el);
+          gameModule?.setPaused?.(false);
           return;
         }
         if (msg.type !== 'game_msg') return;
@@ -318,6 +488,20 @@ export function createGameScreenAsHostScreen(args: GameScreenAsHostArgs): Screen
         }
       });
 
+      // 인게임 메뉴 모달 (⚙️ / Esc) — 열림/닫힘 시 pause/resume broadcast.
+      // 호스트 본인 화면은 이미 모달이 위에 떠 있어 dim 별도 표시 불필요.
+      cleanupMenu = wireGameMenuModal(el, {
+        onLeaveRequest: () => leaveBtn.click(),
+        onOpen: () => {
+          host.send({ type: 'pause', byPeerId: host.myPeerId, byNickname: hostNickname });
+          gameModule?.setPaused?.(true);
+        },
+        onClose: () => {
+          host.send({ type: 'resume', byPeerId: host.myPeerId });
+          gameModule?.setPaused?.(false);
+        },
+      });
+
       // Ping 배지: 여러 게스트 중 "가장 느린" 쪽을 대표로 표시 (호스트 시점 가장 나쁜 연결)
       const pingBadgeEl = el.querySelector<HTMLSpanElement>('#ping-badge')!;
       host.onPingChanged = (pings) => {
@@ -358,6 +542,8 @@ export function createGameScreenAsHostScreen(args: GameScreenAsHostArgs): Screen
       host.onJoinRequest = null;
       host.onGuestConnected = null;
       host.onPingChanged = null;
+      cleanupMenu?.();
+      cleanupMenu = null;
       if (closeOnDispose) host.close();
     },
   };
@@ -377,6 +563,7 @@ export function createGameScreenAsGuestScreen(args: GameScreenAsGuestArgs): Scre
   let gameModule: GameModule | null = null;
   let disposed = false;
   let closeOnDispose = true;
+  let cleanupMenu: (() => void) | null = null;
 
   // "나"의 role 판정 — roomState.players 에서 내 peerId 찾아 role='spectator' 면 관전 모드.
   // (게임 중 입장한 관전자는 roomState가 호스트에서 build 된 시점에 이미 role='spectator' 마킹되어 있음)
@@ -464,6 +651,17 @@ export function createGameScreenAsGuestScreen(args: GameScreenAsGuestArgs): Scre
           showReactionBubble(msg.emoji, msg.nickname);
           return;
         }
+        // 일시정지/재개 — 다른 사람이 ⚙️ 메뉴를 열었음. 내 화면 dim + 게임 모듈 정지.
+        if (msg.type === 'pause') {
+          showPauseOverlay(el, msg.byNickname);
+          gameModule?.setPaused?.(true);
+          return;
+        }
+        if (msg.type === 'resume') {
+          hidePauseOverlay(el);
+          gameModule?.setPaused?.(false);
+          return;
+        }
         // 관전자 전용 종료 경로 — 플레이어들은 각 게임의 내부 메시지(bt:end / ah:end) 로
         // ctx.endGame 을 통해 이미 이동하므로 game_end 는 무시해도 된다.
         if (msg.type === 'game_end') {
@@ -499,6 +697,19 @@ export function createGameScreenAsGuestScreen(args: GameScreenAsGuestArgs): Scre
         }
       });
 
+      // 인게임 메뉴 모달 (⚙️ / Esc) — 열림/닫힘 시 pause/resume 송신 + 게임 모듈 정지
+      cleanupMenu = wireGameMenuModal(el, {
+        onLeaveRequest: () => leaveBtn.click(),
+        onOpen: () => {
+          guest.send({ type: 'pause', byPeerId: guest.myPeerId, byNickname: guestNickname });
+          gameModule?.setPaused?.(true);
+        },
+        onClose: () => {
+          guest.send({ type: 'resume', byPeerId: guest.myPeerId });
+          gameModule?.setPaused?.(false);
+        },
+      });
+
       // Ping 배지 — 호스트가 보고해주는 내 편도 지연 표시
       const pingBadgeEl = el.querySelector<HTMLSpanElement>('#ping-badge')!;
       guest.onPingChanged = (ms) => updatePingBadge(pingBadgeEl, ms);
@@ -529,6 +740,8 @@ export function createGameScreenAsGuestScreen(args: GameScreenAsGuestArgs): Scre
       guest.onMessage = null;
       guest.onDisconnect = null;
       guest.onPingChanged = null;
+      cleanupMenu?.();
+      cleanupMenu = null;
       if (closeOnDispose) guest.close();
     },
   };

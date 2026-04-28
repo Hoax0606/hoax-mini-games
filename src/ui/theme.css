@@ -1421,3 +1421,102 @@ input {
   0%, 100% { transform: translateY(0) rotate(0deg); }
   50%      { transform: translateY(-16px) rotate(8deg); }
 }
+
+/* ============================================
+   인게임 메뉴 모달 (게임 화면 안에서 빠른 설정)
+   ============================================ */
+
+.game-menu-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(60, 50, 70, 0.5);
+  backdrop-filter: blur(2px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 200;
+  animation: fadeIn 0.18s ease-out;
+}
+.game-menu-overlay[hidden] { display: none; }
+
+.game-menu-card {
+  background: var(--bg-card);
+  border-radius: var(--radius-lg);
+  padding: 24px 28px;
+  min-width: 340px;
+  max-width: 420px;
+  box-shadow: var(--shadow-lg);
+  border: 2px solid var(--border-soft);
+}
+.game-menu-title {
+  font-size: 22px;
+  font-weight: 800;
+  color: var(--text-main);
+  text-align: center;
+  margin-bottom: 18px;
+}
+
+/* 헤더 우측 상단 ⚙️ 토글 버튼 */
+.game-menu-btn {
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  font-size: 18px;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  transition: background 0.15s;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.game-menu-btn:hover {
+  background: var(--bg-subtle);
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+/* ============================================
+   다른 플레이어 일시정지 알림 오버레이
+   (자기가 일시정지한 경우엔 .game-menu-overlay 가 위에 있어 별도 dim 불필요)
+   ============================================ */
+
+.game-pause-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(60, 50, 70, 0.55);
+  backdrop-filter: blur(3px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 150; /* game-menu-overlay(200) 보다 낮게 */
+  animation: fadeIn 0.2s ease-out;
+}
+.game-pause-overlay[hidden] { display: none; }
+
+.game-pause-card {
+  background: var(--bg-card);
+  border-radius: var(--radius-lg);
+  padding: 26px 36px;
+  text-align: center;
+  box-shadow: var(--shadow-lg);
+  border: 2px solid var(--border-soft);
+  min-width: 280px;
+}
+.game-pause-icon {
+  font-size: 44px;
+  margin-bottom: 6px;
+}
+.game-pause-title {
+  font-size: 18px;
+  font-weight: 800;
+  color: var(--text-main);
+}
+.game-pause-sub {
+  font-size: 13px;
+  color: var(--text-muted);
+  margin-top: 6px;
+}

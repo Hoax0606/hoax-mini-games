@@ -48,6 +48,10 @@ import {
   decodeThrow,
   encodeEnd,
   decodeEnd,
+  encodeHello,
+  decodeHello,
+  encodeSync,
+  decodeSync,
 } from './netSync';
 
 // --- 물리 상수 (논리 좌표 800×400 기준) ---
@@ -115,6 +119,9 @@ class DartsGameModule implements GameModule {
   /** canvas 바깥 HTML 힌트 (pickup 다트 설명). start 에서 삽입, destroy 에서 제거. */
   private hintEl: HTMLDivElement | null = null;
 
+  /** 일시정지 — flight 진행 / 마우스 입력 / 턴 advance 모두 정지 */
+  private paused = false;
+
   // ============================================
   // GameModule 인터페이스
   // ============================================
@@ -156,11 +163,39 @@ class DartsGameModule implements GameModule {
 
     sound.startBgm('darts');
 
+    // 게임 중 합류한 관전자/게스트라면 호스트에게 현재 state 요청.
+    // 호스트는 자기 한정 — 메시지 안 보냄.
+    if (!this.isHost) {
+      this.ctx.sendToPeer(encodeHello(this.myPeerId));
+    }
+
     this.rafId = requestAnimationFrame(this.loop);
   }
 
   onPeerMessage(msg: GameMessage): void {
     if (this.destroyed) return;
+
+    // hello (호스트만 응답) — 합류한 피어에게 현재 state 송신
+    const hello = decodeHello(msg);
+    if (hello) {
+      if (this.isHost) {
+        this.ctx.sendToPeer(
+          encodeSync({ game: this.game, stuckDarts: this.stuckDarts }),
+          { target: hello.peerId },
+        );
+      }
+      return;
+    }
+
+    // sync (게스트/관전자) — 호스트가 보낸 현재 state 로 교체
+    const sync = decodeSync(msg);
+    if (sync) {
+      if (!this.isHost) {
+        this.game = sync.game;
+        this.stuckDarts = sync.stuckDarts;
+      }
+      return;
+    }
 
     // 다른 플레이어의 투척 — 같은 파라미터로 로컬 flight 재생해서 state 수렴
     const t = decodeThrow(msg);
@@ -208,6 +243,18 @@ class DartsGameModule implements GameModule {
     sound.stopBgm();
   }
 
+  /** 일시정지 토글. 진행 중인 flight / windup 드래그 / 입력 모두 멈춤. */
+  setPaused(paused: boolean): void {
+    if (paused === this.paused) return;
+    this.paused = paused;
+    if (paused) {
+      // 진행 중인 windup 드래그 취소 (paused 풀려도 다시 시작 가능)
+      this.tracking = false;
+      this.heldDart = null;
+      this.samples = [];
+    }
+  }
+
   // ============================================
   // 메인 루프
   // ============================================
@@ -216,7 +263,10 @@ class DartsGameModule implements GameModule {
     this.rafId = requestAnimationFrame(this.loop);
     if (this.destroyed) return;
 
-    this.updateFlight();
+    // 일시정지 — flight 진행 정지, 렌더만 (현재 게임 state 그대로)
+    if (!this.paused) {
+      this.updateFlight();
+    }
 
     const g = this.game;
     const gameOver = g.finished
@@ -229,6 +279,10 @@ class DartsGameModule implements GameModule {
     const players = toPlayerDisplays(g);
     const amCurrent = g.players[g.currentIdx]?.peerId === this.myPeerId;
     const isMyTurn = !this.isSpectator && !g.finished && amCurrent;
+    // 관전자는 myPlayerIdx = null (점수 카드는 현재 차례 플레이어 기준으로 대체 렌더됨)
+    const myIdx = this.isSpectator
+      ? null
+      : g.players.findIndex((p) => p.peerId === this.myPeerId);
 
     this.renderer.render({
       mode: g.mode,
@@ -238,6 +292,7 @@ class DartsGameModule implements GameModule {
       maxRounds: g.maxRounds ?? undefined,
       players,
       currentPlayerIdx: g.currentIdx,
+      myPlayerIdx: myIdx !== null && myIdx >= 0 ? myIdx : null,
       stuckDarts: this.stuckDarts,
       flyingDart: this.flyingDart,
       heldDart: this.heldDart,
@@ -252,7 +307,7 @@ class DartsGameModule implements GameModule {
   // ============================================
 
   private onMouseDown = (e: MouseEvent): void => {
-    if (this.destroyed || this.isSpectator || this.game.finished) return;
+    if (this.destroyed || this.isSpectator || this.game.finished || this.paused) return;
     if (this.flight || this.tracking) return;
     if (!this.isMyTurnNow()) return;
     const cur = this.game.players[this.game.currentIdx];

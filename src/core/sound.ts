@@ -115,6 +115,11 @@ class SoundManager {
     bgm.stop();
   }
 
+  /** 설정 화면에서 BGM 토글/볼륨 변경 즉시 반영. */
+  refreshBgmSettings(): void {
+    bgm.refreshSettings();
+  }
+
   // ============================================
   // 개별 합성 함수들 — Web Audio의 oscillator/noise 조합
   // ============================================

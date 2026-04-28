@@ -14,10 +14,6 @@
  * 호스트 authoritative:
  *   - stepPhysics()는 호스트만 실행.
  *   - 게스트는 호스트가 보내준 GameState를 그대로 받아서 렌더만 함.
- *
- * 끼임 방지:
- *   - 퍽 속도가 MIN_STUCK_SPEED 미만으로 STUCK_FRAMES 만큼 지속되면
- *     자동으로 중앙 리셋. (벽/말렛 사이 구석에 끼는 상황 방어)
  */
 
 // ============================================
@@ -55,10 +51,6 @@ export const PHYSICS = {
 
   MAX_PUCK_SPEED: 1400,       // pixel/sec
   MALLET_MAX_SPEED: 1400,     // 입력 튐 방지용 상한
-
-  /** 끼임 판정 — 속도가 이보다 느린 상태가 STUCK_FRAMES 만큼 지속 시 리셋 */
-  MIN_STUCK_SPEED: 12,
-  STUCK_FRAMES: 180,          // 3초 @ 60fps
 
   /** 골 후 "GOAL!" 이펙트 재생 시간. 이 시간 끝나면 곧바로 playing 상태로 복귀 */
   GOAL_PAUSE_FRAMES: 90,      // 1.5초
@@ -99,7 +91,6 @@ export interface GameState {
    */
   phase: 'playing' | 'goal_pause';
   phaseTimer: number;
-  stuckTimer: number;
   /** 직전에 실점한 쪽. 재개 시 이 쪽에서 서브 (실점한 쪽 반대로 퍽이 움직임) */
   lastScoredOn: Side | null;
 }
@@ -107,7 +98,6 @@ export interface GameState {
 /** 매 프레임 stepPhysics가 반환하는 이벤트. render/sound가 소비 */
 export type PhysicsEvent =
   | { kind: 'goal'; side: Side }                                        // 득점한 쪽
-  | { kind: 'stuck_reset' }                                              // 끼임 리셋 발생
   | { kind: 'wall_hit'; x: number; y: number }
   | { kind: 'mallet_hit'; side: Side; x: number; y: number; intensity: number };
 
@@ -126,7 +116,6 @@ export function createInitialState(): GameState {
     // 바로 플레이 가능한 상태. 퍽은 정지 상태로 중앙에 있다가 누군가 칠 때 움직임
     phase: 'playing',
     phaseTimer: 0,
-    stuckTimer: 0,
     lastScoredOn: null,
   };
 }
@@ -187,23 +176,7 @@ export function stepPhysics(state: GameState, inputs: FrameInputs): PhysicsEvent
   handleMalletCollision(state, 'host', events);
   handleMalletCollision(state, 'guest', events);
 
-  // 7) 끼임 감지 (속도 기반)
-  const speed = Math.hypot(state.puck.vx, state.puck.vy);
-  if (speed < PHYSICS.MIN_STUCK_SPEED) {
-    state.stuckTimer++;
-    if (state.stuckTimer >= PHYSICS.STUCK_FRAMES) {
-      state.puck.x = CENTER_X;
-      state.puck.y = FIELD.HEIGHT / 2;
-      state.puck.vx = 0;
-      state.puck.vy = 0;
-      state.stuckTimer = 0;
-      events.push({ kind: 'stuck_reset' });
-    }
-  } else {
-    state.stuckTimer = 0;
-  }
-
-  // 8) 최대 속도 상한
+  // 7) 최대 속도 상한
   clampSpeed(state.puck, PHYSICS.MAX_PUCK_SPEED);
 
   return events;
@@ -362,7 +335,6 @@ function resetAfterGoal(state: GameState): void {
   // 카운트다운 없이 바로 플레이 재개 — 퍽은 정지, 치기 전까진 가만히 있음
   state.phase = 'playing';
   state.phaseTimer = 0;
-  state.stuckTimer = 0;
 }
 
 // ============================================

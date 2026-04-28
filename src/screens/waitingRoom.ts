@@ -255,7 +255,7 @@ export function createWaitingRoomAsHostScreen(args: WaitingRoomAsHostArgs): Scre
           }
           return;
         }
-        console.debug('[waitingRoom] message from guest:', msg);
+        // 그 외 메시지(현재는 정의된 게 없음) 는 대기실에서 무시.
       };
 
       // 이모지 반응 버튼 배선 (호스트 측) — 클릭 시 자기 화면 + 모든 게스트에게 broadcast

@@ -147,6 +147,8 @@ export interface PlayerDisplay {
   cricketMarks?: Record<string, number>;
   /** X01: 이번 턴 bust 여부 (표시 강조용) */
   bustThisTurn?: boolean;
+  /** 완료된 각 턴에서 얻은 점수 히스토리 — "라운드별 점수" 표시용 */
+  roundScores?: number[];
 }
 
 /**
@@ -188,6 +190,8 @@ export interface DartsRenderState {
   players: PlayerDisplay[];
   /** 현재 차례 인덱스 (players 배열 기준) */
   currentPlayerIdx: number;
+  /** "나"의 인덱스 (players 배열 기준). 관전자는 null. 내 점수 카드 고정 표시용. */
+  myPlayerIdx: number | null;
 
   /** 과녁에 꽂혀 있는 다트들 (보통 최근 라운드만 표시) */
   stuckDarts: StuckDart[];
@@ -620,25 +624,46 @@ export class DartsRenderer {
 
     let y = 32;
 
-    // 1) 헤더 카드 — 🎯 모드 + Round 한 줄에 깔끔하게
+    // 1) 헤더 카드 — 🎯 모드 + Round + 현재 차례 플레이어
     this.drawModeHeaderCard(innerX, y, innerW, state);
-    y += 48 + 12; // 카드 높이 + gap
+    y += 48 + 12;
 
-    // 2) 현재 플레이어 카드
-    const cur = state.players[state.currentPlayerIdx];
-    if (cur) {
-      this.drawCurrentPlayerBlock(cur, innerX, y, innerW, state.mode);
-      y += 120 + 12;
+    // 2) "내" 점수 카드 — 관전자가 아니면 항상 내 정보 고정 표시
+    //    내가 차례면 핑크 강조 + "▶ 지금 차례", 아니면 연한 톤 + "내 점수"
+    const myIdx = state.myPlayerIdx;
+    const me = myIdx !== null ? state.players[myIdx] : null;
+    const isMyTurn = myIdx !== null && myIdx === state.currentPlayerIdx;
+
+    if (me) {
+      this.drawMyPlayerBlock(me, innerX, y, innerW, state.mode, isMyTurn);
+      y += 120 + 10;
+
+      // 2-a) 내 라운드별 점수 히스토리 한 줄 (Cricket 제외 — 마크가 더 중요)
+      if (state.mode !== 'cricket' && me.roundScores && me.roundScores.length > 0) {
+        this.drawRoundHistoryLine(innerX, y, innerW, me.roundScores);
+        y += 20 + 4;
+      }
+      // 다음 "다른 플레이어" 섹션과 시각적 분리를 위한 공통 여백
+      // (히스토리 유무와 무관하게 라벨이 위 셀/카드와 떨어지도록)
+      y += 14;
+    } else {
+      // 관전자 — 내 카드 없으므로 현재 차례 플레이어 카드를 대신 표시
+      const cur = state.players[state.currentPlayerIdx];
+      if (cur) {
+        this.drawMyPlayerBlock(cur, innerX, y, innerW, state.mode, true);
+        y += 120 + 12;
+      }
     }
 
-    // 3) Cricket 전용 — 현재 플레이어 타겟별 마크 현황
-    if (state.mode === 'cricket' && cur?.cricketMarks) {
-      this.drawCricketMarksRow(innerX, y, innerW, cur.cricketMarks);
+    // 3) Cricket 전용 — "내" 타겟별 마크 (관전자면 현재 차례 마크)
+    const cricketSource = me ?? state.players[state.currentPlayerIdx];
+    if (state.mode === 'cricket' && cricketSource?.cricketMarks) {
+      this.drawCricketMarksRow(innerX, y, innerW, cricketSource.cricketMarks);
       y += 36 + 12;
     }
 
-    // 4) 다른 플레이어 섹션 (상대가 1명 이상 있을 때만)
-    const othersCount = state.players.length - 1;
+    // 4) 다른 플레이어 섹션 — 나 제외 전체. 현재 차례인 사람에게 ▶ 배지.
+    const othersCount = state.players.length - (me ? 1 : 0);
     if (othersCount > 0) {
       ctx.fillStyle = COLORS.textMuted;
       ctx.font = `700 11px ${FONT}`;
@@ -648,17 +673,18 @@ export class DartsRenderer {
       y += 14;
 
       for (let i = 0; i < state.players.length; i++) {
-        if (i === state.currentPlayerIdx) continue;
+        if (i === myIdx) continue;
         const p = state.players[i]!;
-        this.drawOtherPlayerRow(p, innerX, y, innerW);
+        const isActive = i === state.currentPlayerIdx;
+        this.drawOtherPlayerRow(p, innerX, y, innerW, isActive);
         y += DartsRenderer.OTHER_ROW_H + 4;
       }
     }
   }
 
   /**
-   * 상단 헤더 카드 — 🎯 모드명 (좌) + Round N/M (우) 한 줄.
-   * 연한 라벤더 카드로 다른 섹션과 시각적으로 분리.
+   * 상단 헤더 카드 — 🎯 모드명 (좌상) + Round N/M (우상) + 현재 차례 플레이어 (하).
+   * 내가 차례가 아닐 때 현재 누구 차례인지 헤더로 알려줌 ("내 카드"가 고정되어 있어 메인 카드만 봐서는 모름).
    */
   private drawModeHeaderCard(x: number, y: number, w: number, state: DartsRenderState): void {
     const ctx = this.ctx;
@@ -671,53 +697,74 @@ export class DartsRenderer {
     ctx.fillRect(x, y, w, h);
     ctx.strokeRect(x, y, w, h);
 
-    const midY = y + h / 2;
-
-    // 좌측: 🎯 + 모드명
+    // 상단 라인 — 모드명 (좌) + Round (우)
     ctx.fillStyle = COLORS.textAccent;
-    ctx.font = `900 20px ${FONT}`;
+    ctx.font = `900 18px ${FONT}`;
     ctx.textAlign = 'left';
-    ctx.textBaseline = 'middle';
-    ctx.fillText(`🎯 ${state.modeLabel}`, x + 12, midY);
+    ctx.textBaseline = 'alphabetic';
+    ctx.fillText(`🎯 ${state.modeLabel}`, x + 12, y + 22);
 
-    // 우측: Round N/M
     const roundText = state.maxRounds
       ? `Round ${state.round} / ${state.maxRounds}`
       : `Round ${state.round}`;
     ctx.fillStyle = COLORS.textMuted;
-    ctx.font = `700 12px ${FONT}`;
+    ctx.font = `700 11px ${FONT}`;
     ctx.textAlign = 'right';
-    ctx.fillText(roundText, x + w - 12, midY);
+    ctx.fillText(roundText, x + w - 12, y + 22);
+
+    // 하단 라인 — 현재 차례 플레이어 표시
+    const cur = state.players[state.currentPlayerIdx];
+    if (cur) {
+      const isMe = state.myPlayerIdx !== null && state.myPlayerIdx === state.currentPlayerIdx;
+      ctx.fillStyle = isMe ? '#ff5a92' : COLORS.textMain;
+      ctx.font = `700 11px ${FONT}`;
+      ctx.textAlign = 'left';
+      ctx.fillText(`▶ ${truncate(cur.nickname, 12)}${isMe ? ' (나)' : ''} 차례`, x + 12, y + 40);
+    }
   }
 
-  private drawCurrentPlayerBlock(
+  /**
+   * 점수 카드 — 기준이 "나"(항상 고정 표시). isMyTurn=true 면 핑크 강조 + "지금 차례",
+   * 아니면 연한 톤 + "내 점수" 라벨. bust 가 있으면 최우선으로 붉은 카드.
+   *
+   * 관전자일 경우 호출부가 "현재 차례 플레이어"를 대신 넘기므로 p 가 누구여도 렌더 OK.
+   */
+  private drawMyPlayerBlock(
     p: PlayerDisplay,
     x: number,
     y: number,
     w: number,
     mode: DartsMode,
+    isMyTurn: boolean,
   ): void {
     const ctx = this.ctx;
-    const H = 120; // 카드 높이 — drawRightPanel 의 y+=120 과 일치
+    const H = 120;
+    const cx = x + w / 2; // 카드 가로 중앙 — 큰 숫자/3다트 슬롯 가운데 정렬에 사용
 
-    // bust 상태면 톤 다운된 붉은 카드. 아니면 pink 카드 (사과 게임 내 점수 카드와 같은 톤).
     const bust = p.bustThisTurn === true;
+
+    // 배경: bust > myTurn > rest. myTurn 아니면 카드 전체를 조금 더 옅게 (배경색은 동일하되 stroke/accent 를 톤다운).
     ctx.fillStyle = bust ? COLORS.bustCardBg : COLORS.currentCardBg;
     ctx.fillRect(x, y, w, H);
-    ctx.strokeStyle = bust ? COLORS.bustCardStroke : COLORS.currentCardStroke;
-    ctx.lineWidth = bust ? 3 : 2;
+    ctx.strokeStyle = bust
+      ? COLORS.bustCardStroke
+      : isMyTurn ? COLORS.currentCardStroke : '#f0b8d0'; // 내 턴 아닐 땐 부드러운 핑크 테두리
+    ctx.lineWidth = bust ? 3 : (isMyTurn ? 2 : 1.2);
     ctx.strokeRect(x, y, w, H);
 
-    const cx = x + w / 2;
-
-    // 상단 라벨 (bust 면 BUST! 로 교체)
-    ctx.fillStyle = bust ? COLORS.bustCardAccent : COLORS.currentCardAccent;
+    // 상단 라벨 — bust / 지금 차례 / 내 점수
+    ctx.fillStyle = bust
+      ? COLORS.bustCardAccent
+      : isMyTurn ? COLORS.currentCardAccent : '#d9689a';
     ctx.font = bust ? `900 12px ${FONT}` : `800 11px ${FONT}`;
     ctx.textAlign = 'left';
     ctx.textBaseline = 'alphabetic';
-    ctx.fillText(bust ? '💥 BUST! · 턴 무효' : '▶ 지금 차례', x + 10, y + 18);
+    const labelText = bust
+      ? '💥 BUST! · 턴 무효'
+      : isMyTurn ? '▶ 지금 내 차례' : '📊 내 점수';
+    ctx.fillText(labelText, x + 10, y + 18);
 
-    // 닉네임 (상단 라벨 바로 아래)
+    // 닉네임 (우측 상단)
     ctx.fillStyle = COLORS.textMain;
     ctx.font = `800 16px ${FONT}`;
     ctx.textAlign = 'right';
@@ -801,11 +848,13 @@ export class DartsRenderer {
     }
 
     // kind 별 스타일
-    let fill = COLORS.slotBgFilled;
-    let border = COLORS.slotBorderFilled;
-    let labelColor = COLORS.textMain;
+    // 타입을 명시적으로 string 으로 — COLORS 가 `as const` 라 리터럴 타입으로 좁혀지면
+    // switch 안에서 다른 색 문자열을 못 할당하게 됨.
+    let fill: string = COLORS.slotBgFilled;
+    let border: string = COLORS.slotBorderFilled;
+    let labelColor: string = COLORS.textMain;
     let badge: string | null = null;
-    let badgeColor = COLORS.textAccent;
+    let badgeColor: string = COLORS.textAccent;
 
     switch (hit.kind) {
       case 'triple':
@@ -875,25 +924,75 @@ export class DartsRenderer {
   /** 한 row 의 전체 높이 (drawRightPanel 의 y 증가량과 일치해야 함) */
   private static readonly OTHER_ROW_H = 30;
 
-  private drawOtherPlayerRow(p: PlayerDisplay, x: number, y: number, w: number): void {
+  /**
+   * 내 점수 카드 아래 한 줄짜리 라운드 히스토리.
+   *   [R1·60] [R2·42] [R3·80] … (최근 몇 개까지만)
+   * 카드 폭 맞춰 4~5칸 정도 들어감.
+   */
+  private drawRoundHistoryLine(x: number, y: number, w: number, scores: readonly number[]): void {
+    const ctx = this.ctx;
+    const maxShow = 5;
+    const recent = scores.slice(-maxShow);
+    const n = recent.length;
+    if (n === 0) return;
+
+    const totalGap = 4 * (n - 1);
+    const cellW = Math.floor((w - totalGap) / n);
+    const h = 20;
+
+    // 시작 라운드 번호 (이전 턴 기록이니 scores.length 가 곧 끝난 턴 수)
+    const startRound = scores.length - n + 1;
+
+    for (let i = 0; i < n; i++) {
+      const sx = x + i * (cellW + 4);
+      const score = recent[i]!;
+
+      // 배경 카드 (연한 라벤더 grid)
+      ctx.fillStyle = '#f7f1ff';
+      ctx.strokeStyle = '#e2d4f2';
+      ctx.lineWidth = 1;
+      ctx.fillRect(sx, y, cellW, h);
+      ctx.strokeRect(sx, y, cellW, h);
+
+      // 좌측 R 라벨
+      ctx.fillStyle = COLORS.textMuted;
+      ctx.font = `700 9px ${FONT}`;
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(`R${startRound + i}`, sx + 5, y + h / 2);
+
+      // 우측 점수 숫자
+      ctx.fillStyle = COLORS.textMain;
+      ctx.font = `800 12px ${FONT}`;
+      ctx.textAlign = 'right';
+      ctx.fillText(String(score), sx + cellW - 5, y + h / 2);
+    }
+  }
+
+  private drawOtherPlayerRow(
+    p: PlayerDisplay,
+    x: number, y: number, w: number,
+    isActive = false,
+  ): void {
     const ctx = this.ctx;
     const h = DartsRenderer.OTHER_ROW_H;
 
-    // 카드형 배경 (사과 게임 플레이어 목록과 같은 톤)
-    ctx.fillStyle = COLORS.otherRowBg;
-    ctx.strokeStyle = COLORS.otherRowBorder;
-    ctx.lineWidth = 1;
+    // 카드형 배경 — 현재 차례면 라벤더 강조
+    ctx.fillStyle = isActive ? '#f0e8ff' : COLORS.otherRowBg;
+    ctx.strokeStyle = isActive ? '#b89aff' : COLORS.otherRowBorder;
+    ctx.lineWidth = isActive ? 1.5 : 1;
     ctx.fillRect(x, y, w, h);
     ctx.strokeRect(x, y, w, h);
 
     const midY = y + h / 2;
 
-    // 닉네임 (세로 중앙 정렬)
+    // 닉네임 (세로 중앙 정렬). isActive 면 앞에 ▶ 배지.
     ctx.fillStyle = COLORS.textMain;
     ctx.font = `700 13px ${FONT}`;
     ctx.textAlign = 'left';
     ctx.textBaseline = 'middle';
-    ctx.fillText(truncate(p.nickname, 10), x + 10, midY);
+    const nameLabel = (isActive ? '▶ ' : '') + truncate(p.nickname, isActive ? 8 : 10);
+    ctx.fillText(nameLabel, x + 10, midY);
 
     // Cricket 모드면 close 한 타겟 수를 괄호로 부연
     let rightText: string;

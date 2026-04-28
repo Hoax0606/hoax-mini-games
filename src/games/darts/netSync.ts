@@ -18,9 +18,46 @@
  */
 
 import type { GameMessage, GameResult } from '../types';
+import type { DartsGame } from './rules';
+import type { StuckDart } from './render';
 
+const T_HELLO = 'dart:hello';
+const T_SYNC = 'dart:sync';
 const T_THROW = 'dart:throw';
 const T_END = 'dart:end';
+
+// ============================================
+// Hello / Sync — 게임 중 합류한 관전자가 현재 state 받기 위한 핸드셰이크
+// ============================================
+
+/** 게스트/관전자 → 호스트: "나 들어왔어, 현재 state 줘" */
+export function encodeHello(peerId: string): GameMessage {
+  return { type: T_HELLO, payload: { peerId } };
+}
+
+export function decodeHello(msg: GameMessage): { peerId: string } | null {
+  if (msg.type !== T_HELLO) return null;
+  const p = msg.payload as { peerId?: unknown } | null;
+  if (!p || typeof p.peerId !== 'string') return null;
+  return { peerId: p.peerId };
+}
+
+/** 호스트 → target: 현재 게임 state + 꽂힌 다트들 */
+export interface SyncPayload {
+  game: DartsGame;
+  stuckDarts: StuckDart[];
+}
+
+export function encodeSync(p: SyncPayload): GameMessage {
+  return { type: T_SYNC, payload: p };
+}
+
+export function decodeSync(msg: GameMessage): SyncPayload | null {
+  if (msg.type !== T_SYNC) return null;
+  const p = msg.payload as Partial<SyncPayload> | null;
+  if (!p || !p.game || !Array.isArray(p.stuckDarts)) return null;
+  return { game: p.game as DartsGame, stuckDarts: p.stuckDarts as StuckDart[] };
+}
 
 // --- 투척 이벤트 ---
 

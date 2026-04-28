@@ -52,6 +52,15 @@ export interface DartsPlayer {
    *   - 기타 모드는 false 유지
    */
   finished: boolean;
+
+  /**
+   * 완료된 각 턴에서 "얻은 점수" 히스토리 (모드별 의미):
+   *   - X01: 이번 턴에 차감된 점수 (bust 시 0 — 원복되므로)
+   *   - Count-up / Low Count-up: 이번 턴에 추가된 점수
+   *   - Cricket: 이번 턴에 추가된 점수 (마크와 별개라 약식)
+   * advanceTurn 에서 push. render 쪽 "라운드별 점수" 표시용.
+   */
+  roundScores: number[];
 }
 
 export interface DartsGame {
@@ -119,6 +128,7 @@ export function createGameState(
     cricketMarks: {},
     cricketScore: 0,
     finished: false,
+    roundScores: [],
   }));
 
   return {
@@ -282,6 +292,13 @@ export function advanceTurn(game: DartsGame): void {
   // 현재 플레이어 턴 정리
   const cur = game.players[game.currentIdx];
   if (cur) {
+    // 이번 턴 점수 합 계산 → roundScores 에 push (render 히스토리 용).
+    //   - bust 시 0 (원복돼서 실제 얻은 점수 없음)
+    //   - X01/Count-up/Cricket 모두 동일하게 throwsThisTurn 의 hit.score 합.
+    //     (bust 아닐 때 한해서) X01 은 차감 점수 = hit.score 합과 같음.
+    const roundScore = cur.bustThisTurn ? 0 : cur.throwsThisTurn.reduce((s, h) => s + h.score, 0);
+    cur.roundScores.push(roundScore);
+
     cur.throwsThisTurn = [];
     cur.bustThisTurn = false;
   }
@@ -403,6 +420,7 @@ export function toPlayerDisplays(game: DartsGame): PlayerDisplay[] {
       finished: p.finished,
       cricketMarks,
       bustThisTurn: p.bustThisTurn,
+      roundScores: p.roundScores,
     };
   });
 }

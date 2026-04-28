@@ -21,7 +21,7 @@
 
 import { storage } from './storage';
 
-export type BgmId = 'air-hockey' | 'battle-tetris' | 'apple-game' | 'gomoku' | 'darts';
+export type BgmId = 'air-hockey' | 'battle-tetris' | 'apple-game' | 'gomoku' | 'darts' | 'reflex';
 
 // ============================================
 // 음이름 → 주파수 테이블 (십이평균율, A4=440)
@@ -265,12 +265,56 @@ const PATTERN_DARTS: BgmPattern = {
   ],
 };
 
+// --- 반응속도: G 메이저, 105 BPM, 가벼운 긴장감 + 반복 모티프 ---
+// 짧은 라운드 사이 대기 시간이 많은 게임이라 너무 화려하지 않게.
+const PATTERN_REFLEX: BgmPattern = {
+  bpm: 105,
+  lengthSixteenths: 128,
+  melodyWave: 'square',
+  melody: [
+    // 마디 1: G 상승 모티프
+    { f: NOTES.G4, d: 2 }, { f: NOTES.B4, d: 2 }, { f: NOTES.D5, d: 2 }, { f: NOTES.B4, d: 2 },
+    { f: NOTES.G4, d: 2 }, { f: NOTES.B4, d: 2 }, { f: NOTES.D5, d: 4 },
+    // 마디 2: A 마이너 (vi) 변주
+    { f: NOTES.A4, d: 2 }, { f: NOTES.C5, d: 2 }, { f: NOTES.E5, d: 2 }, { f: NOTES.C5, d: 2 },
+    { f: NOTES.A4, d: 4 }, { f: NOTES.G4, d: 4 },
+    // 마디 3: 하강 라인
+    { f: NOTES.E5, d: 2 }, { f: NOTES.D5, d: 2 }, { f: NOTES.C5, d: 2 }, { f: NOTES.B4, d: 2 },
+    { f: NOTES.A4, d: 2 }, { f: NOTES.G4, d: 4 }, { f: R,        d: 2 },
+    // 마디 4: 빌드업 (G5 도달)
+    { f: NOTES.G4, d: 2 }, { f: NOTES.B4, d: 2 }, { f: NOTES.D5, d: 2 }, { f: NOTES.G5, d: 2 },
+    { f: NOTES.D5, d: 2 }, { f: NOTES.B4, d: 2 }, { f: NOTES.G4, d: 4 },
+    // 마디 5: 모티프 재사용
+    { f: NOTES.G4, d: 2 }, { f: NOTES.B4, d: 2 }, { f: NOTES.D5, d: 2 }, { f: NOTES.B4, d: 2 },
+    { f: NOTES.G4, d: 2 }, { f: NOTES.B4, d: 2 }, { f: NOTES.D5, d: 4 },
+    // 마디 6: ii-V 진행
+    { f: NOTES.A4, d: 2 }, { f: NOTES.C5, d: 2 }, { f: NOTES.E5, d: 2 }, { f: NOTES.C5, d: 2 },
+    { f: NOTES.A4, d: 4 }, { f: NOTES.G4, d: 4 },
+    // 마디 7: 하강 → 해결 준비
+    { f: NOTES.E5, d: 2 }, { f: NOTES.D5, d: 2 }, { f: NOTES.C5, d: 2 }, { f: NOTES.B4, d: 2 },
+    { f: NOTES.A4, d: 2 }, { f: NOTES.G4, d: 4 }, { f: R,        d: 2 },
+    // 마디 8: 토닉 길게 (루프 이음매)
+    { f: NOTES.G4, d: 4 }, { f: NOTES.D5, d: 4 }, { f: NOTES.G5, d: 8 },
+  ],
+  bass: [
+    { f: NOTES.G2, d: 8 }, { f: NOTES.D3, d: 8 },
+    { f: NOTES.A2, d: 8 }, { f: NOTES.E3, d: 8 },
+    { f: NOTES.C3, d: 8 }, { f: NOTES.G2, d: 8 },
+    { f: NOTES.D3, d: 8 }, { f: NOTES.G2, d: 8 },
+    { f: NOTES.G2, d: 8 }, { f: NOTES.D3, d: 8 },
+    { f: NOTES.A2, d: 8 }, { f: NOTES.E3, d: 8 },
+    { f: NOTES.C3, d: 8 }, { f: NOTES.G2, d: 8 },
+    { f: NOTES.G2, d: 16 },
+  ],
+};
+
 const PATTERNS: Record<BgmId, BgmPattern> = {
   'air-hockey':    PATTERN_AIR_HOCKEY,
   'battle-tetris': PATTERN_BATTLE_TETRIS,
   'apple-game':    PATTERN_APPLE_GAME,
   'gomoku':        PATTERN_GOMOKU,
   'darts':         PATTERN_DARTS,
+  'reflex':        PATTERN_REFLEX,
 };
 
 // ============================================
@@ -350,6 +394,24 @@ class BgmPlayer {
     }
     this.scheduled = [];
     this.currentId = null;
+  }
+
+  /**
+   * 설정 변경(masterVolume / bgmEnabled) 즉시 반영.
+   * - bgmEnabled OFF → 재생 중이면 정지
+   * - bgmEnabled ON → masterGain 즉시 새 볼륨으로 갱신 (이미 예약된 노트도 따라옴)
+   *
+   * 호출 위치: settings 화면에서 슬라이더/토글 변경 시.
+   */
+  refreshSettings(): void {
+    const settings = storage.getSettings();
+    if (!settings.bgmEnabled) {
+      if (this.currentId !== null) this.stop();
+      return;
+    }
+    if (this.masterGain) {
+      this.masterGain.gain.value = this.computeMasterGain();
+    }
   }
 
   /**

@@ -117,6 +117,10 @@ class AppleGame implements GameModule {
   private startedAt = 0;
   private lastSeedBroadcast = 0;
 
+  /** 일시정지 — paused 동안 startedAt 을 흘러간 만큼 더해서 타이머/시간 보정 */
+  private paused = false;
+  private pauseStart = 0;
+
   /** 호스트 seed (게스트는 수신한 값 저장 — 재진입 시 재사용 고려하진 않음) */
   private seed = 0;
 
@@ -237,6 +241,22 @@ class AppleGame implements GameModule {
     // 커서 inline 스타일 원복 (다시하기/다른 게임 진입 시 영향 없게)
     if (this.ctx?.canvas) {
       this.ctx.canvas.style.cursor = '';
+    }
+  }
+
+  /** 일시정지 토글. paused 동안 흐른 만큼 startedAt 을 더해 타이머가 멈춘 것처럼. */
+  setPaused(paused: boolean): void {
+    if (paused === this.paused) return;
+    this.paused = paused;
+    if (paused) {
+      this.pauseStart = performance.now();
+      // 드래그 중이었으면 취소
+      this.isDragging = false;
+      this.dragStart = null;
+      this.dragCurrent = null;
+    } else if (this.pauseStart > 0) {
+      this.startedAt += performance.now() - this.pauseStart;
+      this.pauseStart = 0;
     }
   }
 
@@ -392,7 +412,7 @@ class AppleGame implements GameModule {
   }
 
   private onMouseDown = (e: MouseEvent): void => {
-    if (this.gameFinished) return;
+    if (this.gameFinished || this.paused) return;
     const cell = this.pickCellFromEvent(e);
     if (!cell) return;
     this.isDragging = true;
@@ -402,7 +422,7 @@ class AppleGame implements GameModule {
   };
 
   private onMouseMove = (e: MouseEvent): void => {
-    if (!this.isDragging) return;
+    if (!this.isDragging || this.paused) return;
     const cell = this.pickCellFromEvent(e, { clampToBoard: true });
     if (cell) {
       this.dragCurrent = cell;
@@ -410,7 +430,7 @@ class AppleGame implements GameModule {
   };
 
   private onMouseUp = (): void => {
-    if (!this.isDragging) return;
+    if (!this.isDragging || this.paused) return;
     const rect = this.currentDragRect();
     this.isDragging = false;
     this.dragStart = null;

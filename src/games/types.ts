@@ -143,11 +143,15 @@ export interface GameContext {
  * - start: 리소스 로드 + 루프 시작
  * - onPeerMessage: 상대가 보낸 게임 메시지 수신
  * - destroy: 이벤트 리스너 해제, RAF 취소 등 정리
+ * - setPaused (선택): 일시정지 상태 전환. 게임마다 멈출 대상이 다름
+ *     (에어하키 = 물리 / 테트리스 = 중력 / 사과·오목 = 타이머 등).
+ *     gameScreen 이 pause/resume 메시지에 맞춰 호출. 미구현 게임은 무시 OK (1단계 한계).
  */
 export interface GameModule {
   start(ctx: GameContext): void | Promise<void>;
   onPeerMessage(message: GameMessage): void;
   destroy(): void;
+  setPaused?(paused: boolean): void;
 }
 
 /** 게임 레지스트리 엔트리 — 메타 + 실제 모듈 팩토리 */
@@ -203,7 +207,9 @@ export type NetworkMessage =
   | PingReqMsg
   | PingAckMsg
   | PingReportMsg
-  | ReactionMsg;
+  | ReactionMsg
+  | PauseMsg
+  | ResumeMsg;
 
 /** 게스트 → 호스트: 방 입장 요청 (연결 직후 첫 메시지) */
 export interface JoinRequestMsg {
@@ -298,4 +304,21 @@ export interface ReactionMsg {
   emoji: string;
   /** 송신자 닉네임 (풍선에 같이 표시) */
   nickname: string;
+}
+
+/**
+ * 게임 일시정지 — 누가 ⚙️ 메뉴를 열었음.
+ * 다른 플레이어 화면에 dim overlay + "○○ 가 잠시 멈췄어요" 안내.
+ * (1단계 MVP: 게임 모듈은 아직 정지하지 않음 — canvas 입력 차단만)
+ */
+export interface PauseMsg {
+  type: 'pause';
+  byPeerId: string;
+  byNickname: string;
+}
+
+/** 일시정지 해제 — 메뉴 닫았음. 모든 화면 dim 제거. */
+export interface ResumeMsg {
+  type: 'resume';
+  byPeerId: string;
 }

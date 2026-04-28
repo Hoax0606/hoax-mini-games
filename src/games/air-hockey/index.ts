@@ -61,6 +61,8 @@ class AirHockeyGame implements GameModule {
   private rafId: number | null = null;
   private pendingEvents: PhysicsEvent[] = [];
   private gameEnded = false;
+  /** 일시정지 — gameScreen 의 setPaused 호출로 토글. true 면 물리/입력 송신 스킵, 렌더만 */
+  private paused = false;
 
   // ============================================
   // GameModule interface
@@ -139,6 +141,11 @@ class AirHockeyGame implements GameModule {
     sound.stopBgm();
   }
 
+  /** GameModule 인터페이스: 일시정지 토글. 물리/네트워크 송신 정지, 렌더는 계속. */
+  setPaused(paused: boolean): void {
+    this.paused = paused;
+  }
+
   // ============================================
   // 프레임 루프
   // ============================================
@@ -158,6 +165,14 @@ class AirHockeyGame implements GameModule {
       this.renderer.render(this.state, this.pendingEvents);
       this.playEventSounds(this.pendingEvents);
       this.pendingEvents.length = 0;
+      this.publishStatus();
+      return;
+    }
+
+    // 일시정지 — 물리/네트워크 송신 정지, 렌더만 유지(현재 state 그대로 멈춤).
+    // 호스트가 stepPhysics 를 안 호출하면 puck 위치가 그대로라 게스트도 동일하게 정지된 화면.
+    if (this.paused) {
+      this.renderer.render(this.state, []);
       this.publishStatus();
       return;
     }
@@ -244,9 +259,6 @@ class AirHockeyGame implements GameModule {
           break;
         case 'goal':
           sound.play('goal');
-          break;
-        case 'stuck_reset':
-          sound.play('pop');
           break;
       }
     }

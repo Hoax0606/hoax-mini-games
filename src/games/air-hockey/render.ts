@@ -237,9 +237,6 @@ export class Renderer {
             FIELD.HEIGHT / 2,
           );
           break;
-        case 'stuck_reset':
-          this.spawnStuckReset();
-          break;
       }
     }
   }
@@ -288,22 +285,6 @@ export class Renderer {
         maxLife: 40 + Math.random() * 20,
         color: GOAL_PARTICLE_COLORS[Math.floor(Math.random() * GOAL_PARTICLE_COLORS.length)]!,
         size: 2.5 + Math.random() * 3,
-      });
-    }
-  }
-
-  private spawnStuckReset(): void {
-    for (let i = 0; i < 12; i++) {
-      const angle = (i / 12) * Math.PI * 2;
-      this.particles.push({
-        x: CENTER_X,
-        y: FIELD.HEIGHT / 2,
-        vx: Math.cos(angle) * 2.5,
-        vy: Math.sin(angle) * 2.5,
-        life: 1,
-        maxLife: 24,
-        color: '#86e8c4',
-        size: 2.5,
       });
     }
   }

@@ -61,6 +61,12 @@ class ReflexGame implements GameModule {
   private foulCount = 0;
   private waitStartedAt = 0;   // GO 상태 된 시각 (반응시간 기준점)
   private waitTimerId: number | null = null;
+  /** result/foul 후 다음 라운드로 진행하는 setTimeout id (paused 시 clear) */
+  private pendingAdvanceTimer: number | null = null;
+
+  /** 일시정지 — 모든 timer 정지, phase 보존, resume 시 phase별 재개 */
+  private paused = false;
+  private pauseStart = 0;
 
   // 호스트 전용: 전원의 최종 점수 집계
   private finals: Map<string, PlayerFinal> | null = null;
@@ -103,7 +109,7 @@ class ReflexGame implements GameModule {
       ctx.canvas.addEventListener('click', this.onCanvasClick);
     }
 
-    sound.startBgm('apple-game'); // TODO: 전용 BGM은 나중에. 밝은 분위기 재사용
+    sound.startBgm('reflex');
 
     this.rafId = requestAnimationFrame(this.loop);
   }
@@ -158,10 +164,54 @@ class ReflexGame implements GameModule {
     this.gameFinished = true;
     if (this.rafId !== null) { cancelAnimationFrame(this.rafId); this.rafId = null; }
     if (this.waitTimerId !== null) { window.clearTimeout(this.waitTimerId); this.waitTimerId = null; }
+    if (this.pendingAdvanceTimer !== null) { window.clearTimeout(this.pendingAdvanceTimer); this.pendingAdvanceTimer = null; }
     this.ctx?.canvas.removeEventListener('click', this.onCanvasClick);
     if (this.ctx?.canvas) this.ctx.canvas.style.cursor = '';
     this.renderer?.destroy();
     sound.stopBgm();
+  }
+
+  /**
+   * 일시정지 토글 — 모든 타이머 정지, phase 보존, resume 시 phase 별 재개.
+   *  - waiting: setTimeout 새로 시작 (남은 ms 추적 안 해서 다시 랜덤)
+   *  - go: waitStartedAt 보정 (paused 동안 안 흐른 듯)
+   *  - result/foul: 자동 진행 setTimeout 재시작
+   */
+  setPaused(paused: boolean): void {
+    if (paused === this.paused) return;
+    this.paused = paused;
+
+    if (paused) {
+      this.pauseStart = performance.now();
+      if (this.waitTimerId !== null) {
+        window.clearTimeout(this.waitTimerId);
+        this.waitTimerId = null;
+      }
+      if (this.pendingAdvanceTimer !== null) {
+        window.clearTimeout(this.pendingAdvanceTimer);
+        this.pendingAdvanceTimer = null;
+      }
+      return;
+    }
+
+    // resume
+    const pausedDuration = this.pauseStart > 0 ? performance.now() - this.pauseStart : 0;
+    this.pauseStart = 0;
+    switch (this.phase.kind) {
+      case 'waiting':
+        this.startWaiting();
+        break;
+      case 'go':
+        this.waitStartedAt += pausedDuration;
+        break;
+      case 'result':
+        this.pendingAdvanceTimer = window.setTimeout(() => this.advanceToNextRound(), RESULT_DISPLAY_MS);
+        break;
+      case 'foul':
+        this.pendingAdvanceTimer = window.setTimeout(() => this.advanceToNextRound(), FOUL_DISPLAY_MS);
+        break;
+      // idle, done — 재시작할 timer 없음
+    }
   }
 
   // ============================================
@@ -207,7 +257,7 @@ class ReflexGame implements GameModule {
   }
 
   private onCanvasClick = (): void => {
-    if (this.gameFinished || this.isSpectator) return;
+    if (this.gameFinished || this.isSpectator || this.paused) return;
 
     switch (this.phase.kind) {
       case 'idle':
@@ -223,7 +273,7 @@ class ReflexGame implements GameModule {
         sound.play('button_click');
         this.phase = { kind: 'foul' };
         this.broadcastMyProgress();
-        window.setTimeout(() => this.advanceToNextRound(), FOUL_DISPLAY_MS);
+        this.pendingAdvanceTimer = window.setTimeout(() => this.advanceToNextRound(), FOUL_DISPLAY_MS);
         break;
       }
       case 'go': {
@@ -232,7 +282,7 @@ class ReflexGame implements GameModule {
         sound.play('tetris_clear');
         this.phase = { kind: 'result', ms };
         this.broadcastMyProgress();
-        window.setTimeout(() => this.advanceToNextRound(), RESULT_DISPLAY_MS);
+        this.pendingAdvanceTimer = window.setTimeout(() => this.advanceToNextRound(), RESULT_DISPLAY_MS);
         break;
       }
       case 'result':
@@ -245,6 +295,7 @@ class ReflexGame implements GameModule {
 
   private advanceToNextRound(): void {
     if (this.destroyed) return;
+    this.pendingAdvanceTimer = null; // 자기가 호출됐으니 정리
     if (this.currentRound >= TOTAL_ROUNDS) {
       this.finishMyRounds();
       return;

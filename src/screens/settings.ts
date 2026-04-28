@@ -52,7 +52,9 @@ export function createSettingsScreen(): Screen {
         const v = Number(volInput.value);
         volVal.textContent = String(v);
         storage.setSettings({ masterVolume: v });
-        // TODO: 사운드 매니저에 실시간 적용 (다음 단계)
+        // 즉시 반영: BGM masterGain 갱신 (재생 중이면 즉시 볼륨 변경됨).
+        // SFX 는 매 play() 마다 storage 다시 읽으니 자동 반영.
+        sound.refreshBgmSettings();
       });
 
       // BGM 토글
@@ -61,6 +63,8 @@ export function createSettingsScreen(): Screen {
         const on = bgmToggle.classList.toggle('on');
         storage.setSettings({ bgmEnabled: on });
         sound.play('button_click');
+        // 즉시 반영: OFF 면 현재 BGM 정지
+        sound.refreshBgmSettings();
       });
 
       // SFX 토글
