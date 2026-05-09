@@ -150,13 +150,23 @@ export class TetrisRenderer {
       // 관전자: 메인 필드/HOLD/NEXT/STATS 자리에 안내 오버레이
       this.drawSpectatorCenter();
     } else {
-      // 메인 필드 + 현재 피스 + 고스트
+      // 메인 필드 + 현재 피스 + 고스트.
+      // spawn y=-1 라 piece 의 윗줄(shape row 0)이 보드 밖(row -1)에 위치하는데,
+      // stroke / 격자 라인이 보드 위쪽으로 1~2px 새어 나가는 걸 막기 위해 clip 적용.
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(FIELD_X, FIELD_Y, FIELD_PX_W, FIELD_PX_H);
+      ctx.clip();
+
       this.drawField(me.field, FIELD_X, FIELD_Y, CELL);
       if (me.currentPiece && !me.toppedOut) {
         this.drawGhost(me.field, me.currentPiece);
         this.drawPiece(me.currentPiece, FIELD_X, FIELD_Y, CELL);
       }
-      // 필드 테두리
+
+      ctx.restore();
+
+      // 필드 테두리 (clip 밖에서 그려야 테두리 자체는 보드 외곽에 정상 표시됨)
       ctx.strokeStyle = COLORS.fieldBorder;
       ctx.lineWidth = 2;
       ctx.strokeRect(FIELD_X - 1, FIELD_Y - 1, FIELD_PX_W + 2, FIELD_PX_H + 2);

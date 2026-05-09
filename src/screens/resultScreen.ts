@@ -1,10 +1,11 @@
 import type { Screen } from '../core/screen';
 import { router } from '../core/screen';
 import type { HostSession, GuestSession } from '../core/peer';
-import type { RoomState, GameResult } from '../games/types';
+import type { RoomState, GameResult, GameRoomOption } from '../games/types';
 import { createMenuScreen } from './menu';
 import { createGameScreenAsHostScreen, createGameScreenAsGuestScreen } from './gameScreen';
 import { storage } from '../core/storage';
+import { games, getGameById } from '../games/registry';
 
 /**
  * 결과 화면 (호스트/게스트 factory 2종)
@@ -38,17 +39,179 @@ function winnerVisuals(myWinner: 'me' | 'opponent' | null): {
   return                              { emoji: '⚖️', title: '무승부',   titleClass: 'result-title-draw' };
 }
 
-/** 액션 영역 HTML (호스트=다시하기/메뉴, 게스트=대기/메뉴) */
+/** 액션 영역 HTML (호스트=다시하기/다른게임/메뉴, 게스트=대기/메뉴) */
 function buildActionsHTML(isHost: boolean): string {
   return isHost
     ? `
         <button class="btn btn-primary btn-lg btn-block" id="retry-btn">🔄 다시하기</button>
+        <button class="btn btn-secondary btn-block" id="change-game-btn">🎲 다른 게임 선택</button>
         <button class="btn btn-ghost btn-block" id="menu-btn">메뉴로</button>
       `
     : `
         <div class="result-waiting-msg" id="waiting-msg">⏳ 방장이 다음을 고르고 있어요</div>
         <button class="btn btn-ghost btn-block" id="menu-btn">메뉴로 (방 나가기)</button>
       `;
+}
+
+// ============================================
+// "다른 게임 선택" 오버레이 — 호스트가 같은 방 멤버로 다른 게임 시작
+// ============================================
+
+/**
+ * 결과 화면 위에 띄우는 게임 선택 + 옵션 모달.
+ * 작동 방식:
+ *   1. 좌측 게임 카드 그리드 — 현재 인원에 안 맞는 게임은 비활성화 (회색)
+ *   2. 카드 클릭 → 우측에 그 게임의 옵션 폼 자동 표시
+ *   3. "시작" → host.send(room_state with new gameId/options) + game_start → 양쪽 gameScreen 진입
+ *   4. "취소" → 오버레이만 제거, 결과 화면으로 복귀
+ */
+function buildChangeGameOverlayHTML(currentPlayerCount: number, currentGameId: string): string {
+  const cards = games.map((g) => {
+    const fits = currentPlayerCount >= g.meta.minPlayers && currentPlayerCount <= g.meta.maxPlayers;
+    const playerLabel = g.meta.minPlayers === g.meta.maxPlayers
+      ? `${g.meta.minPlayers}인 전용`
+      : `${g.meta.minPlayers}~${g.meta.maxPlayers}인`;
+    const reason = fits
+      ? playerLabel
+      : `${playerLabel} (현재 ${currentPlayerCount}명)`;
+    const isCurrent = g.meta.id === currentGameId;
+    return `
+      <button class="change-game-card${fits ? '' : ' is-disabled'}${isCurrent ? ' is-current' : ''}"
+              data-game-id="${escapeAttr(g.meta.id)}" ${fits ? '' : 'disabled'}>
+        <img class="change-game-card-thumb" src="${escapeAttr(g.meta.thumbnail)}" alt="" />
+        <div class="change-game-card-name">${escapeHtml(g.meta.name)}</div>
+        <div class="change-game-card-meta">${escapeHtml(reason)}${isCurrent ? ' · 방금 한 게임' : ''}</div>
+      </button>
+    `;
+  }).join('');
+
+  return `
+    <div class="change-game-overlay" id="change-game-overlay">
+      <div class="change-game-card-wrap">
+        <div class="change-game-title">🎲 다른 게임 선택</div>
+        <div class="change-game-subtitle">현재 방 멤버 ${currentPlayerCount}명 그대로 시작해요</div>
+
+        <div class="change-game-grid">${cards}</div>
+
+        <div class="change-game-options" id="change-game-options"></div>
+
+        <div class="change-game-actions">
+          <button class="btn btn-ghost" id="change-game-cancel-btn">취소</button>
+          <button class="btn btn-primary" id="change-game-start-btn" disabled>시작</button>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+/** createRoom 의 renderOption 과 동일 — 결과 화면 모달용 옵션 select 렌더 */
+function renderOptionForOverlay(opt: GameRoomOption): string {
+  return `
+    <div class="form-group">
+      <label class="input-label">${escapeHtml(opt.label)}</label>
+      <select class="select" id="opt-${escapeAttr(opt.key)}">
+        ${opt.choices.map((c) => `
+          <option value="${escapeAttr(c.value)}"${c.value === opt.defaultValue ? ' selected' : ''}>
+            ${escapeHtml(c.label)}
+          </option>
+        `).join('')}
+      </select>
+    </div>
+  `;
+}
+
+/**
+ * 결과 화면 위에 "다른 게임 선택" 오버레이 띄움 + 동작 연결.
+ *  - 게임 카드 클릭 시 우측에 옵션 폼 자동 갱신
+ *  - "시작" 누르면 onStart(gameId, options) 호출
+ *  - "취소" 누르면 오버레이 제거 (결과 화면 그대로)
+ */
+function openChangeGameOverlay(
+  parent: HTMLElement,
+  args: {
+    roomState: RoomState;
+    onStart: (gameId: string, options: Record<string, string>) => void;
+  },
+): void {
+  // 이미 열려있으면 무시
+  if (parent.querySelector('#change-game-overlay')) return;
+
+  const overlayHTML = buildChangeGameOverlayHTML(
+    args.roomState.players.length,
+    args.roomState.gameId,
+  );
+  parent.insertAdjacentHTML('beforeend', overlayHTML);
+  const overlay = parent.querySelector<HTMLDivElement>('#change-game-overlay')!;
+  const optsContainer = overlay.querySelector<HTMLDivElement>('#change-game-options')!;
+  const startBtn = overlay.querySelector<HTMLButtonElement>('#change-game-start-btn')!;
+  const cancelBtn = overlay.querySelector<HTMLButtonElement>('#change-game-cancel-btn')!;
+
+  let selectedGameId: string | null = null;
+  let selectedOptions: Record<string, string> = {};
+
+  // [임시 디버깅] 카드 핸들러 등록 시 로그
+  const enabledCards = overlay.querySelectorAll<HTMLButtonElement>('.change-game-card:not(.is-disabled)');
+  console.log('[change-game] enabled cards:', enabledCards.length, [...enabledCards].map(c => c.dataset.gameId));
+
+  // 게임 카드 클릭 → 옵션 폼 + 시작 버튼 활성
+  enabledCards.forEach((card) => {
+    card.addEventListener('click', () => {
+      console.log('[change-game] card clicked:', card.dataset.gameId);
+      const gid = card.dataset.gameId;
+      if (!gid) return;
+      const game = getGameById(gid);
+      if (!game) {
+        console.warn('[change-game] getGameById failed:', gid);
+        return;
+      }
+
+      selectedGameId = gid;
+      selectedOptions = {};
+      for (const opt of game.meta.roomOptions) {
+        selectedOptions[opt.key] = opt.defaultValue;
+      }
+
+      // 카드 active 시각 처리
+      overlay.querySelectorAll('.change-game-card').forEach((c) => c.classList.remove('is-selected'));
+      card.classList.add('is-selected');
+
+      // 옵션 폼 갱신 — 옵션 없는 게임은 안내만
+      if (game.meta.roomOptions.length > 0) {
+        optsContainer.innerHTML = `
+          <div class="change-game-options-title">⚙️ 게임 설정</div>
+          ${game.meta.roomOptions.map(renderOptionForOverlay).join('')}
+        `;
+        for (const opt of game.meta.roomOptions) {
+          const sel = optsContainer.querySelector<HTMLSelectElement>(`#opt-${opt.key}`);
+          sel?.addEventListener('change', () => {
+            selectedOptions[opt.key] = sel.value;
+          });
+        }
+      } else {
+        optsContainer.innerHTML = `<div class="change-game-no-options">설정 없이 바로 시작할 수 있어요</div>`;
+      }
+
+      startBtn.disabled = false;
+    });
+  });
+
+  const closeOverlay = (): void => {
+    overlay.remove();
+    document.removeEventListener('keydown', onKeyDown);
+  };
+  const onKeyDown = (e: KeyboardEvent): void => {
+    if (e.key === 'Escape') closeOverlay();
+  };
+  document.addEventListener('keydown', onKeyDown);
+
+  cancelBtn.addEventListener('click', closeOverlay);
+  // 배경 클릭 닫기는 의도치 않은 닫힘 유발 — 닫으려면 취소 버튼 또는 ESC.
+
+  startBtn.addEventListener('click', () => {
+    if (!selectedGameId) return;
+    document.removeEventListener('keydown', onKeyDown);
+    args.onStart(selectedGameId, selectedOptions);
+  });
 }
 
 function buildResultHTML(args: {
@@ -744,6 +907,7 @@ export function createResultScreenAsHostScreen(args: ResultScreenAsHostArgs): Sc
 
       const retryBtn = el.querySelector<HTMLButtonElement>('#retry-btn')!;
       const menuBtn = el.querySelector<HTMLButtonElement>('#menu-btn')!;
+      const changeGameBtn = el.querySelector<HTMLButtonElement>('#change-game-btn')!;
 
       retryBtn.addEventListener('click', () => {
         // 같은 방 설정으로 재시작 — 게스트에게 game_start 알림
@@ -758,12 +922,38 @@ export function createResultScreenAsHostScreen(args: ResultScreenAsHostArgs): Sc
         router.reset(() => createMenuScreen());
       });
 
-      // 상대가 먼저 나가면 다시하기 비활성
+      // 다른 게임 선택 — 결과 카드 위에 오버레이로 게임/옵션 선택 모달 띄움
+      changeGameBtn.addEventListener('click', () => {
+        openChangeGameOverlay(el, {
+          roomState,
+          onStart: (newGameId, newOptions) => {
+            const newRoomState: RoomState = {
+              ...roomState,
+              gameId: newGameId,
+              roomOptions: { ...newOptions },
+              status: 'playing',
+            };
+            // 게스트에게 새 방 상태 + 게임 시작 통지 (room_state → game_start 순서)
+            host.send({ type: 'room_state', roomState: newRoomState });
+            host.send({ type: 'game_start' });
+            closeOnDispose = false;
+            router.replace(() => createGameScreenAsHostScreen({
+              host,
+              roomState: newRoomState,
+              isPrivate,
+              password,
+            }));
+          },
+        });
+      });
+
+      // 상대가 먼저 나가면 다시하기 + 다른 게임 선택 비활성
       host.onGuestDisconnected = () => {
         retryBtn.disabled = true;
         retryBtn.textContent = '상대가 나갔어요';
         retryBtn.classList.remove('btn-primary');
         retryBtn.classList.add('btn-secondary');
+        changeGameBtn.disabled = true;
       };
 
       // 결과 화면에선 게스트 메시지 무시
@@ -791,13 +981,16 @@ export interface ResultScreenAsGuestArgs {
 }
 
 export function createResultScreenAsGuestScreen(args: ResultScreenAsGuestArgs): Screen {
-  const { guest, roomState, result } = args;
+  const { guest, result } = args;
+  // 호스트가 다른 게임을 고르면 room_state 메시지로 갱신될 수 있음 → mutable.
+  // game_start 받을 때 이 최신 state 로 gameScreen 진입.
+  let currentRoomState = args.roomState;
   let closeOnDispose = true;
 
   // 전적 기록 (내가 관전자인지 roomState.players 로 판정)
-  const mySelf = roomState.players.find((p) => p.peerId === guest.myPeerId);
+  const mySelf = currentRoomState.players.find((p) => p.peerId === guest.myPeerId);
   const isSpec = mySelf?.role === 'spectator';
-  recordResultToStats(roomState.gameId, result.winner, result.summary, isSpec);
+  recordResultToStats(currentRoomState.gameId, result.winner, result.summary, isSpec);
 
   return {
     render() {
@@ -855,7 +1048,7 @@ export function createResultScreenAsGuestScreen(args: ResultScreenAsGuestArgs): 
         });
       } else if (gomoku) {
         // 오목은 2인 전용이라 관전자 감지는 roomState.players 로 판단.
-        const mySelf = roomState.players.find((p) => p.peerId === myPeerIdForResult);
+        const mySelf = currentRoomState.players.find((p) => p.peerId === myPeerIdForResult);
         const isSpec = mySelf?.role === 'spectator';
         el.innerHTML = buildGomokuResultHTML({
           myWinner: result.winner,
@@ -867,8 +1060,8 @@ export function createResultScreenAsGuestScreen(args: ResultScreenAsGuestArgs): 
         const hostScore = Number(result.summary['hostScore']) || 0;
         const guestScore = Number(result.summary['guestScore']) || 0;
         el.innerHTML = buildResultHTML({
-          hostNickname: roomState.hostNickname,
-          guestNickname: roomState.guestNickname ?? '나',
+          hostNickname: currentRoomState.hostNickname,
+          guestNickname: currentRoomState.guestNickname ?? '나',
           hostScore,
           guestScore,
           myWinner: result.winner,
@@ -877,12 +1070,24 @@ export function createResultScreenAsGuestScreen(args: ResultScreenAsGuestArgs): 
       }
 
       const menuBtn = el.querySelector<HTMLButtonElement>('#menu-btn')!;
+      const waitingMsgEl = el.querySelector<HTMLDivElement>('#waiting-msg');
 
-      // 방장이 다시하기 누르면 game_start 수신 → 게임 화면 재진입
+      // 방장이 다른 게임 선택하면 room_state 먼저 옴 → 내부 state 갱신 + UI 안내 갱신.
+      // 그 직후 game_start 받으면 갱신된 state 로 gameScreen 진입.
       guest.onMessage = (msg) => {
+        if (msg.type === 'room_state') {
+          currentRoomState = msg.roomState;
+          if (waitingMsgEl) {
+            const newGame = getGameById(currentRoomState.gameId);
+            if (newGame) {
+              waitingMsgEl.textContent = `🎲 방장이 "${newGame.meta.name}" 게임을 골랐어요`;
+            }
+          }
+          return;
+        }
         if (msg.type === 'game_start') {
           closeOnDispose = false;
-          const rs: RoomState = { ...roomState, status: 'playing' };
+          const rs: RoomState = { ...currentRoomState, status: 'playing' };
           router.replace(() => createGameScreenAsGuestScreen({ guest, roomState: rs }));
         }
       };

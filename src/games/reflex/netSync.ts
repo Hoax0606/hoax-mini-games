@@ -15,6 +15,7 @@ import type { GameMessage, GameResult } from '../types';
 
 const T_ROUND_DONE = 'rx:round_done';
 const T_PLAYER_DONE = 'rx:player_done';
+const T_PHASE = 'rx:phase';
 const T_END = 'rx:end';
 
 // --- 라운드 중간 점수 (상대 미니뷰용) ---
@@ -66,6 +67,35 @@ export function decodePlayerDone(msg: GameMessage): PlayerDonePayload | null {
     peerId: p.peerId,
     finalAvgMs: typeof p.finalAvgMs === 'number' ? p.finalAvgMs : -1,
     foulCount: typeof p.foulCount === 'number' ? p.foulCount : 0,
+  };
+}
+
+// --- 라이브 phase 변경 (상대 미니뷰에 빨강/초록/결과 시각 표시) ---
+
+/**
+ * phase 변화는 자주 일어나니 가벼운 메시지로. 'idle' 은 broadcast 안 함.
+ * 'result' 일 때만 ms 동반 — 상대 미니뷰가 마지막 라운드 결과 잠깐 표시할 때 씀.
+ */
+export interface PhasePayload {
+  peerId: string;
+  kind: 'waiting' | 'go' | 'result' | 'foul';
+  ms?: number;
+}
+
+export function encodePhase(p: PhasePayload): GameMessage {
+  return { type: T_PHASE, payload: p };
+}
+
+export function decodePhase(msg: GameMessage): PhasePayload | null {
+  if (msg.type !== T_PHASE) return null;
+  const p = msg.payload as Partial<PhasePayload> | null;
+  if (!p || typeof p.peerId !== 'string') return null;
+  const k = p.kind;
+  if (k !== 'waiting' && k !== 'go' && k !== 'result' && k !== 'foul') return null;
+  return {
+    peerId: p.peerId,
+    kind: k,
+    ms: typeof p.ms === 'number' ? p.ms : undefined,
   };
 }
 

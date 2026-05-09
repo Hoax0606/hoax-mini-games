@@ -294,9 +294,20 @@ export function advanceTurn(game: DartsGame): void {
   if (cur) {
     // 이번 턴 점수 합 계산 → roundScores 에 push (render 히스토리 용).
     //   - bust 시 0 (원복돼서 실제 얻은 점수 없음)
-    //   - X01/Count-up/Cricket 모두 동일하게 throwsThisTurn 의 hit.score 합.
-    //     (bust 아닐 때 한해서) X01 은 차감 점수 = hit.score 합과 같음.
-    const roundScore = cur.bustThisTurn ? 0 : cur.throwsThisTurn.reduce((s, h) => s + h.score, 0);
+    //   - low-countup: applyLowCountup 과 동일한 식 — miss=50, ×(throwIndex)
+    //   - X01/Count-up/Cricket: throwsThisTurn 의 hit.score 합 (Cricket 은 약식)
+    let roundScore: number;
+    if (cur.bustThisTurn) {
+      roundScore = 0;
+    } else if (game.mode === 'low-countup') {
+      roundScore = cur.throwsThisTurn.reduce((s, h, i) => {
+        const n = i + 1; // 1번째 ×1, 2번째 ×2, 3번째 ×3
+        const points = h.kind === 'miss' ? 50 : h.score * n;
+        return s + points;
+      }, 0);
+    } else {
+      roundScore = cur.throwsThisTurn.reduce((s, h) => s + h.score, 0);
+    }
     cur.roundScores.push(roundScore);
 
     cur.throwsThisTurn = [];

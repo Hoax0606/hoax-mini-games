@@ -1520,3 +1520,141 @@ input {
   color: var(--text-muted);
   margin-top: 6px;
 }
+
+/* ============================================
+   결과 화면 — "다른 게임 선택" 오버레이
+   ============================================
+   호스트가 결과 카드 위에 띄움. 게임 카드 그리드 + 선택한 게임의 옵션 폼. */
+
+.change-game-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(54, 36, 56, 0.55);
+  backdrop-filter: blur(6px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  /* reaction-bar-floating(500) / spectator-overlay(150) 보다 위에 와야 클릭 가능 */
+  z-index: 600;
+  padding: 24px;
+  overflow-y: auto;
+}
+
+.change-game-card-wrap {
+  background: var(--cream-100);
+  border: 1.5px solid var(--pink-200);
+  border-radius: 22px;
+  padding: 28px 28px 22px;
+  width: 100%;
+  max-width: 720px;
+  max-height: calc(100vh - 48px);
+  overflow-y: auto;
+  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.16);
+}
+
+.change-game-title {
+  font-size: 22px;
+  font-weight: 900;
+  color: var(--text-main);
+  text-align: center;
+  margin-bottom: 4px;
+}
+
+.change-game-subtitle {
+  font-size: 13px;
+  color: var(--text-muted);
+  text-align: center;
+  margin-bottom: 18px;
+}
+
+.change-game-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 12px;
+  margin-bottom: 18px;
+}
+
+.change-game-card {
+  background: #fff;
+  border: 1.5px solid var(--pink-100);
+  border-radius: 14px;
+  padding: 10px 10px 12px;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  transition: transform 0.12s ease, border-color 0.12s ease, box-shadow 0.12s ease;
+}
+.change-game-card:hover:not(:disabled) {
+  transform: translateY(-2px);
+  border-color: var(--pink-300);
+  box-shadow: 0 6px 16px rgba(255, 142, 178, 0.2);
+}
+.change-game-card.is-selected {
+  border-color: var(--pink-500);
+  background: var(--pink-50);
+  box-shadow: 0 0 0 3px rgba(255, 142, 178, 0.25);
+}
+.change-game-card.is-disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  filter: grayscale(0.5);
+}
+.change-game-card.is-current {
+  border-style: dashed;
+}
+
+.change-game-card-thumb {
+  width: 100%;
+  aspect-ratio: 16 / 10;
+  object-fit: cover;
+  border-radius: 8px;
+  background: #f7e8ee;
+}
+
+.change-game-card-name {
+  font-size: 14px;
+  font-weight: 800;
+  color: var(--text-main);
+  text-align: center;
+}
+
+.change-game-card-meta {
+  font-size: 11px;
+  color: var(--text-muted);
+  text-align: center;
+  line-height: 1.3;
+}
+
+.change-game-options {
+  background: var(--cream-200);
+  border: 1px solid var(--pink-100);
+  border-radius: 12px;
+  padding: 14px 16px;
+  margin-bottom: 14px;
+}
+.change-game-options:empty {
+  display: none;
+}
+.change-game-options-title {
+  font-size: 13px;
+  font-weight: 800;
+  color: var(--text-main);
+  margin-bottom: 10px;
+}
+.change-game-no-options {
+  font-size: 13px;
+  color: var(--text-muted);
+  text-align: center;
+  padding: 8px 0;
+}
+
+.change-game-actions {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+}
+.change-game-actions .btn {
+  min-width: 110px;
+}

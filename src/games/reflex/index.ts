@@ -26,6 +26,7 @@ import {
 import {
   encodeRoundDone, decodeRoundDone,
   encodePlayerDone, decodePlayerDone,
+  encodePhase, decodePhase,
   encodeEnd, decodeEnd,
 } from './netSync';
 
@@ -93,6 +94,7 @@ class ReflexGame implements GameModule {
         avgMs: 0,
         foulCount: 0,
         finished: false,
+        phase: 'idle',
       });
     }
 
@@ -128,6 +130,20 @@ class ReflexGame implements GameModule {
       return;
     }
 
+    const ph = decodePhase(msg);
+    if (ph) {
+      const opp = this.opponents.get(ph.peerId);
+      if (opp) {
+        opp.phase = ph.kind;
+        if (ph.kind === 'result' && typeof ph.ms === 'number') {
+          opp.lastMs = ph.ms;
+        } else if (ph.kind !== 'result') {
+          opp.lastMs = undefined;
+        }
+      }
+      return;
+    }
+
     const pd = decodePlayerDone(msg);
     if (pd) {
       const opp = this.opponents.get(pd.peerId);
@@ -136,6 +152,8 @@ class ReflexGame implements GameModule {
         opp.roundsDone = TOTAL_ROUNDS;
         opp.avgMs = pd.finalAvgMs > 0 ? pd.finalAvgMs : 0;
         opp.foulCount = pd.foulCount;
+        opp.phase = 'done';
+        opp.lastMs = undefined;
       }
       // 호스트: 집계
       if (this.isHost && this.finals && !this.finals.has(pd.peerId)) {
@@ -246,6 +264,7 @@ class ReflexGame implements GameModule {
   private startWaiting(): void {
     // 빨간 상태로 진입 + 랜덤 시간 후 GO 전환
     this.phase = { kind: 'waiting' };
+    this.broadcastPhase('waiting');
     const waitMs = WAIT_MIN_MS + Math.random() * (WAIT_MAX_MS - WAIT_MIN_MS);
     this.waitTimerId = window.setTimeout(() => {
       if (this.destroyed) return;
@@ -253,6 +272,7 @@ class ReflexGame implements GameModule {
       this.phase = { kind: 'go' };
       this.waitStartedAt = performance.now();
       sound.play('pop');
+      this.broadcastPhase('go');
     }, waitMs);
   }
 
@@ -273,6 +293,7 @@ class ReflexGame implements GameModule {
         sound.play('button_click');
         this.phase = { kind: 'foul' };
         this.broadcastMyProgress();
+        this.broadcastPhase('foul');
         this.pendingAdvanceTimer = window.setTimeout(() => this.advanceToNextRound(), FOUL_DISPLAY_MS);
         break;
       }
@@ -282,6 +303,7 @@ class ReflexGame implements GameModule {
         sound.play('tetris_clear');
         this.phase = { kind: 'result', ms };
         this.broadcastMyProgress();
+        this.broadcastPhase('result', ms);
         this.pendingAdvanceTimer = window.setTimeout(() => this.advanceToNextRound(), RESULT_DISPLAY_MS);
         break;
       }
@@ -314,6 +336,11 @@ class ReflexGame implements GameModule {
         foulCount: this.foulCount,
       }),
     );
+  }
+
+  /** 상대 미니뷰가 내 라이브 phase 색깔로 업데이트되도록 broadcast */
+  private broadcastPhase(kind: 'waiting' | 'go' | 'result' | 'foul', ms?: number): void {
+    this.ctx.sendToPeer(encodePhase({ peerId: this.myPeerId, kind, ms }));
   }
 
   /** 내 5라운드 전부 완료 처리 */

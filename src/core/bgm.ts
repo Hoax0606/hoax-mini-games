@@ -181,40 +181,49 @@ const PATTERN_APPLE_GAME: BgmPattern = {
   ],
 };
 
-// --- 오목: D 마이너, 72 BPM, 잔잔·사색적 ---
-// 전략 게임 분위기. 한 수 한 수 신중하게 두도록 템포 느리고 차분한 triangle.
+// --- 오목: F 메이저, 88 BPM, 따뜻하고 잔잔 ---
+// "너무 처진다" 피드백 후 D 마이너 → F 메이저로 키 변경 + 템포 살짝 업.
+// 신중함은 유지하되 따뜻하고 평온한 분위기. 부드러운 triangle.
 const PATTERN_GOMOKU: BgmPattern = {
-  bpm: 72,
+  bpm: 88,
   lengthSixteenths: 128,
   melodyWave: 'triangle',
   melody: [
-    // 마디 1: D 마이너 토닉 (D-F-A)
-    { f: NOTES.D4, d: 4 }, { f: NOTES.F4, d: 4 }, { f: NOTES.A4, d: 4 }, { f: NOTES.F4, d: 4 },
-    // 마디 2: 상승 + 지속
-    { f: NOTES.G4, d: 4 }, { f: NOTES.A4, d: 4 }, { f: NOTES.D5, d: 8 },
-    // 마디 3: 고음 대화
-    { f: NOTES.C5, d: 4 }, { f: NOTES.A4, d: 4 }, { f: NOTES.F4, d: 4 }, { f: NOTES.A4, d: 4 },
-    // 마디 4: 긴 호흡으로 하강
-    { f: NOTES.G4, d: 8 }, { f: NOTES.F4, d: 8 },
-    // 마디 5: Bb 컬러 (D 마이너의 6도)
-    { f: NOTES.A4, d: 4 }, { f: NOTES.Bb4, d: 4 }, { f: NOTES.A4, d: 4 }, { f: NOTES.G4, d: 4 },
-    // 마디 6: 해결 준비
-    { f: NOTES.F4, d: 4 }, { f: NOTES.E4, d: 4 }, { f: NOTES.D4, d: 8 },
-    // 마디 7: 낮은 음역
-    { f: NOTES.D4, d: 4 }, { f: NOTES.A3, d: 4 }, { f: NOTES.D4, d: 8 },
-    // 마디 8: 토닉 길게 — 다음 루프와 자연스럽게 이어짐
-    { f: NOTES.D4, d: 16 },
+    // 마디 1: F 토닉 (F-A-C)
+    { f: NOTES.F4, d: 4 }, { f: NOTES.A4, d: 4 }, { f: NOTES.C5, d: 4 }, { f: NOTES.A4, d: 4 },
+    // 마디 2: 위로 올라가는 호흡 — F5 까지 올라갔다 머무름
+    { f: NOTES.G4, d: 4 }, { f: NOTES.A4, d: 4 }, { f: NOTES.F5, d: 8 },
+    // 마디 3: 부드러운 하행
+    { f: NOTES.E5, d: 4 }, { f: NOTES.C5, d: 4 }, { f: NOTES.A4, d: 4 }, { f: NOTES.G4, d: 4 },
+    // 마디 4: F 으로 돌아옴
+    { f: NOTES.A4, d: 4 }, { f: NOTES.G4, d: 4 }, { f: NOTES.F4, d: 8 },
+    // 마디 5: Bb (IV) 컬러 — 따뜻함
+    { f: NOTES.Bb4, d: 4 }, { f: NOTES.A4, d: 4 }, { f: NOTES.G4, d: 4 }, { f: NOTES.F4, d: 4 },
+    // 마디 6: C7 (V) — 약간 긴장
+    { f: NOTES.G4, d: 4 }, { f: NOTES.E4, d: 4 }, { f: NOTES.G4, d: 8 },
+    // 마디 7: 해결 준비
+    { f: NOTES.A4, d: 4 }, { f: NOTES.C5, d: 4 }, { f: NOTES.A4, d: 4 }, { f: NOTES.G4, d: 4 },
+    // 마디 8: F 토닉 길게 — 다음 루프 이음매
+    { f: NOTES.F4, d: 16 },
   ],
   bass: [
-    // 매 마디 d=8 × 2 = 16 sixteenths. 잔잔한 2박 펄스
+    // 매 마디 d=8 × 2 = 16 sixteenths. 잔잔한 2박 펄스.
+    // 마디 1: F (I)
+    { f: NOTES.F3,  d: 8 }, { f: NOTES.C4,  d: 8 },
+    // 마디 2: F (I) — 멜로디가 F5 로 올라가는 동안 안정감
+    { f: NOTES.F3,  d: 8 }, { f: NOTES.A3,  d: 8 },
+    // 마디 3: D minor (vi) — 차분한 컬러
     { f: NOTES.D3,  d: 8 }, { f: NOTES.A3,  d: 8 },
-    { f: NOTES.D3,  d: 8 }, { f: NOTES.A3,  d: 8 },
-    { f: NOTES.F3,  d: 8 }, { f: NOTES.C3,  d: 8 },
-    { f: NOTES.D3,  d: 8 }, { f: NOTES.A3,  d: 8 },
+    // 마디 4: F (I)
+    { f: NOTES.F3,  d: 8 }, { f: NOTES.C4,  d: 8 },
+    // 마디 5: Bb (IV)
     { f: NOTES.Bb2, d: 8 }, { f: NOTES.F3,  d: 8 },
-    { f: NOTES.A2,  d: 8 }, { f: NOTES.E3,  d: 8 },
-    { f: NOTES.G2,  d: 8 }, { f: NOTES.D3,  d: 8 },
-    { f: NOTES.D3,  d: 16 },
+    // 마디 6: C (V)
+    { f: NOTES.C3,  d: 8 }, { f: NOTES.G3,  d: 8 },
+    // 마디 7: D minor (vi) → C (V)
+    { f: NOTES.D3,  d: 8 }, { f: NOTES.C3,  d: 8 },
+    // 마디 8: F (I) 길게
+    { f: NOTES.F3,  d: 16 },
   ],
 };
 

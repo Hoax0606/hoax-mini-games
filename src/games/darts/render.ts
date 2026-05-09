@@ -61,6 +61,12 @@ const COLORS = {
   singleCream: '#fff6e4',
   singleLavender: '#e9dfff',
 
+  // Cricket 모드에서 비활성(1~14) 세그먼트 색 — 어둡게 톤다운
+  inactiveSingleA: '#5a525a',
+  inactiveSingleB: '#4a424a',
+  inactiveRingA:   '#6b5a64',
+  inactiveRingB:   '#5a4d56',
+
   // Double / Triple 링 색 (짝/홀) — 다른 게임과 같은 pink/mint 팔레트 재사용
   ringPink: '#ff82ac',
   ringMint: '#86e8c4',
@@ -276,7 +282,7 @@ export class DartsRenderer {
     ctx.fillRect(0, 0, CANVAS_W, CANVAS_H);
 
     // 다트보드
-    this.drawBoard();
+    this.drawBoard(state.mode);
 
     // 과녁에 꽂힌 다트들
     for (const d of state.stuckDarts) {
@@ -355,7 +361,7 @@ export class DartsRenderer {
   // 다트보드 그리기
   // ============================================
 
-  private drawBoard(): void {
+  private drawBoard(mode: DartsMode): void {
     const ctx = this.ctx;
 
     // 외곽 라벤더 링 — 숫자가 이 링 안에 들어가야 하므로 두껍게(1.10 배).
@@ -367,45 +373,55 @@ export class DartsRenderer {
     ctx.lineWidth = 2;
     ctx.stroke();
 
-    // 20개 세그먼트 렌더: Single outer → Triple ring → Single inner 역순으로 큰 것부터
+    // 20개 세그먼트 렌더: Single outer → Triple ring → Single inner 역순으로 큰 것부터.
+    // Cricket 모드에선 1~14 세그먼트는 어두운 톤으로 비활성 표시 (15~20, Bull 만 활성).
     const SEG_ARC = Math.PI / 10;
     const HALF = SEG_ARC / 2;
+    const isCricket = mode === 'cricket';
 
     for (let i = 0; i < 20; i++) {
       // 12시 방향이 i=0 (세그먼트 20). 각 세그먼트 중심 각도 = -π/2 + i * SEG_ARC
-      // arc start/end 는 각도 범위.
       const centerAngle = -Math.PI / 2 + i * SEG_ARC;
       const startA = centerAngle - HALF;
       const endA = centerAngle + HALF;
       const isEven = i % 2 === 0;
+      const segNum = SEGMENTS[i]!;
+      const inactive = isCricket && (segNum < 15 || segNum > 20);
+
+      const singleColor = inactive
+        ? (isEven ? COLORS.inactiveSingleA : COLORS.inactiveSingleB)
+        : (isEven ? COLORS.singleCream : COLORS.singleLavender);
+      const ringColor = inactive
+        ? (isEven ? COLORS.inactiveRingA : COLORS.inactiveRingB)
+        : (isEven ? COLORS.ringPink : COLORS.ringMint);
 
       // 1) 바깥 single (Triple 바깥 ~ Double 안쪽)
       this.fillRing(
         startA, endA,
         BOARD_R * BOARD_RATIOS.TRIPLE_OUTER,
         BOARD_R * BOARD_RATIOS.DOUBLE_INNER,
-        isEven ? COLORS.singleCream : COLORS.singleLavender,
+        singleColor,
       );
       // 2) Double 링
       this.fillRing(
         startA, endA,
         BOARD_R * BOARD_RATIOS.DOUBLE_INNER,
         BOARD_R * BOARD_RATIOS.DOUBLE_OUTER,
-        isEven ? COLORS.ringPink : COLORS.ringMint,
+        ringColor,
       );
       // 3) Triple 링
       this.fillRing(
         startA, endA,
         BOARD_R * BOARD_RATIOS.TRIPLE_INNER,
         BOARD_R * BOARD_RATIOS.TRIPLE_OUTER,
-        isEven ? COLORS.ringPink : COLORS.ringMint,
+        ringColor,
       );
       // 4) 안쪽 single (Bull 밖 ~ Triple 안쪽)
       this.fillRing(
         startA, endA,
         BOARD_R * BOARD_RATIOS.OUTER_BULL_OUTER,
         BOARD_R * BOARD_RATIOS.TRIPLE_INNER,
-        isEven ? COLORS.singleCream : COLORS.singleLavender,
+        singleColor,
       );
     }
 
@@ -440,9 +456,8 @@ export class DartsRenderer {
     ctx.fill();
     ctx.stroke();
 
-    // 세그먼트 번호 라벨 — 외곽 라벤더 링(1.0~1.10) 중앙에 안정적으로 위치.
-    // 폰트 13 + labelR 1.050 이면 숫자가 링 안쪽에 완전히 들어감.
-    ctx.fillStyle = COLORS.segNumber;
+    // 세그먼트 번호 라벨 — 외곽 검정 링(1.0~1.10) 중앙에 안정적으로 위치.
+    // Cricket 비활성 세그먼트(1~14)는 흐리게.
     ctx.font = `900 13px ${FONT}`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
@@ -451,7 +466,10 @@ export class DartsRenderer {
       const centerAngle = -Math.PI / 2 + i * SEG_ARC;
       const x = BOARD_CX + Math.cos(centerAngle) * labelR;
       const y = BOARD_CY + Math.sin(centerAngle) * labelR;
-      ctx.fillText(String(SEGMENTS[i]), x, y);
+      const segNum = SEGMENTS[i]!;
+      const inactive = isCricket && (segNum < 15 || segNum > 20);
+      ctx.fillStyle = inactive ? 'rgba(255, 246, 228, 0.35)' : COLORS.segNumber;
+      ctx.fillText(String(segNum), x, y);
     }
   }
 
@@ -676,8 +694,8 @@ export class DartsRenderer {
         if (i === myIdx) continue;
         const p = state.players[i]!;
         const isActive = i === state.currentPlayerIdx;
-        this.drawOtherPlayerRow(p, innerX, y, innerW, isActive);
-        y += DartsRenderer.OTHER_ROW_H + 4;
+        const rowH = this.drawOtherPlayerRow(p, innerX, y, innerW, isActive, state.mode);
+        y += rowH + 4;
       }
     }
   }
@@ -799,10 +817,11 @@ export class DartsRenderer {
       // Low Count-up 은 각 슬롯에 ×1/×2/×3 배수 배지 (슬롯 위)
       if (showMultiplierBadges) {
         ctx.fillStyle = COLORS.textAccent;
-        ctx.font = `900 9px ${FONT}`;
+        ctx.font = `900 11px ${FONT}`;
         ctx.textAlign = 'center';
         ctx.textBaseline = 'alphabetic';
-        ctx.fillText(`×${i + 1}`, sx + slotW / 2, slotTopY - 4);
+        // 슬롯 위 충분히 띄워서 슬롯 라운드 모서리와 안 겹치게
+        ctx.fillText(`×${i + 1}`, sx + slotW / 2, slotTopY - 8);
       }
 
       this.drawDartSlot(sx, slotTopY, slotW, slotH, hit);
@@ -972,10 +991,14 @@ export class DartsRenderer {
   private drawOtherPlayerRow(
     p: PlayerDisplay,
     x: number, y: number, w: number,
-    isActive = false,
-  ): void {
+    isActive: boolean,
+    mode: DartsMode,
+  ): number {
     const ctx = this.ctx;
-    const h = DartsRenderer.OTHER_ROW_H;
+    // Cricket 모드에선 미니 마크 행을 행 안에 포함시키려고 행을 더 크게 잡음.
+    //   상단(닉네임/점수) 28px + 하단(7타겟 마크) 28px = 56px
+    const isCricket = mode === 'cricket' && !!p.cricketMarks;
+    const h = isCricket ? 56 : DartsRenderer.OTHER_ROW_H;
 
     // 카드형 배경 — 현재 차례면 라벤더 강조
     ctx.fillStyle = isActive ? '#f0e8ff' : COLORS.otherRowBg;
@@ -984,7 +1007,9 @@ export class DartsRenderer {
     ctx.fillRect(x, y, w, h);
     ctx.strokeRect(x, y, w, h);
 
-    const midY = y + h / 2;
+    // Cricket 이면 상단 28px 영역의 중앙, 아니면 행 전체의 중앙에 텍스트 베이스라인.
+    const topRowH = isCricket ? 28 : h;
+    const midY = y + topRowH / 2;
 
     // 닉네임 (세로 중앙 정렬). isActive 면 앞에 ▶ 배지.
     ctx.fillStyle = COLORS.textMain;
@@ -1007,6 +1032,13 @@ export class DartsRenderer {
     ctx.font = `800 14px ${FONT}`;
     ctx.textAlign = 'right';
     ctx.fillText(rightText, x + w - 10, midY);
+
+    // Cricket 모드 — 하단에 7타겟 마크 미니 표시
+    if (isCricket && p.cricketMarks) {
+      this.drawCricketMarksRow(x + 4, y + 28, w - 8, p.cricketMarks);
+    }
+
+    return h;
   }
 
   /**

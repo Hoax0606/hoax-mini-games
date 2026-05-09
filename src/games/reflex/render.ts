@@ -43,6 +43,9 @@ export type ReflexPhase =
   | { kind: 'foul' }                                // 빨강 때 눌렀을 때 실격
   | { kind: 'done'; finalAvgMs: number; foulCount: number }; // 5라운드 완료
 
+/** 상대 미니뷰에 표시할 라이브 phase. 'idle' = 아직 시작 안 함 / 정보 없음 */
+export type OpponentPhase = 'idle' | 'waiting' | 'go' | 'result' | 'foul' | 'done';
+
 export interface OpponentState {
   peerId: string;
   nickname: string;
@@ -51,6 +54,10 @@ export interface OpponentState {
   foulCount: number;
   /** 5라운드 모두 완료? */
   finished: boolean;
+  /** 라이브 phase — 빨강/초록/결과 색깔로 미니뷰에 표시 */
+  phase: OpponentPhase;
+  /** result phase 일 때 직전 라운드 ms (있으면 카드에 잠깐 표시) */
+  lastMs?: number;
 }
 
 export interface RenderState {
@@ -281,31 +288,53 @@ export class ReflexRenderer {
       const opp = opponents[i]!;
       const x = startX + i * (cardW + gap);
 
-      // 카드 배경
-      ctx.fillStyle = COLORS.oppCardBg;
+      // 카드 배경 — phase 별로 톤 조정 (waiting=핑크, go=민트, foul=핑크 strong)
+      const phaseStyle = phaseToCardStyle(opp);
+      ctx.fillStyle = phaseStyle.bg;
       ctx.fillRect(x, y, cardW, cardH);
-      ctx.strokeStyle = opp.finished ? COLORS.goStroke : COLORS.oppCardBorder;
-      ctx.lineWidth = opp.finished ? 2 : 1.2;
+      ctx.strokeStyle = phaseStyle.border;
+      ctx.lineWidth = phaseStyle.borderW;
       ctx.strokeRect(x, y, cardW, cardH);
 
-      // 닉네임
+      // 좌측 phase 인디케이터 — 작은 채워진 원 (빨강/초록/보라/회색)
+      ctx.fillStyle = phaseStyle.dot;
+      ctx.beginPath();
+      ctx.arc(x + 12, y + 14, 5, 0, Math.PI * 2);
+      ctx.fill();
+      // go phase 일 때 펄스 링 — 시선 끌기
+      if (opp.phase === 'go') {
+        const pulse = (Math.sin(performance.now() / 140) + 1) / 2;
+        ctx.strokeStyle = `rgba(46, 138, 112, ${0.35 + pulse * 0.35})`;
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.arc(x + 12, y + 14, 7 + pulse * 3, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+
+      // 닉네임 (점 옆에)
       ctx.fillStyle = COLORS.textMain;
       ctx.font = `700 13px ${FONT}`;
       ctx.textAlign = 'left';
       ctx.textBaseline = 'alphabetic';
-      ctx.fillText(truncate(opp.nickname, 10), x + 10, y + 18);
+      ctx.fillText(truncate(opp.nickname, 9), x + 24, y + 18);
 
       // 진행도
       ctx.fillStyle = COLORS.textMuted;
       ctx.font = `600 11px ${FONT}`;
       ctx.fillText(`${opp.roundsDone}/5 라운드`, x + 10, y + 33);
 
-      // 평균
-      ctx.fillStyle = COLORS.textMain;
-      ctx.font = `900 16px ${FONT}`;
+      // 우측 — 평균 (또는 result 시 직전 ms 강조)
       ctx.textAlign = 'right';
-      const avgText = opp.avgMs > 0 ? `${Math.round(opp.avgMs)}ms` : '-';
-      ctx.fillText(avgText, x + cardW - 10, y + 27);
+      if (opp.phase === 'result' && typeof opp.lastMs === 'number' && opp.lastMs > 0) {
+        ctx.fillStyle = COLORS.resultStroke;
+        ctx.font = `900 16px ${FONT}`;
+        ctx.fillText(`${opp.lastMs}ms`, x + cardW - 10, y + 27);
+      } else {
+        ctx.fillStyle = COLORS.textMain;
+        ctx.font = `900 16px ${FONT}`;
+        const avgText = opp.avgMs > 0 ? `${Math.round(opp.avgMs)}ms` : '-';
+        ctx.fillText(avgText, x + cardW - 10, y + 27);
+      }
 
       // 완료 뱃지
       if (opp.finished) {
@@ -323,6 +352,29 @@ export class ReflexRenderer {
         ctx.fillText(`실격 ${opp.foulCount}`, x + 10, y + 46);
       }
     }
+  }
+}
+
+/** opponent.phase → 카드 배경/테두리/인디케이터 색 */
+function phaseToCardStyle(opp: OpponentState): {
+  bg: string; border: string; borderW: number; dot: string;
+} {
+  if (opp.finished) {
+    return { bg: COLORS.oppCardBg, border: COLORS.goStroke, borderW: 2, dot: COLORS.goStroke };
+  }
+  switch (opp.phase) {
+    case 'waiting':
+      return { bg: '#fff0f5', border: COLORS.waitStroke, borderW: 1.6, dot: COLORS.waitFill };
+    case 'go':
+      return { bg: '#eafff5', border: COLORS.goStroke, borderW: 2, dot: COLORS.goFill };
+    case 'result':
+      return { bg: '#f5edff', border: COLORS.resultStroke, borderW: 1.6, dot: COLORS.resultStroke };
+    case 'foul':
+      return { bg: '#ffe6ee', border: COLORS.foulStroke, borderW: 1.8, dot: COLORS.foulStroke };
+    case 'idle':
+    case 'done':
+    default:
+      return { bg: COLORS.oppCardBg, border: COLORS.oppCardBorder, borderW: 1.2, dot: '#cfc0e0' };
   }
 }
 
