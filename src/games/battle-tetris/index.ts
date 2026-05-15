@@ -51,8 +51,8 @@ const STATE_BROADCAST_MS = 100;
 const DAS_DELAY_MS = 160;
 /** 좌우 이동 반복 간격 (ARR) */
 const DAS_INTERVAL_MS = 45;
-/** 소프트드롭(↓) 반복 간격 — 좌우보다 빠르게. 대략 40칸/초 */
-const SOFT_DROP_INTERVAL_MS = 25;
+/** 소프트드롭(↓) 반복 간격 — 좌우보다 훨씬 빠르게. 대략 65칸/초 */
+const SOFT_DROP_INTERVAL_MS = 15;
 
 // ============================================
 // 옵션 파싱 (방 만들기 화면에서 선택된 값)
@@ -340,6 +340,11 @@ class BattleTetrisGame implements GameModule {
 
         case 'garbage_injected':
           this.garbageReceivedTotal += ev.count;
+          sound.play('tetris_garbage');
+          break;
+
+        case 'unbreakable_injected':
+          // 시간 경과로 자동 푸시된 안 깨지는 줄 — 가비지와 같은 사운드 재활용
           sound.play('tetris_garbage');
           break;
       }

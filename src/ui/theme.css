@@ -1497,6 +1497,280 @@ input {
 }
 .game-pause-overlay[hidden] { display: none; }
 
+/* ============================================
+   공개방 찾기 화면
+   ============================================ */
+.public-rooms-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 14px;
+  margin-top: 18px;
+}
+.public-rooms-empty {
+  grid-column: 1 / -1;
+  padding: 50px 20px;
+  text-align: center;
+  color: var(--text-muted);
+  background: var(--bg-card);
+  border: 1.5px dashed var(--pink-100);
+  border-radius: 16px;
+}
+.public-rooms-empty-sub {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-top: 6px;
+}
+.public-rooms-empty-sub code {
+  background: var(--pink-50);
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-size: 11px;
+}
+.public-room-card {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
+  padding: 16px;
+  background: var(--bg-card);
+  border: 1.5px solid var(--pink-100);
+  border-radius: 14px;
+  cursor: pointer;
+  text-align: left;
+  transition: transform 0.12s ease, border-color 0.12s ease, box-shadow 0.12s ease;
+}
+.public-room-card:hover:not(:disabled) {
+  transform: translateY(-2px);
+  border-color: var(--pink-300);
+  box-shadow: 0 6px 18px rgba(255, 142, 178, 0.2);
+}
+.public-room-card.is-full {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.public-room-game-name {
+  font-size: 16px;
+  font-weight: 800;
+  color: var(--text-main);
+}
+.public-room-meta-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+.public-room-host { font-weight: 700; color: var(--text-main); }
+.public-room-dot { opacity: 0.5; }
+.public-room-bottom-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 4px;
+}
+.public-room-badge {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: 8px;
+}
+.public-room-badge.is-waiting {
+  background: var(--mint-100);
+  color: #2e8a70;
+}
+.public-room-badge.is-playing {
+  background: var(--lavender-100);
+  color: #6b4cb0;
+}
+.public-room-code {
+  font-family: 'Pretendard', monospace;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  color: var(--text-muted);
+}
+
+/* ============================================
+   채팅 사이드패널 (대기실 / 게임 / 결과 공통)
+   ============================================ */
+.chat-panel {
+  position: fixed;
+  right: 16px;
+  top: 80px;
+  bottom: 16px;
+  width: 280px;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-card);
+  border: 1.5px solid var(--pink-200);
+  border-radius: 16px;
+  box-shadow: 0 6px 22px rgba(255, 142, 178, 0.18);
+  z-index: 100;       /* pause-overlay(150) / 모달들보다 낮게 — 일시정지 시 가려짐 */
+  overflow: hidden;
+  transition: width 0.18s ease, height 0.18s ease;
+}
+.chat-panel.is-collapsed {
+  width: 48px;
+  height: 48px;
+  top: auto;
+  border-radius: 24px;
+}
+.chat-panel.is-collapsed .chat-header,
+.chat-panel.is-collapsed .chat-stream,
+.chat-panel.is-collapsed .chat-form {
+  display: none;
+}
+.chat-collapsed-btn {
+  display: none;
+  width: 100%;
+  height: 100%;
+  border: 0;
+  background: transparent;
+  font-size: 22px;
+  cursor: pointer;
+}
+.chat-panel.is-collapsed .chat-collapsed-btn { display: block; }
+
+.chat-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  background: var(--pink-50);
+  border-bottom: 1px solid var(--pink-100);
+}
+.chat-title {
+  font-weight: 800;
+  color: var(--text-main);
+  font-size: 14px;
+}
+.chat-toggle {
+  border: 0;
+  background: transparent;
+  font-size: 14px;
+  cursor: pointer;
+  color: var(--text-muted);
+  padding: 2px 8px;
+  border-radius: 8px;
+}
+.chat-toggle:hover { background: var(--pink-100); }
+
+.chat-stream {
+  flex: 1;
+  overflow-y: auto;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  background: var(--bg-subtle);
+}
+.chat-row {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  max-width: 88%;
+}
+.chat-row.is-me {
+  align-self: flex-end;
+  align-items: flex-end;
+}
+.chat-row.is-system {
+  align-self: center;
+  color: var(--text-muted);
+  font-size: 11px;
+  padding: 2px 8px;
+}
+.chat-row-nick {
+  font-size: 10.5px;
+  font-weight: 700;
+  color: var(--text-muted);
+  margin-bottom: 2px;
+  padding: 0 4px;
+}
+.chat-row-bubble {
+  background: #fff;
+  border: 1px solid var(--pink-100);
+  border-radius: 12px;
+  padding: 6px 10px;
+  font-size: 13px;
+  color: var(--text-main);
+  line-height: 1.35;
+  word-break: break-word;
+  white-space: pre-wrap;
+}
+.chat-row.is-me .chat-row-bubble {
+  background: var(--pink-100);
+  border-color: var(--pink-200);
+  color: var(--text-main);
+}
+
+.chat-form {
+  display: flex;
+  gap: 6px;
+  padding: 8px;
+  border-top: 1px solid var(--pink-100);
+  background: var(--bg-card);
+}
+.chat-input {
+  flex: 1;
+  padding: 8px 10px;
+  border: 1.5px solid var(--pink-100);
+  border-radius: 10px;
+  font-size: 13px;
+  outline: none;
+  background: #fff;
+  color: var(--text-main);
+}
+.chat-input:focus { border-color: var(--pink-300); }
+.chat-send-btn {
+  width: 36px;
+  border: 0;
+  border-radius: 10px;
+  background: var(--pink-300);
+  color: #fff;
+  font-weight: 800;
+  cursor: pointer;
+  font-size: 16px;
+}
+.chat-send-btn:hover { background: var(--pink-400); }
+.chat-send-btn:active { transform: translateY(1px); }
+
+/* ============================================
+   게임 시작 카운트다운 (3 → 2 → 1 → 시작!)
+   ============================================ */
+.game-countdown-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(54, 36, 56, 0.6);
+  backdrop-filter: blur(6px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 700; /* change-game-overlay(600) 보다 위, game-menu-overlay(200) 보다도 위 */
+}
+.game-countdown-number {
+  font-size: 160px;
+  font-weight: 900;
+  color: var(--pink-200);
+  text-shadow: 0 6px 24px rgba(0, 0, 0, 0.35), 0 0 32px rgba(255, 138, 172, 0.45);
+  letter-spacing: -2px;
+  user-select: none;
+}
+.game-countdown-number.is-go {
+  font-size: 100px;
+  color: var(--mint-300);
+  text-shadow: 0 6px 24px rgba(0, 0, 0, 0.35), 0 0 32px rgba(134, 232, 196, 0.55);
+}
+.game-countdown-number.animate {
+  animation: countdownPop 0.7s ease-out;
+}
+@keyframes countdownPop {
+  0%   { transform: scale(0.4); opacity: 0; }
+  35%  { transform: scale(1.25); opacity: 1; }
+  60%  { transform: scale(0.95); }
+  100% { transform: scale(1); opacity: 1; }
+}
+
 .game-pause-card {
   background: var(--bg-card);
   border-radius: var(--radius-lg);

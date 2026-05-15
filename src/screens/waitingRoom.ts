@@ -6,6 +6,9 @@ import { getGameById } from '../games/registry';
 import type { Player, RoomState } from '../games/types';
 import { createGameScreenAsHostScreen, createGameScreenAsGuestScreen } from './gameScreen';
 import { buildReactionBarHTML, wireReactionBar, showReactionBubble } from '../ui/reactions';
+import { buildChatPanelHTML, wireChatPanel, appendChatMessage } from '../ui/chat';
+import type { ChatMsg } from '../games/types';
+import { publishRoom, updatePublicRoom, unpublishRoom } from '../core/roomDirectory';
 
 /**
  * 대기실 — 호스트 측 / 게스트 측 factory 2종.
@@ -96,6 +99,7 @@ export function createWaitingRoomAsHostScreen(args: WaitingRoomAsHostArgs): Scre
   const { host, gameId, isPrivate, password, roomOptions } = args;
 
   let closeOnDispose = true;
+  let cleanupChatHost: (() => void) | null = null;
   const hostNickname = storage.getNickname();
 
   // 방 내부 상태 — guestPlayers는 방장 제외한 참가자들
@@ -171,6 +175,8 @@ export function createWaitingRoomAsHostScreen(args: WaitingRoomAsHostArgs): Scre
           <div style="margin-top: 14px;">${buildReactionBarHTML()}</div>
         </div>
 
+        ${buildChatPanelHTML()}
+
         <div class="toast" id="toast"></div>
       `;
 
@@ -181,6 +187,21 @@ export function createWaitingRoomAsHostScreen(args: WaitingRoomAsHostArgs): Scre
       const leaveBtn = el.querySelector<HTMLButtonElement>('#leave-btn')!;
       const toastEl = el.querySelector<HTMLDivElement>('#toast')!;
       const playerCountEl = el.querySelector<HTMLSpanElement>('#player-count')!;
+
+      // 공개방이면 디렉토리(Firebase)에 등록. 게스트 입장/퇴장 때 인원 갱신, dispose 때 해제.
+      const isPublic = !isPrivate;
+      if (isPublic) {
+        publishRoom({
+          roomId: host.roomId,
+          hostNickname,
+          gameId,
+          gameName: game.meta.name,
+          playerCount: 1,
+          maxPlayers,
+          status: 'waiting',
+          createdAt: Date.now(),
+        }).catch((err) => console.error('[waitingRoom] publishRoom failed', err));
+      }
 
       /** 참가자 리스트 / 카운터 / 시작 버튼 상태 동기화 */
       const refreshUI = (): void => {
@@ -232,6 +253,9 @@ export function createWaitingRoomAsHostScreen(args: WaitingRoomAsHostArgs): Scre
         host.send({ type: 'room_state', roomState: snapshotRoomState() });
 
         refreshUI();
+        if (isPublic) {
+          updatePublicRoom(host.roomId, { playerCount: 1 + guestPlayers.length }).catch(() => {});
+        }
         showToast(`${nickname} 님이 들어왔어요`);
       };
 
@@ -243,6 +267,9 @@ export function createWaitingRoomAsHostScreen(args: WaitingRoomAsHostArgs): Scre
           host.send({ type: 'room_state', roomState: snapshotRoomState() });
         }
         refreshUI();
+        if (isPublic) {
+          updatePublicRoom(host.roomId, { playerCount: 1 + guestPlayers.length }).catch(() => {});
+        }
         showToast(`${removed?.nickname ?? '게스트'} 님이 나갔어요`);
       };
 
@@ -250,6 +277,14 @@ export function createWaitingRoomAsHostScreen(args: WaitingRoomAsHostArgs): Scre
         // 이모지 반응: 내 화면에 표시 + 다른 게스트들에게 forward (호스트 = relay 허브)
         if (msg.type === 'reaction') {
           showReactionBubble(msg.emoji, msg.nickname);
+          for (const pid of host.listGuestPeerIds()) {
+            if (pid !== fromPeerId) host.sendTo(pid, msg);
+          }
+          return;
+        }
+        // 채팅: 내 화면에 표시 + 다른 게스트들에게 relay (송신자 제외)
+        if (msg.type === 'chat') {
+          appendChatMessage(el, msg, false);
           for (const pid of host.listGuestPeerIds()) {
             if (pid !== fromPeerId) host.sendTo(pid, msg);
           }
@@ -263,6 +298,21 @@ export function createWaitingRoomAsHostScreen(args: WaitingRoomAsHostArgs): Scre
         const myNick = storage.getNickname();
         showReactionBubble(emoji, myNick);
         host.send({ type: 'reaction', emoji, nickname: myNick });
+      });
+
+      // 채팅 패널 — 호스트는 자기 화면 append + 모든 게스트 broadcast
+      cleanupChatHost = wireChatPanel(el, {
+        onSend: (text) => {
+          const msg: ChatMsg = {
+            type: 'chat',
+            peerId: host.myPeerId,
+            nickname: hostNickname,
+            text,
+            timestamp: Date.now(),
+          };
+          appendChatMessage(el, msg, true);
+          host.send(msg);
+        },
       });
 
       // ---- 방 코드 복사 ----
@@ -326,9 +376,16 @@ export function createWaitingRoomAsHostScreen(args: WaitingRoomAsHostArgs): Scre
     },
 
     dispose() {
+      // 대기실을 떠나는 순간 공개방 디렉토리에서 제거 (게임 화면 이동 / 메뉴 복귀 둘 다).
+      // 게임 시작으로 떠난 경우엔 게임 화면이 다시 publish 하지 않으므로 목록에 안 보임 → 의도.
+      if (!isPrivate) {
+        unpublishRoom(host.roomId).catch(() => {});
+      }
       if (closeOnDispose) {
         host.close();
       }
+      cleanupChatHost?.();
+      cleanupChatHost = null;
       host.onJoinRequest = null;
       host.onGuestConnected = null;
       host.onGuestDisconnected = null;
@@ -350,6 +407,7 @@ export interface WaitingRoomAsGuestArgs {
 export function createWaitingRoomAsGuestScreen(args: WaitingRoomAsGuestArgs): Screen {
   const { guest, initialRoomState } = args;
   let closeOnDispose = true;
+  let cleanupChatGuest: (() => void) | null = null;
   let roomState: RoomState = initialRoomState;
   const myPeerId = guest.myPeerId;
 
@@ -394,6 +452,8 @@ export function createWaitingRoomAsGuestScreen(args: WaitingRoomAsGuestArgs): Sc
 
           <div style="margin-top: 14px;">${buildReactionBarHTML()}</div>
         </div>
+
+        ${buildChatPanelHTML()}
       `;
 
       const participantsEl = el.querySelector<HTMLDivElement>('#participants')!;
@@ -420,6 +480,10 @@ export function createWaitingRoomAsGuestScreen(args: WaitingRoomAsGuestArgs): Sc
             // 호스트가 broadcast/relay 한 이모지 반응
             showReactionBubble(msg.emoji, msg.nickname);
             break;
+          case 'chat':
+            // 다른 사람이 보낸 채팅 (호스트가 보냈거나 다른 게스트가 보낸 걸 호스트가 relay)
+            appendChatMessage(el, msg, false);
+            break;
           case 'game_start': {
             closeOnDispose = false;
             const rs: RoomState = { ...roomState, status: 'playing' };
@@ -439,6 +503,22 @@ export function createWaitingRoomAsGuestScreen(args: WaitingRoomAsGuestArgs): Sc
         guest.send({ type: 'reaction', emoji, nickname: myNick });
       });
 
+      // 채팅 패널 — 게스트: 자기 화면 append + 호스트로 송신 (호스트가 다른 게스트로 relay)
+      cleanupChatGuest = wireChatPanel(el, {
+        onSend: (text) => {
+          const myNick = storage.getNickname();
+          const msg: ChatMsg = {
+            type: 'chat',
+            peerId: myPeerId,
+            nickname: myNick,
+            text,
+            timestamp: Date.now(),
+          };
+          appendChatMessage(el, msg, true);
+          guest.send(msg);
+        },
+      });
+
       guest.onDisconnect = () => {
         alert('방장이 방을 나갔어요');
         router.back();
@@ -453,6 +533,8 @@ export function createWaitingRoomAsGuestScreen(args: WaitingRoomAsGuestArgs): Sc
 
     dispose() {
       if (closeOnDispose) guest.close();
+      cleanupChatGuest?.();
+      cleanupChatGuest = null;
       guest.onMessage = null;
       guest.onDisconnect = null;
     },

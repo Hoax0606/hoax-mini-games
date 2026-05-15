@@ -12,6 +12,7 @@
     "vite": "^8.0.9"
   },
   "dependencies": {
+    "firebase": "^12.13.0",
     "peerjs": "^1.5.5"
   }
 }

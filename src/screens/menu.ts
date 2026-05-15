@@ -5,6 +5,7 @@ import { createSettingsScreen } from './settings';
 import { createNicknameScreen } from './nickname';
 import { createGameListScreen } from './gameList';
 import { createStatsScreen } from './statsScreen';
+import { createPublicRoomsScreen } from './publicRooms';
 
 /**
  * 메인 메뉴
@@ -25,6 +26,9 @@ export function createMenuScreen(): Screen {
             <button class="btn btn-primary btn-lg btn-block" id="btn-start">
               🎮 게임 시작
             </button>
+            <button class="btn btn-secondary btn-block" id="btn-public-rooms">
+              🌐 공개방 찾기
+            </button>
             <button class="btn btn-secondary btn-block" id="btn-stats">
               📊 통계
             </button>
@@ -40,6 +44,10 @@ export function createMenuScreen(): Screen {
 
       el.querySelector('#btn-start')!.addEventListener('click', () => {
         router.push(() => createGameListScreen());
+      });
+
+      el.querySelector('#btn-public-rooms')!.addEventListener('click', () => {
+        router.push(() => createPublicRoomsScreen());
       });
 
       el.querySelector('#btn-stats')!.addEventListener('click', () => {

@@ -209,7 +209,8 @@ export type NetworkMessage =
   | PingReportMsg
   | ReactionMsg
   | PauseMsg
-  | ResumeMsg;
+  | ResumeMsg
+  | ChatMsg;
 
 /** 게스트 → 호스트: 방 입장 요청 (연결 직후 첫 메시지) */
 export interface JoinRequestMsg {
@@ -321,4 +322,20 @@ export interface PauseMsg {
 export interface ResumeMsg {
   type: 'resume';
   byPeerId: string;
+}
+
+/**
+ * 채팅 메시지 — 대기실/게임/결과 화면 우측 채팅 패널.
+ * 게스트가 보내면 호스트가 받아 다른 게스트들에게 relay (자기 자신 제외).
+ * 송신자는 자기 UI 에 직접 append (네트워크 echo 안 옴).
+ */
+export interface ChatMsg {
+  type: 'chat';
+  /** 원 송신자 peerId — 호스트가 relay 시에도 보존 */
+  peerId: string;
+  nickname: string;
+  /** trim + maxLen 200 적용된 본문 */
+  text: string;
+  /** 송신 시각 (Date.now). 정렬용 */
+  timestamp: number;
 }

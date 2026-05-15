@@ -6,6 +6,8 @@ import type { GameContext, GameModule, Player, RoomState } from '../games/types'
 import { createMenuScreen } from './menu';
 import { createResultScreenAsHostScreen, createResultScreenAsGuestScreen } from './resultScreen';
 import { buildReactionBarHTML, wireReactionBar, showReactionBubble } from '../ui/reactions';
+import { buildChatPanelHTML, wireChatPanel, appendChatMessage } from '../ui/chat';
+import type { ChatMsg } from '../games/types';
 import { storage } from '../core/storage';
 
 /**
@@ -38,6 +40,50 @@ function buildOptionSummary(gameId: string, roomOptions: Record<string, string>)
       return `${opt.label}: ${choice?.label ?? val}`;
     })
     .join(' · ');
+}
+
+/**
+ * 게임 시작 전 카운트다운 오버레이 (3, 2, 1, 시작!).
+ * 화면 전체를 흐리게 가린 채 큰 숫자를 1초씩 보여주고 promise resolve.
+ * 호스트/게스트가 거의 동시에 진입하므로 양쪽이 거의 같은 타이밍에 게임 시작.
+ * 1인 플레이/관전자는 호출하지 않는다.
+ */
+function playStartCountdown(parent: HTMLElement, seconds: number): Promise<void> {
+  return new Promise((resolve) => {
+    const overlay = document.createElement('div');
+    overlay.className = 'game-countdown-overlay';
+    overlay.innerHTML = `<div class="game-countdown-number animate">${seconds}</div>`;
+    parent.appendChild(overlay);
+    const numEl = overlay.querySelector<HTMLDivElement>('.game-countdown-number');
+    if (!numEl) {
+      overlay.remove();
+      resolve();
+      return;
+    }
+
+    let n = seconds;
+    const tick = (): void => {
+      n -= 1;
+      if (n > 0) {
+        numEl.textContent = String(n);
+        // 매 카운트마다 pop 애니메이션 재시작 (CSS animation 재실행 트릭)
+        numEl.classList.remove('animate');
+        void numEl.offsetWidth;
+        numEl.classList.add('animate');
+        setTimeout(tick, 1000);
+      } else {
+        numEl.textContent = '시작!';
+        numEl.classList.remove('animate');
+        void numEl.offsetWidth;
+        numEl.classList.add('animate', 'is-go');
+        setTimeout(() => {
+          overlay.remove();
+          resolve();
+        }, 500);
+      }
+    };
+    setTimeout(tick, 1000);
+  });
 }
 
 function buildHeaderHTML(args: {
@@ -85,6 +131,8 @@ function buildHeaderHTML(args: {
     </div>
 
     <div class="reaction-bar-floating">${buildReactionBarHTML()}</div>
+
+    ${buildChatPanelHTML()}
 
     ${buildGameMenuModalHTML()}
 
@@ -283,6 +331,8 @@ export function createGameScreenAsHostScreen(args: GameScreenAsHostArgs): Screen
   let closeOnDispose = true;
   /** 인게임 메뉴 모달 cleanup (window keydown 리스너 해제) */
   let cleanupMenu: (() => void) | null = null;
+  /** 채팅 패널 cleanup */
+  let cleanupChat: (() => void) | null = null;
 
   // 게임 시작 시점에 들어와 있던 플레이어들 (관전자와 구분).
   // 게임 도중에 들어오는 사람은 전부 spectators 로. role='spectator' 마킹.
@@ -408,6 +458,14 @@ export function createGameScreenAsHostScreen(args: GameScreenAsHostArgs): Screen
           gameModule?.setPaused?.(false);
           return;
         }
+        // 채팅: 내 화면 append + 다른 게스트에게 relay
+        if (msg.type === 'chat') {
+          appendChatMessage(el, msg, false);
+          for (const pid of host.listGuestPeerIds()) {
+            if (pid !== fromPeerId) host.sendTo(pid, msg);
+          }
+          return;
+        }
         if (msg.type !== 'game_msg') return;
         // target이 다른 게스트를 향하면 그 쪽으로만 forward
         if (msg.target && msg.target !== myPlayerId) {
@@ -502,6 +560,21 @@ export function createGameScreenAsHostScreen(args: GameScreenAsHostArgs): Screen
         },
       });
 
+      // 채팅 패널 — 호스트: 자기 화면 append + 모든 게스트 broadcast
+      cleanupChat = wireChatPanel(el, {
+        onSend: (text) => {
+          const msg: ChatMsg = {
+            type: 'chat',
+            peerId: host.myPeerId,
+            nickname: hostNickname,
+            text,
+            timestamp: Date.now(),
+          };
+          appendChatMessage(el, msg, true);
+          host.send(msg);
+        },
+      });
+
       // Ping 배지: 여러 게스트 중 "가장 느린" 쪽을 대표로 표시 (호스트 시점 가장 나쁜 연결)
       const pingBadgeEl = el.querySelector<HTMLSpanElement>('#ping-badge')!;
       host.onPingChanged = (pings) => {
@@ -522,6 +595,11 @@ export function createGameScreenAsHostScreen(args: GameScreenAsHostArgs): Screen
             return;
           }
           gameModule = loaded;
+          // 2명 이상이면 시작 전 3초 카운트다운 (호스트와 게스트가 같이 봄)
+          if (roomState.players.length >= 2) {
+            await playStartCountdown(el, 3);
+            if (disposed) return;
+          }
           await gameModule.start(ctx);
         } catch (err) {
           console.error('[gameScreen/host] failed to start game', err);
@@ -544,6 +622,8 @@ export function createGameScreenAsHostScreen(args: GameScreenAsHostArgs): Screen
       host.onPingChanged = null;
       cleanupMenu?.();
       cleanupMenu = null;
+      cleanupChat?.();
+      cleanupChat = null;
       if (closeOnDispose) host.close();
     },
   };
@@ -564,6 +644,7 @@ export function createGameScreenAsGuestScreen(args: GameScreenAsGuestArgs): Scre
   let disposed = false;
   let closeOnDispose = true;
   let cleanupMenu: (() => void) | null = null;
+  let cleanupChat: (() => void) | null = null;
 
   // "나"의 role 판정 — roomState.players 에서 내 peerId 찾아 role='spectator' 면 관전 모드.
   // (게임 중 입장한 관전자는 roomState가 호스트에서 build 된 시점에 이미 role='spectator' 마킹되어 있음)
@@ -662,6 +743,11 @@ export function createGameScreenAsGuestScreen(args: GameScreenAsGuestArgs): Scre
           gameModule?.setPaused?.(false);
           return;
         }
+        // 채팅 — 호스트로부터 (자신이 보낸 건 echo 안 옴)
+        if (msg.type === 'chat') {
+          appendChatMessage(el, msg, false);
+          return;
+        }
         // 관전자 전용 종료 경로 — 플레이어들은 각 게임의 내부 메시지(bt:end / ah:end) 로
         // ctx.endGame 을 통해 이미 이동하므로 game_end 는 무시해도 된다.
         if (msg.type === 'game_end') {
@@ -710,6 +796,21 @@ export function createGameScreenAsGuestScreen(args: GameScreenAsGuestArgs): Scre
         },
       });
 
+      // 채팅 패널 — 게스트: 자기 화면 append + 호스트로 송신 (호스트가 다른 게스트로 relay)
+      cleanupChat = wireChatPanel(el, {
+        onSend: (text) => {
+          const msg: ChatMsg = {
+            type: 'chat',
+            peerId: guest.myPeerId,
+            nickname: guestNickname,
+            text,
+            timestamp: Date.now(),
+          };
+          appendChatMessage(el, msg, true);
+          guest.send(msg);
+        },
+      });
+
       // Ping 배지 — 호스트가 보고해주는 내 편도 지연 표시
       const pingBadgeEl = el.querySelector<HTMLSpanElement>('#ping-badge')!;
       guest.onPingChanged = (ms) => updatePingBadge(pingBadgeEl, ms);
@@ -722,6 +823,12 @@ export function createGameScreenAsGuestScreen(args: GameScreenAsGuestArgs): Scre
             return;
           }
           gameModule = loaded;
+          // 2명 이상 + 관전자가 아니면 시작 전 3초 카운트다운
+          // (관전자는 게임 도중 합류라 카운트다운 의미 없음)
+          if (roomState.players.length >= 2 && !isSpectator) {
+            await playStartCountdown(el, 3);
+            if (disposed) return;
+          }
           await gameModule.start(ctx);
         } catch (err) {
           console.error('[gameScreen/guest] failed to start game', err);
@@ -742,6 +849,8 @@ export function createGameScreenAsGuestScreen(args: GameScreenAsGuestArgs): Scre
       guest.onPingChanged = null;
       cleanupMenu?.();
       cleanupMenu = null;
+      cleanupChat?.();
+      cleanupChat = null;
       if (closeOnDispose) guest.close();
     },
   };

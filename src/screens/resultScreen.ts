@@ -1,11 +1,12 @@
 import type { Screen } from '../core/screen';
 import { router } from '../core/screen';
 import type { HostSession, GuestSession } from '../core/peer';
-import type { RoomState, GameResult, GameRoomOption } from '../games/types';
+import type { RoomState, GameResult, GameRoomOption, ChatMsg } from '../games/types';
 import { createMenuScreen } from './menu';
 import { createGameScreenAsHostScreen, createGameScreenAsGuestScreen } from './gameScreen';
 import { storage } from '../core/storage';
 import { games, getGameById } from '../games/registry';
+import { buildChatPanelHTML, wireChatPanel, appendChatMessage } from '../ui/chat';
 
 /**
  * 결과 화면 (호스트/게스트 factory 2종)
@@ -501,6 +502,8 @@ interface GomokuSummary {
   durationMs: number;
   hostNickname: string;
   guestNickname: string;
+  /** 이번 판 호스트가 잡은 색 — 흑/백 닉네임 매핑에 사용 (다시하기마다 swap) */
+  hostSide: 'B' | 'W';
   winnerNickname: string | null;
   winnerSide: 'B' | 'W' | null;
 }
@@ -521,9 +524,12 @@ function parseGomokuSummary(summary: Record<string, unknown>): GomokuSummary | n
   const winnerSideRaw = summary['winnerSide'];
   const winnerSide: GomokuSummary['winnerSide'] =
     winnerSideRaw === 'B' || winnerSideRaw === 'W' ? winnerSideRaw : null;
+  // 구버전 summary 호환: hostSide 누락 시 'B' (기존 호스트=흑 고정 동작)
+  const hostSideRaw = summary['hostSide'];
+  const hostSide: 'B' | 'W' = hostSideRaw === 'W' ? 'W' : 'B';
 
   if (!myPeerId) return null;
-  return { myPeerId, reason, moveCount, durationMs, hostNickname, guestNickname, winnerNickname, winnerSide };
+  return { myPeerId, reason, moveCount, durationMs, hostNickname, guestNickname, hostSide, winnerNickname, winnerSide };
 }
 
 /** 오목 종료 사유를 한국어 뱃지 텍스트로 */
@@ -542,7 +548,7 @@ function buildGomokuResultHTML(args: {
   isSpectator: boolean;
 }): string {
   const { myWinner, summary, isHost, isSpectator } = args;
-  const { reason, moveCount, durationMs, hostNickname, guestNickname, winnerSide } = summary;
+  const { reason, moveCount, durationMs, hostNickname, guestNickname, hostSide, winnerSide } = summary;
 
   // 관전자는 중립적 타이틀, 플레이어는 내 승/패/무 기준
   const { emoji, title, titleClass } = isSpectator
@@ -552,8 +558,11 @@ function buildGomokuResultHTML(args: {
   const actionsHTML = buildActionsHTML(isHost);
   const reasonLabel = gomokuReasonLabel(reason);
 
-  const hostWon = winnerSide === 'B';
-  const guestWon = winnerSide === 'W';
+  // hostSide 기반으로 흑/백 닉네임 매핑 (swap 된 게임 대응)
+  const blackNickname = hostSide === 'B' ? hostNickname : guestNickname;
+  const whiteNickname = hostSide === 'W' ? hostNickname : guestNickname;
+  const blackWon = winnerSide === 'B';
+  const whiteWon = winnerSide === 'W';
 
   const playerBlock = (args2: {
     side: 'B' | 'W';
@@ -580,9 +589,9 @@ function buildGomokuResultHTML(args: {
       <div class="result-gomoku-reason">${reasonLabel}</div>
 
       <div class="result-gomoku-players">
-        ${playerBlock({ side: 'B', nickname: hostNickname, isWinner: hostWon })}
+        ${playerBlock({ side: 'B', nickname: blackNickname, isWinner: blackWon })}
         <div class="result-gomoku-vs">VS</div>
-        ${playerBlock({ side: 'W', nickname: guestNickname, isWinner: guestWon })}
+        ${playerBlock({ side: 'W', nickname: whiteNickname, isWinner: whiteWon })}
       </div>
 
       <div class="result-gomoku-stats">
@@ -832,6 +841,7 @@ export interface ResultScreenAsHostArgs {
 export function createResultScreenAsHostScreen(args: ResultScreenAsHostArgs): Screen {
   const { host, roomState, result, isPrivate, password } = args;
   let closeOnDispose = true;
+  let cleanupChat: (() => void) | null = null;
 
   // 전적 기록 (호스트는 관전자 될 일 없음 → isSpectator=false 고정)
   recordResultToStats(roomState.gameId, result.winner, result.summary, false);
@@ -905,15 +915,46 @@ export function createResultScreenAsHostScreen(args: ResultScreenAsHostArgs): Sc
         });
       }
 
+      // 채팅 패널을 결과 카드 옆에 추가
+      el.insertAdjacentHTML('beforeend', buildChatPanelHTML());
+
       const retryBtn = el.querySelector<HTMLButtonElement>('#retry-btn')!;
       const menuBtn = el.querySelector<HTMLButtonElement>('#menu-btn')!;
       const changeGameBtn = el.querySelector<HTMLButtonElement>('#change-game-btn')!;
 
+      // 채팅 패널 — 호스트: 자기 화면 append + 모든 게스트 broadcast
+      const hostNick = roomState.hostNickname;
+      cleanupChat = wireChatPanel(el, {
+        onSend: (text) => {
+          const msg: ChatMsg = {
+            type: 'chat',
+            peerId: host.myPeerId,
+            nickname: hostNick,
+            text,
+            timestamp: Date.now(),
+          };
+          appendChatMessage(el, msg, true);
+          host.send(msg);
+        },
+      });
+
       retryBtn.addEventListener('click', () => {
-        // 같은 방 설정으로 재시작 — 게스트에게 game_start 알림
+        // 오목: 매 다시하기마다 호스트 흑/백 토글. 다른 게임은 그대로.
+        let nextRoomOptions = roomState.roomOptions;
+        if (roomState.gameId === 'gomoku') {
+          const prev = roomState.roomOptions['gomoku_hostSide'] ?? 'B';
+          nextRoomOptions = {
+            ...roomState.roomOptions,
+            gomoku_hostSide: prev === 'B' ? 'W' : 'B',
+          };
+        }
+        const rs: RoomState = { ...roomState, roomOptions: nextRoomOptions, status: 'playing' };
+        // 옵션이 바뀌었으면 게스트에게도 갱신된 방 상태 알림 (game_start 전에)
+        if (nextRoomOptions !== roomState.roomOptions) {
+          host.send({ type: 'room_state', roomState: rs });
+        }
         host.send({ type: 'game_start' });
         closeOnDispose = false;
-        const rs: RoomState = { ...roomState, status: 'playing' };
         router.replace(() => createGameScreenAsHostScreen({ host, roomState: rs, isPrivate, password }));
       });
 
@@ -956,8 +997,15 @@ export function createResultScreenAsHostScreen(args: ResultScreenAsHostArgs): Sc
         changeGameBtn.disabled = true;
       };
 
-      // 결과 화면에선 게스트 메시지 무시
-      host.onMessage = null;
+      // 결과 화면에선 게임 관련 메시지는 무시하고 chat 만 처리 + relay
+      host.onMessage = (msg, fromPeerId) => {
+        if (msg.type === 'chat') {
+          appendChatMessage(el, msg, false);
+          for (const pid of host.listGuestPeerIds()) {
+            if (pid !== fromPeerId) host.sendTo(pid, msg);
+          }
+        }
+      };
 
       return el;
     },
@@ -965,6 +1013,8 @@ export function createResultScreenAsHostScreen(args: ResultScreenAsHostArgs): Sc
     dispose() {
       host.onGuestDisconnected = null;
       host.onMessage = null;
+      cleanupChat?.();
+      cleanupChat = null;
       if (closeOnDispose) host.close();
     },
   };
@@ -986,6 +1036,7 @@ export function createResultScreenAsGuestScreen(args: ResultScreenAsGuestArgs): 
   // game_start 받을 때 이 최신 state 로 gameScreen 진입.
   let currentRoomState = args.roomState;
   let closeOnDispose = true;
+  let cleanupChat: (() => void) | null = null;
 
   // 전적 기록 (내가 관전자인지 roomState.players 로 판정)
   const mySelf = currentRoomState.players.find((p) => p.peerId === guest.myPeerId);
@@ -1069,12 +1120,35 @@ export function createResultScreenAsGuestScreen(args: ResultScreenAsGuestArgs): 
         });
       }
 
+      // 채팅 패널 — 결과 카드 옆 우측 고정
+      el.insertAdjacentHTML('beforeend', buildChatPanelHTML());
+
       const menuBtn = el.querySelector<HTMLButtonElement>('#menu-btn')!;
       const waitingMsgEl = el.querySelector<HTMLDivElement>('#waiting-msg');
+
+      // 채팅 패널 와이어링 — 게스트는 호스트에게 송신
+      const myNick = storage.getNickname();
+      cleanupChat = wireChatPanel(el, {
+        onSend: (text) => {
+          const msg: ChatMsg = {
+            type: 'chat',
+            peerId: guest.myPeerId,
+            nickname: myNick,
+            text,
+            timestamp: Date.now(),
+          };
+          appendChatMessage(el, msg, true);
+          guest.send(msg);
+        },
+      });
 
       // 방장이 다른 게임 선택하면 room_state 먼저 옴 → 내부 state 갱신 + UI 안내 갱신.
       // 그 직후 game_start 받으면 갱신된 state 로 gameScreen 진입.
       guest.onMessage = (msg) => {
+        if (msg.type === 'chat') {
+          appendChatMessage(el, msg, false);
+          return;
+        }
         if (msg.type === 'room_state') {
           currentRoomState = msg.roomState;
           if (waitingMsgEl) {
@@ -1107,6 +1181,8 @@ export function createResultScreenAsGuestScreen(args: ResultScreenAsGuestArgs): 
     dispose() {
       guest.onMessage = null;
       guest.onDisconnect = null;
+      cleanupChat?.();
+      cleanupChat = null;
       if (closeOnDispose) guest.close();
     },
   };

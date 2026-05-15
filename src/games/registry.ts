@@ -52,7 +52,7 @@ export const games: GameEntry[] = [
       description: '떨어지는 블록으로 라인을 지우고 공격을 보내 상대를 밀어내라! 마지막까지 살아남으면 승리.',
       thumbnail: battleTetrisThumbnail,
       minPlayers: 2,
-      maxPlayers: 4,
+      maxPlayers: 6,
       roomOptions: [
         {
           key: 'garbageStrength',
@@ -90,7 +90,7 @@ export const games: GameEntry[] = [
       description: '숫자 사과를 드래그로 묶어 합이 10이 되면 터트려! 2분 안에 최대한 많이 터트리면 승리.',
       thumbnail: appleGameThumbnail,
       minPlayers: 1,
-      maxPlayers: 4,
+      maxPlayers: 6,
       roomOptions: [],
     },
     load: async () => {
@@ -131,7 +131,7 @@ export const games: GameEntry[] = [
       description: '드래그로 조준하고 놓는 순간 날아간다! 101/201/301, Count-up, Low Count-up, Cricket.',
       thumbnail: dartsThumbnail,
       minPlayers: 1,
-      maxPlayers: 4,
+      maxPlayers: 6,
       roomOptions: [
         {
           key: 'mode',
@@ -171,7 +171,7 @@ export const games: GameEntry[] = [
       description: '빨강이 초록으로 바뀌는 순간을 가장 빨리 잡아라! 5라운드 평균으로 승부.',
       thumbnail: reflexThumbnail,
       minPlayers: 1,
-      maxPlayers: 4,
+      maxPlayers: 6,
       roomOptions: [],
     },
     load: async () => {

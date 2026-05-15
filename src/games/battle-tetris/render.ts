@@ -48,12 +48,13 @@ const NEXT_Y0 = 40;
 const NEXT_GAP = 10;
 
 /** 상대 미니뷰 — 우측 하단 */
-const OPP_CELL = 5;
-const OPP_W = OPP_CELL * FIELD_WIDTH;    // 50
-const OPP_H = OPP_CELL * FIELD_HEIGHT;   // 100
-const OPP_X0 = 530;
+// 6인까지 가로 한 줄에 들어가도록 미니뷰 셀 크기/간격 축소 (기존 5px × 4명 → 4px × 6명)
+const OPP_CELL = 4;
+const OPP_W = OPP_CELL * FIELD_WIDTH;    // 40
+const OPP_H = OPP_CELL * FIELD_HEIGHT;   // 80
+const OPP_X0 = 510;
 const OPP_Y0 = 235;
-const OPP_GAP = 18;
+const OPP_GAP = 8;
 
 const COLORS = {
   bg: '#fff9fd',
@@ -65,6 +66,9 @@ const COLORS = {
   textMuted: '#8a7a8a',
   garbage: '#a8a4b0',
   garbageStroke: '#6a6670',
+  // 언브레이커블 — 어두운 차콜로 일반 가비지와 시각 구분 (이건 못 깨는 줄임을 명확히)
+  unbreakable: '#3a3640',
+  unbreakableStroke: '#1c1820',
   ghost: 'rgba(74, 58, 74, 0.18)',
   toppedOverlay: 'rgba(200, 190, 210, 0.75)',
   gaugeGarbage: '#ff5a92',
@@ -277,6 +281,9 @@ export class TetrisRenderer {
     if (cell === 'G') {
       fill = COLORS.garbage;
       stroke = COLORS.garbageStroke;
+    } else if (cell === 'U') {
+      fill = COLORS.unbreakable;
+      stroke = COLORS.unbreakableStroke;
     } else {
       const def = PIECES[cell];
       fill = def.color;
@@ -431,8 +438,8 @@ export class TetrisRenderer {
     ctx.textAlign = 'left';
     ctx.fillText(spectator ? 'PLAYERS' : 'VS', OPP_X0, OPP_Y0 - 8);
 
-    // 관전자는 상대가 없고 '플레이어 전원'이라 최대 4명까지 표시 (4인 게임 기준)
-    const maxShow = spectator ? 4 : 3;
+    // 6인 게임 기준: 플레이어는 나 제외 최대 5명, 관전자는 전체 최대 6명
+    const maxShow = spectator ? 6 : 5;
     const count = Math.min(opponents.length, maxShow);
     for (let i = 0; i < count; i++) {
       const opp = opponents[i]!;
@@ -450,7 +457,10 @@ export class TetrisRenderer {
         for (let c = 0; c < FIELD_WIDTH; c++) {
           const cell = row[c];
           if (cell === null || cell === undefined) continue;
-          const fill = cell === 'G' ? COLORS.garbage : PIECES[cell].color;
+          const fill =
+            cell === 'G' ? COLORS.garbage :
+            cell === 'U' ? COLORS.unbreakable :
+            PIECES[cell].color;
           ctx.fillStyle = fill;
           ctx.fillRect(x + c * OPP_CELL, y + r * OPP_CELL, OPP_CELL, OPP_CELL);
         }

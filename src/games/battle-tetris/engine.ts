@@ -29,6 +29,7 @@ import {
   placePiece,
   clearFullLines,
   injectGarbage,
+  injectUnbreakableLine,
   dropDistance,
   type Field,
 } from './field';
@@ -66,8 +67,19 @@ export type TickEvent =
   | { kind: 'piece_locked'; linesCleared: number; garbageSent: number }
   /** 받은 가비지 주입 완료 */
   | { kind: 'garbage_injected'; count: number }
+  /** 시간 경과로 언브레이커블 라인이 자동 푸시됨 (게임 강제 종료 메커니즘) */
+  | { kind: 'unbreakable_injected'; count: number }
   /** 탑아웃 = 게임오버 */
   | { kind: 'topped_out' };
+
+// ============================================
+// 언브레이커블 라인 — 일정 시간 후 일정 간격으로 보드를 위로 밀어 게임 종료를 강제
+// ============================================
+
+/** 게임 시작 후 첫 언브레이커블 라인이 들어가는 시각 (ms) */
+const UNBREAKABLE_FIRST_AT_MS = 120_000;
+/** 그 이후 라인 사이 간격 (ms) */
+const UNBREAKABLE_INTERVAL_MS = 10_000;
 
 // ============================================
 // 공격 계산
@@ -75,13 +87,15 @@ export type TickEvent =
 
 /**
  * 클리어한 라인 수 → 상대에게 보낼 기본 가비지 수.
- * 싱글 0 / 더블 1 / 트리플 2 / 테트리스 4 (테트리스 스탠다드)
+ * 싱글 0 / 더블 2 / 트리플 4 / 테트리스 6
+ * - 친구끼리 빠른 승부를 위해 표준(0/1/2/4)보다 강화함
+ * - 싱글은 의도적으로 0 유지 → 함부로 정리만 하면 공격 X, 더블 이상 노리게 유도
  */
 function linesToGarbage(cleared: number): number {
   switch (cleared) {
-    case 2: return 1;
-    case 3: return 2;
-    case 4: return 4;
+    case 2: return 2;
+    case 3: return 4;
+    case 4: return 6;
     default: return 0;
   }
 }
@@ -110,6 +124,11 @@ export class TetrisEngine {
   /** 중력/락 타이머 (ms 누적) */
   private gravityAcc = 0;
   private lockTimer = 0;
+
+  /** 게임 시작 이후 누적된 시간 (ms) — 언브레이커블 라인 푸시 타이밍 판단용 */
+  private elapsedMs = 0;
+  /** 다음 언브레이커블 라인이 들어갈 시각 (ms) — 처음엔 120s, 그 후 +10s 씩 */
+  private nextUnbreakableAt = UNBREAKABLE_FIRST_AT_MS;
 
   /**
    * 현재 이어지는 콤보 카운트 (라인을 지운 락이 연속될수록 +1).
@@ -158,6 +177,14 @@ export class TetrisEngine {
       return this.drain();
     }
 
+    // 게임 누적 시간 — 언브레이커블 라인 트리거. 큰 dt 들어와도 while 로 연속 inject.
+    this.elapsedMs += dt;
+    while (this.elapsedMs >= this.nextUnbreakableAt && !this.state.toppedOut) {
+      this.injectUnbreakableNow();
+      this.nextUnbreakableAt += UNBREAKABLE_INTERVAL_MS;
+    }
+    if (this.state.toppedOut) return this.drain();
+
     // 바닥 닿았는지 (한 칸 아래로 이동이 안 되면 grounded)
     const grounded = collides(this.state.field, {
       ...this.state.currentPiece,
@@ -181,6 +208,38 @@ export class TetrisEngine {
     }
 
     return this.drain();
+  }
+
+  /**
+   * 언브레이커블 라인 1줄을 즉시 푸시.
+   * 현재 떠 있는 피스가 푸시된 보드와 겹치면 한 칸 위로 띄워주고, 그래도 겹치면 탑아웃.
+   * (가비지 주입 패턴과 동일한 방어 처리)
+   */
+  private injectUnbreakableNow(): void {
+    const toppedByPush = injectUnbreakableLine(this.state.field);
+    this.pending.push({ kind: 'unbreakable_injected', count: 1 });
+
+    // 떠 있는 피스 좌표 보정 — 1칸 올라옴
+    if (this.state.currentPiece) {
+      const moved: PieceState = { ...this.state.currentPiece, y: this.state.currentPiece.y - 1 };
+      if (!collides(this.state.field, moved)) {
+        this.state.currentPiece = moved;
+      } else if (!collides(this.state.field, this.state.currentPiece)) {
+        // 위치 그대로도 충돌 없으면 유지 (피스가 위쪽 hidden 영역에 있던 경우)
+      } else {
+        // 어디로도 둘 데가 없으면 탑아웃
+        this.state.currentPiece = null;
+        this.state.toppedOut = true;
+        this.pending.push({ kind: 'topped_out' });
+        return;
+      }
+    }
+
+    if (toppedByPush) {
+      this.state.currentPiece = null;
+      this.state.toppedOut = true;
+      this.pending.push({ kind: 'topped_out' });
+    }
   }
 
   private drain(): TickEvent[] {

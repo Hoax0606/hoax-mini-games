@@ -14,8 +14,9 @@ import { PIECES, forEachMino, type PieceId, type PieceState } from './pieces';
 export const FIELD_WIDTH = 10;
 export const FIELD_HEIGHT = 20;
 
-/** 한 칸. null=빈칸, PieceId=고정된 피스 블록, 'G'=가비지(공격으로 받은) 블록 */
-export type Cell = PieceId | 'G' | null;
+/** 한 칸. null=빈칸, PieceId=고정된 피스 블록, 'G'=가비지(공격으로 받은) 블록,
+ *  'U'=언브레이커블(시간 경과로 자동 푸시되는 안 깨지는 블록 — 게임 강제 종료용) */
+export type Cell = PieceId | 'G' | 'U' | null;
 export type Field = Cell[][];
 
 // ============================================
@@ -52,13 +53,15 @@ export function collides(field: Field, piece: PieceState): boolean {
     if (hit) return;
     const col = piece.x + dx;
     const row = piece.y + dy;
-    // 위쪽은 허용 (spawn 전 invisible 영역)
-    if (row < 0) return;
-    // 좌우 벽 / 바닥 / 기존 블록
+    // 좌우 벽 / 바닥은 row 와 무관하게 항상 검사.
+    //   (이전엔 row<0 일 때 early return 으로 좌우 체크까지 건너뛰어,
+    //    스폰 직후 hidden row 에 mino 가 있는 동안 옆으로 빠지는 버그가 있었음)
     if (col < 0 || col >= FIELD_WIDTH || row >= FIELD_HEIGHT) {
       hit = true;
       return;
     }
+    // 위쪽(row < 0) hidden 영역은 spawn 전이라 기존 블록 체크만 생략.
+    if (row < 0) return;
     if (field[row]![col] !== null) {
       hit = true;
     }
@@ -88,10 +91,13 @@ export function placePiece(field: Field, piece: PieceState): void {
 /**
  * 가득 찬 라인을 모두 제거하고 상단에 빈 라인 채움.
  * 반환값: 제거된 라인 수 (공격 가비지 산출용)
+ *
+ * 'U' (언브레이커블) 셀이 하나라도 들어 있는 row 는 가득 차도 클리어 X — 게임 종료를 강제하는 박힌 줄.
  */
 export function clearFullLines(field: Field): number {
-  // 가득 차지 않은(=하나라도 null 있는) row만 살린다
-  const survivors = field.filter((row) => row.some((cell) => cell === null));
+  const survivors = field.filter((row) =>
+    row.some((cell) => cell === null) || row.some((cell) => cell === 'U'),
+  );
   const cleared = FIELD_HEIGHT - survivors.length;
   if (cleared === 0) return 0;
 
@@ -140,6 +146,23 @@ export function injectGarbage(field: Field, count: number): boolean {
     field.push(garbageRow);
   }
 
+  return toppedOut;
+}
+
+/**
+ * 하단에 언브레이커블 라인 1줄 삽입 (구멍 없음, 안 깨짐).
+ * 게임이 너무 길어지지 않도록 일정 시간 이후 일정 간격으로 호출되어 보드를 위로 밀어낸다.
+ *
+ * 반환값: 탑아웃 여부 (맨 위 라인의 블록이 위로 밀려나간 경우).
+ */
+export function injectUnbreakableLine(field: Field): boolean {
+  const topRow = field.shift();
+  const toppedOut = !!topRow && topRow.some((cell) => cell !== null);
+  const row: Cell[] = [];
+  for (let c = 0; c < FIELD_WIDTH; c++) {
+    row.push('U');
+  }
+  field.push(row);
   return toppedOut;
 }
 

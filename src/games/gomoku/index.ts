@@ -63,8 +63,11 @@ class GomokuGame implements GameModule {
 
   private boardSize: BoardSize = 15;
   private board: Board = [];
-  /** 'B' = 호스트(선공), 'W' = 게스트(후공) */
+  /** 흑(선공)은 항상 'B'. 다음 줄의 hostSide 가 호스트가 어느 색인지 결정. */
   private currentTurn: 'B' | 'W' = 'B';
+  /** 이번 게임에서 호스트가 잡는 색. 다시하기 시 resultScreen 이 토글한다.
+   *  ('B' = 호스트 흑·선공, 'W' = 호스트 백·후공) */
+  private hostSide: 'B' | 'W' = 'B';
   private moveNumber = 0;
   /** 현재 턴이 시작된 시각 (performance.now) */
   private turnStartedAt = 0;
@@ -111,6 +114,8 @@ class GomokuGame implements GameModule {
 
     this.boardSize = parseBoardSize(ctx.roomOptions['boardSize']);
     this.board = createEmptyBoard(this.boardSize);
+    // 호스트 색 = roomOptions 토글 (resultScreen 의 다시하기가 'B' ↔ 'W' 토글). 첫 판은 'B'.
+    this.hostSide = ctx.roomOptions['gomoku_hostSide'] === 'W' ? 'W' : 'B';
     this.currentTurn = 'B';
     this.moveNumber = 0;
     this.turnStartedAt = performance.now();
@@ -122,13 +127,13 @@ class GomokuGame implements GameModule {
     this.hostNickname = hostPlayer?.nickname ?? ctx.myNickname;
     this.guestNickname = guestPlayer?.nickname ?? ctx.opponentNickname;
 
-    // 내 색 결정 (관전자는 null)
+    // 내 색 결정 — 호스트는 hostSide, 게스트는 그 반대 (관전자는 null)
     if (this.isSpectator) {
       this.mySide = null;
     } else if (this.isHost) {
-      this.mySide = 'B';
+      this.mySide = this.hostSide;
     } else {
-      this.mySide = 'W';
+      this.mySide = this.hostSide === 'B' ? 'W' : 'B';
     }
 
     this.renderer = new GomokuRenderer({ canvas: ctx.canvas });
@@ -160,7 +165,11 @@ class GomokuGame implements GameModule {
     // 2) 게스트의 수 요청 (호스트만 처리)
     const req = decodeRequestMove(msg);
     if (req) {
-      if (this.isHost) this.handleRequestMove(req.x, req.y, 'W');
+      // 게스트의 수 요청 → 게스트의 색(호스트 색의 반대)으로 처리
+      if (this.isHost) {
+        const guestSide: 'B' | 'W' = this.hostSide === 'B' ? 'W' : 'B';
+        this.handleRequestMove(req.x, req.y, guestSide);
+      }
       return;
     }
 
@@ -332,6 +341,10 @@ class GomokuGame implements GameModule {
     this.gameOver = { winner, reason };
 
     const durationMs = Math.max(0, performance.now() - this.startedAt);
+    // hostSide 기반으로 흑/백 닉네임 매핑 (다시하기로 swap 된 게임 대응)
+    const blackNickname = this.hostSide === 'B' ? this.hostNickname : this.guestNickname;
+    const whiteNickname = this.hostSide === 'W' ? this.hostNickname : this.guestNickname;
+
     // 공통 summary — 결과 화면이 쓸 수 있는 정보. peerId 는 각 수신자별로 끼워넣음.
     const baseSummary: Record<string, unknown> = {
       gameId: 'gomoku',
@@ -340,12 +353,18 @@ class GomokuGame implements GameModule {
       durationMs,
       hostNickname: this.hostNickname,
       guestNickname: this.guestNickname,
+      hostSide: this.hostSide, // 결과 화면이 흑/백 매핑할 때 사용
+      blackNickname,
+      whiteNickname,
       winnerNickname:
-        winner === 'B' ? this.hostNickname :
-        winner === 'W' ? this.guestNickname :
+        winner === 'B' ? blackNickname :
+        winner === 'W' ? whiteNickname :
         null,
       winnerSide: winner, // 'B' | 'W' | null — 관전자 UI 에서 돌 아이콘 강조용
     };
+
+    // 호스트의 게스트 측 색 (한 번만 계산해 재사용)
+    const guestSide: 'B' | 'W' = this.hostSide === 'B' ? 'W' : 'B';
 
     // 각 참가자 시점별 GameResult 생성해 peer 별로 전송
     for (const p of this.ctx.players) {
@@ -358,8 +377,8 @@ class GomokuGame implements GameModule {
         // 관전자는 항상 opponent 관점 (자기가 이긴 게 아니니)
         myWinner = 'opponent';
       } else {
-        // 플레이어: 그 피어의 색이 winner와 일치하는지
-        const peerStone: 'B' | 'W' = p.isHost ? 'B' : 'W';
+        // 플레이어의 색은 isHost 가 아니라 hostSide 기반으로 결정 (swap 대응)
+        const peerStone: 'B' | 'W' = p.isHost ? this.hostSide : guestSide;
         myWinner = peerStone === winner ? 'me' : 'opponent';
       }
       const peerResult: GameResult = {
@@ -369,9 +388,9 @@ class GomokuGame implements GameModule {
       this.ctx.sendToPeer(encodeEnd(peerResult), { target: p.peerId });
     }
 
-    // 호스트 본인 endGame
+    // 호스트 본인 endGame — 자기 색이 winner 와 일치하는지로 판정
     const myResult: GameResult = {
-      winner: winner === null ? null : (winner === 'B' ? 'me' : 'opponent'),
+      winner: winner === null ? null : (winner === this.hostSide ? 'me' : 'opponent'),
       summary: { ...baseSummary, myPeerId: this.myPeerId },
     };
     this.scheduleEndGame(myResult);
@@ -492,7 +511,7 @@ class GomokuGame implements GameModule {
     // 호스트는 자기 수 즉시 로컬 처리 (broadcast 포함)
     // 게스트는 요청만 보냄 (호스트가 검증 후 broadcast 하면 그 때 로컬에도 적용됨)
     if (this.isHost) {
-      this.handleRequestMove(cell.x, cell.y, 'B');
+      this.handleRequestMove(cell.x, cell.y, this.hostSide);
     } else {
       this.ctx.sendToPeer(encodeRequestMove(cell.x, cell.y));
     }

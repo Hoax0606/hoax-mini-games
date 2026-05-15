@@ -46,10 +46,11 @@ const COLORS = {
   boardBg: '#fff5ee',
   boardBorder: '#ffc9dd',
   gridLine: 'rgba(255, 201, 221, 0.4)',
-  appleFill: '#ff8a9f',
-  appleStroke: '#c04058',
+  appleFill: '#ff6b8a',          // 살짝 더 진한 핑크 — 숫자 대비 ↑
+  appleStroke: '#a8334e',        // stroke 도 톤 맞춰 진하게
   appleHighlight: 'rgba(255, 255, 255, 0.45)',
   appleNumber: '#fff',
+  appleNumberOutline: '#3d1018', // 숫자 외곽선 (가독성용)
   appleStem: '#8b5a2b',    // 꼭지(줄기) 갈색
   appleLeaf: '#86e8c4',    // 잎 민트 (썸네일과 통일)
   appleLeafStroke: '#5dc9a7',
@@ -321,7 +322,11 @@ export class AppleRenderer {
         );
         ctx.fill();
 
-        // 숫자
+        // 숫자 — 외곽선(어두운 와인) + 흰 채움으로 사과 위에서도 또렷하게
+        ctx.lineWidth = 2.2;
+        ctx.lineJoin = 'round';
+        ctx.strokeStyle = COLORS.appleNumberOutline;
+        ctx.strokeText(String(v), x, cy + 1);
         ctx.fillStyle = COLORS.appleNumber;
         ctx.fillText(String(v), x, cy + 1);
       }
@@ -415,7 +420,7 @@ export class AppleRenderer {
       names.push({ nickname: p.nickname, isMe: false });
     }
 
-    const maxShow = 4;
+    const maxShow = 6;
     const top = names.slice(0, maxShow);
     const rowH = 32;
     const rowGap = 4;
