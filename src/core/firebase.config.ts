@@ -45,3 +45,8 @@ const firebaseConfig = {
 // Initialize Firebase
 const app = initializeApp(firebaseConfig);
 const analytics = getAnalytics(app);
+void analytics; // 현재는 등록만 — 미사용 변수 경고 방지
+
+// roomDirectory.ts 에서 같은 app 인스턴스 + config 를 가져다 쓰도록 export
+export const FIREBASE_CONFIG = firebaseConfig;
+export const firebaseApp = app;

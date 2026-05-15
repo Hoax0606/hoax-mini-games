@@ -125,6 +125,15 @@ input {
   animation: screenIn 0.4s ease-out;
 }
 
+/* 채팅 패널이 있는 화면(대기실/결과)에선 콘텐츠가 채팅 영역을 침범 안 하게 우측 패딩.
+ * 채팅 접힘 상태에선 거의 안 보이는 아이콘 폭만 비움. */
+.screen:has(.chat-panel:not(.is-collapsed)) {
+  padding-right: 312px;
+}
+.screen:has(.chat-panel.is-collapsed) {
+  padding-right: 80px;
+}
+
 @keyframes screenIn {
   from { opacity: 0; transform: translateY(12px); }
   to   { opacity: 1; transform: translateY(0); }
@@ -908,6 +917,15 @@ input {
   overflow: hidden; /* 게임 화면만 viewport 고정. 다른 화면은 body가 스크롤 */
 }
 
+/* 채팅 패널이 펼쳐져 있으면 게임 화면의 헤더/캔버스 영역이 우측 패널을 침범하지 않도록 패딩 확보.
+ * 채팅 접힘(48×48 아이콘) 상태에선 거의 공간 안 차지하니 작은 패딩만. */
+.game-screen:has(.chat-panel:not(.is-collapsed)) {
+  padding-right: 312px;
+}
+.game-screen:has(.chat-panel.is-collapsed) {
+  padding-right: 80px;
+}
+
 .game-header {
   display: grid;
   grid-template-columns: 48px 1fr auto 1fr auto;
@@ -1346,11 +1364,11 @@ input {
 }
 .reaction-btn:active { transform: scale(0.95); }
 
-/* 게임 화면 우측 하단 플로팅 바 — 플레이 방해 최소 */
+/* 게임 화면 좌측 하단 플로팅 바 — 우측은 채팅 패널 영역이라 좌측으로 이동 */
 .reaction-bar-floating {
   position: fixed;
   bottom: 16px;
-  right: 16px;
+  left: 16px;
   background: rgba(255, 255, 255, 0.92);
   backdrop-filter: blur(6px);
   padding: 6px;
@@ -1365,10 +1383,13 @@ input {
   border-width: 1.5px;
 }
 
-/* 화면 하단에 고정된 풍선 스트림 영역. 게임에 방해 안 되도록 pointer-events: none */
+/* 화면 하단에 고정된 풍선 스트림 영역. 게임에 방해 안 되도록 pointer-events: none.
+ * right 를 채팅 패널 폭(280) + 여백(32) 만큼 좁혀 풍선이 채팅과 안 겹치게.
+ * 채팅 접힘 상태에서도 우측이 약간 비어 보이는 정도라 일관성 위해 항상 동일. */
 .reaction-stream {
   position: fixed;
-  left: 0; right: 0;
+  left: 0;
+  right: 312px;
   bottom: 90px;
   display: flex;
   flex-direction: column-reverse;

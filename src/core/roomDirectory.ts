@@ -13,7 +13,6 @@
  *   - subscribe 콜백은 호출 시점에 즉시 빈 배열 1번 emit 으로 안전 시작.
  */
 
-import { initializeApp, type FirebaseApp } from 'firebase/app';
 import {
   getDatabase,
   ref,
@@ -25,9 +24,8 @@ import {
   type Database,
   type DataSnapshot,
 } from 'firebase/database';
-import { FIREBASE_CONFIG } from './firebase.config';
+import { FIREBASE_CONFIG, firebaseApp } from './firebase.config';
 
-let app: FirebaseApp | null = null;
 let db: Database | null = null;
 
 export function isRoomDirectoryEnabled(): boolean {
@@ -36,12 +34,12 @@ export function isRoomDirectoryEnabled(): boolean {
 
 function ensureInit(): boolean {
   if (!isRoomDirectoryEnabled()) return false;
-  if (!app) {
+  if (!db) {
     try {
-      app = initializeApp(FIREBASE_CONFIG);
-      db = getDatabase(app);
+      // firebase.config.ts 에서 이미 initializeApp 된 app 을 재사용
+      db = getDatabase(firebaseApp);
     } catch (err) {
-      console.error('[roomDirectory] init failed', err);
+      console.error('[roomDirectory] getDatabase failed', err);
       return false;
     }
   }
