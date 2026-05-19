@@ -337,6 +337,11 @@ class BgmPlayer {
   private ctx: AudioContext | null = null;
   private masterGain: GainNode | null = null;
   private currentId: BgmId | null = null;
+  /**
+   * 마지막으로 요청된 BGM id (정지 후에도 보존).
+   * 사용자가 게임 도중 BGM OFF → ON 으로 토글하면, refreshSettings 에서 이 id 로 재시작.
+   */
+  private lastRequestedId: BgmId | null = null;
 
   /** 예약된 oscillator 들 — stop() 호출 시 전부 cancel */
   private scheduled: OscillatorNode[] = [];
@@ -377,6 +382,8 @@ class BgmPlayer {
    * bgmEnabled=false 인 설정이면 no-op.
    */
   start(id: BgmId): void {
+    // 게임이 요청한 id 기억 — BGM OFF 후 다시 ON 토글 시 재시작 용도
+    this.lastRequestedId = id;
     if (this.currentId === id) return;
     this.stop();
 
@@ -392,14 +399,25 @@ class BgmPlayer {
     this.scheduleLoop(this.ctx.currentTime + 0.1);
   }
 
-  /** BGM 정지. 예약된 모든 oscillator 취소 + 타이머 clear. */
+  /**
+   * BGM 정지.
+   *   - masterGain 을 즉시 0 으로 떨어뜨려 음소거 (osc.stop() 만으로는 이미 미래 시점으로
+   *     stop 예약된 osc 가 즉시 중단 안 될 수 있어, 사용자가 "다음 판부터 적용" 처럼 느낌).
+   *   - 예약된 osc 들도 ctx.currentTime 기준으로 명시 정지.
+   *   - 다음 loop 타이머도 clear.
+   */
   stop(): void {
     if (this.nextLoopTimer !== null) {
       window.clearTimeout(this.nextLoopTimer);
       this.nextLoopTimer = null;
     }
+    if (this.masterGain && this.ctx) {
+      this.masterGain.gain.cancelScheduledValues(this.ctx.currentTime);
+      this.masterGain.gain.value = 0;
+    }
     for (const osc of this.scheduled) {
-      try { osc.stop(); } catch { /* 이미 끝난 osc 는 예외 — 무시 */ }
+      try { osc.stop(this.ctx?.currentTime ?? 0); } catch { /* 이미 끝난 osc — 무시 */ }
+      try { osc.disconnect(); } catch { /* 이미 disconnect — 무시 */ }
     }
     this.scheduled = [];
     this.currentId = null;
@@ -415,11 +433,18 @@ class BgmPlayer {
   refreshSettings(): void {
     const settings = storage.getSettings();
     if (!settings.bgmEnabled) {
+      // OFF — 재생 중이면 즉시 정지
       if (this.currentId !== null) this.stop();
       return;
     }
-    if (this.masterGain) {
-      this.masterGain.gain.value = this.computeMasterGain();
+    // ON — 재생 중이면 볼륨만 갱신, 정지 상태이지만 직전 요청 id 가 있으면 다시 재생.
+    // (사용자가 게임 중 OFF → ON 으로 토글했을 때 즉시 다시 들리도록)
+    if (this.currentId !== null) {
+      if (this.masterGain) {
+        this.masterGain.gain.value = this.computeMasterGain();
+      }
+    } else if (this.lastRequestedId !== null) {
+      this.start(this.lastRequestedId);
     }
   }
 

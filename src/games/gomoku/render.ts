@@ -134,6 +134,8 @@ export interface RenderState {
   hostNickname: string;
   guestNickname: string;
   myRole: 'host' | 'guest' | 'spectator';
+  /** 이번 판 호스트가 잡은 색 — 흑/백 카드 매핑에 사용 (다시하기마다 swap) */
+  hostSide: 'B' | 'W';
 
   /** 게임 종료 정보 (승리 / 타임아웃 / 무승부) */
   gameOver: {
@@ -217,22 +219,24 @@ export class GomokuRenderer {
     ctx.fillStyle = COLORS.bg;
     ctx.fillRect(0, 0, CANVAS_W, CANVAS_H);
 
-    // 2) 플레이어 카드 (좌=호스트=흑, 우=게스트=백)
+    // 2) 플레이어 카드 (좌=흑, 우=백) — hostSide 기반으로 닉네임/내 카드 매핑
     const isGameOver = state.gameOver !== null;
+    const blackNickname = state.hostSide === 'B' ? state.hostNickname : state.guestNickname;
+    const whiteNickname = state.hostSide === 'W' ? state.hostNickname : state.guestNickname;
     this.drawPlayerCard({
       x: CARD_LEFT_X,
-      nickname: state.hostNickname,
+      nickname: blackNickname,
       stone: 'B',
-      isMe: state.myRole === 'host',
+      isMe: state.mySide === 'B',
       isActive: !isGameOver && state.currentTurn === 'B',
       timerSeconds: state.currentTurn === 'B' ? state.timerSeconds : 30,
       timerRatio: state.currentTurn === 'B' ? state.timerRatio : 1,
     });
     this.drawPlayerCard({
       x: CARD_RIGHT_X,
-      nickname: state.guestNickname,
+      nickname: whiteNickname,
       stone: 'W',
-      isMe: state.myRole === 'guest',
+      isMe: state.mySide === 'W',
       isActive: !isGameOver && state.currentTurn === 'W',
       timerSeconds: state.currentTurn === 'W' ? state.timerSeconds : 30,
       timerRatio: state.currentTurn === 'W' ? state.timerRatio : 1,

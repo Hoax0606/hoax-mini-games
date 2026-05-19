@@ -118,8 +118,12 @@ export function clearFullLines(field: Field): number {
 // ============================================
 
 /**
- * 하단에 count개의 가비지 라인을 삽입. 각 라인은 랜덤 위치에 구멍 1칸.
- * 연속 가비지는 같은 구멍 위치를 공유하면 더 전략적이지만, 여기선 라인마다 독립 랜덤.
+ * 가비지 라인을 삽입. 각 라인은 랜덤 위치에 구멍 1칸.
+ *
+ * 삽입 위치: 보드 맨 아래에 깔린 "안 깨지는 라인(U)" 바로 위.
+ *   U 가 0줄이면 맨 아래에 삽입. U 가 N줄 있으면 그 N줄을 보드 바닥에 유지시키고
+ *   가비지(G) 는 그 위로 들어옴 → 시간 압박(U) 은 누적되고 공격(G) 는 자기 피스
+ *   영역 쪽에 쌓이는 게 자연스러움.
  *
  * 반환값: "탑아웃" 여부 (맨 위 라인에 블록이 있었는데 더 위로 밀려나간 경우).
  *
@@ -130,6 +134,17 @@ export function injectGarbage(field: Field, count: number): boolean {
   if (count <= 0) return false;
 
   let toppedOut = false;
+
+  // 맨 아래에서부터 연속된 U 라인 개수 세기 — 가비지는 이 위에 삽입.
+  let uLineCount = 0;
+  for (let r = field.length - 1; r >= 0; r--) {
+    const row = field[r]!;
+    if (row.every((c) => c === 'U')) {
+      uLineCount++;
+    } else {
+      break;
+    }
+  }
 
   for (let i = 0; i < count; i++) {
     // 제일 위 행이 사라지면서(=위로 밀려나감) 이미 블록이 있었다면 탑아웃
@@ -143,7 +158,8 @@ export function injectGarbage(field: Field, count: number): boolean {
     for (let c = 0; c < FIELD_WIDTH; c++) {
       garbageRow.push(c === holeCol ? null : 'G');
     }
-    field.push(garbageRow);
+    // U 라인 바로 위에 삽입 (U=0 이면 맨 아래)
+    field.splice(field.length - uLineCount, 0, garbageRow);
   }
 
   return toppedOut;

@@ -137,11 +137,11 @@ function analyzeLine(
  *   1. 장목 (6목 이상) — 정확히 5목만 승리라서 6목 이상은 무효
  *   2. 3-3 — 놓으면 "열린 3"이 두 방향 이상 생기는 수
  *      · 열린 3 = 양쪽이 비어있는 3연속 (다음 턴에 열린 4로 발전 가능)
- *   3. 4-4 — 놓으면 "4"가 두 방향 이상 생기는 수
- *      · 4 = 4연속 + 최소 한쪽 끝이 비어있음 (다음 턴에 5목 완성 위협)
+ *
+ * 4-4 는 허용 (캐주얼 룰 — 4-4 자체로도 좋은 공격수라 막지 않음).
  *
  * 예외: 이번 수로 **5목이 완성되면** 금수보다 승리 우선.
- *       (5가 완성되는 방향을 기준으로 3-3/4-4 체크 우회)
+ *       (5가 완성되는 방향을 기준으로 3-3 체크 우회)
  *
  * 약식 판정:
  *   엄밀한 렌주룰은 "열린 3"을 재귀적으로 (다음 턴에 진짜 4가 될 수 있는지) 확인하지만,
@@ -158,7 +158,6 @@ export function isLegal(
 
   // 방향별 분석 수집
   let threeCount = 0; // 열린 3 (openEnds=2, len=3)
-  let fourCount = 0;  // 4 (openEnds>=1, len=4)
   let wouldWin = false;
 
   for (const { dx, dy } of DIRS) {
@@ -171,10 +170,6 @@ export function isLegal(
     if (len >= 6) {
       return false;
     }
-    // 4-4 판정용: 4연속 + 한쪽이라도 빈칸 (연결 가능한 4)
-    if (len === 4 && openEnds >= 1) {
-      fourCount++;
-    }
     // 3-3 판정용: 3연속 + 양쪽 다 빈칸 (열린 3)
     if (len === 3 && openEnds === 2) {
       threeCount++;
@@ -185,7 +180,6 @@ export function isLegal(
   if (wouldWin) return true;
 
   if (threeCount >= 2) return false; // 3-3 금수
-  if (fourCount >= 2) return false;  // 4-4 금수
   return true;
 }
 

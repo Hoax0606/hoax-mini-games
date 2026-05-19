@@ -6,6 +6,7 @@ import { createNicknameScreen } from './nickname';
 import { createGameListScreen } from './gameList';
 import { createStatsScreen } from './statsScreen';
 import { createPublicRoomsScreen } from './publicRooms';
+import { clearChatHistory } from '../ui/chat';
 
 /**
  * 메인 메뉴
@@ -13,6 +14,9 @@ import { createPublicRoomsScreen } from './publicRooms';
 export function createMenuScreen(): Screen {
   return {
     render() {
+      // 메뉴 진입 = 방 떠난 시점 — 채팅 히스토리 초기화 (다음 방은 빈 상태에서 시작)
+      clearChatHistory();
+
       const nickname = storage.getNickname();
 
       const el = document.createElement('div');

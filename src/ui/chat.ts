@@ -21,6 +21,41 @@ const MAX_TEXT_LEN = 200;
 /** stream 에 유지할 최대 메시지 수 (오래된 건 제거) */
 const MAX_STREAM_ROWS = 100;
 
+// ============================================
+// 채팅 히스토리 — 화면 전환 시에도 같은 방에 있으면 유지
+// ============================================
+//
+// 매 화면(대기실/게임화면/결과화면) 진입 시 chat-stream DOM 은 새로 그려지지만,
+// 메시지들은 이 모듈 레벨 배열에 누적되어 있어 restoreChatHistory 로 복원 가능.
+// 방을 떠날 때(메뉴 복귀/연결 끊김) clearChatHistory 로 초기화.
+
+interface StoredChatMsg {
+  msg: ChatMsg;
+  isMe: boolean;
+  /** 시스템 메시지(입장/퇴장)인지 — true 면 msg.nickname 사용 안 함 */
+  system?: boolean;
+}
+
+const chatHistory: StoredChatMsg[] = [];
+
+/** 방 떠날 때(메뉴/연결 끊김) 호출해서 히스토리 비움. */
+export function clearChatHistory(): void {
+  chatHistory.length = 0;
+}
+
+/** 화면 진입 후 buildChatPanelHTML 을 박은 직후 호출 — 기존 히스토리 전부 다시 그려줌. */
+export function restoreChatHistory(parent: HTMLElement): void {
+  for (const item of chatHistory) {
+    if (item.system) {
+      renderSystemRow(parent, item.msg.text);
+    } else {
+      renderMessageRow(parent, item.msg, item.isMe);
+    }
+  }
+  const stream = parent.querySelector<HTMLDivElement>('#chat-stream');
+  if (stream) stream.scrollTop = stream.scrollHeight;
+}
+
 export function buildChatPanelHTML(): string {
   return `
     <aside class="chat-panel" id="chat-panel">
@@ -56,6 +91,10 @@ export function wireChatPanel(parent: HTMLElement, callbacks: ChatCallbacks): ()
   const toggle = parent.querySelector<HTMLButtonElement>('#chat-toggle');
   const expander = parent.querySelector<HTMLButtonElement>('#chat-collapsed-btn');
   if (!panel || !form || !input || !toggle || !expander) return () => {};
+
+  // 같은 방에 머무는 동안 화면 전환되어도 채팅이 유지되도록, 직전에 쌓인 히스토리 복원.
+  // clearChatHistory 는 메뉴 복귀 시점에 호출되므로 새 방에 들어가면 빈 상태로 시작.
+  restoreChatHistory(parent);
 
   let lastSentAt = 0;
 
@@ -94,8 +133,32 @@ export function wireChatPanel(parent: HTMLElement, callbacks: ChatCallbacks): ()
 /**
  * 메시지 한 줄을 stream 에 추가하고 자동 스크롤.
  * isMe=true 면 우측 정렬 + 핑크 톤으로 자기 메시지 강조.
+ *
+ * 히스토리에도 push 해서 화면 전환 후 restoreChatHistory 로 복원 가능.
  */
 export function appendChatMessage(parent: HTMLElement, msg: ChatMsg, isMe: boolean): void {
+  chatHistory.push({ msg, isMe });
+  trimHistory();
+  renderMessageRow(parent, msg, isMe);
+}
+
+/** 누가 입장/퇴장했음을 시스템 메시지로 표시 (회색 가운데 정렬) */
+export function appendChatSystemMessage(parent: HTMLElement, text: string): void {
+  // 시스템 메시지는 nickname 필드 사용 안 하지만 ChatMsg 타입 맞춰서 dummy 채움
+  const sysMsg: ChatMsg = { type: 'chat', peerId: '', nickname: '', text, timestamp: Date.now() };
+  chatHistory.push({ msg: sysMsg, isMe: false, system: true });
+  trimHistory();
+  renderSystemRow(parent, text);
+}
+
+function trimHistory(): void {
+  while (chatHistory.length > MAX_STREAM_ROWS) {
+    chatHistory.shift();
+  }
+}
+
+/** DOM 한 줄 추가 (히스토리 갱신 없이) — 메시지 / 히스토리 복원 둘 다에서 사용 */
+function renderMessageRow(parent: HTMLElement, msg: ChatMsg, isMe: boolean): void {
   const stream = parent.querySelector<HTMLDivElement>('#chat-stream');
   if (!stream) return;
 
@@ -107,20 +170,18 @@ export function appendChatMessage(parent: HTMLElement, msg: ChatMsg, isMe: boole
   `;
   stream.appendChild(row);
 
-  // 오래된 메시지 정리 (메모리 방어)
   while (stream.children.length > MAX_STREAM_ROWS) {
     stream.removeChild(stream.firstChild!);
   }
 
-  // 사용자가 거의 맨 아래를 보고 있을 때만 자동 스크롤 (위쪽 읽고 있으면 강제로 끌어내리지 않음)
+  // 사용자가 거의 맨 아래를 보고 있을 때만 자동 스크롤
   const nearBottom = stream.scrollHeight - stream.scrollTop - stream.clientHeight < 80;
   if (nearBottom || isMe) {
     stream.scrollTop = stream.scrollHeight;
   }
 }
 
-/** 누가 입장/퇴장했음을 시스템 메시지로 표시 (회색 가운데 정렬) */
-export function appendChatSystemMessage(parent: HTMLElement, text: string): void {
+function renderSystemRow(parent: HTMLElement, text: string): void {
   const stream = parent.querySelector<HTMLDivElement>('#chat-stream');
   if (!stream) return;
   const row = document.createElement('div');

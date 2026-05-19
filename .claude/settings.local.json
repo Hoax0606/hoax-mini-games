@@ -2,7 +2,8 @@
   "permissions": {
     "allow": [
       "Bash(npm run *)",
-      "Bash(git -C \"/Users/hoax/Personal Project/hoax-mini-games\" mv public/favicon.svg public/favicon-old.svg)"
+      "Bash(git -C \"/Users/hoax/Personal Project/hoax-mini-games\" mv public/favicon.svg public/favicon-old.svg)",
+      "Bash(npm install *)"
     ]
   }
 }

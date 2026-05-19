@@ -274,6 +274,7 @@ class GomokuGame implements GameModule {
       hostNickname: this.hostNickname,
       guestNickname: this.guestNickname,
       myRole,
+      hostSide: this.hostSide,
       gameOver: this.gameOver,
     };
   }
