@@ -3,7 +3,12 @@
 다른 머신(집)에서 이 프로젝트를 이어서 작업할 때 읽는 문서.
 **Claude Code 첫 프롬프트로 "HANDOFF.md 정독하고 이어서 진행해줘" 라고 시작하면 됨.**
 
-마지막 업데이트: **2026-04-25** (다트 UI 리디자인 + 한글 정돈 + 인게임 메뉴/일시정지 + 다트 hello 핸드셰이크 + 반응속도 BGM + 에어하키 stuck 제거)
+마지막 업데이트: **2026-06-02** — 4월 말~5월 작업분 반영
+- 다트/반응속도 네트워크 동기화 모듈 분리 (`netSync.ts`)
+- **Firebase 공개방 디렉토리** + 메인 메뉴에 "🌐 공개방 찾기" 추가
+- **인게임 채팅 사이드패널** (대기실/게임 화면 공용, 호스트 relay)
+- 결과 화면 확장, BGM/오목/테트리스 잡다 손봄
+- 이전 스냅샷(2026-04-25): 다트 UI 리디자인 + 한글 정돈 + 인게임 메뉴/일시정지 + 반응속도 BGM
 
 ---
 
@@ -33,9 +38,10 @@ npm run dev       # http://localhost:5173
 | 5 | 결과 화면 다인용 | ✅ 테트리스/사과 전용으로 완료. 범용화는 보류 |
 
 **다음 작업**:
-- 🅐 **Phase 3 방장 이양** — 방장 나가면 남은 사람 중 하나가 새 방장 돼서 게임 이어가기. 여전히 미구현.
+- 🅐 **Phase 3 방장 이양** — 방장 나가면 남은 사람 중 하나가 새 방장 돼서 게임 이어가기. 여전히 미구현. 공개방이 Firebase 에 살아있어도 방장 탭 닫히면 `onDisconnect` 가 entry 제거 — 이양은 그 위에서.
 - 🅑 **테트리스 관전 뷰 v2** — 현재 "관전 중" 오버레이만. 4인 필드 2×2 격자 풀사이즈로 개선 가능 (render.ts 큰 수술).
-- 🅒 **새 게임 추가** — 플랫폼(N인/관전/일시정지/통계) 다 갖춰져서 게임 모듈만 짜면 됨. 후보: 카드 메모리, 스피드 타이핑, 스네이크 다인전 등.
+- 🅒 **새 게임 추가** — 플랫폼(N인/관전/일시정지/통계/공개방/채팅) 다 갖춰져서 게임 모듈만 짜면 됨. 후보: 카드 메모리, 스피드 타이핑, 스네이크 다인전 등.
+- 🅓 **공개방 기능 플레이테스트** — Firebase 가 실제로 잘 동작하는지(좀비 방, 인원 카운트 동기화, 게임 중 status 갱신) 확인 + 필요시 보강.
 - (선택) Medium 리팩토링 — `escapeHtml` 헬퍼 추출 / `GameModule.renderResultCard` 범용화 / gameScreen factory 공통화
 
 ---
@@ -51,7 +57,7 @@ npm run dev       # http://localhost:5173
   - 사과 게임 (1~4인, 숫자 사과 합 10 터트리기, 2분)
   - 오목 (2인, 15×15 또는 19×19, 30초 턴, 호스트 authoritative)
   - 반응속도 (1~4인, 5라운드 평균 ms 경쟁)
-  - 다트 (1~4인, 6모드 — 301/201/101 Normal·Hard / Count-up / Low Count-up / Cricket). 투척/턴/종료/관전자 hello 핸드셰이크까지 ✅ 모두 동작.
+  - 다트 (1~4인, 6모드 — 301/201/101 Normal·Hard / Count-up / Low Count-up / Cricket). 투척/턴/종료/관전자 hello 핸드셰이크까지 ✅ 모두 동작. 네트워크 메시지는 `darts/netSync.ts` 로 분리됨.
 - **배포 URL**: https://hoax0606.github.io/hoax-mini-games/
 
 ---
@@ -64,35 +70,45 @@ src/
 ├── main.ts                      # 엔트리 + 글로벌 버튼 사운드 훅 + ?room= URL 자동 입장
 ├── core/
 │   ├── peer.ts                  # PeerJS 래퍼 (HostSession 다중 conn, GuestSession)
-│   │                            #   JoinDecision.asSpectator, ping 측정(2s 주기 RTT)
+│   │                            #   JoinDecision.asSpectator, ping 측정(2s 주기 RTT), chat relay
 │   ├── screen.ts                # 화면 라우터
 │   ├── storage.ts               # localStorage 래퍼 (nickname/settings/GameStats)
 │   ├── sound.ts                 # Web Audio SFX 합성 (에어하키 5종 + 테트리스 8종)
 │   │                            #   startBgm/stopBgm 래퍼로 bgm.ts 위임
-│   └── bgm.ts                   # 게임별 BGM 시퀀서 (5종: ah/bt/ag/gomoku/darts)
+│   ├── bgm.ts                   # 게임별 BGM 시퀀서 (5종: ah/bt/ag/gomoku/darts)
+│   ├── firebase.config.ts       # 🆕 Firebase SDK 초기화 + projectId/databaseURL 등
+│   └── roomDirectory.ts         # 🆕 publicRooms 노드 publish/update/subscribe + onDisconnect 자동 제거
 ├── games/
-│   ├── types.ts                 # GameContext, Player(role), NetworkMessage + ping/reaction
+│   ├── types.ts                 # GameContext, Player(role), NetworkMessage + ping/reaction/chat
 │   ├── registry.ts              # 등록된 게임 목록 (6종)
 │   ├── air-hockey/              # 2인 호스트 authoritative
 │   ├── battle-tetris/           # 2-4인 로컬 시뮬레이션
 │   ├── apple-game/              # 1-4인 독립 보드 + 점수 경쟁 (17×10)
 │   ├── gomoku/                  # 2인 턴제, 호스트 authoritative, 15/19, 30초 턴
 │   │                            #   go:request_move / go:move / go:sync / go:hello / go:end
-│   ├── reflex/                  # 1-4인 5라운드 반응속도. rx:round_done / rx:player_done / rx:end
-│   └── darts/                   # 1-4인 6모드 다트 (투척/종료 net ✅, 관전자 핸드셰이크만 미완)
+│   ├── reflex/                  # 1-4인 5라운드 반응속도
+│   │   ├── index.ts             #   루프 + phase 관리
+│   │   ├── render.ts            #   상대 미니뷰 포함
+│   │   └── netSync.ts           # 🆕 rx:round_done / rx:player_done / rx:phase / rx:end encode/decode
+│   └── darts/                   # 1-4인 6모드 다트 (완성)
 │       ├── rules.ts             #   순수 상태머신 (X01 Normal/Hard, Count-up, Low, Cricket)
 │       ├── board.ts             #   과녁 좌표 → HitResult 판정
-│       └── index.ts             #   플릭 투척 물리 + 턴 진행
+│       ├── render.ts            #   다트판 + 다트 + 점수 패널
+│       ├── index.ts             #   플릭 투척 물리 + 턴 진행
+│       └── netSync.ts           # 🆕 dart:hello / dart:sync / dart:throw / dart:end encode/decode
 ├── screens/
-│   ├── menu.ts, nickname.ts, settings.ts, gameList.ts, lobby.ts
+│   ├── menu.ts                  # 메인 메뉴 (🎮 시작 / 🌐 공개방 / 📊 통계 / ✏️ 닉 / ⚙️ 설정)
+│   ├── nickname.ts, settings.ts, gameList.ts, lobby.ts
 │   ├── createRoom.ts, joinRoom.ts    # joinRoom: initialCode/autoJoin 지원 (URL 공유 입장)
-│   ├── waitingRoom.ts           # 호스트/게스트 factory + "🔗 링크" 공유 + 리액션 바
-│   ├── gameScreen.ts            # 관전자 수락 + ping 배지 + 리액션 바
+│   ├── waitingRoom.ts           # 호스트/게스트 factory + "🔗 링크" + 리액션 + 채팅 패널 + Firebase publish
+│   ├── gameScreen.ts            # 관전자 수락 + ping 배지 + 리액션 + 채팅 패널
 │   ├── statsScreen.ts           # 게임별 누적 전적/최고기록 (localStorage)
+│   ├── publicRooms.ts           # 🆕 Firebase publicRooms 실시간 구독 → 카드 리스트 → 클릭 시 autoJoin
 │   └── resultScreen.ts          # 테트리스/사과/오목/반응속도/다트 전용 결과 분기
 ├── ui/
-│   ├── theme.css                # 팔레트 + 컴포넌트 스타일
+│   ├── theme.css                # 팔레트 + 컴포넌트 스타일 (chat-panel / public-room-card 추가)
 │   ├── reactions.ts             # 이모지 6종 버튼 + 하단 풍선 애니 (400ms throttle)
+│   ├── chat.ts                  # 🆕 채팅 사이드패널 build/wire/append + 방 내부 history 유지
 │   └── logo.png                 # 메인 로고 이미지
 └── .github/workflows/deploy.yml # GitHub Pages 자동 배포
 ```
@@ -107,6 +123,7 @@ src/
 - `ping_req` / `ping_ack` / `ping_report` — peer.ts 가 자동 처리 (2초 주기 RTT 측정). 게임 모듈은 신경 X.
 - `reaction` — 이모지 반응 broadcast. 대기실/게임 화면에 풍선 뜸.
 - `pause` / `resume` — 인게임 메뉴 모달 열림/닫힘 시 broadcast. 호스트가 다른 게스트에 relay. 모든 클라이언트가 dim overlay + `gameModule.setPaused` 호출.
+- `chat` — 채팅 메시지. 게스트가 보내면 호스트가 받아 다른 게스트들에 relay. 본문 trim + maxLen 200, 250ms throttle, history 100개 cap.
 
 **GameMessage** (게임 내부):
 - 에어하키: `ah:state` / `ah:input` / `ah:end`
@@ -128,7 +145,7 @@ src/
 3. **사과 게임** = 독립 보드(같은 seed로 동일 배치) + 게임 중 상대 점수 비공개. 타이머 만료 시점에만 점수 공유, 호스트 1초 grace period 후 랭킹 집계.
 4. **오목** = 호스트 authoritative. 게스트는 `go:request_move` 로 의사 전달 → 호스트 검증 후 `go:move` broadcast. 각 턴 30초, 타임아웃은 호스트가 판정.
 5. **반응속도** = 각자 독립 5라운드. 라운드 종료 시점에만 broadcast. 호스트가 전원 완료 감지 → per-peer `rx:end`.
-6. **다트** = rules.ts 순수 상태머신 + 플릭 투척 물리. 각 클라이언트가 결정론적 시뮬레이션 — 투척자가 `dart:throw`(초기 속도) broadcast 하면 수신 측이 같은 파라미터로 물리 재생해 착지점·점수 수렴. 호스트가 `dart:end`로 per-peer 결과. 관전자 중간 합류 snapshot 만 미완.
+6. **다트** = rules.ts 순수 상태머신 + 플릭 투척 물리. 각 클라이언트가 결정론적 시뮬레이션 — 투척자가 `dart:throw`(초기 속도) broadcast 하면 수신 측이 같은 파라미터로 물리 재생해 착지점·점수 수렴. 호스트가 `dart:end`로 per-peer 결과. 관전자 중간 합류는 `dart:hello`/`dart:sync` 핸드셰이크로 처리.
 7. **게임 모듈 확장성**: `src/games/<id>/` + `GameModule` + registry. 플랫폼 수정 X.
 8. **관전자 결과 화면 이동**: 플레이어는 게임 내부 end 메시지, 관전자는 플랫폼 `game_end` broadcast.
 
@@ -186,6 +203,26 @@ src/
 - 모달 열림 → `pause` 메시지 broadcast (호스트가 다른 게스트에 relay) + 자기 `gameModule.setPaused(true)` 호출
 - 다른 플레이어 화면: 반투명 dim overlay + `⏸️ {닉네임} 가 잠시 멈췄어요` 안내 + canvas 마우스 입력 차단
 - 모달 닫힘 / "계속하기" → `resume` broadcast → 모두 정상 재개
+
+### Firebase 공개방 디렉토리 (2026-05-15 추가)
+- `src/core/firebase.config.ts` 에 Firebase 프로젝트 설정 (apiKey/databaseURL/projectId 등). 비워두면 공개방 기능이 **자동 비활성** — 비공개방(코드 입력) 흐름은 영향 X. 현재는 실제 프로젝트 값이 들어있음 (`hoax-mini-games`, Asia-Southeast1).
+- `src/core/roomDirectory.ts`:
+  - `publishRoom(entry)` — 호스트가 공개방 만들 때 등록 + `onDisconnect` 자동 제거 (좀비 방 방지).
+  - `updatePublicRoom(roomId, partial)` — 인원 변동 / status 변화(`waiting` ↔ `playing`).
+  - `unpublishRoom(roomId)` — 정상 종료 시 명시적 제거.
+  - `subscribePublicRooms(cb)` — 실시간 리스트 구독. `createdAt` 내림차순 정렬.
+- 메인 메뉴 "🌐 공개방 찾기" → `src/screens/publicRooms.ts` 화면 → 카드 클릭 시 `joinRoom` autoJoin 으로 즉시 입장.
+- `waitingRoom.ts` 호스트 진입 시 `!isPrivate` 면 `publishRoom`, 인원 변동마다 `updatePublicRoom`, 게임 시작 시 status `playing`, 게임 끝나면 다시 `waiting` (또는 방 종료 시 `unpublishRoom`).
+
+### 인게임 채팅 (2026-05-15 추가)
+- `src/ui/chat.ts` — 우측 사이드 채팅 패널. 대기실 / 게임 화면 / (결과 화면) 어디서든 같은 패턴으로 박는다:
+  1. `buildChatPanelHTML()` 결과를 screen el 끝에 박음
+  2. `wireChatPanel(el, { onSend })` 로 입력 핸들러 연결 (Enter 송신, 250ms throttle, maxLen 200)
+  3. 송신 시 자기 화면에 `appendChatMessage` 직접 호출 (네트워크 echo 없음)
+  4. 수신 시에도 같은 `appendChatMessage`
+- **네트워크 모델 (호스트 = 허브)**: 게스트가 보내면 host 에게만 송신 → 호스트가 자기 화면 append + 다른 게스트 relay. 호스트가 보내면 자기 화면 append + 전체 broadcast.
+- **방 내부 history 유지**: `chat.ts` 모듈 레벨 배열에 누적, 화면 전환(대기실→게임→결과) 시 `restoreChatHistory` 로 자동 복원. 메인 메뉴 진입(=방 떠남)에서 `clearChatHistory` 로 초기화.
+- 메시지 100개 cap, 시스템 메시지(입장/퇴장) 별도 스타일.
 
 ### `GameModule.setPaused(paused)` 선택 메서드 (게임별 정지)
 인터페이스 (types.ts):
@@ -310,6 +347,12 @@ setPaused?(paused: boolean): void;
 - **테트리스 관전 뷰 v1**: 메인 영역에 "관전 중" 오버레이, 우측 미니뷰 최대 4명.
 - **MVP 한계**: 게임 중 합류한 관전자만 최신 players. 기존 플레이어 ctx.players 미갱신.
 
+### 네트워크 모듈 분리 리팩토링 (2026-04-28 ~ 05-09)
+- 다트/반응속도 게임의 `encodeXxx`/`decodeXxx` 함수들을 별도 `netSync.ts` 파일로 추출.
+  - `darts/netSync.ts`: hello/sync/throw/end 4종.
+  - `reflex/netSync.ts`: round_done/player_done/phase/end 4종. `rx:phase` 신규 (상대 미니뷰 라이브 표시용).
+- 각 게임 `index.ts` 는 이제 메시지 로직 없이 import 만. 큰 게임에 메시지 종류가 늘어날 때 깔끔.
+
 ---
 
 ## 🧑‍🤝‍🧑 협업 스타일 (Henry 선호)
@@ -326,13 +369,14 @@ setPaused?(paused: boolean): void;
 
 ## 🐛 알려진 이슈 / 개선 여지
 
-- **Phase 3 (방장 이양) 미구현** — 방장 나가면 방 종료.
+- **Phase 3 (방장 이양) 미구현** — 방장 나가면 방 종료 (+ Firebase entry 도 onDisconnect 로 자동 제거).
 - **테트리스 관전 뷰 v2 (2×2 격자) 미구현** — 현재 "관전 중" 오버레이만.
 - **일시정지 키보드 입력 차단 안 됨** — pause overlay 가 canvas 위에 올라가서 마우스는 차단되지만, 게임 모듈이 `window` 레벨로 keydown 을 listen 하면 키 입력은 그대로 전달. 다만 각 게임 `setPaused(true)` 시 `performKey`/`onCanvasClick` 등에 paused 가드 추가돼서 실질 동작은 안 함.
 - **에어하키 관전자 비주얼** — 점수판 대신 "관전 중" 배지만.
 - **사과 게임 솔버블 보장 X** — 단순 랜덤이라 운 나쁘면 덜 풀림.
 - **사과 게임 관전자 뷰** — 보드 영역 전체 "관전 중" 오버레이. 어떤 플레이어 보드 보여주기 같은 개선 여지 있음.
 - **통계 화면 머신별 독립** — localStorage 기반이라 집/회사 PC 에서 기록 따로 쌓임. 의도된 동작.
+- **공개방 플레이테스트 부족** — Firebase publish/update 흐름이 실제 상황(빠른 입퇴장, 새로고침, 동시 접속)에서 인원 카운트/상태 정확히 동기화되는지 추가 확인 필요. `firebase.config.ts` 에 키 실제 들어가있음 → repo public 이면 노출 위험 한 번 점검.
 - **Windows 라인엔딩** — git LF→CRLF 경고. 무해.
 
 ---

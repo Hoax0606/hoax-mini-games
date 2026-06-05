@@ -523,6 +523,9 @@ input {
    ============================================ */
 
 .result-card {
+  position: relative;
+  /* fixed 인 chat-panel(z-index:100) 위에 오도록. 결과 카드 버튼이 채팅 영역에 가려져 클릭이 안 닿는 사고 방지. */
+  z-index: 110;
   background: var(--bg-card);
   border-radius: var(--radius-lg);
   padding: 44px 48px 36px;

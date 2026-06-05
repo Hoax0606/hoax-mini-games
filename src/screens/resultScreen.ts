@@ -40,17 +40,18 @@ function winnerVisuals(myWinner: 'me' | 'opponent' | null): {
   return                              { emoji: '⚖️', title: '무승부',   titleClass: 'result-title-draw' };
 }
 
-/** 액션 영역 HTML (호스트=다시하기/다른게임/메뉴, 게스트=대기/메뉴) */
+/** 액션 영역 HTML (호스트=다시하기/다른게임/메뉴, 게스트=대기/메뉴)
+ *  type="button" 명시: 채팅 form 같은 form context 안에서 default submit 으로 동작하는 걸 차단. */
 function buildActionsHTML(isHost: boolean): string {
   return isHost
     ? `
-        <button class="btn btn-primary btn-lg btn-block" id="retry-btn">🔄 다시하기</button>
-        <button class="btn btn-secondary btn-block" id="change-game-btn">🎲 다른 게임 선택</button>
-        <button class="btn btn-ghost btn-block" id="menu-btn">메뉴로</button>
+        <button type="button" class="btn btn-primary btn-lg btn-block" id="retry-btn">🔄 다시하기</button>
+        <button type="button" class="btn btn-secondary btn-block" id="change-game-btn">🎲 다른 게임 선택</button>
+        <button type="button" class="btn btn-ghost btn-block" id="menu-btn">메뉴로</button>
       `
     : `
         <div class="result-waiting-msg" id="waiting-msg">⏳ 방장이 다음을 고르고 있어요</div>
-        <button class="btn btn-ghost btn-block" id="menu-btn">메뉴로 (방 나가기)</button>
+        <button type="button" class="btn btn-ghost btn-block" id="menu-btn">메뉴로 (방 나가기)</button>
       `;
 }
 
@@ -150,21 +151,15 @@ function openChangeGameOverlay(
   let selectedGameId: string | null = null;
   let selectedOptions: Record<string, string> = {};
 
-  // [임시 디버깅] 카드 핸들러 등록 시 로그
   const enabledCards = overlay.querySelectorAll<HTMLButtonElement>('.change-game-card:not(.is-disabled)');
-  console.log('[change-game] enabled cards:', enabledCards.length, [...enabledCards].map(c => c.dataset.gameId));
 
   // 게임 카드 클릭 → 옵션 폼 + 시작 버튼 활성
   enabledCards.forEach((card) => {
     card.addEventListener('click', () => {
-      console.log('[change-game] card clicked:', card.dataset.gameId);
       const gid = card.dataset.gameId;
       if (!gid) return;
       const game = getGameById(gid);
-      if (!game) {
-        console.warn('[change-game] getGameById failed:', gid);
-        return;
-      }
+      if (!game) return;
 
       selectedGameId = gid;
       selectedOptions = {};
@@ -1192,6 +1187,11 @@ function escapeHtml(s: string): string {
   return s.replace(/[&<>"']/g, (c) => ({
     '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
   }[c]!));
+}
+
+/** 속성값(예: data-game-id="...") 안에 들어갈 값 이스케이프. 현재는 escapeHtml 과 동일. */
+function escapeAttr(s: string): string {
+  return escapeHtml(s);
 }
 
 /**

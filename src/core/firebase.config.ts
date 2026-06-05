@@ -23,14 +23,10 @@
  *
  * 비워두면 공개방 기능이 자동으로 비활성화되고 비공개방(코드 입력) 으로만 동작한다.
  */
-// Import the functions you need from the SDKs you need
 import { initializeApp } from "firebase/app";
 import { getAnalytics } from "firebase/analytics";
-// TODO: Add SDKs for Firebase products that you want to use
-// https://firebase.google.com/docs/web/setup#available-libraries
 
-// Your web app's Firebase configuration
-// For Firebase JS SDK v7.20.0 and later, measurementId is optional
+// Firebase 콘솔에서 받은 웹 앱 설정. measurementId 는 v7.20+ 에서 선택사항.
 const firebaseConfig = {
   apiKey: "AIzaSyCMqm2q-LBjOxdsm-JZNAULW85Ngr-wino",
   authDomain: "hoax-mini-games.firebaseapp.com",

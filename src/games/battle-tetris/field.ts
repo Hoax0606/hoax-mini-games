@@ -136,17 +136,18 @@ export function injectGarbage(field: Field, count: number): boolean {
   let toppedOut = false;
 
   // 맨 아래에서부터 연속된 U 라인 개수 세기 — 가비지는 이 위에 삽입.
-  let uLineCount = 0;
-  for (let r = field.length - 1; r >= 0; r--) {
-    const row = field[r]!;
-    if (row.every((c) => c === 'U')) {
-      uLineCount++;
-    } else {
-      break;
-    }
-  }
-
+  // 매 iteration 마다 field 가 mutate 되므로 루프 안에서 재계산.
   for (let i = 0; i < count; i++) {
+    let uLineCount = 0;
+    for (let r = field.length - 1; r >= 0; r--) {
+      const row = field[r]!;
+      if (row.every((c) => c === 'U')) {
+        uLineCount++;
+      } else {
+        break;
+      }
+    }
+
     // 제일 위 행이 사라지면서(=위로 밀려나감) 이미 블록이 있었다면 탑아웃
     const topRow = field.shift();
     if (topRow && topRow.some((cell) => cell !== null)) {
@@ -158,7 +159,7 @@ export function injectGarbage(field: Field, count: number): boolean {
     for (let c = 0; c < FIELD_WIDTH; c++) {
       garbageRow.push(c === holeCol ? null : 'G');
     }
-    // U 라인 바로 위에 삽입 (U=0 이면 맨 아래)
+    // U 라인 바로 위에 삽입 (U=0 이면 맨 아래). shift 직후 length 기준.
     field.splice(field.length - uLineCount, 0, garbageRow);
   }
 

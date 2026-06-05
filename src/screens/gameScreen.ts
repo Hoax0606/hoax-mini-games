@@ -18,12 +18,12 @@ import { storage } from '../core/storage';
  *   2. 레지스트리에서 GameModule lazy 로드 후 start(ctx) 호출
  *   3. Peer 세션 메시지를 'game_msg' 필터링해서 GameModule.onPeerMessage로 전달
  *   4. GameContext.onStatusUpdate → 헤더 점수 DOM 반영
- *   5. ctx.endGame(result) → (3단계 임시) alert 후 메뉴 복귀. resultScreen은 다음 파일에서.
+ *   5. ctx.endGame(result) → resultScreen 으로 전환 (호스트는 game_end broadcast 도 함)
  *   6. 나가기 / 상대 이탈 시 방 정리
  *
  * 소유권:
  *   host/guest 세션은 대기실에서 이 화면으로 "인계"받음 (대기실은 closeOnDispose=false).
- *   이 화면이 dispose될 때 무조건 close한다.
+ *   결과 화면으로 전환할 때만 closeOnDispose=false 로 다시 넘기고, 그 외 dispose 에선 close.
  */
 
 // ============================================
