@@ -56,6 +56,16 @@ const OPP_X0 = 510;
 const OPP_Y0 = 235;
 const OPP_GAP = 8;
 
+/** 관전자 2×2 격자 슬롯
+ *  Canvas 800×400 → 4분할(400×200). 슬롯당 닉네임 헤더(24px) + 필드(80×160) 가운데. */
+const SPEC_CELL = 8;
+const SPEC_FIELD_W = SPEC_CELL * FIELD_WIDTH;   // 80
+const SPEC_FIELD_H = SPEC_CELL * FIELD_HEIGHT;  // 160
+const SPEC_SLOT_W = CANVAS_W / 2;               // 400
+const SPEC_SLOT_H = CANVAS_H / 2;               // 200
+const SPEC_NICK_Y = 16;
+const SPEC_FIELD_OFFSET_Y = 30;
+
 const COLORS = {
   bg: '#fff9fd',
   gridLine: '#eee4f7',
@@ -127,7 +137,7 @@ export class TetrisRenderer {
   /** 매 프레임 호출.
    *
    * opts.spectator = true 일 땐 "나" 관점의 UI(메인 필드/HOLD/NEXT/STATS)를 그리지 않고
-   * 해당 영역에 "관전 중" 오버레이만 둔다. 상대 미니뷰는 계속 그린다 (최대 4명까지).
+   * 전체 캔버스를 2×2 격자로 잡아 최대 4명의 필드를 동시 표시한다.
    */
   render(
     me: EngineState,
@@ -151,80 +161,117 @@ export class TetrisRenderer {
     ctx.fillRect(0, 0, CANVAS_W, CANVAS_H);
 
     if (opts.spectator) {
-      // 관전자: 메인 필드/HOLD/NEXT/STATS 자리에 안내 오버레이
-      this.drawSpectatorCenter();
-    } else {
-      // 메인 필드 + 현재 피스 + 고스트.
-      // spawn y=-1 라 piece 의 윗줄(shape row 0)이 보드 밖(row -1)에 위치하는데,
-      // stroke / 격자 라인이 보드 위쪽으로 1~2px 새어 나가는 걸 막기 위해 clip 적용.
-      ctx.save();
-      ctx.beginPath();
-      ctx.rect(FIELD_X, FIELD_Y, FIELD_PX_W, FIELD_PX_H);
-      ctx.clip();
-
-      this.drawField(me.field, FIELD_X, FIELD_Y, CELL);
-      if (me.currentPiece && !me.toppedOut) {
-        this.drawGhost(me.field, me.currentPiece);
-        this.drawPiece(me.currentPiece, FIELD_X, FIELD_Y, CELL);
-      }
-
-      ctx.restore();
-
-      // 필드 테두리 (clip 밖에서 그려야 테두리 자체는 보드 외곽에 정상 표시됨)
-      ctx.strokeStyle = COLORS.fieldBorder;
-      ctx.lineWidth = 2;
-      ctx.strokeRect(FIELD_X - 1, FIELD_Y - 1, FIELD_PX_W + 2, FIELD_PX_H + 2);
-
-      // 탑아웃 오버레이
-      if (me.toppedOut) {
-        ctx.fillStyle = COLORS.toppedOverlay;
-        ctx.fillRect(FIELD_X, FIELD_Y, FIELD_PX_W, FIELD_PX_H);
-        ctx.fillStyle = COLORS.gaugeGarbage;
-        ctx.font = `900 28px ${FONT}`;
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillText('GAME OVER', FIELD_X + FIELD_PX_W / 2, FIELD_Y + FIELD_PX_H / 2);
-      }
-
-      // 좌측: HOLD + STATS
-      this.drawHoldBox(me.holdPiece, me.holdUsed);
-      this.drawStats(me);
-
-      // 우측: NEXT
-      this.drawNextBoxes(me.nextPieces);
+      // 관전자 모드: 캔버스 전체를 2×2 격자로 4명 표시 (미니뷰 대신)
+      this.drawSpectatorGrid(opponents);
+      return;
     }
 
-    // 상대 미니뷰는 양쪽 모드 모두 그림. 관전자일 땐 최대 4명까지.
-    this.drawOpponents(opponents, opts.spectator ?? false);
+    // === 플레이어 모드: 메인 필드 + HOLD/NEXT + 미니뷰 ===
+    // spawn y=-1 라 piece 의 윗줄(shape row 0)이 보드 밖(row -1)에 위치하는데,
+    // stroke / 격자 라인이 보드 위쪽으로 1~2px 새어 나가는 걸 막기 위해 clip 적용.
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(FIELD_X, FIELD_Y, FIELD_PX_W, FIELD_PX_H);
+    ctx.clip();
+
+    this.drawField(me.field, FIELD_X, FIELD_Y, CELL);
+    if (me.currentPiece && !me.toppedOut) {
+      this.drawGhost(me.field, me.currentPiece);
+      this.drawPiece(me.currentPiece, FIELD_X, FIELD_Y, CELL);
+    }
+
+    ctx.restore();
+
+    // 필드 테두리 (clip 밖에서 그려야 테두리 자체는 보드 외곽에 정상 표시됨)
+    ctx.strokeStyle = COLORS.fieldBorder;
+    ctx.lineWidth = 2;
+    ctx.strokeRect(FIELD_X - 1, FIELD_Y - 1, FIELD_PX_W + 2, FIELD_PX_H + 2);
+
+    // 탑아웃 오버레이
+    if (me.toppedOut) {
+      ctx.fillStyle = COLORS.toppedOverlay;
+      ctx.fillRect(FIELD_X, FIELD_Y, FIELD_PX_W, FIELD_PX_H);
+      ctx.fillStyle = COLORS.gaugeGarbage;
+      ctx.font = `900 28px ${FONT}`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('GAME OVER', FIELD_X + FIELD_PX_W / 2, FIELD_Y + FIELD_PX_H / 2);
+    }
+
+    // 좌측: HOLD + STATS, 우측: NEXT, 우하: 상대 미니뷰
+    this.drawHoldBox(me.holdPiece, me.holdUsed);
+    this.drawStats(me);
+    this.drawNextBoxes(me.nextPieces);
+    this.drawOpponents(opponents, false);
   }
 
-  /** 관전자 모드 중앙 오버레이 — 메인/HOLD/NEXT 자리에 "👀 관전 중" 안내 */
-  private drawSpectatorCenter(): void {
-    const ctx = this.ctx;
-    // 외곽 카드 배경 (메인 필드 영역과 얼추 같은 위치)
-    const cardX = 60;
-    const cardY = 60;
-    const cardW = 450;
-    const cardH = 280;
-    ctx.fillStyle = COLORS.boxBg;
-    ctx.fillRect(cardX, cardY, cardW, cardH);
-    ctx.strokeStyle = COLORS.boxBorder;
-    ctx.lineWidth = 2;
-    ctx.strokeRect(cardX, cardY, cardW, cardH);
+  /** 관전자 2×2 격자 — 캔버스 전체를 4분할해 최대 4명 풀사이즈 미니 필드 표시.
+   *  빈 슬롯은 점선 placeholder. */
+  private drawSpectatorGrid(opponents: OpponentSnapshot[]): void {
+    for (let i = 0; i < 4; i++) {
+      const col = i % 2;
+      const row = Math.floor(i / 2);
+      const slotX = col * SPEC_SLOT_W;
+      const slotY = row * SPEC_SLOT_H;
+      const opp = opponents[i];
+      if (!opp) {
+        this.drawSpecEmptySlot(slotX, slotY);
+      } else {
+        this.drawSpecPlayerSlot(opp, slotX, slotY);
+      }
+    }
+  }
 
-    ctx.fillStyle = COLORS.textMain;
-    ctx.font = `900 44px ${FONT}`;
+  private drawSpecEmptySlot(slotX: number, slotY: number): void {
+    const ctx = this.ctx;
+    ctx.strokeStyle = COLORS.boxBorder;
+    ctx.lineWidth = 1.5;
+    ctx.setLineDash([6, 4]);
+    ctx.strokeRect(slotX + 10, slotY + 10, SPEC_SLOT_W - 20, SPEC_SLOT_H - 20);
+    ctx.setLineDash([]);
+    ctx.fillStyle = COLORS.textMuted;
+    ctx.font = `600 13px ${FONT}`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillText('👀', cardX + cardW / 2, cardY + cardH / 2 - 30);
+    ctx.fillText('빈 자리', slotX + SPEC_SLOT_W / 2, slotY + SPEC_SLOT_H / 2);
+  }
 
-    ctx.fillStyle = COLORS.labelAccent;
-    ctx.font = `800 28px ${FONT}`;
-    ctx.fillText('관전 중', cardX + cardW / 2, cardY + cardH / 2 + 30);
+  private drawSpecPlayerSlot(opp: OpponentSnapshot, slotX: number, slotY: number): void {
+    const ctx = this.ctx;
+    const fieldX = slotX + (SPEC_SLOT_W - SPEC_FIELD_W) / 2;
+    const fieldY = slotY + SPEC_FIELD_OFFSET_Y;
 
-    ctx.fillStyle = COLORS.textMuted;
-    ctx.font = `500 13px ${FONT}`;
-    ctx.fillText('오른쪽에서 플레이어들의 경기를 지켜보세요', cardX + cardW / 2, cardY + cardH / 2 + 62);
+    // 닉네임 (필드 위 헤더). 너무 길면 잘림
+    ctx.fillStyle = COLORS.textMain;
+    ctx.font = `700 14px ${FONT}`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    const nickShown = opp.nickname.length > 14 ? opp.nickname.slice(0, 13) + '…' : opp.nickname;
+    ctx.fillText(nickShown, slotX + SPEC_SLOT_W / 2, slotY + SPEC_NICK_Y);
+
+    // 필드 (clip 안에서 그려서 stroke 가 보드 밖으로 새지 않게)
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(fieldX, fieldY, SPEC_FIELD_W, SPEC_FIELD_H);
+    ctx.clip();
+    this.drawField(opp.field, fieldX, fieldY, SPEC_CELL);
+    ctx.restore();
+
+    // 필드 테두리
+    ctx.strokeStyle = COLORS.fieldBorder;
+    ctx.lineWidth = 1.5;
+    ctx.strokeRect(fieldX - 1, fieldY - 1, SPEC_FIELD_W + 2, SPEC_FIELD_H + 2);
+
+    // 탑아웃 오버레이
+    if (opp.toppedOut) {
+      ctx.fillStyle = COLORS.toppedOverlay;
+      ctx.fillRect(fieldX, fieldY, SPEC_FIELD_W, SPEC_FIELD_H);
+      ctx.fillStyle = COLORS.gaugeGarbage;
+      ctx.font = `900 22px ${FONT}`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('OUT', fieldX + SPEC_FIELD_W / 2, fieldY + SPEC_FIELD_H / 2);
+    }
   }
 
   // ============================================
