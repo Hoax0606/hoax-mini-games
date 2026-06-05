@@ -3,12 +3,14 @@
 다른 머신(집)에서 이 프로젝트를 이어서 작업할 때 읽는 문서.
 **Claude Code 첫 프롬프트로 "HANDOFF.md 정독하고 이어서 진행해줘" 라고 시작하면 됨.**
 
-마지막 업데이트: **2026-06-02** — 4월 말~5월 작업분 반영
-- 다트/반응속도 네트워크 동기화 모듈 분리 (`netSync.ts`)
-- **Firebase 공개방 디렉토리** + 메인 메뉴에 "🌐 공개방 찾기" 추가
-- **인게임 채팅 사이드패널** (대기실/게임 화면 공용, 호스트 relay)
-- 결과 화면 확장, BGM/오목/테트리스 잡다 손봄
-- 이전 스냅샷(2026-04-25): 다트 UI 리디자인 + 한글 정돈 + 인게임 메뉴/일시정지 + 반응속도 BGM
+마지막 업데이트: **2026-06-05**
+- **테트리스 관전 뷰 v2** — 캔버스 전체 2×2 격자, 4명까지 풀사이즈 미니 필드 (8px 셀) + 닉네임 + 탑아웃 OUT 오버레이. 빈 슬롯은 점선 placeholder.
+- **오목 캐주얼 렌주룰** — 흑(B)만 3-3 / 4-4 금수, 장목은 양쪽 금수, 5목 완성 수 우선
+- **"다른 게임 선택" 버튼 무반응 fix** — `resultScreen.ts` 의 `escapeAttr` 함수 정의 누락 → `ReferenceError` 로 오버레이 빌드 실패하던 사일런트 버그. 함수 추가로 fix
+- **방어 fix** — 결과 화면 액션 버튼 `type="button"` 명시 + `.result-card` z-index 110 (chat-panel 가림 차단)
+- **`injectGarbage`** — `uLineCount` 매 iteration 안에서 재계산 (count ≥ 2 안전성)
+- **공개방** — 플레이테스트 검증 완료 (Firebase publish/update 흐름 정상)
+- 이전 스냅샷(2026-06-02): netSync 분리, Firebase 공개방, 채팅 사이드패널
 
 ---
 
@@ -32,17 +34,16 @@ npm run dev       # http://localhost:5173
 | Phase | 내용 | 상태 |
 |---|---|---|
 | 1 | 플랫폼 N인화 | ✅ 완료 |
-| 2 | 관전 모드 | ✅ 완료 (2026-04-23) |
-| 3 | **방장 이양** | ⏳ **다음 작업** |
+| 2 | 관전 모드 v1 | ✅ 완료 (2026-04-23) |
+| 2.5 | 테트리스 관전 뷰 v2 (2×2 격자) | ✅ 완료 (2026-06-05) |
+| 3 | **방장 이양** | ⏸️ **보류** (Henry 의향, 당분간 안 함) |
 | 4 | 배틀 테트리스 | ✅ 완료 |
-| 5 | 결과 화면 다인용 | ✅ 테트리스/사과 전용으로 완료. 범용화는 보류 |
+| 5 | 결과 화면 다인용 | ✅ 게임별 전용 UI |
 
-**다음 작업**:
-- 🅐 **Phase 3 방장 이양** — 방장 나가면 남은 사람 중 하나가 새 방장 돼서 게임 이어가기. 여전히 미구현. 공개방이 Firebase 에 살아있어도 방장 탭 닫히면 `onDisconnect` 가 entry 제거 — 이양은 그 위에서.
-- 🅑 **테트리스 관전 뷰 v2** — 현재 "관전 중" 오버레이만. 4인 필드 2×2 격자 풀사이즈로 개선 가능 (render.ts 큰 수술).
-- 🅒 **새 게임 추가** — 플랫폼(N인/관전/일시정지/통계/공개방/채팅) 다 갖춰져서 게임 모듈만 짜면 됨. 후보: 카드 메모리, 스피드 타이핑, 스네이크 다인전 등.
-- 🅓 **공개방 기능 플레이테스트** — Firebase 가 실제로 잘 동작하는지(좀비 방, 인원 카운트 동기화, 게임 중 status 갱신) 확인 + 필요시 보강.
-- (선택) Medium 리팩토링 — `escapeHtml` 헬퍼 추출 / `GameModule.renderResultCard` 범용화 / gameScreen factory 공통화
+**다음 작업** (우선순위):
+- 🅒 **새 게임 추가** — 플랫폼(N인/관전/일시정지/통계/공개방/채팅/관전 v2) 다 갖춰져서 게임 모듈만 짜면 됨. 후보: 카드 메모리, 스피드 타이핑, 스네이크 다인전 등.
+- (보류) 🅐 **Phase 3 방장 이양** — 방장 나가면 남은 사람 중 하나가 새 방장. 여전히 미구현. Henry 당분간 안 함 — 다시 들어가면 peer.ts HostSession 소유권 이전 + peerId broadcast 재연결이 핵심.
+- (선택) Medium 리팩토링 — `escapeHtml`/`escapeAttr` 헬퍼 추출 (resultScreen / publicRooms / waitingRoom 등 중복) / `GameModule.renderResultCard` 범용화 / gameScreen factory 공통화
 
 ---
 
@@ -344,8 +345,18 @@ setPaused?(paused: boolean): void;
 - **수락 분기**: waitingRoom 상태면 `room_full`. gameScreen 상태면 spectator 수락.
 - **Player.role='spectator'** + 헤더 "👀 관전 중" 배지.
 - **ah:end 는 winner 뒤집힘** → 관전자는 ah:end 무시, 플랫폼 game_end 경로로.
-- **테트리스 관전 뷰 v1**: 메인 영역에 "관전 중" 오버레이, 우측 미니뷰 최대 4명.
+- **테트리스 관전 뷰 v2 (2026-06-05)**: 캔버스 전체 2×2 격자. 4명까지 8px 셀 풀사이즈 미니 필드 + 닉네임 헤더 + 탑아웃 OUT 오버레이. 빈 슬롯 점선 placeholder. (v1 의 "관전 중" 카드 + 우측 mini → 격자로 교체)
+  - `render.ts`: `SPEC_*` 상수, `drawSpectatorGrid` / `drawSpecPlayerSlot` / `drawSpecEmptySlot`
+  - 플레이어 모드는 그대로 — `drawOpponents(opponents, false)` 호출
 - **MVP 한계**: 게임 중 합류한 관전자만 최신 players. 기존 플레이어 ctx.players 미갱신.
+
+### 오목 캐주얼 렌주룰 (2026-06-05)
+- `gomoku/board.ts`. **흑(B)만** 3-3 (열린 3 2방향 이상) / 4-4 (4 라인 2방향 이상) 금수. 장목(6+)은 양쪽 금수. 5목 완성 수는 모든 금수보다 우선.
+- 단순 판정 — "열린 3"의 재귀적 확장 가능성 안 봄. 캐주얼 수준.
+
+### 사일런트 ReferenceError 사례 (2026-06-05)
+- "다른 게임 선택" 버튼 무반응 — 클릭은 핸들러 도달했지만 `buildChangeGameOverlayHTML` 안의 `escapeAttr` 가 정의 안 됨 → `ReferenceError` → 오버레이 빌드 실패. UI 상 :active 만 보이고 그 뒤 아무 일도 안 일어남.
+- **교훈**: 비슷한 "버튼 무반응" 신호 오면 콘솔 에러 우선 확인. `escapeHtml` / `escapeAttr` 같은 헬퍼가 파일마다 중복 정의되어 있어 누락하기 쉬움.
 
 ### 네트워크 모듈 분리 리팩토링 (2026-04-28 ~ 05-09)
 - 다트/반응속도 게임의 `encodeXxx`/`decodeXxx` 함수들을 별도 `netSync.ts` 파일로 추출.
@@ -369,14 +380,14 @@ setPaused?(paused: boolean): void;
 
 ## 🐛 알려진 이슈 / 개선 여지
 
-- **Phase 3 (방장 이양) 미구현** — 방장 나가면 방 종료 (+ Firebase entry 도 onDisconnect 로 자동 제거).
-- **테트리스 관전 뷰 v2 (2×2 격자) 미구현** — 현재 "관전 중" 오버레이만.
+- **Phase 3 (방장 이양) 미구현 — 보류** — 방장 나가면 방 종료 (+ Firebase entry 도 onDisconnect 로 자동 제거). Henry 당분간 진행 의향 없음.
 - **일시정지 키보드 입력 차단 안 됨** — pause overlay 가 canvas 위에 올라가서 마우스는 차단되지만, 게임 모듈이 `window` 레벨로 keydown 을 listen 하면 키 입력은 그대로 전달. 다만 각 게임 `setPaused(true)` 시 `performKey`/`onCanvasClick` 등에 paused 가드 추가돼서 실질 동작은 안 함.
-- **에어하키 관전자 비주얼** — 점수판 대신 "관전 중" 배지만.
+- **에어하키 관전자 비주얼** — 점수판 대신 "관전 중" 배지만. (테트리스는 v2 격자로 해결, 다른 게임은 그대로)
 - **사과 게임 솔버블 보장 X** — 단순 랜덤이라 운 나쁘면 덜 풀림.
 - **사과 게임 관전자 뷰** — 보드 영역 전체 "관전 중" 오버레이. 어떤 플레이어 보드 보여주기 같은 개선 여지 있음.
 - **통계 화면 머신별 독립** — localStorage 기반이라 집/회사 PC 에서 기록 따로 쌓임. 의도된 동작.
-- **공개방 플레이테스트 부족** — Firebase publish/update 흐름이 실제 상황(빠른 입퇴장, 새로고침, 동시 접속)에서 인원 카운트/상태 정확히 동기화되는지 추가 확인 필요. `firebase.config.ts` 에 키 실제 들어가있음 → repo public 이면 노출 위험 한 번 점검.
+- **Firebase 키 노출** — `firebase.config.ts` 에 실제 apiKey 평문. repo public 이라 Firebase 콘솔의 Rules(publicRooms 노드만 read/write 제한) 가 유일한 방어선.
+- **`escapeHtml` / `escapeAttr` 중복** — resultScreen / publicRooms / waitingRoom / chat 각각 자기 헬퍼 보유. 헬퍼 한 곳(`ui/escape.ts` 같은)으로 통합 가능. (리팩토링 후순위)
 - **Windows 라인엔딩** — git LF→CRLF 경고. 무해.
 
 ---
