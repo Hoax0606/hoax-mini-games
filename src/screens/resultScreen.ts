@@ -920,6 +920,116 @@ function buildAlgagiResultHTML(args: {
 }
 
 // ============================================
+// 끝말잇기 전용 결과 HTML
+// ============================================
+
+interface WordChainPlayerEntry {
+  peerId: string;
+  nickname: string;
+  alive: boolean;
+  outReason: string | null;
+}
+
+interface WordChainSummary {
+  myPeerId: string;
+  winnerNickname: string | null;
+  totalRounds: number;
+  players: WordChainPlayerEntry[];
+}
+
+function parseWordChainSummary(summary: Record<string, unknown>): WordChainSummary | null {
+  if (summary['gameId'] !== 'word-chain') return null;
+  const myPeerId = typeof summary['myPeerId'] === 'string' ? (summary['myPeerId'] as string) : null;
+  const winnerNickname = typeof summary['winnerNickname'] === 'string' ? (summary['winnerNickname'] as string) : null;
+  const totalRounds = typeof summary['totalRounds'] === 'number' ? (summary['totalRounds'] as number) : 0;
+  if (!myPeerId) return null;
+
+  const rawPlayers = summary['players'] as unknown;
+  const players: WordChainPlayerEntry[] = Array.isArray(rawPlayers)
+    ? (rawPlayers as Array<Partial<WordChainPlayerEntry>>)
+        .filter((p) => typeof p.peerId === 'string' && typeof p.nickname === 'string')
+        .map((p) => ({
+          peerId: p.peerId!,
+          nickname: p.nickname!,
+          alive: !!p.alive,
+          outReason: typeof p.outReason === 'string' ? p.outReason : null,
+        }))
+    : [];
+
+  return { myPeerId, winnerNickname, totalRounds, players };
+}
+
+function wcReasonLabel(reason: string | null): string {
+  switch (reason) {
+    case 'timeout':    return '시간 초과';
+    case 'invalid':    return '잘못된 형식';
+    case 'wrongStart': return '시작 글자 틀림';
+    case 'duplicate':  return '중복 사용';
+    case 'notInDict':  return '사전에 없음';
+    default:           return '';
+  }
+}
+
+function buildWordChainResultHTML(args: {
+  myWinner: 'me' | 'opponent' | null;
+  summary: WordChainSummary;
+  isHost: boolean;
+  isSpectator: boolean;
+}): string {
+  const { myWinner, summary, isHost, isSpectator } = args;
+  const { emoji, title, titleClass } = isSpectator
+    ? { emoji: '🔤', title: '끝말잇기 종료', titleClass: 'result-title-draw' }
+    : winnerVisuals(myWinner);
+  const actionsHTML = buildActionsHTML(isHost);
+
+  // 생존자 먼저, 그 다음 탈락자. 같은 그룹 안에선 닉네임 순.
+  const sorted = [...summary.players].sort((a, b) => {
+    if (a.alive !== b.alive) return a.alive ? -1 : 1;
+    return a.nickname.localeCompare(b.nickname);
+  });
+
+  const rankingsHTML = `
+    <div class="result-tetris-rankings">
+      <div class="result-tetris-rankings-title">🏅 결과</div>
+      ${sorted.map((p, idx) => {
+        const isMe = p.peerId === summary.myPeerId;
+        const isWinner = summary.winnerNickname !== null && p.nickname === summary.winnerNickname;
+        const badgeClass = isWinner ? 'rank-1' : '';
+        const rankNum = isWinner ? 1 : idx + 1;
+        const status = p.alive
+          ? '🏆 생존'
+          : `💀 ${wcReasonLabel(p.outReason)}`;
+        return `
+          <div class="result-tetris-rank-row ${isMe ? 'is-me' : ''}">
+            <span class="result-tetris-rank-badge ${badgeClass}">${rankNum}</span>
+            <span class="result-tetris-rank-name">${escapeHtml(p.nickname)}</span>
+            <span class="result-apple-rank-score">${status}</span>
+            ${isMe ? '<span class="result-tetris-rank-me-tag">나</span>' : ''}
+          </div>
+        `;
+      }).join('')}
+    </div>
+  `;
+
+  const reasonBadge = summary.winnerNickname
+    ? `<div class="result-gomoku-reason">${escapeHtml(summary.winnerNickname)} 승리 · ${summary.totalRounds}단어 진행</div>`
+    : `<div class="result-gomoku-reason">무승부 · ${summary.totalRounds}단어 진행</div>`;
+
+  return `
+    <div class="result-card result-card-tetris">
+      <div class="result-emoji">${emoji}</div>
+      <div class="result-title ${titleClass}">${title}</div>
+      ${reasonBadge}
+      ${rankingsHTML}
+
+      <div class="result-actions">
+        ${actionsHTML}
+      </div>
+    </div>
+  `;
+}
+
+// ============================================
 // 호스트 결과 화면
 // ============================================
 
@@ -952,6 +1062,7 @@ export function createResultScreenAsHostScreen(args: ResultScreenAsHostArgs): Sc
       const reflex = parseReflexSummary(result.summary);
       const darts = parseDartsSummary(result.summary);
       const algagi = parseAlgagiSummary(result.summary);
+      const wordChain = parseWordChainSummary(result.summary);
       if (tetris) {
         el.innerHTML = buildTetrisResultHTML({
           myWinner: result.winner,
@@ -983,6 +1094,13 @@ export function createResultScreenAsHostScreen(args: ResultScreenAsHostArgs): Sc
         el.innerHTML = buildAlgagiResultHTML({
           myWinner: result.winner,
           summary: algagi,
+          isHost: true,
+          isSpectator: false,
+        });
+      } else if (wordChain) {
+        el.innerHTML = buildWordChainResultHTML({
+          myWinner: result.winner,
+          summary: wordChain,
           isHost: true,
           isSpectator: false,
         });
@@ -1156,6 +1274,7 @@ export function createResultScreenAsGuestScreen(args: ResultScreenAsGuestArgs): 
       const reflex = parseReflexSummary(result.summary);
       const darts = parseDartsSummary(result.summary);
       const algagi = parseAlgagiSummary(result.summary);
+      const wordChain = parseWordChainSummary(result.summary);
       // 관전자는 summary.myPeerId 가 자기가 아닐 수 있음 — 자기 peerId 는 guest.myPeerId.
       // rankings 에 "나" 가 없으면 관전자로 간주.
       const myPeerIdForResult = guest.myPeerId;
@@ -1193,6 +1312,14 @@ export function createResultScreenAsGuestScreen(args: ResultScreenAsGuestArgs): 
         el.innerHTML = buildAlgagiResultHTML({
           myWinner: result.winner,
           summary: isSpec ? { ...algagi, myPeerId: myPeerIdForResult } : algagi,
+          isHost: false,
+          isSpectator: isSpec,
+        });
+      } else if (wordChain) {
+        const isSpec = !wordChain.players.some((p) => p.peerId === myPeerIdForResult);
+        el.innerHTML = buildWordChainResultHTML({
+          myWinner: result.winner,
+          summary: isSpec ? { ...wordChain, myPeerId: myPeerIdForResult } : wordChain,
           isHost: false,
           isSpectator: isSpec,
         });
@@ -1374,6 +1501,12 @@ export function recordResultToStats(
       if (Number.isFinite(tc) && tc > 0) {
         bestEntries.push({ key: 'bestWinTurns', value: tc, higherIsBetter: false });
       }
+    }
+  } else if (id === 'word-chain') {
+    // 끝말잇기: 게임에서 진행된 단어 수 (길수록 잘 굴린 판)
+    const total = Number(summary['totalRounds']);
+    if (Number.isFinite(total) && total > 0) {
+      bestEntries.push({ key: 'longestChain', value: total, higherIsBetter: true });
     }
   }
   // 에어하키/오목은 승/패만 기록

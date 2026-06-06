@@ -1,0 +1,64 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 200">
+  <defs>
+    <linearGradient id="wcBg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#ffe4ee"/>
+      <stop offset="100%" stop-color="#e0fff4"/>
+    </linearGradient>
+  </defs>
+
+  <!-- 배경 -->
+  <rect x="0" y="0" width="320" height="200" rx="22" fill="url(#wcBg)"/>
+
+  <!-- 모서리 점 데코 -->
+  <circle cx="26" cy="26" r="3" fill="#ff6b9e" opacity="0.55"/>
+  <circle cx="294" cy="30" r="3.5" fill="#86e8c4" opacity="0.6"/>
+  <circle cx="28" cy="172" r="2.5" fill="#b89aff" opacity="0.55"/>
+  <circle cx="296" cy="170" r="3" fill="#ffeec2" opacity="0.7"/>
+
+  <!-- 별 데코 -->
+  <path d="M 46 56 l 1.6 4 4.4 0.4 -3.4 2.8 1 4.3 -3.6 -2.4 -3.6 2.4 1 -4.3 -3.4 -2.8 4.4 -0.4 z"
+        fill="#ff82ac" opacity="0.7"/>
+  <path d="M 270 142 l 1.4 3.5 3.8 0.3 -3 2.5 0.9 3.7 -3.1 -2.1 -3.1 2.1 0.9 -3.7 -3 -2.5 3.8 -0.3 z"
+        fill="#86e8c4" opacity="0.7"/>
+
+  <!-- 단어 카드 체인: 사과 → 과학 → 학교 -->
+  <!-- 카드 1: 사과 (좌측 위, 살짝 기울어짐) -->
+  <g transform="translate(60, 70) rotate(-6)">
+    <rect x="-32" y="-22" width="64" height="44" rx="10" fill="#fff" stroke="#ff82ac" stroke-width="2"/>
+    <text x="0" y="2" text-anchor="middle" dominant-baseline="middle"
+          font-family="'Pretendard', 'Apple SD Gothic Neo', sans-serif"
+          font-size="22" font-weight="900" fill="#4a3a4a">사과</text>
+  </g>
+
+  <!-- 화살표 1 -->
+  <path d="M 100 100 q 18 -6 32 0" stroke="#ff5a92" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+  <path d="M 132 100 l -6 -3 -6 3 6 -3 6 3 -6 3 z" fill="#ff5a92"/>
+
+  <!-- 카드 2: 과학 (가운데, 일직선) -->
+  <g transform="translate(160, 100)">
+    <rect x="-32" y="-22" width="64" height="44" rx="10" fill="#fff" stroke="#b89aff" stroke-width="2"/>
+    <text x="0" y="2" text-anchor="middle" dominant-baseline="middle"
+          font-family="'Pretendard', 'Apple SD Gothic Neo', sans-serif"
+          font-size="22" font-weight="900" fill="#4a3a4a">과학</text>
+  </g>
+
+  <!-- 화살표 2 -->
+  <path d="M 200 100 q 18 6 32 0" stroke="#9c7aeb" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+  <path d="M 232 100 l -6 -3 -6 3 6 -3 6 3 -6 3 z" fill="#9c7aeb"/>
+
+  <!-- 카드 3: 학교 (우측 아래, 반대로 살짝 기울어짐) -->
+  <g transform="translate(260, 130) rotate(6)">
+    <rect x="-32" y="-22" width="64" height="44" rx="10" fill="#fff" stroke="#6ed9b3" stroke-width="2"/>
+    <text x="0" y="2" text-anchor="middle" dominant-baseline="middle"
+          font-family="'Pretendard', 'Apple SD Gothic Neo', sans-serif"
+          font-size="22" font-weight="900" fill="#4a3a4a">학교</text>
+  </g>
+
+  <!-- 상단 작은 라벨 (장식) -->
+  <g transform="translate(160, 32)">
+    <rect x="-44" y="-12" width="88" height="24" rx="12" fill="#fff" opacity="0.85"/>
+    <text x="0" y="1" text-anchor="middle" dominant-baseline="middle"
+          font-family="'Pretendard', 'Apple SD Gothic Neo', sans-serif"
+          font-size="12" font-weight="700" fill="#9c7aeb">🔤 끝말잇기</text>
+  </g>
+</svg>

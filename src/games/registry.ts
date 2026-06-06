@@ -17,6 +17,7 @@ import gomokuThumbnail from './gomoku/thumbnail.svg';
 import reflexThumbnail from './reflex/thumbnail.svg';
 import dartsThumbnail from './darts/thumbnail.svg';
 import algagiThumbnail from './algagi/thumbnail.svg';
+import wordChainThumbnail from './word-chain/thumbnail.svg';
 
 export const games: GameEntry[] = [
   {
@@ -193,6 +194,21 @@ export const games: GameEntry[] = [
     load: async () => {
       const mod = await import('./algagi');
       return mod.createAlgagiGame();
+    },
+  },
+  {
+    meta: {
+      id: 'word-chain',
+      name: '끝말잇기',
+      description: '이전 단어의 마지막 글자로 시작하는 단어를 입력! 30초 안에 못 내면 탈락. 최후 1인 승.',
+      thumbnail: wordChainThumbnail,
+      minPlayers: 2,
+      maxPlayers: 4,
+      roomOptions: [],
+    },
+    load: async () => {
+      const mod = await import('./word-chain');
+      return mod.createWordChainGame();
     },
   },
 ];

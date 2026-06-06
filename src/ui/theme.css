@@ -1820,6 +1820,105 @@ input {
 }
 
 /* ============================================
+   끝말잇기 입력 UI — canvas 외부 하단 마운트
+   ============================================ */
+
+.wc-input-container {
+  margin-top: 12px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  max-width: 520px;
+}
+
+.wc-input-hint {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-align: center;
+  min-height: 20px;
+}
+
+.wc-input-form {
+  display: flex;
+  gap: 8px;
+  width: 100%;
+}
+
+.wc-input {
+  flex: 1;
+  padding: 12px 16px;
+  font-size: 16px;
+  font-weight: 600;
+  border: 2px solid var(--pink-200);
+  border-radius: var(--radius-full);
+  outline: none;
+  background: var(--bg-card);
+  color: var(--text-main);
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.wc-input:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(255, 90, 146, 0.18);
+}
+
+.wc-input:disabled {
+  background: #f3eef0;
+  color: var(--text-muted);
+  cursor: not-allowed;
+  border-color: var(--cream-200);
+}
+
+.wc-input-submit {
+  padding: 12px 22px;
+  font-size: 15px;
+  font-weight: 700;
+  background: var(--accent);
+  color: var(--text-inverse);
+  border: 0;
+  border-radius: var(--radius-full);
+  cursor: pointer;
+  transition: background 0.15s, transform 0.1s;
+}
+
+.wc-input-submit:hover {
+  background: var(--accent-hover);
+}
+
+.wc-input-submit:active {
+  transform: translateY(1px);
+}
+
+.wc-input:disabled + .wc-input-submit {
+  background: var(--cream-200);
+  color: var(--text-muted);
+  cursor: not-allowed;
+}
+
+.wc-reject-message {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--accent);
+  background: var(--pink-50);
+  border: 1px solid var(--pink-200);
+  border-radius: 10px;
+  padding: 6px 14px;
+  opacity: 0;
+  transform: translateY(-4px);
+  transition: opacity 0.2s, transform 0.2s;
+  pointer-events: none;
+  min-height: 0;
+}
+
+.wc-reject-message.is-visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* ============================================
    결과 화면 — "다른 게임 선택" 오버레이
    ============================================
    호스트가 결과 카드 위에 띄움. 게임 카드 그리드 + 선택한 게임의 옵션 폼. */
