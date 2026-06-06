@@ -16,6 +16,7 @@ import appleGameThumbnail from './apple-game/thumbnail.svg';
 import gomokuThumbnail from './gomoku/thumbnail.svg';
 import reflexThumbnail from './reflex/thumbnail.svg';
 import dartsThumbnail from './darts/thumbnail.svg';
+import algagiThumbnail from './algagi/thumbnail.svg';
 
 export const games: GameEntry[] = [
   {
@@ -177,6 +178,21 @@ export const games: GameEntry[] = [
     load: async () => {
       const mod = await import('./reflex');
       return mod.createReflexGame();
+    },
+  },
+  {
+    meta: {
+      id: 'algagi',
+      name: '알까기',
+      description: '자기 알을 드래그해서 튕겨라! 상대 알을 모두 판 밖으로 떨어뜨리는 사람이 승리.',
+      thumbnail: algagiThumbnail,
+      minPlayers: 2,
+      maxPlayers: 4,
+      roomOptions: [],
+    },
+    load: async () => {
+      const mod = await import('./algagi');
+      return mod.createAlgagiGame();
     },
   },
 ];

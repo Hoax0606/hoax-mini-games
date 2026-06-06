@@ -821,6 +821,104 @@ function buildDartsResultHTML(args: {
 }
 
 // ============================================
+// 알까기 전용 결과 HTML
+// ============================================
+
+interface AlgagiPlayerEntry {
+  peerId: string;
+  nickname: string;
+  liveCount: number;
+}
+
+interface AlgagiSummary {
+  myPeerId: string;
+  winnerNickname: string | null;
+  turnCount: number;
+  players: AlgagiPlayerEntry[];
+}
+
+function parseAlgagiSummary(summary: Record<string, unknown>): AlgagiSummary | null {
+  if (summary['gameId'] !== 'algagi') return null;
+  const myPeerId = typeof summary['myPeerId'] === 'string' ? (summary['myPeerId'] as string) : null;
+  const winnerNickname = typeof summary['winnerNickname'] === 'string' ? (summary['winnerNickname'] as string) : null;
+  const turnCount = typeof summary['turnCount'] === 'number' ? (summary['turnCount'] as number) : 0;
+  if (!myPeerId) return null;
+
+  const rawPlayers = summary['players'] as unknown;
+  const players: AlgagiPlayerEntry[] = Array.isArray(rawPlayers)
+    ? (rawPlayers as Partial<AlgagiPlayerEntry>[])
+        .filter((p) =>
+          typeof p.peerId === 'string' &&
+          typeof p.nickname === 'string' &&
+          typeof p.liveCount === 'number',
+        )
+        .map((p) => ({
+          peerId: p.peerId!,
+          nickname: p.nickname!,
+          liveCount: p.liveCount!,
+        }))
+    : [];
+
+  return { myPeerId, winnerNickname, turnCount, players };
+}
+
+function buildAlgagiResultHTML(args: {
+  myWinner: 'me' | 'opponent' | null;
+  summary: AlgagiSummary;
+  isHost: boolean;
+  isSpectator: boolean;
+}): string {
+  const { myWinner, summary, isHost, isSpectator } = args;
+  const { emoji, title, titleClass } = isSpectator
+    ? { emoji: '🪨', title: '알까기 종료', titleClass: 'result-title-draw' }
+    : winnerVisuals(myWinner);
+  const actionsHTML = buildActionsHTML(isHost);
+
+  // 살아있는 알 많은 순 정렬 (= 우승자 먼저). 동률이면 닉네임 사전순.
+  const sorted = [...summary.players].sort((a, b) => {
+    if (b.liveCount !== a.liveCount) return b.liveCount - a.liveCount;
+    return a.nickname.localeCompare(b.nickname);
+  });
+
+  const rankingsHTML = `
+    <div class="result-tetris-rankings">
+      <div class="result-tetris-rankings-title">🏅 남은 알</div>
+      ${sorted.map((p, idx) => {
+        const isMe = p.peerId === summary.myPeerId;
+        const isWinner = summary.winnerNickname !== null && p.nickname === summary.winnerNickname;
+        const badgeClass = isWinner ? 'rank-1' : '';
+        const rankNum = isWinner ? 1 : idx + 1;
+        return `
+          <div class="result-tetris-rank-row ${isMe ? 'is-me' : ''}">
+            <span class="result-tetris-rank-badge ${badgeClass}">${rankNum}</span>
+            <span class="result-tetris-rank-name">${escapeHtml(p.nickname)}</span>
+            <span class="result-apple-rank-score">${p.liveCount === 0 ? 'OUT' : `${p.liveCount}개`}</span>
+            ${isMe ? '<span class="result-tetris-rank-me-tag">나</span>' : ''}
+          </div>
+        `;
+      }).join('')}
+    </div>
+  `;
+
+  const reasonBadge = summary.winnerNickname
+    ? `<div class="result-gomoku-reason">${escapeHtml(summary.winnerNickname)} 승리 · ${summary.turnCount}턴 진행</div>`
+    : `<div class="result-gomoku-reason">무승부 · ${summary.turnCount}턴 진행</div>`;
+
+  return `
+    <div class="result-card result-card-tetris">
+      <div class="result-emoji">${emoji}</div>
+      <div class="result-title ${titleClass}">${title}</div>
+      ${reasonBadge}
+      ${rankingsHTML}
+
+      <div class="result-actions">
+        ${actionsHTML}
+      </div>
+    </div>
+  `;
+}
+
+// ============================================
 // 호스트 결과 화면
 // ============================================
 
@@ -852,6 +950,7 @@ export function createResultScreenAsHostScreen(args: ResultScreenAsHostArgs): Sc
       const gomoku = parseGomokuSummary(result.summary);
       const reflex = parseReflexSummary(result.summary);
       const darts = parseDartsSummary(result.summary);
+      const algagi = parseAlgagiSummary(result.summary);
       if (tetris) {
         el.innerHTML = buildTetrisResultHTML({
           myWinner: result.winner,
@@ -876,6 +975,13 @@ export function createResultScreenAsHostScreen(args: ResultScreenAsHostArgs): Sc
         el.innerHTML = buildDartsResultHTML({
           myWinner: result.winner,
           summary: darts,
+          isHost: true,
+          isSpectator: false,
+        });
+      } else if (algagi) {
+        el.innerHTML = buildAlgagiResultHTML({
+          myWinner: result.winner,
+          summary: algagi,
           isHost: true,
           isSpectator: false,
         });
@@ -1048,6 +1154,7 @@ export function createResultScreenAsGuestScreen(args: ResultScreenAsGuestArgs): 
       const gomoku = parseGomokuSummary(result.summary);
       const reflex = parseReflexSummary(result.summary);
       const darts = parseDartsSummary(result.summary);
+      const algagi = parseAlgagiSummary(result.summary);
       // 관전자는 summary.myPeerId 가 자기가 아닐 수 있음 — 자기 peerId 는 guest.myPeerId.
       // rankings 에 "나" 가 없으면 관전자로 간주.
       const myPeerIdForResult = guest.myPeerId;
@@ -1077,6 +1184,14 @@ export function createResultScreenAsGuestScreen(args: ResultScreenAsGuestArgs): 
         el.innerHTML = buildDartsResultHTML({
           myWinner: result.winner,
           summary: isSpec ? { ...darts, myPeerId: myPeerIdForResult } : darts,
+          isHost: false,
+          isSpectator: isSpec,
+        });
+      } else if (algagi) {
+        const isSpec = !algagi.players.some((p) => p.peerId === myPeerIdForResult);
+        el.innerHTML = buildAlgagiResultHTML({
+          myWinner: result.winner,
+          summary: isSpec ? { ...algagi, myPeerId: myPeerIdForResult } : algagi,
           isHost: false,
           isSpectator: isSpec,
         });

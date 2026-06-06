@@ -9,6 +9,7 @@ import { buildReactionBarHTML, wireReactionBar, showReactionBubble } from '../ui
 import { buildChatPanelHTML, wireChatPanel, appendChatMessage } from '../ui/chat';
 import type { ChatMsg } from '../games/types';
 import { storage } from '../core/storage';
+import { sound } from '../core/sound';
 
 /**
  * 게임 실행 화면 (호스트용 / 게스트용 factory 2종)
