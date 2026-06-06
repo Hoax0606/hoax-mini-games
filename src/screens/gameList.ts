@@ -2,6 +2,7 @@ import type { Screen } from '../core/screen';
 import { router } from '../core/screen';
 import { games } from '../games/registry';
 import { createLobbyScreen } from './lobby';
+import { escapeHtml, escapeAttr } from '../ui/escape';
 
 /**
  * 게임 선택 화면
@@ -55,12 +56,3 @@ function playersBadge(min: number, max: number): string {
   return `${min}~${max}인`;
 }
 
-function escapeHtml(s: string): string {
-  return s.replace(/[&<>"']/g, (c) => ({
-    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
-  }[c]!));
-}
-
-function escapeAttr(s: string): string {
-  return escapeHtml(s);
-}

@@ -6,6 +6,7 @@ import {
   isRoomDirectoryEnabled,
   type PublicRoomEntry,
 } from '../core/roomDirectory';
+import { escapeHtml, escapeAttr } from '../ui/escape';
 
 /**
  * 공개방 찾기 화면
@@ -117,12 +118,3 @@ function renderList(listEl: HTMLDivElement, rooms: PublicRoomEntry[]): void {
   });
 }
 
-function escapeHtml(s: string): string {
-  return s.replace(/[&<>"']/g, (c) => ({
-    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
-  }[c]!));
-}
-
-function escapeAttr(s: string): string {
-  return escapeHtml(s);
-}

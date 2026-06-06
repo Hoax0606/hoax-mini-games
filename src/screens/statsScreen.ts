@@ -2,6 +2,7 @@ import type { Screen } from '../core/screen';
 import { router } from '../core/screen';
 import { storage, type GameStats } from '../core/storage';
 import { games } from '../games/registry';
+import { escapeHtml, escapeAttr } from '../ui/escape';
 
 /**
  * 통계 화면
@@ -145,12 +146,3 @@ function renderBestRecords(gameId: string, best?: Record<string, number>): strin
   `;
 }
 
-function escapeHtml(s: string): string {
-  return s.replace(/[&<>"']/g, (c) => ({
-    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
-  }[c]!));
-}
-
-function escapeAttr(s: string): string {
-  return escapeHtml(s);
-}

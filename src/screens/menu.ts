@@ -7,6 +7,7 @@ import { createGameListScreen } from './gameList';
 import { createStatsScreen } from './statsScreen';
 import { createPublicRoomsScreen } from './publicRooms';
 import { clearChatHistory } from '../ui/chat';
+import { escapeHtml } from '../ui/escape';
 
 /**
  * 메인 메뉴
@@ -71,8 +72,3 @@ export function createMenuScreen(): Screen {
   };
 }
 
-function escapeHtml(s: string): string {
-  return s.replace(/[&<>"']/g, (c) => ({
-    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
-  }[c]!));
-}

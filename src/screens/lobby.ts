@@ -3,6 +3,7 @@ import { router } from '../core/screen';
 import { getGameById } from '../games/registry';
 import { createCreateRoomScreen } from './createRoom';
 import { createJoinRoomScreen } from './joinRoom';
+import { escapeHtml } from '../ui/escape';
 
 /**
  * 로비 화면
@@ -55,8 +56,3 @@ export function createLobbyScreen(gameId: string): Screen {
   };
 }
 
-function escapeHtml(s: string): string {
-  return s.replace(/[&<>"']/g, (c) => ({
-    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
-  }[c]!));
-}

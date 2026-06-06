@@ -7,6 +7,7 @@ import { createGameScreenAsHostScreen, createGameScreenAsGuestScreen } from './g
 import { storage } from '../core/storage';
 import { games, getGameById } from '../games/registry';
 import { buildChatPanelHTML, wireChatPanel, appendChatMessage } from '../ui/chat';
+import { escapeHtml, escapeAttr } from '../ui/escape';
 
 /**
  * 결과 화면 (호스트/게스트 factory 2종)
@@ -1298,16 +1299,6 @@ export function createResultScreenAsGuestScreen(args: ResultScreenAsGuestArgs): 
   };
 }
 
-function escapeHtml(s: string): string {
-  return s.replace(/[&<>"']/g, (c) => ({
-    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
-  }[c]!));
-}
-
-/** 속성값(예: data-game-id="...") 안에 들어갈 값 이스케이프. 현재는 escapeHtml 과 동일. */
-function escapeAttr(s: string): string {
-  return escapeHtml(s);
-}
 
 /**
  * 결과 화면 진입 시 통계에 기록.

@@ -13,6 +13,7 @@
  */
 
 import type { ChatMsg } from '../games/types';
+import { escapeHtml } from './escape';
 
 /** 한 사람이 1초에 보낼 수 있는 최대 메시지 수 (스팸 방어) */
 const SEND_COOLDOWN_MS = 250;
@@ -165,8 +166,8 @@ function renderMessageRow(parent: HTMLElement, msg: ChatMsg, isMe: boolean): voi
   const row = document.createElement('div');
   row.className = `chat-row${isMe ? ' is-me' : ''}`;
   row.innerHTML = `
-    <div class="chat-row-nick">${escapeText(msg.nickname)}</div>
-    <div class="chat-row-bubble">${escapeText(msg.text)}</div>
+    <div class="chat-row-nick">${escapeHtml(msg.nickname)}</div>
+    <div class="chat-row-bubble">${escapeHtml(msg.text)}</div>
   `;
   stream.appendChild(row);
 
@@ -192,10 +193,4 @@ function renderSystemRow(parent: HTMLElement, text: string): void {
     stream.removeChild(stream.firstChild!);
   }
   stream.scrollTop = stream.scrollHeight;
-}
-
-function escapeText(s: string): string {
-  return s.replace(/[&<>"']/g, (c) => ({
-    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
-  }[c]!));
 }

@@ -11,6 +11,8 @@
  * 없으면 자동 생성. 화면 전환 시에도 유지 (main.ts 레벨 싱글톤).
  */
 
+import { escapeHtml } from './escape';
+
 export const REACTION_EMOJIS = ['👍', '😂', '🔥', '👏', '😭', '🫢'] as const;
 export type ReactionEmoji = typeof REACTION_EMOJIS[number];
 
@@ -65,14 +67,8 @@ export function showReactionBubble(emoji: string, nickname: string): void {
   el.className = 'reaction-bubble';
   el.innerHTML = `
     <span class="reaction-bubble-emoji">${emoji}</span>
-    <span class="reaction-bubble-name">${escapeText(nickname)}</span>
+    <span class="reaction-bubble-name">${escapeHtml(nickname)}</span>
   `;
   stream.appendChild(el);
   window.setTimeout(() => el.remove(), 2400);
-}
-
-function escapeText(s: string): string {
-  return s.replace(/[&<>"']/g, (c) => ({
-    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
-  }[c]!));
 }

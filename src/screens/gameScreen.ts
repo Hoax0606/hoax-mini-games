@@ -10,6 +10,7 @@ import { buildChatPanelHTML, wireChatPanel, appendChatMessage } from '../ui/chat
 import type { ChatMsg } from '../games/types';
 import { storage } from '../core/storage';
 import { sound } from '../core/sound';
+import { escapeHtml } from '../ui/escape';
 
 /**
  * 게임 실행 화면 (호스트용 / 게스트용 factory 2종)
@@ -857,8 +858,3 @@ export function createGameScreenAsGuestScreen(args: GameScreenAsGuestArgs): Scre
   };
 }
 
-function escapeHtml(s: string): string {
-  return s.replace(/[&<>"']/g, (c) => ({
-    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
-  }[c]!));
-}

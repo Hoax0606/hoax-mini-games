@@ -9,6 +9,7 @@ import { buildReactionBarHTML, wireReactionBar, showReactionBubble } from '../ui
 import { buildChatPanelHTML, wireChatPanel, appendChatMessage } from '../ui/chat';
 import type { ChatMsg } from '../games/types';
 import { publishRoom, updatePublicRoom, unpublishRoom } from '../core/roomDirectory';
+import { escapeHtml } from '../ui/escape';
 
 /**
  * 대기실 — 호스트 측 / 게스트 측 factory 2종.
@@ -541,8 +542,3 @@ export function createWaitingRoomAsGuestScreen(args: WaitingRoomAsGuestArgs): Sc
   };
 }
 
-function escapeHtml(s: string): string {
-  return s.replace(/[&<>"']/g, (c) => ({
-    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
-  }[c]!));
-}

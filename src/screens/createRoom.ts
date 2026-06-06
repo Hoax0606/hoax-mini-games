@@ -4,6 +4,7 @@ import { getGameById } from '../games/registry';
 import { HostSession, type PeerConnectError } from '../core/peer';
 import type { GameRoomOption } from '../games/types';
 import { createWaitingRoomAsHostScreen } from './waitingRoom';
+import { escapeHtml, escapeAttr } from '../ui/escape';
 
 /**
  * 방 만들기 화면
@@ -212,12 +213,3 @@ function getErrorMessage(err: PeerConnectError): string {
   }
 }
 
-function escapeHtml(s: string): string {
-  return s.replace(/[&<>"']/g, (c) => ({
-    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
-  }[c]!));
-}
-
-function escapeAttr(s: string): string {
-  return escapeHtml(s);
-}
