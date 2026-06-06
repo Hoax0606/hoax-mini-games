@@ -203,7 +203,7 @@ export const games: GameEntry[] = [
       description: '이전 단어의 마지막 글자로 시작하는 단어를 입력! 30초 안에 못 내면 탈락. 최후 1인 승.',
       thumbnail: wordChainThumbnail,
       minPlayers: 2,
-      maxPlayers: 4,
+      maxPlayers: 6,
       roomOptions: [],
     },
     load: async () => {

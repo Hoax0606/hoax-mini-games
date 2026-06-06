@@ -2,7 +2,7 @@
  * 끝말잇기 — 게임 상태 + 단어 검증 + 두음법칙 처리
  *
  * 핵심 규칙:
- *   - 2~4인 턴제. 한 턴 30초 제한
+ *   - 2~6인 턴제. 한 턴 30초 제한
  *   - 이전 단어의 마지막 글자로 시작하는 단어 입력
  *   - 두음법칙 자동 허용 — 끝 글자가 'ㄹ' 초성이면 'ㄴ' 또는 'ㅇ' 으로 시작 가능
  *     예: "녹색" 끝나면 다음 시작 후보 = "녹X" 또는 "록X" (한자어 두음)
@@ -93,7 +93,7 @@ export function allowedStartLetters(lastChar: string): Set<string> {
 // 게임 상태
 // ============================================
 
-export type PlayerIndex = 0 | 1 | 2 | 3;
+export type PlayerIndex = 0 | 1 | 2 | 3 | 4 | 5;
 
 export interface PlayerMeta {
   peerId: string;
@@ -139,8 +139,8 @@ export function createInitialGame(
   players: Array<{ peerId: string; nickname: string }>,
   rngSeed?: number,
 ): WordChainGame {
-  if (players.length < 2 || players.length > 4) {
-    throw new Error(`끝말잇기는 2~4인만 지원해요 (현재 ${players.length}인)`);
+  if (players.length < 2 || players.length > 6) {
+    throw new Error(`끝말잇기는 2~6인만 지원해요 (현재 ${players.length}인)`);
   }
   const seedWord = getRandomSeedWord(rngSeed);
   const playerMetas: PlayerMeta[] = players.map((p, idx) => ({

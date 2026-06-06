@@ -173,14 +173,20 @@ export class WordChainRenderer {
     const ctx = this.ctx;
     const game = state.game;
 
-    const cardW = 110;
+    // 좌측 영역(0~PANEL_X) 가로폭 안에 N 명 들어가야 함.
+    // 4명까지는 cardW 110 고정. 5~6명일 땐 동적 축소.
+    const n = game.players.length;
     const cardH = 60;
-    const gap = 12;
+    const gap = n <= 4 ? 12 : 8;
+    const availW = PANEL_X - 24; // 좌우 여유 12px씩
+    const maxCardW = 110;
+    const fitCardW = (availW - (n - 1) * gap) / n;
+    const cardW = Math.min(maxCardW, fitCardW);
     const startY = 310;
-    const totalW = game.players.length * cardW + (game.players.length - 1) * gap;
+    const totalW = n * cardW + (n - 1) * gap;
     const startX = (PANEL_X - totalW) / 2;
 
-    for (let i = 0; i < game.players.length; i++) {
+    for (let i = 0; i < n; i++) {
       const p = game.players[i]!;
       const x = startX + i * (cardW + gap);
       const y = startY;
@@ -200,12 +206,14 @@ export class WordChainRenderer {
       ctx.lineWidth = isMyTurn ? 2.5 : 1.5;
       this.strokeRoundRect(x, y, cardW, cardH, 12);
 
-      // 닉네임
+      // 닉네임 — 카드 폭에 맞춰 글자 잘림 길이 / 폰트 크기 조정
+      const isNarrow = cardW < 95;
+      const maxNick = isNarrow ? 4 : 6;
       ctx.fillStyle = p.alive ? COLORS.textMain : COLORS.textMuted;
-      ctx.font = `700 14px ${FONT}`;
+      ctx.font = `700 ${isNarrow ? 12 : 14}px ${FONT}`;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      const nick = p.nickname.length > 6 ? p.nickname.slice(0, 5) + '…' : p.nickname;
+      const nick = p.nickname.length > maxNick ? p.nickname.slice(0, maxNick - 1) + '…' : p.nickname;
       ctx.fillText(nick + (isMe ? ' (나)' : ''), x + cardW / 2, y + 22);
 
       // 상태
