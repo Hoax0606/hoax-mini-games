@@ -39,13 +39,22 @@ const RESTITUTION = 0.95;
 // 메인 스텝
 // ============================================
 
+/** 충돌 발생 시 호출되는 콜백.
+ *  impulse = 충돌 강도(0~∞). 보통 200 미만 = 약한 스침, 500+ = 강한 충돌.
+ *  호출자(index.ts)가 SFX intensity 매핑에 사용. */
+export type CollisionCallback = (impulse: number) => void;
+
 /**
  * 한 시뮬레이션 틱 진행 (dt 초).
  *  1) 살아있는 알 마찰 적용 + 임계 속도 미만은 0 으로 떨어뜨림
  *  2) 위치 적분 (x += vx * dt)
- *  3) 모든 살아있는 알 쌍에 대해 충돌 처리
+ *  3) 모든 살아있는 알 쌍에 대해 충돌 처리. 충돌 발생하면 onCollision(impulse) 호출.
  */
-export function stepPhysics(stones: Stone[], dt: number): void {
+export function stepPhysics(
+  stones: Stone[],
+  dt: number,
+  onCollision?: CollisionCallback,
+): void {
   const drag = Math.exp(-FRICTION_PER_SEC * dt);
 
   for (const s of stones) {
@@ -73,25 +82,27 @@ export function stepPhysics(stones: Stone[], dt: number): void {
     for (let j = i + 1; j < stones.length; j++) {
       const b = stones[j]!;
       if (!b.alive) continue;
-      collidePair(a, b);
+      const impulse = collidePair(a, b);
+      if (impulse > 0 && onCollision) onCollision(impulse);
     }
   }
 }
 
-/** 두 알의 탄성 충돌 처리. overlap 보정 + normal 방향 속도 반사. */
-function collidePair(a: Stone, b: Stone): void {
+/** 두 알의 탄성 충돌 처리. overlap 보정 + normal 방향 속도 반사.
+ *  반환값: 실제 충돌 발생 시 impulse 크기. 충돌 없거나 이미 멀어지는 중이면 0. */
+function collidePair(a: Stone, b: Stone): number {
   const dx = b.x - a.x;
   const dy = b.y - a.y;
   const distSq = dx * dx + dy * dy;
   const minDist = STONE_RADIUS * 2;
-  if (distSq >= minDist * minDist) return;
+  if (distSq >= minDist * minDist) return 0;
 
   const dist = Math.sqrt(distSq);
   if (dist < 1e-6) {
     // 정확히 같은 위치 — 임의 방향으로 살짝 분리해 다음 틱에서 해소되도록.
     a.x -= STONE_RADIUS;
     b.x += STONE_RADIUS;
-    return;
+    return 0;
   }
 
   const nx = dx / dist;
@@ -110,7 +121,7 @@ function collidePair(a: Stone, b: Stone): void {
   const velAlongNormal = relVx * nx + relVy * ny;
 
   // 이미 멀어지고 있다면 (positional overlap 만 있고 운동 충돌은 아님) skip
-  if (velAlongNormal > 0) return;
+  if (velAlongNormal > 0) return 0;
 
   // 같은 질량 두 강체의 1D 탄성 충돌: impulse j = -(1+e) * v_rel · n / 2
   const j = -(1 + RESTITUTION) * velAlongNormal / 2;
@@ -119,6 +130,8 @@ function collidePair(a: Stone, b: Stone): void {
   a.vy -= j * ny;
   b.vx += j * nx;
   b.vy += j * ny;
+
+  return Math.abs(j);
 }
 
 // ============================================

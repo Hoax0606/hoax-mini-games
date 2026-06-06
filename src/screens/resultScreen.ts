@@ -1367,6 +1367,14 @@ export function recordResultToStats(
         bestEntries.push({ key: 'bestCricketScore', value: myScore, higherIsBetter: true });
       }
     }
+  } else if (id === 'algagi') {
+    // 알까기: 이긴 판의 최단 턴 수 (적은 턴에 정리할수록 잘 친 거)
+    if (winner === 'me') {
+      const tc = Number(summary['turnCount']);
+      if (Number.isFinite(tc) && tc > 0) {
+        bestEntries.push({ key: 'bestWinTurns', value: tc, higherIsBetter: false });
+      }
+    }
   }
   // 에어하키/오목은 승/패만 기록
 

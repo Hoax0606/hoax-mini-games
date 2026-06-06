@@ -134,7 +134,7 @@ class AlgagiGameModule implements GameModule {
       this.attachInput();
     }
 
-    sound.startBgm('gomoku'); // 알까기 전용 BGM 없으니 일단 오목 BGM 재활용 (차분한 분위기)
+    sound.startBgm('algagi');
 
     // 게스트/관전자는 호스트에게 hello → 초기 상태 sync 요청
     if (!this.isHost) {
@@ -239,9 +239,13 @@ class AlgagiGameModule implements GameModule {
       // 큰 lag 시 한 프레임에 너무 많은 sub-step 도는 거 방지 (최대 0.1s 분량)
       const cappedSec = Math.min(elapsedSec, 0.1);
       let remaining = cappedSec;
+      // 한 프레임 내 여러 충돌이 동시에 일어나면 시끄러우니 최대 강도만 모아 한 번 재생.
+      let frameMaxImpulse = 0;
       while (remaining > 0 && this.game.phase === 'resolving') {
         const dt = Math.min(SIM_DT, remaining);
-        stepPhysics(this.game.stones, dt);
+        stepPhysics(this.game.stones, dt, (impulse) => {
+          if (impulse > frameMaxImpulse) frameMaxImpulse = impulse;
+        });
         remaining -= dt;
 
         if (allAtRest(this.game.stones)) {
@@ -252,6 +256,12 @@ class AlgagiGameModule implements GameModule {
           }
           break;
         }
+      }
+      // 충돌 SFX — 강도(0~500+) 를 mallet_hit intensity(0~1) 로 매핑.
+      // 임계 50 미만은 너무 약한 스침이라 skip (조용 유지).
+      if (frameMaxImpulse > 50) {
+        const intensity = Math.min(1, frameMaxImpulse / 500);
+        sound.play('mallet_hit', { intensity });
       }
 
       // 10Hz state broadcast
