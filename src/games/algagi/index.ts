@@ -388,7 +388,6 @@ class AlgagiGameModule implements GameModule {
   private onMouseDown = (e: MouseEvent): void => {
     if (this.paused || this.gameFinished) return;
     if (this.game.phase !== 'aiming') return;
-    if (this.myIndex !== this.game.currentTurn) return; // 내 차례 아님
 
     const rect = this.ctx.canvas.getBoundingClientRect();
     const { x: boardX, y: boardY } = canvasToBoard(
@@ -400,7 +399,13 @@ class AlgagiGameModule implements GameModule {
 
     const stone = pickStoneAt(this.game.stones, boardX, boardY);
     if (!stone) return;
-    if (stone.owner !== this.myIndex) return; // 내 알 아님
+    // 내 알 아닐 때 — 무반응
+    if (stone.owner !== this.myIndex) return;
+    // 내 알이지만 내 차례 아닐 때 — 거절음 + 시각 피드백 (커서가 이미 not-allowed 인 상태)
+    if (this.myIndex !== this.game.currentTurn) {
+      sound.play('button_click');
+      return;
+    }
 
     this.dragStoneId = stone.id;
     this.dragStartX = stone.x;
@@ -410,15 +415,36 @@ class AlgagiGameModule implements GameModule {
   };
 
   private onMouseMove = (e: MouseEvent): void => {
-    if (this.dragStoneId === null) return;
     const rect = this.ctx.canvas.getBoundingClientRect();
     const { x: boardX, y: boardY } = canvasToBoard(
       e.clientX - rect.left,
       e.clientY - rect.top,
       rect,
     );
-    this.mouseBoardX = boardX;
-    this.mouseBoardY = boardY;
+
+    // 드래그 중이면 위치 업데이트
+    if (this.dragStoneId !== null) {
+      this.mouseBoardX = boardX;
+      this.mouseBoardY = boardY;
+      return;
+    }
+
+    // hover cursor — 내 알 위면 차례 여부에 따라 grab / not-allowed
+    if (this.paused || this.gameFinished || this.game.phase !== 'aiming' || this.isSpectator) {
+      this.ctx.canvas.style.cursor = 'crosshair';
+      return;
+    }
+    if (!isInsideBoard(boardX, boardY)) {
+      this.ctx.canvas.style.cursor = 'crosshair';
+      return;
+    }
+    const hovered = pickStoneAt(this.game.stones, boardX, boardY);
+    if (hovered && hovered.owner === this.myIndex) {
+      this.ctx.canvas.style.cursor =
+        this.myIndex === this.game.currentTurn ? 'grab' : 'not-allowed';
+    } else {
+      this.ctx.canvas.style.cursor = 'crosshair';
+    }
   };
 
   private onMouseUp = (): void => {

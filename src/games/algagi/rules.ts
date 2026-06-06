@@ -22,11 +22,11 @@
 // ============================================
 
 /** 보드 한 변 길이 (논리 좌표). 정사각형 중앙이 (0, 0) */
-export const BOARD_SIZE = 360;
-export const BOARD_HALF = BOARD_SIZE / 2; // 180
+export const BOARD_SIZE = 380;
+export const BOARD_HALF = BOARD_SIZE / 2; // 190
 
 /** 알 반지름 (논리 좌표) */
-export const STONE_RADIUS = 14;
+export const STONE_RADIUS = 12;
 
 /** 마찰 계수 — 매 초당 속도가 (1 - FRICTION) 배로 감소.
  *  값이 클수록 빨리 멈춤. 0.85 ~ 0.95 사이가 자연스러움. */
