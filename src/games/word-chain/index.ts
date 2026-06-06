@@ -107,7 +107,7 @@ class WordChainGameModule implements GameModule {
     // HTML 입력창 마운트 (canvas 부모 끝에)
     this.mountInputUI();
 
-    sound.startBgm('gomoku'); // 차분한 BGM 재활용. 전용 BGM 은 후속 작업.
+    sound.startBgm('word-chain');
 
     // 게스트/관전자는 호스트에게 초기 동기화 요청
     if (!this.isHost) {

@@ -53,12 +53,4 @@
           font-family="'Pretendard', 'Apple SD Gothic Neo', sans-serif"
           font-size="22" font-weight="900" fill="#4a3a4a">학교</text>
   </g>
-
-  <!-- 상단 작은 라벨 (장식) -->
-  <g transform="translate(160, 32)">
-    <rect x="-44" y="-12" width="88" height="24" rx="12" fill="#fff" opacity="0.85"/>
-    <text x="0" y="1" text-anchor="middle" dominant-baseline="middle"
-          font-family="'Pretendard', 'Apple SD Gothic Neo', sans-serif"
-          font-size="12" font-weight="700" fill="#9c7aeb">🔤 끝말잇기</text>
-  </g>
 </svg>

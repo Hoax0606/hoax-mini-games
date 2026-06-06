@@ -21,7 +21,7 @@
 
 import { storage } from './storage';
 
-export type BgmId = 'air-hockey' | 'battle-tetris' | 'apple-game' | 'gomoku' | 'darts' | 'reflex' | 'algagi';
+export type BgmId = 'air-hockey' | 'battle-tetris' | 'apple-game' | 'gomoku' | 'darts' | 'reflex' | 'algagi' | 'word-chain';
 
 // ============================================
 // 음이름 → 주파수 테이블 (십이평균율, A4=440)
@@ -361,6 +361,50 @@ const PATTERN_ALGAGI: BgmPattern = {
   ],
 };
 
+// --- 끝말잇기: D 마이너 펜타토닉, 92 BPM, 사색적 + 한국 전통풍 ---
+// 단어 생각하는 시간 — 너무 화려하지 않게, 단조이지만 어둡지 않은 펜타토닉(D F A C).
+const PATTERN_WORD_CHAIN: BgmPattern = {
+  bpm: 92,
+  lengthSixteenths: 128,
+  melodyWave: 'triangle',
+  melody: [
+    // 마디 1: D 토닉
+    { f: NOTES.D4, d: 4 }, { f: NOTES.F4, d: 4 }, { f: NOTES.A4, d: 4 }, { f: NOTES.F4, d: 4 },
+    // 마디 2: C 컬러
+    { f: NOTES.C5, d: 4 }, { f: NOTES.A4, d: 4 }, { f: NOTES.F4, d: 8 },
+    // 마디 3: 상행
+    { f: NOTES.A4, d: 4 }, { f: NOTES.C5, d: 4 }, { f: NOTES.D5, d: 4 }, { f: NOTES.F5, d: 4 },
+    // 마디 4: 해결
+    { f: NOTES.A4, d: 4 }, { f: NOTES.F4, d: 4 }, { f: NOTES.D4, d: 8 },
+    // 마디 5: 위쪽 변주
+    { f: NOTES.F4, d: 4 }, { f: NOTES.A4, d: 4 }, { f: NOTES.C5, d: 4 }, { f: NOTES.D5, d: 4 },
+    // 마디 6: 정점
+    { f: NOTES.F5, d: 4 }, { f: NOTES.D5, d: 4 }, { f: NOTES.A4, d: 8 },
+    // 마디 7: 하행
+    { f: NOTES.A4, d: 4 }, { f: NOTES.F4, d: 4 }, { f: NOTES.C4, d: 4 }, { f: NOTES.D4, d: 4 },
+    // 마디 8: 토닉 길게 — 루프 이음매
+    { f: NOTES.D4, d: 16 },
+  ],
+  bass: [
+    // 마디 1: D 마이너 (i)
+    { f: NOTES.D3, d: 8 }, { f: NOTES.A3, d: 8 },
+    // 마디 2: F (III)
+    { f: NOTES.F3, d: 8 }, { f: NOTES.A3, d: 8 },
+    // 마디 3: D (i) — 상행 멜로디 받쳐줌
+    { f: NOTES.D3, d: 8 }, { f: NOTES.A3, d: 8 },
+    // 마디 4: D (i) 복귀
+    { f: NOTES.D3, d: 8 }, { f: NOTES.F3, d: 8 },
+    // 마디 5: G (iv) — 색채 변화
+    { f: NOTES.G3, d: 8 }, { f: NOTES.D3, d: 8 },
+    // 마디 6: A (v)
+    { f: NOTES.A2, d: 8 }, { f: NOTES.E3, d: 8 },
+    // 마디 7: F (III) → C (VII)
+    { f: NOTES.F3, d: 8 }, { f: NOTES.C3, d: 8 },
+    // 마디 8: D (i) 길게
+    { f: NOTES.D3, d: 16 },
+  ],
+};
+
 const PATTERNS: Record<BgmId, BgmPattern> = {
   'air-hockey':    PATTERN_AIR_HOCKEY,
   'battle-tetris': PATTERN_BATTLE_TETRIS,
@@ -369,6 +413,7 @@ const PATTERNS: Record<BgmId, BgmPattern> = {
   'darts':         PATTERN_DARTS,
   'reflex':        PATTERN_REFLEX,
   'algagi':        PATTERN_ALGAGI,
+  'word-chain':    PATTERN_WORD_CHAIN,
 };
 
 // ============================================
