@@ -83,16 +83,24 @@ export function decodeFlick(msg: GameMessage): FlickPayload | null {
 // ============================================
 // state — 호스트가 시뮬레이션 중 game snapshot broadcast (10Hz)
 // ============================================
-// payload 는 전체 AlgagiGame. 알 최대 ~20개라 한 번 전송 ~2KB 미만.
-// 10Hz = 20KB/s 정도 — WebRTC DataChannel 충분히 감당.
+// payload = { game, impulse }. impulse 는 이 broadcast 까지 누적된 최대 충돌 강도.
+// 0 이면 충돌 없음. 게스트가 임계값 이상이면 SFX 재생 (호스트와 동기화).
 
-export function encodeState(game: AlgagiGame): GameMessage {
-  return { type: T_STATE, payload: game };
+export interface StatePayload {
+  game: AlgagiGame;
+  /** 직전 broadcast 이후 발생한 최대 충돌 impulse. 0 이면 충돌 없음. */
+  impulse: number;
 }
 
-export function decodeState(msg: GameMessage): AlgagiGame | null {
+export function encodeState(game: AlgagiGame, impulse = 0): GameMessage {
+  return { type: T_STATE, payload: { game, impulse } };
+}
+
+export function decodeState(msg: GameMessage): StatePayload | null {
   if (msg.type !== T_STATE) return null;
-  return msg.payload as AlgagiGame;
+  const p = msg.payload as Partial<StatePayload> | null;
+  if (!p || !p.game) return null;
+  return { game: p.game, impulse: typeof p.impulse === 'number' ? p.impulse : 0 };
 }
 
 // ============================================

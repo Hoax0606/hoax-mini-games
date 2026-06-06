@@ -81,6 +81,8 @@ class AlgagiGameModule implements GameModule {
   private lastFrameTime = 0;
   /** 마지막 ag:state broadcast 시각 (호스트 전용) */
   private lastBroadcastAt = 0;
+  /** broadcast 간격 동안 누적된 최대 충돌 impulse — 게스트 SFX 동기화용. broadcast 후 0 으로 리셋. */
+  private accumImpulse = 0;
 
   // 입력 상태
   private dragStoneId: number | null = null;
@@ -179,9 +181,16 @@ class AlgagiGameModule implements GameModule {
     }
 
     // state → 게스트/관전자가 game 상태 교체 (10Hz 스냅샷)
+    // payload.impulse 가 임계 이상이면 호스트와 같은 충돌 SFX 재생 (네트워크 지연 만큼만 어긋남).
     const state = decodeState(msg);
     if (state) {
-      if (!this.isHost) this.game = state;
+      if (!this.isHost) {
+        this.game = state.game;
+        if (state.impulse > 50) {
+          const intensity = Math.min(1, state.impulse / 500);
+          sound.play('mallet_hit', { intensity });
+        }
+      }
       return;
     }
 
@@ -259,15 +268,18 @@ class AlgagiGameModule implements GameModule {
       }
       // 충돌 SFX — 강도(0~500+) 를 mallet_hit intensity(0~1) 로 매핑.
       // 임계 50 미만은 너무 약한 스침이라 skip (조용 유지).
+      // 호스트는 매 프레임 즉시 재생, 게스트는 broadcast 시점에 accumImpulse 로 동기화.
       if (frameMaxImpulse > 50) {
         const intensity = Math.min(1, frameMaxImpulse / 500);
         sound.play('mallet_hit', { intensity });
       }
+      if (frameMaxImpulse > this.accumImpulse) this.accumImpulse = frameMaxImpulse;
 
-      // 10Hz state broadcast
+      // 10Hz state broadcast — accumImpulse 같이 전송 후 리셋
       if (now - this.lastBroadcastAt >= STATE_BROADCAST_INTERVAL_MS) {
-        this.ctx.sendToPeer(encodeState(this.game));
+        this.ctx.sendToPeer(encodeState(this.game, this.accumImpulse));
         this.lastBroadcastAt = now;
+        this.accumImpulse = 0;
       }
     }
     this.lastFrameTime = now;
