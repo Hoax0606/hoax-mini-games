@@ -3,14 +3,11 @@
 다른 머신(집)에서 이 프로젝트를 이어서 작업할 때 읽는 문서.
 **Claude Code 첫 프롬프트로 "HANDOFF.md 정독하고 이어서 진행해줘" 라고 시작하면 됨.**
 
-마지막 업데이트: **2026-06-05**
-- **테트리스 관전 뷰 v2** — 캔버스 전체 2×2 격자, 4명까지 풀사이즈 미니 필드 (8px 셀) + 닉네임 + 탑아웃 OUT 오버레이. 빈 슬롯은 점선 placeholder.
-- **오목 캐주얼 렌주룰** — 흑(B)만 3-3 / 4-4 금수, 장목은 양쪽 금수, 5목 완성 수 우선
-- **"다른 게임 선택" 버튼 무반응 fix** — `resultScreen.ts` 의 `escapeAttr` 함수 정의 누락 → `ReferenceError` 로 오버레이 빌드 실패하던 사일런트 버그. 함수 추가로 fix
-- **방어 fix** — 결과 화면 액션 버튼 `type="button"` 명시 + `.result-card` z-index 110 (chat-panel 가림 차단)
-- **`injectGarbage`** — `uLineCount` 매 iteration 안에서 재계산 (count ≥ 2 안전성)
-- **공개방** — 플레이테스트 검증 완료 (Firebase publish/update 흐름 정상)
-- 이전 스냅샷(2026-06-02): netSync 분리, Firebase 공개방, 채팅 사이드패널
+마지막 업데이트: **2026-06-06**
+- **🆕 알까기 게임** — 2~4인 턴제 물리. 호스트 authoritative 60Hz 시뮬레이션 + 10Hz state broadcast. 마우스 드래그로 알 튕김(반대 방향 발사). 마찰 + 탄성 충돌. 보드 밖 떨어진 알 제거. 최후 1인 승.
+- **escape 헬퍼 통합** — 12 곳 흩어진 `escapeHtml`/`escapeAttr`/`escapeText` → `src/ui/escape.ts` 한 곳으로 통합
+- **gameScreen `sound` import 누락 fix** — 인게임 메뉴 볼륨/BGM/SFX 만지면 `ReferenceError` 폭발하던 잠재 버그. 별도 발견
+- 이전 스냅샷(2026-06-05): 테트리스 관전 v2, 오목 렌주룰, escapeAttr fix, 방어 fix (버튼 type / z-index), `injectGarbage` 안전성
 
 ---
 
@@ -41,9 +38,10 @@ npm run dev       # http://localhost:5173
 | 5 | 결과 화면 다인용 | ✅ 게임별 전용 UI |
 
 **다음 작업** (우선순위):
-- 🅒 **새 게임 추가** — 플랫폼(N인/관전/일시정지/통계/공개방/채팅/관전 v2) 다 갖춰져서 게임 모듈만 짜면 됨. 후보: 카드 메모리, 스피드 타이핑, 스네이크 다인전 등.
-- (보류) 🅐 **Phase 3 방장 이양** — 방장 나가면 남은 사람 중 하나가 새 방장. 여전히 미구현. Henry 당분간 안 함 — 다시 들어가면 peer.ts HostSession 소유권 이전 + peerId broadcast 재연결이 핵심.
-- (선택) Medium 리팩토링 — `escapeHtml`/`escapeAttr` 헬퍼 추출 (resultScreen / publicRooms / waitingRoom 등 중복) / `GameModule.renderResultCard` 범용화 / gameScreen factory 공통화
+- 🅐 **알까기 후속** — 전용 BGM 추가 (현재 오목 BGM 재활용), 충돌 SFX, 통계 등록(`storage.recordGameResult`)
+- 🅑 **새 게임 추가** — 후보: 카드 메모리, 스피드 타이핑, 스네이크 다인전, 사과게임 공격 시스템 추가 등
+- (보류) 🅒 **Phase 3 방장 이양** — 방장 나가면 남은 사람 중 하나가 새 방장. 여전히 미구현. Henry 당분간 안 함 — 다시 들어가면 peer.ts HostSession 소유권 이전 + peerId broadcast 재연결이 핵심.
+- (선택) 남은 리팩토링 — `GameModule.renderResultCard` 범용화 / gameScreen factory 호스트·게스트 공통화
 
 ---
 
@@ -52,13 +50,14 @@ npm run dev       # http://localhost:5173
 **한 줄**: 친구끼리 즐기는 웹 P2P 미니게임 모음집.
 - **스택**: Vite + TypeScript + Canvas + PeerJS (WebRTC, 서버리스 P2P) + GitHub Pages
 - **분위기**: 산리오풍 파스텔. 한국어 UI. PC 전용.
-- **현재 게임 (6종)**:
+- **현재 게임 (7종)**:
   - 에어하키 (2인, 호스트 authoritative 물리)
   - 배틀 테트리스 (2~4인, 로컬 시뮬레이션)
   - 사과 게임 (1~4인, 숫자 사과 합 10 터트리기, 2분)
-  - 오목 (2인, 15×15 또는 19×19, 30초 턴, 호스트 authoritative)
+  - 오목 (2인, 15×15 또는 19×19, 30초 턴, 호스트 authoritative, 캐주얼 렌주룰)
   - 반응속도 (1~4인, 5라운드 평균 ms 경쟁)
-  - 다트 (1~4인, 6모드 — 301/201/101 Normal·Hard / Count-up / Low Count-up / Cricket). 투척/턴/종료/관전자 hello 핸드셰이크까지 ✅ 모두 동작. 네트워크 메시지는 `darts/netSync.ts` 로 분리됨.
+  - 다트 (1~4인, 6모드 — 301/201/101 Normal·Hard / Count-up / Low Count-up / Cricket). 네트워크 메시지 `darts/netSync.ts` 분리.
+  - 알까기 (2~4인, 턴제 물리. 호스트 authoritative 60Hz 시뮬레이션 + 10Hz state broadcast. `algagi/`)
 - **배포 URL**: https://hoax0606.github.io/hoax-mini-games/
 
 ---
@@ -387,7 +386,6 @@ setPaused?(paused: boolean): void;
 - **사과 게임 관전자 뷰** — 보드 영역 전체 "관전 중" 오버레이. 어떤 플레이어 보드 보여주기 같은 개선 여지 있음.
 - **통계 화면 머신별 독립** — localStorage 기반이라 집/회사 PC 에서 기록 따로 쌓임. 의도된 동작.
 - **Firebase 키 노출** — `firebase.config.ts` 에 실제 apiKey 평문. repo public 이라 Firebase 콘솔의 Rules(publicRooms 노드만 read/write 제한) 가 유일한 방어선.
-- **`escapeHtml` / `escapeAttr` 중복** — resultScreen / publicRooms / waitingRoom / chat 각각 자기 헬퍼 보유. 헬퍼 한 곳(`ui/escape.ts` 같은)으로 통합 가능. (리팩토링 후순위)
 - **Windows 라인엔딩** — git LF→CRLF 경고. 무해.
 
 ---
