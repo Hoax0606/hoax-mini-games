@@ -1030,6 +1030,87 @@ function buildWordChainResultHTML(args: {
 }
 
 // ============================================
+// 그림 퀴즈 전용 결과 HTML
+// ============================================
+
+interface DrawQuizRankEntry {
+  peerId: string;
+  nickname: string;
+  score: number;
+  rank: number;
+}
+
+interface DrawQuizSummary {
+  myPeerId: string;
+  winnerNickname: string | null;
+  rankings: DrawQuizRankEntry[];
+}
+
+function parseDrawQuizSummary(summary: Record<string, unknown>): DrawQuizSummary | null {
+  if (summary['gameId'] !== 'draw-quiz') return null;
+  const myPeerId = typeof summary['myPeerId'] === 'string' ? (summary['myPeerId'] as string) : null;
+  const winnerNickname = typeof summary['winnerNickname'] === 'string' ? (summary['winnerNickname'] as string) : null;
+  if (!myPeerId) return null;
+
+  const rawRankings = summary['rankings'] as unknown;
+  const rankings: DrawQuizRankEntry[] = Array.isArray(rawRankings)
+    ? (rawRankings as Array<Partial<DrawQuizRankEntry>>)
+        .filter((r) => typeof r.peerId === 'string' && typeof r.nickname === 'string' && typeof r.score === 'number')
+        .map((r) => ({ peerId: r.peerId!, nickname: r.nickname!, score: r.score!, rank: typeof r.rank === 'number' ? r.rank : 0 }))
+    : [];
+
+  return { myPeerId, winnerNickname, rankings };
+}
+
+function buildDrawQuizResultHTML(args: {
+  myWinner: 'me' | 'opponent' | null;
+  summary: DrawQuizSummary;
+  isHost: boolean;
+  isSpectator: boolean;
+}): string {
+  const { myWinner, summary, isHost, isSpectator } = args;
+  const { emoji, title, titleClass } = isSpectator
+    ? { emoji: '🎨', title: '그림 퀴즈 종료', titleClass: 'result-title-draw' }
+    : winnerVisuals(myWinner);
+  const actionsHTML = buildActionsHTML(isHost);
+
+  const rankingsHTML = `
+    <div class="result-tetris-rankings">
+      <div class="result-tetris-rankings-title">🏅 최종 점수</div>
+      ${summary.rankings.map((r) => {
+        const isMe = r.peerId === summary.myPeerId;
+        const badgeClass = r.rank <= 3 ? `rank-${r.rank}` : '';
+        return `
+          <div class="result-tetris-rank-row ${isMe ? 'is-me' : ''}">
+            <span class="result-tetris-rank-badge ${badgeClass}">${r.rank}</span>
+            <span class="result-tetris-rank-name">${escapeHtml(r.nickname)}</span>
+            <span class="result-apple-rank-score">${r.score}점</span>
+            ${isMe ? '<span class="result-tetris-rank-me-tag">나</span>' : ''}
+          </div>
+        `;
+      }).join('')}
+    </div>
+  `;
+
+  const reasonBadge = summary.winnerNickname
+    ? `<div class="result-gomoku-reason">${escapeHtml(summary.winnerNickname)} 우승 🎉</div>`
+    : '';
+
+  return `
+    <div class="result-card result-card-tetris">
+      <div class="result-emoji">${emoji}</div>
+      <div class="result-title ${titleClass}">${title}</div>
+      ${reasonBadge}
+      ${rankingsHTML}
+
+      <div class="result-actions">
+        ${actionsHTML}
+      </div>
+    </div>
+  `;
+}
+
+// ============================================
 // 호스트 결과 화면
 // ============================================
 
@@ -1063,6 +1144,7 @@ export function createResultScreenAsHostScreen(args: ResultScreenAsHostArgs): Sc
       const darts = parseDartsSummary(result.summary);
       const algagi = parseAlgagiSummary(result.summary);
       const wordChain = parseWordChainSummary(result.summary);
+      const drawQuiz = parseDrawQuizSummary(result.summary);
       if (tetris) {
         el.innerHTML = buildTetrisResultHTML({
           myWinner: result.winner,
@@ -1101,6 +1183,13 @@ export function createResultScreenAsHostScreen(args: ResultScreenAsHostArgs): Sc
         el.innerHTML = buildWordChainResultHTML({
           myWinner: result.winner,
           summary: wordChain,
+          isHost: true,
+          isSpectator: false,
+        });
+      } else if (drawQuiz) {
+        el.innerHTML = buildDrawQuizResultHTML({
+          myWinner: result.winner,
+          summary: drawQuiz,
           isHost: true,
           isSpectator: false,
         });
@@ -1275,6 +1364,7 @@ export function createResultScreenAsGuestScreen(args: ResultScreenAsGuestArgs): 
       const darts = parseDartsSummary(result.summary);
       const algagi = parseAlgagiSummary(result.summary);
       const wordChain = parseWordChainSummary(result.summary);
+      const drawQuiz = parseDrawQuizSummary(result.summary);
       // 관전자는 summary.myPeerId 가 자기가 아닐 수 있음 — 자기 peerId 는 guest.myPeerId.
       // rankings 에 "나" 가 없으면 관전자로 간주.
       const myPeerIdForResult = guest.myPeerId;
@@ -1320,6 +1410,14 @@ export function createResultScreenAsGuestScreen(args: ResultScreenAsGuestArgs): 
         el.innerHTML = buildWordChainResultHTML({
           myWinner: result.winner,
           summary: isSpec ? { ...wordChain, myPeerId: myPeerIdForResult } : wordChain,
+          isHost: false,
+          isSpectator: isSpec,
+        });
+      } else if (drawQuiz) {
+        const isSpec = !drawQuiz.rankings.some((r) => r.peerId === myPeerIdForResult);
+        el.innerHTML = buildDrawQuizResultHTML({
+          myWinner: result.winner,
+          summary: isSpec ? { ...drawQuiz, myPeerId: myPeerIdForResult } : drawQuiz,
           isHost: false,
           isSpectator: isSpec,
         });
@@ -1507,6 +1605,14 @@ export function recordResultToStats(
     const total = Number(summary['totalRounds']);
     if (Number.isFinite(total) && total > 0) {
       bestEntries.push({ key: 'longestChain', value: total, higherIsBetter: true });
+    }
+  } else if (id === 'draw-quiz') {
+    // 그림 퀴즈: 내 최종 점수 (높을수록 좋음)
+    const rankings = summary['rankings'] as Array<{ peerId: string; score: number }> | undefined;
+    const myPeerId = summary['myPeerId'] as string | undefined;
+    const mine = rankings?.find((r) => r.peerId === myPeerId);
+    if (mine && Number.isFinite(mine.score)) {
+      bestEntries.push({ key: 'bestScore', value: mine.score, higherIsBetter: true });
     }
   }
   // 에어하키/오목은 승/패만 기록

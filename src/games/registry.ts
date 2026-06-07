@@ -18,6 +18,7 @@ import reflexThumbnail from './reflex/thumbnail.svg';
 import dartsThumbnail from './darts/thumbnail.svg';
 import algagiThumbnail from './algagi/thumbnail.svg';
 import wordChainThumbnail from './word-chain/thumbnail.svg';
+import drawQuizThumbnail from './draw-quiz/thumbnail.svg';
 
 export const games: GameEntry[] = [
   {
@@ -209,6 +210,21 @@ export const games: GameEntry[] = [
     load: async () => {
       const mod = await import('./word-chain');
       return mod.createWordChainGame();
+    },
+  },
+  {
+    meta: {
+      id: 'draw-quiz',
+      name: '그림 퀴즈',
+      description: '돌아가며 제시어를 그리고, 나머지는 채팅으로 맞혀라! 빨리 맞힐수록 높은 점수.',
+      thumbnail: drawQuizThumbnail,
+      minPlayers: 3,
+      maxPlayers: 6,
+      roomOptions: [],
+    },
+    load: async () => {
+      const mod = await import('./draw-quiz');
+      return mod.createDrawQuizGame();
     },
   },
 ];

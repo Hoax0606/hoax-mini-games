@@ -1919,6 +1919,152 @@ input {
 }
 
 /* ============================================
+   그림 퀴즈 — canvas 외부 UI (도구 / 후보 / 추측 입력)
+   ============================================ */
+
+.dq-ui {
+  margin-top: 10px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  max-width: 640px;
+}
+
+/* 후보 단어 선택 (출제자) */
+.dq-candidates {
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+}
+.dq-candidate-btn {
+  padding: 12px 22px;
+  font-size: 18px;
+  font-weight: 800;
+  background: var(--bg-card);
+  color: var(--text-main);
+  border: 2px solid var(--lavender-300);
+  border-radius: var(--radius-full);
+  cursor: pointer;
+  transition: transform 0.1s, background 0.15s, border-color 0.15s;
+}
+.dq-candidate-btn:hover {
+  background: var(--lavender-100);
+  border-color: var(--accent);
+  transform: translateY(-2px);
+}
+
+/* 그리기 도구 바 */
+.dq-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 14px;
+  background: var(--bg-card);
+  border: 1.5px solid var(--pink-200);
+  border-radius: var(--radius-full);
+  box-shadow: var(--shadow-sm);
+}
+.dq-tool-group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.dq-color-btn {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  border: 2px solid #fff;
+  box-shadow: 0 0 0 1px var(--border-soft);
+  cursor: pointer;
+  padding: 0;
+  transition: transform 0.1s;
+}
+.dq-color-btn:hover { transform: scale(1.15); }
+.dq-color-btn.is-active {
+  box-shadow: 0 0 0 2px var(--accent);
+  transform: scale(1.15);
+}
+.dq-width-btn {
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1.5px solid var(--border-soft);
+  border-radius: 8px;
+  background: var(--bg-subtle);
+  cursor: pointer;
+  padding: 0;
+}
+.dq-width-btn span {
+  display: block;
+  background: var(--text-main);
+  border-radius: 50%;
+}
+.dq-width-btn.is-active {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+.dq-tool-btn {
+  width: 32px;
+  height: 32px;
+  font-size: 16px;
+  border: 1.5px solid var(--border-soft);
+  border-radius: 8px;
+  background: var(--bg-subtle);
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+.dq-tool-btn:hover { background: var(--accent-soft); }
+.dq-tool-btn.is-active {
+  border-color: var(--accent);
+  background: var(--pink-100);
+}
+
+/* 정답 추측 입력 (비출제자) */
+.dq-guessbar {
+  width: 100%;
+  display: flex;
+  justify-content: center;
+}
+.dq-guess-form {
+  display: flex;
+  gap: 8px;
+  width: 100%;
+  max-width: 420px;
+}
+.dq-guess-input {
+  flex: 1;
+  padding: 11px 16px;
+  font-size: 15px;
+  font-weight: 600;
+  border: 2px solid var(--mint-300);
+  border-radius: var(--radius-full);
+  outline: none;
+  background: var(--bg-card);
+  color: var(--text-main);
+}
+.dq-guess-input:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(255, 90, 146, 0.18);
+}
+.dq-guess-submit {
+  padding: 11px 20px;
+  font-size: 14px;
+  font-weight: 700;
+  background: var(--mint-300);
+  color: #1f6a55;
+  border: 0;
+  border-radius: var(--radius-full);
+  cursor: pointer;
+  transition: background 0.15s, transform 0.1s;
+}
+.dq-guess-submit:hover { background: #6ed9b3; }
+.dq-guess-submit:active { transform: translateY(1px); }
+
+/* ============================================
    결과 화면 — "다른 게임 선택" 오버레이
    ============================================
    호스트가 결과 카드 위에 띄움. 게임 카드 그리드 + 선택한 게임의 옵션 폼. */

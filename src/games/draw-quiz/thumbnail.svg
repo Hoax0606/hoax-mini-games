@@ -1,0 +1,64 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 200">
+  <defs>
+    <linearGradient id="dqBg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#ffe4ee"/>
+      <stop offset="100%" stop-color="#e0fff4"/>
+    </linearGradient>
+  </defs>
+
+  <!-- 배경 -->
+  <rect x="0" y="0" width="320" height="200" rx="22" fill="url(#dqBg)"/>
+
+  <!-- 모서리 점 데코 -->
+  <circle cx="24" cy="24" r="3" fill="#ff6b9e" opacity="0.55"/>
+  <circle cx="298" cy="28" r="3.5" fill="#86e8c4" opacity="0.6"/>
+  <circle cx="26" cy="176" r="2.5" fill="#b89aff" opacity="0.55"/>
+  <circle cx="296" cy="172" r="3" fill="#ffeec2" opacity="0.7"/>
+
+  <!-- 별 데코 -->
+  <path d="M 256 40 l 1.6 4 4.4 0.4 -3.4 2.8 1 4.3 -3.6 -2.4 -3.6 2.4 1 -4.3 -3.4 -2.8 4.4 -0.4 z"
+        fill="#ff82ac" opacity="0.7"/>
+  <path d="M 44 150 l 1.4 3.5 3.8 0.3 -3 2.5 0.9 3.7 -3.1 -2.1 -3.1 2.1 0.9 -3.7 -3 -2.5 3.8 -0.3 z"
+        fill="#86e8c4" opacity="0.7"/>
+
+  <!-- 도화지 (중앙, 살짝 기울어짐) -->
+  <g transform="translate(126, 96) rotate(-4)">
+    <rect x="-78" y="-58" width="156" height="116" rx="10" fill="#ffffff" stroke="#d9c7ff" stroke-width="2.5"/>
+
+    <!-- 그림 안의 그림: 간단한 고양이 얼굴 (그림 퀴즈 느낌) -->
+    <!-- 얼굴 원 -->
+    <circle cx="0" cy="6" r="34" fill="none" stroke="#1c1820" stroke-width="3" stroke-linecap="round"/>
+    <!-- 귀 -->
+    <path d="M -24 -18 l -6 -22 18 12 z" fill="none" stroke="#1c1820" stroke-width="3" stroke-linejoin="round"/>
+    <path d="M 24 -18 l 6 -22 -18 12 z" fill="none" stroke="#1c1820" stroke-width="3" stroke-linejoin="round"/>
+    <!-- 눈 -->
+    <circle cx="-12" cy="2" r="3.5" fill="#1c1820"/>
+    <circle cx="12" cy="2" r="3.5" fill="#1c1820"/>
+    <!-- 코 (핑크) -->
+    <path d="M -4 14 l 8 0 -4 5 z" fill="#ff6b9e"/>
+    <!-- 수염 -->
+    <line x1="-16" y1="16" x2="-34" y2="12" stroke="#1c1820" stroke-width="2" stroke-linecap="round"/>
+    <line x1="-16" y1="20" x2="-34" y2="22" stroke="#1c1820" stroke-width="2" stroke-linecap="round"/>
+    <line x1="16" y1="16" x2="34" y2="12" stroke="#1c1820" stroke-width="2" stroke-linecap="round"/>
+    <line x1="16" y1="20" x2="34" y2="22" stroke="#1c1820" stroke-width="2" stroke-linecap="round"/>
+  </g>
+
+  <!-- 연필 (우측 하단, 그리는 느낌) -->
+  <g transform="translate(238, 134) rotate(40)">
+    <!-- 몸통 -->
+    <rect x="-6" y="-44" width="12" height="58" rx="2" fill="#ffc94a" stroke="#c49a1f" stroke-width="1.5"/>
+    <!-- 촉 -->
+    <path d="M -6 14 l 6 16 6 -16 z" fill="#fdf6ec" stroke="#c49a1f" stroke-width="1.5"/>
+    <path d="M -2.2 24 l 2.2 6 2.2 -6 z" fill="#1c1820"/>
+    <!-- 지우개 끝 -->
+    <rect x="-6" y="-50" width="12" height="8" rx="2" fill="#ff82ac"/>
+  </g>
+
+  <!-- 색 팔레트 점 (좌측 상단) -->
+  <g transform="translate(40, 48)">
+    <circle cx="0" cy="0" r="6" fill="#ff5a92" stroke="#fff" stroke-width="1.5"/>
+    <circle cx="16" cy="0" r="6" fill="#ffb12e" stroke="#fff" stroke-width="1.5"/>
+    <circle cx="8" cy="14" r="6" fill="#6ed9b3" stroke="#fff" stroke-width="1.5"/>
+    <circle cx="24" cy="14" r="6" fill="#5b9cff" stroke="#fff" stroke-width="1.5"/>
+  </g>
+</svg>

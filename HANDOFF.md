@@ -3,12 +3,12 @@
 다른 머신(집)에서 이 프로젝트를 이어서 작업할 때 읽는 문서.
 **Claude Code 첫 프롬프트로 "HANDOFF.md 정독하고 이어서 진행해줘" 라고 시작하면 됨.**
 
-마지막 업데이트: **2026-06-07**
-- **🆕 끝말잇기 게임** — 2~6인 턴제. 30초 제한. 두음법칙(ㄹ→ㄴ, ㄴ→ㅇ) + 중복 금지 + 사전 검증. 최후 1인 승. 호스트 authoritative. HTML input UI(canvas 외부). 전용 BGM(D 마이너 펜타토닉).
-  - **사전 10320 단어** (`word-chain/dictionary.ts`) — 5차 확장 거쳐 일상·추상·문어체·전문·지명·합성어·의태어까지 광범위. 확장은 WORDS 배열에 추가만 하면 됨.
-- **알까기 다듬기** — 전용 BGM(A 마이너 펜타토닉) + 충돌 SFX(호스트/게스트 동기화) + 통계 등록. 알 크기 14→12 / 판 360→380. 상대 차례 시 자기 알 클릭하면 거절음 + 커서 not-allowed (이전 무반응 피드백 반영).
+마지막 업데이트: **2026-06-07** (그림 퀴즈 추가)
+- **🆕 그림 퀴즈 게임** — 3~6인 라운드제. 출제자가 후보 3개 중 1개 골라 그리고(70초), 나머지는 추측 input 으로 맞힘. 빨리 맞힐수록 고득점(100→최소50), 출제자는 맞힌 사람 수×30. 전원 출제 후 누적 최고점 승. 호스트 authoritative. 그리기 도구(펜/지우개/색6/굵기3) canvas 외부 HTML. 정답은 채팅과 분리된 별도 input(단어 노출 방지). 제시어 풀 287개(`draw-quiz/words.ts`).
+- **🆕 끝말잇기 게임** — 2~6인 턴제. 30초 제한. 두음법칙(ㄹ→ㄴ, ㄴ→ㅇ) + 중복 금지 + 사전 검증. 최후 1인 승. 사전 10320단어(`word-chain/dictionary.ts`). 전용 BGM(D 마이너 펜타토닉).
+- **알까기** — 2~4인 턴제 물리. 전용 BGM(A 마이너 펜타토닉) + 충돌 SFX(호·게 동기화) + 통계. 알 12 / 판 380. 차례 외 자기 알 클릭 시 거절음.
 - 이전 스냅샷(2026-06-06): 알까기 게임 신규, escape 헬퍼 통합, gameScreen sound import fix
-- 이전 스냅샷(2026-06-05): 테트리스 관전 v2, 오목 렌주룰, escapeAttr fix, 방어 fix (버튼 type / z-index)
+- 이전 스냅샷(2026-06-05): 테트리스 관전 v2, 오목 렌주룰, 방어 fix
 
 ---
 
@@ -39,9 +39,10 @@ npm run dev       # http://localhost:5173
 | 5 | 결과 화면 다인용 | ✅ 게임별 전용 UI |
 
 **다음 작업** (우선순위):
-- 🅐 **새 게임 추가** — 후보: 그림 퀴즈, 타워 쌓기, 4인 퐁, 폭탄 돌리기, 카드 메모리, 사과게임 공격 시스템 등
-- 🅑 **플레이테스트 후 다듬기** — 알까기 / 끝말잇기 실제 한 판씩 돌려보고 감도·UI 손보기
-- (선택) 리팩토링 — `GameModule.renderResultCard` 범용화 (resultScreen 분기 8개 → 게임 자체에서 그리기) / gameScreen factory 호스트·게스트 공통화
+- 🅐 **그림 퀴즈 플레이테스트** — 최소 3인 필요(창 3개). 출제자 그림 broadcast / 추측 정답 판정 / 라운드 로테이션 실제 확인. 미검증 상태.
+  - 알려진 한계: stroke 는 한 획 완성(mouseup) 시 전송 → 긴 획 그리는 중엔 상대 화면에 손 뗄 때까지 안 보임. 실시간성 원하면 부분 flush 추가 여지.
+- 🅑 **새 게임 추가** — 후보: 타워 쌓기, 4인 퐁, 폭탄 돌리기, 카드 메모리, 사과게임 공격 시스템 등
+- (선택) 리팩토링 — `GameModule.renderResultCard` 범용화 (resultScreen 분기 9개 → 게임 자체에서 그리기) / gameScreen factory 호스트·게스트 공통화
 - (보류) **Phase 3 방장 이양** — 방장 나가면 남은 사람 중 하나가 새 방장. 미구현. Henry 당분간 안 함 — 다시 들어가면 peer.ts HostSession 소유권 이전 + peerId broadcast 재연결이 핵심.
 
 ---
@@ -51,7 +52,7 @@ npm run dev       # http://localhost:5173
 **한 줄**: 친구끼리 즐기는 웹 P2P 미니게임 모음집.
 - **스택**: Vite + TypeScript + Canvas + PeerJS (WebRTC, 서버리스 P2P) + GitHub Pages
 - **분위기**: 산리오풍 파스텔. 한국어 UI. PC 전용.
-- **현재 게임 (8종)**:
+- **현재 게임 (9종)**:
   - 에어하키 (2인, 호스트 authoritative 물리)
   - 배틀 테트리스 (2~4인, 로컬 시뮬레이션)
   - 사과 게임 (1~4인, 숫자 사과 합 10 터트리기, 2분)
@@ -60,6 +61,7 @@ npm run dev       # http://localhost:5173
   - 다트 (1~4인, 6모드 — 301/201/101 Normal·Hard / Count-up / Low Count-up / Cricket). 네트워크 메시지 `darts/netSync.ts` 분리.
   - 알까기 (2~4인, 턴제 물리. 호스트 authoritative 60Hz 시뮬레이션 + 10Hz state broadcast. `algagi/`)
   - 끝말잇기 (2~6인, 턴제 30초. 두음법칙 + 사전 검증 10320단어. 호스트 authoritative. `word-chain/`)
+  - 그림 퀴즈 (3~6인, 라운드제. 출제자 그림 broadcast + 추측 정답 자동 판정. 제시어 287개. `draw-quiz/`)
 - **배포 URL**: https://hoax0606.github.io/hoax-mini-games/
 
 ---
@@ -82,7 +84,7 @@ src/
 │   └── roomDirectory.ts         # 🆕 publicRooms 노드 publish/update/subscribe + onDisconnect 자동 제거
 ├── games/
 │   ├── types.ts                 # GameContext, Player(role), NetworkMessage + ping/reaction/chat
-│   ├── registry.ts              # 등록된 게임 목록 (8종)
+│   ├── registry.ts              # 등록된 게임 목록 (9종)
 │   ├── air-hockey/              # 2인 호스트 authoritative
 │   ├── battle-tetris/           # 2-4인 로컬 시뮬레이션
 │   ├── apple-game/              # 1-4인 독립 보드 + 점수 경쟁 (17×10)
@@ -104,12 +106,18 @@ src/
 │   │   ├── render.ts            #   보드 + 알 + 드래그 가이드 + 패널
 │   │   ├── index.ts             #   시뮬 루프 + 마우스 입력 + 충돌 SFX
 │   │   └── netSync.ts           #   ag:hello / sync / flick / state(impulse) / end
-│   └── word-chain/              # 🆕 2-6인 끝말잇기 (턴제 30초, 사전 검증)
-│       ├── rules.ts             #   한글 음절/두음법칙 + 검증 + 턴/탈락
-│       ├── dictionary.ts        #   한국어 명사 10320 + SEED_POOL. WORDS 배열에 추가만 하면 확장
-│       ├── render.ts            #   큰 단어 + 타이머 ring + 히스토리 + 플레이어 카드
-│       ├── index.ts             #   호스트 검증 + HTML input UI 마운트 + 30초 타이머
-│       └── netSync.ts           #   wc:hello/sync/submit/accepted/rejected/timeout/end
+│   ├── word-chain/              # 🆕 2-6인 끝말잇기 (턴제 30초, 사전 검증)
+│   │   ├── rules.ts             #   한글 음절/두음법칙 + 검증 + 턴/탈락
+│   │   ├── dictionary.ts        #   한국어 명사 10320 + SEED_POOL. WORDS 배열에 추가만 하면 확장
+│   │   ├── render.ts            #   큰 단어 + 타이머 ring + 히스토리 + 플레이어 카드
+│   │   ├── index.ts             #   호스트 검증 + HTML input UI 마운트 + 30초 타이머
+│   │   └── netSync.ts           #   wc:hello/sync/submit/accepted/rejected/timeout/end
+│   └── draw-quiz/               # 🆕 3-6인 그림 퀴즈 (라운드제, 출제자 그림 broadcast)
+│       ├── words.ts             #   제시어 287개 (easy/normal/hard) + pickCandidates
+│       ├── rules.ts             #   라운드/점수/출제자 로테이션/정답 판정
+│       ├── render.ts            #   도화지 + stroke + 타이머 + 제시어(글자수 가림) + 점수판
+│       ├── index.ts             #   호스트 라운드 진행 + 그리기 입력 + 도구/추측 HTML UI
+│       └── netSync.ts           #   dq:hello/sync/round_start/word_chosen/round_begin/stroke/clear/guess/correct/round_end/end
 ├── screens/
 │   ├── menu.ts                  # 메인 메뉴 (🎮 시작 / 🌐 공개방 / 📊 통계 / ✏️ 닉 / ⚙️ 설정)
 │   ├── nickname.ts, settings.ts, gameList.ts, lobby.ts
@@ -118,7 +126,7 @@ src/
 │   ├── gameScreen.ts            # 관전자 수락 + ping 배지 + 리액션 + 채팅 패널
 │   ├── statsScreen.ts           # 게임별 누적 전적/최고기록 (localStorage)
 │   ├── publicRooms.ts           # 🆕 Firebase publicRooms 실시간 구독 → 카드 리스트 → 클릭 시 autoJoin
-│   └── resultScreen.ts          # 게임별 전용 결과 분기 (테트리스/사과/오목/반응속도/다트/알까기/끝말잇기)
+│   └── resultScreen.ts          # 게임별 전용 결과 분기 (테트리스/사과/오목/반응속도/다트/알까기/끝말잇기/그림퀴즈)
 ├── ui/
 │   ├── theme.css                # 팔레트 + 컴포넌트 스타일 (chat-panel / public-room-card / wc-input)
 │   ├── reactions.ts             # 이모지 6종 버튼 + 하단 풍선 애니 (400ms throttle)
@@ -184,6 +192,7 @@ src/
 - 반응속도: G 메이저 · 105 BPM · square (2026-04-25 추가, "반복 모티프 + 가벼운 긴장감")
 - 알까기: A 마이너 펜타토닉 · 90 BPM · triangle · 한국 전통 놀이풍 + 살짝 긴장
 - 끝말잇기: D 마이너 펜타토닉 · 92 BPM · triangle · 사색적 + 한국 전통풍
+- 그림 퀴즈: 사과게임 BGM 재활용 (F 메이저 · 밝고 느긋). 전용 BGM 은 후속 여지
 
 ---
 

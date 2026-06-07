@@ -1,0 +1,753 @@
+/**
+ * 그림 퀴즈 GameModule — 조립
+ *
+ * 아키텍처 (호스트 authoritative 라운드 진행):
+ *   호스트가 라운드 상태(출제자/단어/타이머/점수) 단독 관리.
+ *   출제자는 그림 stroke 를 broadcast. 추측은 dq:guess 로 호스트가 판정.
+ *
+ * 라운드 흐름:
+ *   choosing → (출제자 단어 선택) → drawing → (정답 or 타임아웃) → round_result
+ *     → 다음 라운드 choosing ... → 마지막 라운드 후 ended → dq:end
+ *
+ * 정답 입력:
+ *   비출제자는 하단 추측 input 으로 단어 입력 → dq:guess 송신.
+ *   정답이면 호스트가 dq:correct broadcast (단어 노출 X). 틀리면 무시(피드백 최소).
+ *   ※ 단순화를 위해 별도 추측 input 사용 — 플랫폼 채팅과 분리.
+ *
+ * 그리기 도구 UI:
+ *   canvas 외부 HTML — 펜/지우개/색6/굵기3/전체지우기. 출제자에게만 표시.
+ */
+
+import type { GameModule, GameContext, GameMessage, GameResult, Player } from '../types';
+import { sound } from '../../core/sound';
+import {
+  createInitialGame,
+  pickNextDrawer,
+  isCorrectGuess,
+  awardCorrect,
+  awardDrawer,
+  allGuessersCorrect,
+  scoreMap,
+  computeWinner,
+  ROUND_DURATION_MS,
+  TIMEOUT_GRACE_MS,
+  type DrawQuizGame,
+  type StrokePoint,
+} from './rules';
+import { pickCandidates, type QuizWord } from './words';
+import {
+  DrawQuizRenderer, canvasToDraw, isInDrawArea,
+  PALETTE, WIDTHS,
+  type RenderState,
+} from './render';
+import {
+  encodeHello, decodeHello,
+  encodeSync, decodeSync,
+  encodeRoundStart, decodeRoundStart,
+  encodeWordChosen, decodeWordChosen,
+  encodeRoundBegin, decodeRoundBegin,
+  encodeStroke, decodeStroke,
+  encodeClear, isClear,
+  encodeGuess, decodeGuess,
+  encodeCorrect, decodeCorrect,
+  encodeRoundEnd, decodeRoundEnd,
+  encodeEnd, decodeEnd,
+  type StrokeData,
+} from './netSync';
+
+/** 라운드 결과 표시 시간 (ms) */
+const ROUND_RESULT_MS = 3500;
+
+class DrawQuizGameModule implements GameModule {
+  private ctx!: GameContext;
+  private renderer!: DrawQuizRenderer;
+  private game!: DrawQuizGame;
+
+  private myPeerId = '';
+  private isHost = false;
+  private isSpectator = false;
+
+  private rafId: number | null = null;
+  private destroyed = false;
+  private gameFinished = false;
+  private endGameScheduled = false;
+
+  /** 완료된 stroke 들 (모든 클라이언트 공유) */
+  private strokes: StrokeData[] = [];
+  /** 출제자가 현재 그리는 중인 stroke */
+  private liveStroke: StrokeData | null = null;
+  private isDrawingStroke = false;
+
+  /** 출제자 후보 단어 (choosing 단계) */
+  private candidates: QuizWord[] = [];
+  /** 라운드 결과 단계 공개 단어 */
+  private revealedWord: string | null = null;
+
+  /** 현재 그리기 도구 상태 */
+  private toolColor: string = PALETTE[0];
+  private toolWidth: number = WIDTHS[1];
+  private toolErase = false;
+
+  /** 호스트 타이머용 — round_result 끝나는 시각 */
+  private resultEndsAt = 0;
+
+  // DOM
+  private toolbarEl: HTMLDivElement | null = null;
+  private guessBarEl: HTMLDivElement | null = null;
+  private candidatesEl: HTMLDivElement | null = null;
+
+  // ============================================
+  // GameModule
+  // ============================================
+
+  start(ctx: GameContext): void {
+    this.ctx = ctx;
+    this.myPeerId = ctx.myPlayerId;
+    this.isHost = ctx.role === 'host';
+    this.isSpectator = ctx.isSpectator === true;
+
+    const playerList = ctx.players.filter((p) => p.role === 'player');
+    const ordered = orderPlayersHostFirst(playerList);
+
+    // 라운드 수 = 플레이어 수 (전원 한 번씩 출제). 최소 2.
+    const rounds = Math.max(2, ordered.length);
+    this.game = createInitialGame(
+      ordered.map((p) => ({ peerId: p.peerId, nickname: p.nickname })),
+      rounds,
+    );
+
+    this.renderer = new DrawQuizRenderer({ canvas: ctx.canvas });
+    ctx.canvas.style.cursor = 'crosshair';
+
+    this.mountUI();
+    sound.startBgm('apple-game'); // 밝고 느긋한 BGM 재활용
+
+    if (this.isHost) {
+      // 호스트가 첫 라운드 시작
+      this.startNextRoundAsHost();
+    } else {
+      // 게스트/관전자는 현재 상태 sync 요청
+      this.ctx.sendToPeer(encodeHello(this.myPeerId));
+    }
+
+    this.attachDrawInput();
+    this.rafId = requestAnimationFrame(this.loop);
+  }
+
+  onPeerMessage(msg: GameMessage): void {
+    if (this.destroyed) return;
+
+    const hello = decodeHello(msg);
+    if (hello) {
+      if (this.isHost) {
+        this.ctx.sendToPeer(
+          encodeSync({ game: this.maskedGameFor(hello.peerId), strokes: this.strokes }),
+          { target: hello.peerId },
+        );
+      }
+      return;
+    }
+
+    const sync = decodeSync(msg);
+    if (sync) {
+      if (!this.isHost) {
+        this.game = reviveGame(sync.game);
+        this.strokes = sync.strokes;
+        this.refreshUI();
+      }
+      return;
+    }
+
+    const rs = decodeRoundStart(msg);
+    if (rs) {
+      if (!this.isHost) this.applyRoundStart(rs.round, rs.drawerPeerId, rs.candidates, rs.turnStartedAt);
+      return;
+    }
+
+    const wc = decodeWordChosen(msg);
+    if (wc) {
+      if (this.isHost) this.handleWordChosen(wc.index);
+      return;
+    }
+
+    const rb = decodeRoundBegin(msg);
+    if (rb) {
+      if (!this.isHost) this.applyRoundBegin(rb.wordLength, rb.turnStartedAt);
+      return;
+    }
+
+    const stroke = decodeStroke(msg);
+    if (stroke) {
+      // 출제자가 보낸 획 — 내가 출제자가 아니면 누적
+      if (this.game.drawerPeerId !== this.myPeerId) {
+        this.strokes.push(stroke);
+      }
+      return;
+    }
+
+    if (isClear(msg)) {
+      if (this.game.drawerPeerId !== this.myPeerId) this.strokes = [];
+      return;
+    }
+
+    const guess = decodeGuess(msg);
+    if (guess) {
+      if (this.isHost) this.tryGuessAsHost(guess.peerId, guess.nickname, guess.word);
+      return;
+    }
+
+    const correct = decodeCorrect(msg);
+    if (correct) {
+      this.applyCorrect(correct.peerId, correct.nickname, correct.scores);
+      return;
+    }
+
+    const re = decodeRoundEnd(msg);
+    if (re) {
+      if (!this.isHost) this.applyRoundEnd(re.word, re.scores);
+      return;
+    }
+
+    const end = decodeEnd(msg);
+    if (end) {
+      this.scheduleEndGame(end);
+      return;
+    }
+  }
+
+  destroy(): void {
+    this.destroyed = true;
+    this.gameFinished = true;
+    if (this.rafId !== null) {
+      cancelAnimationFrame(this.rafId);
+      this.rafId = null;
+    }
+    this.detachDrawInput();
+    this.unmountUI();
+    if (this.ctx?.canvas) this.ctx.canvas.style.cursor = '';
+    this.renderer?.destroy();
+    sound.stopBgm();
+  }
+
+  setPaused(paused: boolean): void {
+    // 그림 퀴즈는 일시정지 시 타이머만 보정 — 호스트 기준.
+    if (paused) {
+      this.pauseStart = performance.now();
+    } else if (this.pauseStart > 0) {
+      const d = performance.now() - this.pauseStart;
+      this.game.turnStartedAt += d;
+      this.resultEndsAt += d;
+      this.pauseStart = 0;
+    }
+    this.paused = paused;
+  }
+  private paused = false;
+  private pauseStart = 0;
+
+  // ============================================
+  // 루프 — 호스트가 타이머 진행
+  // ============================================
+
+  private loop = (): void => {
+    this.rafId = requestAnimationFrame(this.loop);
+    if (this.destroyed) return;
+    const now = performance.now();
+
+    if (this.isHost && !this.paused) {
+      if (this.game.phase === 'drawing') {
+        const elapsed = now - this.game.turnStartedAt;
+        if (elapsed > ROUND_DURATION_MS + TIMEOUT_GRACE_MS) {
+          this.endRoundAsHost();
+        } else if (allGuessersCorrect(this.game)) {
+          // 전원 정답 — 조기 종료
+          this.endRoundAsHost();
+        }
+      } else if (this.game.phase === 'round_result') {
+        if (now >= this.resultEndsAt) {
+          this.startNextRoundAsHost();
+        }
+      }
+    }
+
+    this.renderer.render(this.buildRenderState(now));
+  };
+
+  private buildRenderState(now: number): RenderState {
+    return {
+      game: this.game,
+      myPeerId: this.myPeerId,
+      isSpectator: this.isSpectator,
+      strokes: this.strokes,
+      liveStroke: this.liveStroke,
+      now,
+      candidates: this.candidates.map((c) => c.word),
+      revealedWord: this.revealedWord,
+    };
+  }
+
+  // ============================================
+  // 호스트: 라운드 진행
+  // ============================================
+
+  private startNextRoundAsHost(): void {
+    // 모든 라운드 끝났으면 종료
+    if (this.game.round >= this.game.totalRounds) {
+      this.finishAsHost();
+      return;
+    }
+
+    const drawer = pickNextDrawer(this.game);
+    if (!drawer) { this.finishAsHost(); return; }
+    drawer.hasDrawn = true;
+
+    this.game.round++;
+    this.game.phase = 'choosing';
+    this.game.drawerPeerId = drawer.peerId;
+    this.game.currentWord = '';
+    this.game.correctThisRound = [];
+    this.strokes = [];
+    this.liveStroke = null;
+    this.revealedWord = null;
+
+    // 후보 3개 추출
+    this.candidates = pickCandidates(this.game.usedWords, 3);
+
+    const now = performance.now();
+    this.game.turnStartedAt = now;
+
+    // round_start broadcast — 출제자에게만 후보 단어 포함 (per-peer 다르게)
+    for (const p of this.ctx.players) {
+      if (p.peerId === this.myPeerId) continue;
+      const isThisDrawer = p.peerId === drawer.peerId;
+      this.ctx.sendToPeer(
+        encodeRoundStart({
+          round: this.game.round,
+          drawerPeerId: drawer.peerId,
+          drawerNickname: drawer.nickname,
+          candidates: isThisDrawer ? this.candidates.map((c) => c.word) : [],
+          turnStartedAt: now,
+        }),
+        { target: p.peerId },
+      );
+    }
+
+    // 호스트 본인 처리
+    this.applyRoundStart(
+      this.game.round, drawer.peerId,
+      drawer.peerId === this.myPeerId ? this.candidates.map((c) => c.word) : [],
+      now,
+    );
+    this.refreshUI();
+  }
+
+  private handleWordChosen(index: number): void {
+    if (this.game.phase !== 'choosing') return;
+    const chosen = this.candidates[index];
+    if (!chosen) return;
+    this.beginDrawingAsHost(chosen.word);
+  }
+
+  /** 호스트 본인이 출제자일 때 단어 고름 */
+  private handleOwnWordChoice(index: number): void {
+    if (this.game.phase !== 'choosing') return;
+    if (this.game.drawerPeerId !== this.myPeerId) return;
+    const chosen = this.candidates[index];
+    if (!chosen) return;
+    this.beginDrawingAsHost(chosen.word);
+  }
+
+  private beginDrawingAsHost(word: string): void {
+    this.game.currentWord = word;
+    this.game.usedWords.add(word);
+    this.game.phase = 'drawing';
+    const now = performance.now();
+    this.game.turnStartedAt = now;
+    this.ctx.sendToPeer(encodeRoundBegin({
+      wordLength: word.length,
+      durationMs: ROUND_DURATION_MS,
+      turnStartedAt: now,
+    }));
+    this.refreshUI();
+  }
+
+  // ============================================
+  // 비호스트(또는 공통): 상태 적용
+  // ============================================
+
+  private applyRoundStart(round: number, drawerPeerId: string, candidates: string[], turnStartedAt: number): void {
+    this.game.round = round;
+    this.game.phase = 'choosing';
+    this.game.drawerPeerId = drawerPeerId;
+    this.game.currentWord = '';
+    this.game.correctThisRound = [];
+    this.game.turnStartedAt = turnStartedAt;
+    this.strokes = [];
+    this.liveStroke = null;
+    this.revealedWord = null;
+    // 후보는 출제자만 받음
+    this.candidates = candidates.map((w) => ({ word: w, difficulty: 'normal' as const }));
+    this.refreshUI();
+  }
+
+  private applyRoundBegin(wordLength: number, turnStartedAt: number): void {
+    this.game.phase = 'drawing';
+    this.game.turnStartedAt = turnStartedAt;
+    // 비출제자는 글자수만 알도록 currentWord 를 자리표시 길이로 (렌더가 _ 로 그림)
+    if (this.game.drawerPeerId !== this.myPeerId) {
+      this.game.currentWord = '*'.repeat(wordLength);
+    }
+    this.refreshUI();
+  }
+
+  private applyCorrect(peerId: string, _nickname: string, scores: Record<string, number>): void {
+    if (!this.game.correctThisRound.includes(peerId)) {
+      this.game.correctThisRound.push(peerId);
+    }
+    for (const p of this.game.players) {
+      if (scores[p.peerId] !== undefined) p.score = scores[p.peerId]!;
+    }
+    sound.play('tetris_clear');
+    this.refreshUI();
+  }
+
+  private applyRoundEnd(word: string, scores: Record<string, number>): void {
+    this.game.phase = 'round_result';
+    this.revealedWord = word;
+    this.game.currentWord = word;
+    for (const p of this.game.players) {
+      if (scores[p.peerId] !== undefined) p.score = scores[p.peerId]!;
+    }
+    this.refreshUI();
+  }
+
+  private endRoundAsHost(): void {
+    awardDrawer(this.game);
+    this.game.phase = 'round_result';
+    this.revealedWord = this.game.currentWord;
+    this.resultEndsAt = performance.now() + ROUND_RESULT_MS;
+    const hasNext = this.game.round < this.game.totalRounds;
+    this.ctx.sendToPeer(encodeRoundEnd({
+      word: this.game.currentWord,
+      scores: scoreMap(this.game),
+      hasNext,
+    }));
+    this.refreshUI();
+  }
+
+  private finishAsHost(): void {
+    if (this.gameFinished) return;
+    this.gameFinished = true;
+    this.game.phase = 'ended';
+    this.game.winnerPeerId = computeWinner(this.game);
+
+    const baseSummary: Record<string, unknown> = {
+      gameId: 'draw-quiz',
+      winnerNickname: this.game.players.find((p) => p.peerId === this.game.winnerPeerId)?.nickname ?? null,
+      rankings: [...this.game.players]
+        .sort((a, b) => b.score - a.score)
+        .map((p, i) => ({ peerId: p.peerId, nickname: p.nickname, score: p.score, rank: i + 1 })),
+    };
+
+    for (const p of this.ctx.players) {
+      if (p.peerId === this.myPeerId) continue;
+      this.ctx.sendToPeer(
+        encodeEnd({ winner: this.computeWinnerForPeer(p), summary: { ...baseSummary, myPeerId: p.peerId } }),
+        { target: p.peerId },
+      );
+    }
+    this.scheduleEndGame({
+      winner: this.computeWinnerForPeer({ peerId: this.myPeerId, nickname: '', isHost: true, role: 'player' }),
+      summary: { ...baseSummary, myPeerId: this.myPeerId },
+    });
+  }
+
+  private computeWinnerForPeer(p: Player): GameResult['winner'] {
+    if (this.game.winnerPeerId === null) return null;
+    if (p.role === 'spectator') return 'opponent';
+    return this.game.winnerPeerId === p.peerId ? 'me' : 'opponent';
+  }
+
+  private scheduleEndGame(result: GameResult): void {
+    if (this.endGameScheduled) return;
+    this.endGameScheduled = true;
+    window.setTimeout(() => {
+      if (this.destroyed) return;
+      this.ctx.endGame(result);
+    }, ROUND_RESULT_MS);
+  }
+
+  /** sync 시 비출제자에겐 currentWord 가려서 보냄 */
+  private maskedGameFor(peerId: string): DrawQuizGame {
+    if (peerId === this.game.drawerPeerId || this.game.phase === 'round_result' || this.game.phase === 'ended') {
+      return this.game;
+    }
+    return { ...this.game, currentWord: '*'.repeat(this.game.currentWord.length) };
+  }
+
+  // ============================================
+  // 그리기 입력 (출제자만)
+  // ============================================
+
+  private attachDrawInput(): void {
+    this.ctx.canvas.addEventListener('mousedown', this.onDrawDown);
+    window.addEventListener('mousemove', this.onDrawMove);
+    window.addEventListener('mouseup', this.onDrawUp);
+  }
+  private detachDrawInput(): void {
+    if (this.ctx?.canvas) this.ctx.canvas.removeEventListener('mousedown', this.onDrawDown);
+    window.removeEventListener('mousemove', this.onDrawMove);
+    window.removeEventListener('mouseup', this.onDrawUp);
+  }
+
+  private amDrawer(): boolean {
+    return !this.isSpectator && this.game.drawerPeerId === this.myPeerId && this.game.phase === 'drawing';
+  }
+
+  private onDrawDown = (e: MouseEvent): void => {
+    if (this.paused || !this.amDrawer()) return;
+    const rect = this.ctx.canvas.getBoundingClientRect();
+    const { x, y } = canvasToDraw(e.clientX - rect.left, e.clientY - rect.top, rect);
+    if (!isInDrawArea(x, y)) return;
+    this.isDrawingStroke = true;
+    this.liveStroke = {
+      points: [{ x, y }],
+      color: this.toolColor,
+      width: this.toolWidth,
+      erase: this.toolErase,
+    };
+  };
+
+  private onDrawMove = (e: MouseEvent): void => {
+    if (!this.isDrawingStroke || !this.liveStroke) return;
+    const rect = this.ctx.canvas.getBoundingClientRect();
+    const { x, y } = canvasToDraw(e.clientX - rect.left, e.clientY - rect.top, rect);
+    const clamped = clampToDraw(x, y);
+    this.liveStroke.points.push(clamped);
+  };
+
+  private onDrawUp = (): void => {
+    if (!this.isDrawingStroke || !this.liveStroke) return;
+    this.isDrawingStroke = false;
+    // 완료된 stroke 를 누적 + broadcast
+    const stroke = this.liveStroke;
+    this.liveStroke = null;
+    if (stroke.points.length > 0) {
+      this.strokes.push(stroke);
+      this.ctx.sendToPeer(encodeStroke(stroke));
+    }
+  };
+
+  // ============================================
+  // HTML UI — 도구 / 후보 단어 / 추측 입력
+  // ============================================
+
+  private mountUI(): void {
+    const parent = this.ctx.canvas.parentElement;
+    if (!parent) return;
+    const container = document.createElement('div');
+    container.className = 'dq-ui';
+    container.innerHTML = `
+      <div class="dq-candidates" id="dq-candidates" style="display:none"></div>
+      <div class="dq-toolbar" id="dq-toolbar" style="display:none">
+        <div class="dq-tool-group" id="dq-colors"></div>
+        <div class="dq-tool-group" id="dq-widths"></div>
+        <button class="dq-tool-btn" id="dq-erase" type="button" title="지우개">🧽</button>
+        <button class="dq-tool-btn" id="dq-clear" type="button" title="전체 지우기">🗑️</button>
+      </div>
+      <div class="dq-guessbar" id="dq-guessbar" style="display:none">
+        <form class="dq-guess-form" id="dq-guess-form" autocomplete="off">
+          <input type="text" class="dq-guess-input" id="dq-guess-input" maxlength="20"
+                 placeholder="정답을 입력하고 Enter" />
+          <button type="submit" class="dq-guess-submit">추측</button>
+        </form>
+      </div>
+    `;
+    parent.appendChild(container);
+    this.toolbarEl = container.querySelector('#dq-toolbar');
+    this.guessBarEl = container.querySelector('#dq-guessbar');
+    this.candidatesEl = container.querySelector('#dq-candidates');
+
+    this.buildColorButtons(container);
+    this.buildWidthButtons(container);
+    container.querySelector('#dq-erase')?.addEventListener('click', () => {
+      this.toolErase = !this.toolErase;
+      (container.querySelector('#dq-erase') as HTMLElement)?.classList.toggle('is-active', this.toolErase);
+    });
+    container.querySelector('#dq-clear')?.addEventListener('click', () => {
+      if (!this.amDrawer()) return;
+      this.strokes = [];
+      this.liveStroke = null;
+      this.ctx.sendToPeer(encodeClear());
+    });
+
+    const guessForm = container.querySelector<HTMLFormElement>('#dq-guess-form');
+    guessForm?.addEventListener('submit', this.onGuessSubmit);
+
+    this.uiRoot = container;
+    this.refreshUI();
+  }
+  private uiRoot: HTMLDivElement | null = null;
+
+  private buildColorButtons(root: HTMLElement): void {
+    const wrap = root.querySelector('#dq-colors');
+    if (!wrap) return;
+    PALETTE.forEach((c, i) => {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'dq-color-btn' + (i === 0 ? ' is-active' : '');
+      b.style.background = c;
+      b.addEventListener('click', () => {
+        this.toolColor = c;
+        this.toolErase = false;
+        wrap.querySelectorAll('.dq-color-btn').forEach((el) => el.classList.remove('is-active'));
+        b.classList.add('is-active');
+        (root.querySelector('#dq-erase') as HTMLElement)?.classList.remove('is-active');
+      });
+      wrap.appendChild(b);
+    });
+  }
+
+  private buildWidthButtons(root: HTMLElement): void {
+    const wrap = root.querySelector('#dq-widths');
+    if (!wrap) return;
+    WIDTHS.forEach((w, i) => {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'dq-width-btn' + (i === 1 ? ' is-active' : '');
+      b.innerHTML = `<span style="width:${w}px;height:${w}px"></span>`;
+      b.addEventListener('click', () => {
+        this.toolWidth = w;
+        wrap.querySelectorAll('.dq-width-btn').forEach((el) => el.classList.remove('is-active'));
+        b.classList.add('is-active');
+      });
+      wrap.appendChild(b);
+    });
+  }
+
+  private onGuessSubmit = (e: Event): void => {
+    e.preventDefault();
+    const input = this.uiRoot?.querySelector<HTMLInputElement>('#dq-guess-input');
+    if (!input) return;
+    const word = input.value.trim();
+    if (!word) return;
+    input.value = '';
+    if (this.isSpectator) return;
+    if (this.game.phase !== 'drawing') return;
+    if (this.game.drawerPeerId === this.myPeerId) return; // 출제자는 추측 X
+    if (this.game.correctThisRound.includes(this.myPeerId)) return; // 이미 맞힘
+
+    if (this.isHost) {
+      this.tryGuessAsHost(this.myPeerId, this.myNickname(), word);
+    } else {
+      this.ctx.sendToPeer(encodeGuess({ word, peerId: this.myPeerId, nickname: this.myNickname() }));
+    }
+  };
+
+  /** 호스트가 추측 판정 (자기 추측 + 게스트 추측 공통) */
+  private tryGuessAsHost(peerId: string, nickname: string, word: string): void {
+    if (this.game.phase !== 'drawing') return;
+    if (peerId === this.game.drawerPeerId) return;
+    if (this.game.correctThisRound.includes(peerId)) return;
+    if (!isCorrectGuess(word, this.game.currentWord)) return; // 오답 — 무시
+
+    const gained = awardCorrect(this.game, peerId);
+    if (gained > 0) {
+      const rank = this.game.correctThisRound.indexOf(peerId) + 1;
+      this.ctx.sendToPeer(encodeCorrect({
+        peerId, nickname, scores: scoreMap(this.game), rank,
+      }));
+      // 호스트 본인 화면도 반영
+      sound.play('tetris_clear');
+      this.refreshUI();
+      // 전원 정답이면 loop 에서 곧 endRound
+    }
+  }
+
+  private myNickname(): string {
+    return this.game.players.find((p) => p.peerId === this.myPeerId)?.nickname ?? '나';
+  }
+
+  private unmountUI(): void {
+    this.uiRoot?.remove();
+    this.uiRoot = null;
+    this.toolbarEl = null;
+    this.guessBarEl = null;
+    this.candidatesEl = null;
+  }
+
+  /** phase / 역할에 따라 도구·후보·추측 UI 보임 전환 */
+  private refreshUI(): void {
+    if (!this.uiRoot) return;
+    const amDrawer = !this.isSpectator && this.game.drawerPeerId === this.myPeerId;
+
+    // 후보 단어 (choosing + 출제자)
+    if (this.candidatesEl) {
+      if (this.game.phase === 'choosing' && amDrawer && this.candidates.length > 0) {
+        this.candidatesEl.style.display = 'flex';
+        this.candidatesEl.innerHTML = '';
+        this.candidates.forEach((c, i) => {
+          const b = document.createElement('button');
+          b.type = 'button';
+          b.className = 'dq-candidate-btn';
+          b.textContent = c.word;
+          b.addEventListener('click', () => {
+            if (this.isHost) this.handleOwnWordChoice(i);
+            else this.ctx.sendToPeer(encodeWordChosen(i));
+          });
+          this.candidatesEl!.appendChild(b);
+        });
+      } else {
+        this.candidatesEl.style.display = 'none';
+      }
+    }
+
+    // 도구 (drawing + 출제자)
+    if (this.toolbarEl) {
+      this.toolbarEl.style.display = (this.game.phase === 'drawing' && amDrawer) ? 'flex' : 'none';
+    }
+
+    // 추측 입력 (drawing + 비출제자 + 비관전 + 안 맞힌 사람)
+    if (this.guessBarEl) {
+      const canGuess = this.game.phase === 'drawing'
+        && !amDrawer && !this.isSpectator
+        && !this.game.correctThisRound.includes(this.myPeerId);
+      this.guessBarEl.style.display = canGuess ? 'flex' : 'none';
+      if (canGuess) {
+        window.setTimeout(() => {
+          this.uiRoot?.querySelector<HTMLInputElement>('#dq-guess-input')?.focus();
+        }, 10);
+      }
+    }
+  }
+}
+
+// ============================================
+// 헬퍼
+// ============================================
+
+function clampToDraw(x: number, y: number): StrokePoint {
+  return {
+    x: Math.max(0, Math.min(560, x)),
+    y: Math.max(0, Math.min(400, y)),
+  };
+}
+
+/** sync 로 받은 game 의 usedWords/Set 복원 (JSON 직렬화로 객체가 됨) */
+function reviveGame(g: DrawQuizGame): DrawQuizGame {
+  const used = g.usedWords;
+  return {
+    ...g,
+    usedWords: used instanceof Set ? used : new Set(Array.isArray(used) ? used : []),
+    correctThisRound: Array.isArray(g.correctThisRound) ? g.correctThisRound : [],
+  };
+}
+
+function orderPlayersHostFirst(players: Player[]): Player[] {
+  const host = players.find((p) => p.isHost);
+  const guests = players.filter((p) => !p.isHost).sort((a, b) => a.peerId.localeCompare(b.peerId));
+  return host ? [host, ...guests] : players.slice();
+}
+
+export function createDrawQuizGame(): GameModule {
+  return new DrawQuizGameModule();
+}
