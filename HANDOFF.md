@@ -3,11 +3,12 @@
 다른 머신(집)에서 이 프로젝트를 이어서 작업할 때 읽는 문서.
 **Claude Code 첫 프롬프트로 "HANDOFF.md 정독하고 이어서 진행해줘" 라고 시작하면 됨.**
 
-마지막 업데이트: **2026-06-06**
-- **🆕 알까기 게임** — 2~4인 턴제 물리. 호스트 authoritative 60Hz 시뮬레이션 + 10Hz state broadcast. 마우스 드래그로 알 튕김(반대 방향 발사). 마찰 + 탄성 충돌. 보드 밖 떨어진 알 제거. 최후 1인 승.
-- **escape 헬퍼 통합** — 12 곳 흩어진 `escapeHtml`/`escapeAttr`/`escapeText` → `src/ui/escape.ts` 한 곳으로 통합
-- **gameScreen `sound` import 누락 fix** — 인게임 메뉴 볼륨/BGM/SFX 만지면 `ReferenceError` 폭발하던 잠재 버그. 별도 발견
-- 이전 스냅샷(2026-06-05): 테트리스 관전 v2, 오목 렌주룰, escapeAttr fix, 방어 fix (버튼 type / z-index), `injectGarbage` 안전성
+마지막 업데이트: **2026-06-07**
+- **🆕 끝말잇기 게임** — 2~6인 턴제. 30초 제한. 두음법칙(ㄹ→ㄴ, ㄴ→ㅇ) + 중복 금지 + 사전 검증. 최후 1인 승. 호스트 authoritative. HTML input UI(canvas 외부). 전용 BGM(D 마이너 펜타토닉).
+  - **사전 10320 단어** (`word-chain/dictionary.ts`) — 5차 확장 거쳐 일상·추상·문어체·전문·지명·합성어·의태어까지 광범위. 확장은 WORDS 배열에 추가만 하면 됨.
+- **알까기 다듬기** — 전용 BGM(A 마이너 펜타토닉) + 충돌 SFX(호스트/게스트 동기화) + 통계 등록. 알 크기 14→12 / 판 360→380. 상대 차례 시 자기 알 클릭하면 거절음 + 커서 not-allowed (이전 무반응 피드백 반영).
+- 이전 스냅샷(2026-06-06): 알까기 게임 신규, escape 헬퍼 통합, gameScreen sound import fix
+- 이전 스냅샷(2026-06-05): 테트리스 관전 v2, 오목 렌주룰, escapeAttr fix, 방어 fix (버튼 type / z-index)
 
 ---
 
@@ -38,10 +39,10 @@ npm run dev       # http://localhost:5173
 | 5 | 결과 화면 다인용 | ✅ 게임별 전용 UI |
 
 **다음 작업** (우선순위):
-- 🅐 **알까기 후속** — 전용 BGM 추가 (현재 오목 BGM 재활용), 충돌 SFX, 통계 등록(`storage.recordGameResult`)
-- 🅑 **새 게임 추가** — 후보: 카드 메모리, 스피드 타이핑, 스네이크 다인전, 사과게임 공격 시스템 추가 등
-- (보류) 🅒 **Phase 3 방장 이양** — 방장 나가면 남은 사람 중 하나가 새 방장. 여전히 미구현. Henry 당분간 안 함 — 다시 들어가면 peer.ts HostSession 소유권 이전 + peerId broadcast 재연결이 핵심.
-- (선택) 남은 리팩토링 — `GameModule.renderResultCard` 범용화 / gameScreen factory 호스트·게스트 공통화
+- 🅐 **새 게임 추가** — 후보: 그림 퀴즈, 타워 쌓기, 4인 퐁, 폭탄 돌리기, 카드 메모리, 사과게임 공격 시스템 등
+- 🅑 **플레이테스트 후 다듬기** — 알까기 / 끝말잇기 실제 한 판씩 돌려보고 감도·UI 손보기
+- (선택) 리팩토링 — `GameModule.renderResultCard` 범용화 (resultScreen 분기 8개 → 게임 자체에서 그리기) / gameScreen factory 호스트·게스트 공통화
+- (보류) **Phase 3 방장 이양** — 방장 나가면 남은 사람 중 하나가 새 방장. 미구현. Henry 당분간 안 함 — 다시 들어가면 peer.ts HostSession 소유권 이전 + peerId broadcast 재연결이 핵심.
 
 ---
 
@@ -50,7 +51,7 @@ npm run dev       # http://localhost:5173
 **한 줄**: 친구끼리 즐기는 웹 P2P 미니게임 모음집.
 - **스택**: Vite + TypeScript + Canvas + PeerJS (WebRTC, 서버리스 P2P) + GitHub Pages
 - **분위기**: 산리오풍 파스텔. 한국어 UI. PC 전용.
-- **현재 게임 (7종)**:
+- **현재 게임 (8종)**:
   - 에어하키 (2인, 호스트 authoritative 물리)
   - 배틀 테트리스 (2~4인, 로컬 시뮬레이션)
   - 사과 게임 (1~4인, 숫자 사과 합 10 터트리기, 2분)
@@ -58,6 +59,7 @@ npm run dev       # http://localhost:5173
   - 반응속도 (1~4인, 5라운드 평균 ms 경쟁)
   - 다트 (1~4인, 6모드 — 301/201/101 Normal·Hard / Count-up / Low Count-up / Cricket). 네트워크 메시지 `darts/netSync.ts` 분리.
   - 알까기 (2~4인, 턴제 물리. 호스트 authoritative 60Hz 시뮬레이션 + 10Hz state broadcast. `algagi/`)
+  - 끝말잇기 (2~6인, 턴제 30초. 두음법칙 + 사전 검증 10320단어. 호스트 authoritative. `word-chain/`)
 - **배포 URL**: https://hoax0606.github.io/hoax-mini-games/
 
 ---
@@ -80,7 +82,7 @@ src/
 │   └── roomDirectory.ts         # 🆕 publicRooms 노드 publish/update/subscribe + onDisconnect 자동 제거
 ├── games/
 │   ├── types.ts                 # GameContext, Player(role), NetworkMessage + ping/reaction/chat
-│   ├── registry.ts              # 등록된 게임 목록 (6종)
+│   ├── registry.ts              # 등록된 게임 목록 (8종)
 │   ├── air-hockey/              # 2인 호스트 authoritative
 │   ├── battle-tetris/           # 2-4인 로컬 시뮬레이션
 │   ├── apple-game/              # 1-4인 독립 보드 + 점수 경쟁 (17×10)
@@ -90,12 +92,24 @@ src/
 │   │   ├── index.ts             #   루프 + phase 관리
 │   │   ├── render.ts            #   상대 미니뷰 포함
 │   │   └── netSync.ts           # 🆕 rx:round_done / rx:player_done / rx:phase / rx:end encode/decode
-│   └── darts/                   # 1-4인 6모드 다트 (완성)
-│       ├── rules.ts             #   순수 상태머신 (X01 Normal/Hard, Count-up, Low, Cricket)
-│       ├── board.ts             #   과녁 좌표 → HitResult 판정
-│       ├── render.ts            #   다트판 + 다트 + 점수 패널
-│       ├── index.ts             #   플릭 투척 물리 + 턴 진행
-│       └── netSync.ts           # 🆕 dart:hello / dart:sync / dart:throw / dart:end encode/decode
+│   ├── darts/                   # 1-4인 6모드 다트 (완성)
+│   │   ├── rules.ts             #   순수 상태머신 (X01 Normal/Hard, Count-up, Low, Cricket)
+│   │   ├── board.ts             #   과녁 좌표 → HitResult 판정
+│   │   ├── render.ts            #   다트판 + 다트 + 점수 패널
+│   │   ├── index.ts             #   플릭 투척 물리 + 턴 진행
+│   │   └── netSync.ts           #   dart:hello / dart:sync / dart:throw / dart:end
+│   ├── algagi/                  # 🆕 2-4인 알까기 (턴제 물리, 호스트 60Hz 시뮬)
+│   │   ├── rules.ts             #   보드/알 상수, 초기 배치, 턴/승패 판정
+│   │   ├── physics.ts           #   마찰 + 원-원 탄성 충돌 + 드래그→속도
+│   │   ├── render.ts            #   보드 + 알 + 드래그 가이드 + 패널
+│   │   ├── index.ts             #   시뮬 루프 + 마우스 입력 + 충돌 SFX
+│   │   └── netSync.ts           #   ag:hello / sync / flick / state(impulse) / end
+│   └── word-chain/              # 🆕 2-6인 끝말잇기 (턴제 30초, 사전 검증)
+│       ├── rules.ts             #   한글 음절/두음법칙 + 검증 + 턴/탈락
+│       ├── dictionary.ts        #   한국어 명사 10320 + SEED_POOL. WORDS 배열에 추가만 하면 확장
+│       ├── render.ts            #   큰 단어 + 타이머 ring + 히스토리 + 플레이어 카드
+│       ├── index.ts             #   호스트 검증 + HTML input UI 마운트 + 30초 타이머
+│       └── netSync.ts           #   wc:hello/sync/submit/accepted/rejected/timeout/end
 ├── screens/
 │   ├── menu.ts                  # 메인 메뉴 (🎮 시작 / 🌐 공개방 / 📊 통계 / ✏️ 닉 / ⚙️ 설정)
 │   ├── nickname.ts, settings.ts, gameList.ts, lobby.ts
@@ -104,11 +118,12 @@ src/
 │   ├── gameScreen.ts            # 관전자 수락 + ping 배지 + 리액션 + 채팅 패널
 │   ├── statsScreen.ts           # 게임별 누적 전적/최고기록 (localStorage)
 │   ├── publicRooms.ts           # 🆕 Firebase publicRooms 실시간 구독 → 카드 리스트 → 클릭 시 autoJoin
-│   └── resultScreen.ts          # 테트리스/사과/오목/반응속도/다트 전용 결과 분기
+│   └── resultScreen.ts          # 게임별 전용 결과 분기 (테트리스/사과/오목/반응속도/다트/알까기/끝말잇기)
 ├── ui/
-│   ├── theme.css                # 팔레트 + 컴포넌트 스타일 (chat-panel / public-room-card 추가)
+│   ├── theme.css                # 팔레트 + 컴포넌트 스타일 (chat-panel / public-room-card / wc-input)
 │   ├── reactions.ts             # 이모지 6종 버튼 + 하단 풍선 애니 (400ms throttle)
-│   ├── chat.ts                  # 🆕 채팅 사이드패널 build/wire/append + 방 내부 history 유지
+│   ├── chat.ts                  # 채팅 사이드패널 build/wire/append + 방 내부 history 유지
+│   ├── escape.ts                # 🆕 escapeHtml / escapeAttr 단일 출처 (12곳 중복 통합)
 │   └── logo.png                 # 메인 로고 이미지
 └── .github/workflows/deploy.yml # GitHub Pages 자동 배포
 ```
@@ -164,9 +179,11 @@ src/
 - 에어하키: C 메이저 · 140 BPM · square · 경쾌 (2026-04-24 훅 강화판)
 - 배틀 테트리스: A 마이너 · 110 BPM · triangle · 긴장감
 - 사과 게임: F 메이저 · 95 BPM · triangle · 밝고 느긋
-- 오목: 자체 루프
-- 다트: 자체 루프
+- 오목: F 메이저 · 88 BPM · triangle · 따뜻·잔잔
+- 다트: C 메이저 · 100 BPM · triangle · 경쾌한 아르페지오
 - 반응속도: G 메이저 · 105 BPM · square (2026-04-25 추가, "반복 모티프 + 가벼운 긴장감")
+- 알까기: A 마이너 펜타토닉 · 90 BPM · triangle · 한국 전통 놀이풍 + 살짝 긴장
+- 끝말잇기: D 마이너 펜타토닉 · 92 BPM · triangle · 사색적 + 한국 전통풍
 
 ---
 
