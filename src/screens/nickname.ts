@@ -67,6 +67,11 @@ export function createNicknameScreen(options?: {
           return;
         }
         storage.setNickname(name);
+        // 🎂 깜짝 생일 이벤트 — "수경" 으로 시작하면 메인 진입 시 폭죽 1회.
+        //   sessionStorage 플래그로 menu 화면에 신호 (이 탭 세션에 한 번만).
+        if (name === '수경') {
+          sessionStorage.setItem('birthday-event', '수경');
+        }
         if (onDone) {
           onDone();
         } else {

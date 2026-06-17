@@ -2201,3 +2201,89 @@ input {
 .change-game-actions .btn {
   min-width: 110px;
 }
+
+/* ============================================
+   🎂 깜짝 생일 이벤트 오버레이 (폭죽 + 축하 카드)
+   ============================================ */
+
+.birthday-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(54, 36, 56, 0.45);
+  backdrop-filter: blur(3px);
+  animation: birthdayFadeIn 0.4s ease-out;
+}
+.birthday-overlay.is-closing {
+  animation: birthdayFadeOut 0.3s ease-in forwards;
+}
+@keyframes birthdayFadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+@keyframes birthdayFadeOut {
+  from { opacity: 1; }
+  to   { opacity: 0; }
+}
+
+/* 폭죽 캔버스 — 카드 뒤 전체 화면, 클릭 통과(카드/오버레이가 받음) */
+.birthday-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+/* 중앙 축하 카드 — 큼직하게 */
+.birthday-card {
+  position: relative;
+  z-index: 1;
+  background: var(--bg-card);
+  border: 4px solid var(--pink-300);
+  border-radius: 32px;
+  padding: 56px 72px 48px;
+  max-width: 680px;
+  text-align: center;
+  box-shadow: 0 24px 64px rgba(255, 90, 146, 0.36);
+  animation: birthdayPop 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+@keyframes birthdayPop {
+  0%   { transform: scale(0.6) translateY(30px); opacity: 0; }
+  100% { transform: scale(1) translateY(0); opacity: 1; }
+}
+
+.birthday-emoji {
+  font-size: 72px;
+  margin-bottom: 20px;
+  animation: birthdayBounce 1.4s ease-in-out infinite;
+}
+@keyframes birthdayBounce {
+  0%, 100% { transform: translateY(0) scale(1); }
+  50%      { transform: translateY(-12px) scale(1.06); }
+}
+
+.birthday-title {
+  font-size: 34px;
+  font-weight: 900;
+  line-height: 1.5;
+  color: var(--pink-500);
+  margin-bottom: 24px;
+  word-break: keep-all;
+}
+
+.birthday-sender {
+  font-size: 19px;
+  font-weight: 700;
+  color: var(--lavender-300);
+  margin-bottom: 36px;
+}
+
+.birthday-card .btn {
+  min-width: 200px;
+  font-size: 19px;
+  padding: 18px 40px;
+}

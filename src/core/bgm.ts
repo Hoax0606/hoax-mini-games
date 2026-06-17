@@ -21,7 +21,7 @@
 
 import { storage } from './storage';
 
-export type BgmId = 'air-hockey' | 'battle-tetris' | 'apple-game' | 'gomoku' | 'darts' | 'reflex' | 'algagi' | 'word-chain';
+export type BgmId = 'menu' | 'air-hockey' | 'battle-tetris' | 'apple-game' | 'gomoku' | 'darts' | 'reflex' | 'algagi' | 'word-chain';
 
 // ============================================
 // 음이름 → 주파수 테이블 (십이평균율, A4=440)
@@ -405,7 +405,44 @@ const PATTERN_WORD_CHAIN: BgmPattern = {
   ],
 };
 
+// --- 메인 메뉴: C 메이저, 96 BPM, 밝고 포근한 로비 분위기 ---
+// 게임 고르기 전 편안하게. 너무 튀지 않는 부드러운 triangle 아르페지오.
+const PATTERN_MENU: BgmPattern = {
+  bpm: 96,
+  lengthSixteenths: 128,
+  melodyWave: 'triangle',
+  melody: [
+    // 마디 1: C (I) 포근한 시작
+    { f: NOTES.E4, d: 4 }, { f: NOTES.G4, d: 4 }, { f: NOTES.C5, d: 4 }, { f: NOTES.G4, d: 4 },
+    // 마디 2: A 마이너 (vi)
+    { f: NOTES.A4, d: 4 }, { f: NOTES.C5, d: 4 }, { f: NOTES.E5, d: 8 },
+    // 마디 3: F (IV)
+    { f: NOTES.F4, d: 4 }, { f: NOTES.A4, d: 4 }, { f: NOTES.C5, d: 4 }, { f: NOTES.A4, d: 4 },
+    // 마디 4: G (V)
+    { f: NOTES.G4, d: 4 }, { f: NOTES.B4, d: 4 }, { f: NOTES.D5, d: 8 },
+    // 마디 5: C (I)
+    { f: NOTES.C5, d: 4 }, { f: NOTES.E5, d: 4 }, { f: NOTES.G5, d: 4 }, { f: NOTES.E5, d: 4 },
+    // 마디 6: A 마이너 (vi)
+    { f: NOTES.A4, d: 4 }, { f: NOTES.E5, d: 4 }, { f: NOTES.C5, d: 8 },
+    // 마디 7: F (IV) → G (V)
+    { f: NOTES.F4, d: 4 }, { f: NOTES.A4, d: 4 }, { f: NOTES.G4, d: 4 }, { f: NOTES.D5, d: 4 },
+    // 마디 8: C (I) 길게
+    { f: NOTES.C5, d: 8 }, { f: NOTES.G4, d: 8 },
+  ],
+  bass: [
+    { f: NOTES.C3, d: 8 }, { f: NOTES.G3, d: 8 },
+    { f: NOTES.A2, d: 8 }, { f: NOTES.E3, d: 8 },
+    { f: NOTES.F2, d: 8 }, { f: NOTES.C3, d: 8 },
+    { f: NOTES.G2, d: 8 }, { f: NOTES.D3, d: 8 },
+    { f: NOTES.C3, d: 8 }, { f: NOTES.G3, d: 8 },
+    { f: NOTES.A2, d: 8 }, { f: NOTES.E3, d: 8 },
+    { f: NOTES.F2, d: 8 }, { f: NOTES.G2, d: 8 },
+    { f: NOTES.C3, d: 16 },
+  ],
+};
+
 const PATTERNS: Record<BgmId, BgmPattern> = {
+  'menu':          PATTERN_MENU,
   'air-hockey':    PATTERN_AIR_HOCKEY,
   'battle-tetris': PATTERN_BATTLE_TETRIS,
   'apple-game':    PATTERN_APPLE_GAME,
