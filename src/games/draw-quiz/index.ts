@@ -160,6 +160,7 @@ class DrawQuizGameModule implements GameModule {
 
     const rs = decodeRoundStart(msg);
     if (rs) {
+      console.log('[DIAG/dq-guest] round_start received: round', rs.round, 'drawer=', rs.drawerPeerId, 'myPeerId=', this.myPeerId, 'amDrawer=', rs.drawerPeerId === this.myPeerId, 'candidates=', rs.candidates);
       if (!this.isHost) this.applyRoundStart(rs.round, rs.drawerPeerId, rs.candidates, rs.turnStartedAt);
       return;
     }
@@ -330,6 +331,8 @@ class DrawQuizGameModule implements GameModule {
         { target: p.peerId },
       );
     }
+
+    console.log('[DIAG/dq-host] startNextRound: round', this.game.round, 'drawer=', drawer.nickname, drawer.peerId, 'candidates=', this.candidates.map((c) => c.word));
 
     // 호스트 본인 처리
     this.applyRoundStart(
@@ -682,6 +685,7 @@ class DrawQuizGameModule implements GameModule {
 
     // 후보 단어 (choosing + 출제자)
     if (this.candidatesEl) {
+      console.log('[DIAG/dq-ui] refreshUI: phase=', this.game.phase, 'amDrawer=', amDrawer, 'candidates=', this.candidates.length, '→ showCandidates=', (this.game.phase === 'choosing' && amDrawer && this.candidates.length > 0));
       if (this.game.phase === 'choosing' && amDrawer && this.candidates.length > 0) {
         this.candidatesEl.style.display = 'flex';
         this.candidatesEl.innerHTML = '';
@@ -691,8 +695,14 @@ class DrawQuizGameModule implements GameModule {
           b.className = 'dq-candidate-btn';
           b.textContent = c.word;
           b.addEventListener('click', () => {
-            if (this.isHost) this.handleOwnWordChoice(i);
-            else this.ctx.sendToPeer(encodeWordChosen(i));
+            if (this.isHost) {
+              this.handleOwnWordChoice(i);
+            } else {
+              // 게스트 출제자는 자기가 고른 단어를 로컬에 저장 — round_begin 에는 단어가
+              // 없으므로(추측자에게 노출 방지) 이렇게 안 하면 출제자 화면에 자기 단어가 안 보임.
+              this.game.currentWord = this.candidates[i]!.word;
+              this.ctx.sendToPeer(encodeWordChosen(i));
+            }
           });
           this.candidatesEl!.appendChild(b);
         });

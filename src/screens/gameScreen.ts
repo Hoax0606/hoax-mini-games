@@ -663,7 +663,10 @@ export function createGameScreenAsGuestScreen(args: GameScreenAsGuestArgs): Scre
       }
 
       const hostNickname = roomState.hostNickname;
-      const guestNickname = roomState.guestNickname ?? (isSpectator ? '관전자' : '나');
+      // 내 닉네임은 roomState.players 에서 내 peerId 로 찾은 값을 써야 정확하다.
+      //   (roomState.guestNickname 은 players[1] = "첫 게스트" 만 가리키는 2인 호환 필드라,
+      //    3인+ 게임에서 둘째 게스트부터 채팅/표시 이름이 첫 게스트 것으로 잘못 나오던 버그.)
+      const guestNickname = mySelf?.nickname ?? (isSpectator ? '관전자' : storage.getNickname());
       const optionSummary = buildOptionSummary(roomState.gameId, roomState.roomOptions);
 
       const el = document.createElement('div');

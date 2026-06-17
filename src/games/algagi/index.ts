@@ -250,6 +250,7 @@ class AlgagiGameModule implements GameModule {
       let remaining = cappedSec;
       // 한 프레임 내 여러 충돌이 동시에 일어나면 시끄러우니 최대 강도만 모아 한 번 재생.
       let frameMaxImpulse = 0;
+      let turnEnded = false; // 이번 프레임에 턴이 종료됐는지 — 종료 시 즉시 broadcast 필요
       while (remaining > 0 && this.game.phase === 'resolving') {
         const dt = Math.min(SIM_DT, remaining);
         stepPhysics(this.game.stones, dt, (impulse) => {
@@ -260,6 +261,7 @@ class AlgagiGameModule implements GameModule {
         if (allAtRest(this.game.stones)) {
           // turn 종료 — 알 제거 + 다음 턴 / 종료 판정
           const ended = resolveTurnEnd(this.game);
+          turnEnded = true;
           if (ended) {
             this.finishAsHost();
           }
@@ -275,8 +277,18 @@ class AlgagiGameModule implements GameModule {
       }
       if (frameMaxImpulse > this.accumImpulse) this.accumImpulse = frameMaxImpulse;
 
-      // 10Hz state broadcast — accumImpulse 같이 전송 후 리셋
-      if (now - this.lastBroadcastAt >= STATE_BROADCAST_INTERVAL_MS) {
+      // 턴 종료 시: 100ms 가드 무시하고 즉시 broadcast.
+      //   (이게 없으면 turn 종료 직후 aiming + 새 currentTurn 이 게스트에 안 가서
+      //    게스트가 resolving 상태에 멈춰 다음 턴 입력 불가 — 둘째 턴부터 먹통 버그)
+      // 게임이 끝난 경우는 finishAsHost 가 per-peer end 를 이미 보냈으니 state 는 생략.
+      if (turnEnded) {
+        if (this.game.phase === 'aiming') {
+          this.ctx.sendToPeer(encodeState(this.game, this.accumImpulse));
+          this.lastBroadcastAt = now;
+          this.accumImpulse = 0;
+        }
+      } else if (now - this.lastBroadcastAt >= STATE_BROADCAST_INTERVAL_MS) {
+        // 진행 중 10Hz broadcast
         this.ctx.sendToPeer(encodeState(this.game, this.accumImpulse));
         this.lastBroadcastAt = now;
         this.accumImpulse = 0;
