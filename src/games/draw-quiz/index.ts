@@ -160,7 +160,6 @@ class DrawQuizGameModule implements GameModule {
 
     const rs = decodeRoundStart(msg);
     if (rs) {
-      console.log('[DIAG/dq-guest] round_start received: round', rs.round, 'drawer=', rs.drawerPeerId, 'myPeerId=', this.myPeerId, 'amDrawer=', rs.drawerPeerId === this.myPeerId, 'candidates=', rs.candidates);
       if (!this.isHost) this.applyRoundStart(rs.round, rs.drawerPeerId, rs.candidates, rs.turnStartedAt);
       return;
     }
@@ -332,14 +331,12 @@ class DrawQuizGameModule implements GameModule {
       );
     }
 
-    console.log('[DIAG/dq-host] startNextRound: round', this.game.round, 'drawer=', drawer.nickname, drawer.peerId, 'candidates=', this.candidates.map((c) => c.word));
-
-    // 호스트 본인 처리
-    this.applyRoundStart(
-      this.game.round, drawer.peerId,
-      drawer.peerId === this.myPeerId ? this.candidates.map((c) => c.word) : [],
-      now,
-    );
+    // 호스트 본인 처리 — 출제자가 누구든 호스트는 실제 후보를 그대로 유지해야 한다.
+    //   (게스트 출제자가 word_chosen(index) 을 보내면 호스트가 this.candidates[index] 로
+    //    단어를 찾아 판정하기 때문. 여기서 [] 로 덮어쓰면 그 조회가 undefined → 선택이
+    //    조용히 씹혀서 "둘째 출제자부터 선택 안 됨" 버그가 났었음.)
+    //   화면 노출은 refreshUI 의 amDrawer 가드로 막으므로 비출제자 화면엔 안 뜬다.
+    this.applyRoundStart(this.game.round, drawer.peerId, this.candidates.map((c) => c.word), now);
     this.refreshUI();
   }
 
@@ -685,7 +682,6 @@ class DrawQuizGameModule implements GameModule {
 
     // 후보 단어 (choosing + 출제자)
     if (this.candidatesEl) {
-      console.log('[DIAG/dq-ui] refreshUI: phase=', this.game.phase, 'amDrawer=', amDrawer, 'candidates=', this.candidates.length, '→ showCandidates=', (this.game.phase === 'choosing' && amDrawer && this.candidates.length > 0));
       if (this.game.phase === 'choosing' && amDrawer && this.candidates.length > 0) {
         this.candidatesEl.style.display = 'flex';
         this.candidatesEl.innerHTML = '';
