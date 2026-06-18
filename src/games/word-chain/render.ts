@@ -285,7 +285,7 @@ export class WordChainRenderer {
     ctx.font = `700 14px ${FONT}`;
     ctx.textAlign = 'left';
     ctx.textBaseline = 'top';
-    ctx.fillText(`📜 단어 히스토리 (${game.history.length})`, PANEL_X + 10, histY0);
+    ctx.fillText(`📜 단어 (전체 ${game.history.length})`, PANEL_X + 10, histY0);
 
     // 최근 8개만 (오래된 것이 위, 최근 것이 아래 — 또는 반대?)
     // 채팅처럼: 오래된 위, 최근 아래.
@@ -318,14 +318,8 @@ export class WordChainRenderer {
       const authorShown = author.length > 6 ? author.slice(0, 5) + '…' : author;
       ctx.fillText(authorShown, histX + PANEL_W - 30, y + (rowH - 4) / 2);
     }
-
-    // 히스토리가 maxRows 보다 많으면 위에 "...더 있음" 안내
-    if (game.history.length > maxRows) {
-      ctx.fillStyle = COLORS.textMuted;
-      ctx.font = `500 11px ${FONT}`;
-      ctx.textAlign = 'center';
-      ctx.fillText(`+${game.history.length - maxRows}개 더`, PANEL_X + PANEL_W / 2, histY - 8);
-    }
+    // "더 있음" 개수는 헤더의 "(N)" 총계로 이미 표시되므로 별도 안내 X
+    //   (이전엔 "+N개 더" 를 히스토리 첫 줄 위에 겹쳐 그려 헤더/단어와 겹치는 문제가 있었음)
   }
 
   // ============================================

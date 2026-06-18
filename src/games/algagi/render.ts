@@ -269,8 +269,24 @@ export class AlgagiRenderer {
       const cx = BOARD_CX + s.x;
       const cy = BOARD_CY + s.y;
 
-      // 차례 펄스 ring (자기 차례 + 그 사람 알만)
-      if (s.owner === currentTurn) {
+      // 보드 경계 밖으로 나간 정도 — 절벽으로 "떨어지는" 연출(축소 + 페이드).
+      //   경계(±BOARD_HALF) 초과분 0~46px 동안 크기 1→0.25, 투명도 1→0 으로.
+      const outDist = Math.max(
+        0,
+        Math.abs(s.x) - BOARD_HALF,
+        Math.abs(s.y) - BOARD_HALF,
+      );
+      let scale = 1;
+      let alpha = 1;
+      if (outDist > 0) {
+        const t = Math.min(1, outDist / 46);
+        scale = 1 - t * 0.75;
+        alpha = 1 - t;
+      }
+      if (alpha <= 0.02) continue; // 거의 다 떨어진 알은 생략
+
+      // 차례 펄스 ring (자기 차례 + 그 사람 알만, 보드 안에 있을 때만)
+      if (s.owner === currentTurn && outDist === 0) {
         ctx.strokeStyle = `rgba(255, 90, 146, ${pulse})`;
         ctx.lineWidth = 2.5;
         ctx.beginPath();
@@ -278,19 +294,24 @@ export class AlgagiRenderer {
         ctx.stroke();
       }
 
-      this.drawStoneBody(cx, cy, s.owner);
+      this.drawStoneBody(cx, cy, s.owner, scale, alpha);
     }
   }
 
-  /** 알 본체 — 솔리드 단색 + 얇은 stroke + 위쪽 안쪽 하이라이트 (CLAUDE.md 규약) */
-  private drawStoneBody(cx: number, cy: number, owner: PlayerIndex): void {
+  /** 알 본체 — 솔리드 단색 + 얇은 stroke + 위쪽 안쪽 하이라이트 (CLAUDE.md 규약).
+   *  scale/alpha 로 절벽 낙하 연출 표현. */
+  private drawStoneBody(cx: number, cy: number, owner: PlayerIndex, scale = 1, alpha = 1): void {
     const ctx = this.ctx;
     const fill = COLORS.playerFill[owner];
     const stroke = COLORS.playerStroke[owner];
+    const r = STONE_RADIUS * scale;
+
+    ctx.save();
+    ctx.globalAlpha = alpha;
 
     ctx.fillStyle = fill;
     ctx.beginPath();
-    ctx.arc(cx, cy, STONE_RADIUS, 0, Math.PI * 2);
+    ctx.arc(cx, cy, r, 0, Math.PI * 2);
     ctx.fill();
     ctx.strokeStyle = stroke;
     ctx.lineWidth = 1.2;
@@ -300,8 +321,10 @@ export class AlgagiRenderer {
     ctx.strokeStyle = 'rgba(255, 255, 255, 0.55)';
     ctx.lineWidth = 1.5;
     ctx.beginPath();
-    ctx.arc(cx, cy - 1, STONE_RADIUS - 3, Math.PI * 1.1, Math.PI * 1.9);
+    ctx.arc(cx, cy - 1, r - 3, Math.PI * 1.1, Math.PI * 1.9);
     ctx.stroke();
+
+    ctx.restore();
   }
 
   // ============================================

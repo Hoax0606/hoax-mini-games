@@ -70,20 +70,30 @@ const INIT_R = 5;
 const INIT_N = 2;
 const INIT_IEUNG = 11;
 
+// 중성 인덱스 중 "반모음 ㅣ(y) 계열" — 두음법칙에서 ㅇ 으로 바뀌는 모음.
+//   2=ㅑ 3=ㅒ 6=ㅕ 7=ㅖ 12=ㅛ 17=ㅠ 20=ㅣ
+const IOTIZED_JUNG = new Set([2, 3, 6, 7, 12, 17, 20]);
+
 /**
  * 어떤 글자로 다음 단어를 시작할 수 있는가 — 두음법칙 변환 포함한 허용 시작 글자 집합.
- * 예: '록' → {'록', '녹'} (ㄹ→ㄴ)
- * 예: '녀' → {'녀', '여'} (ㄴ→ㅇ)
- * 예: '가' → {'가'} (변환 없음)
+ *
+ * 두음법칙 (한국어 표준):
+ *   - 초성 ㄹ + ㅣ계열 모음 → ㅇ  (력→역, 료→요, 류→유, 리→이, 례→예)
+ *   - 초성 ㄹ + 그 외 모음   → ㄴ  (라→나, 로→노, 루→누, 래→내, 뢰→뇌)
+ *   - 초성 ㄴ + ㅣ계열 모음 → ㅇ  (녀→여, 뇨→요, 뉴→유, 니→이)
+ *   - 원래 글자 자체도 항상 허용 (그냥 ㄹ/ㄴ 로 시작하는 단어도 OK)
+ *
+ * 예: '력' → {'력','역'}, '로' → {'로','노'}, '녀' → {'녀','여'}, '가' → {'가'}
  */
 export function allowedStartLetters(lastChar: string): Set<string> {
   const out = new Set<string>([lastChar]);
   const init = getInitial(lastChar);
   if (init < 0) return out;
   const { jung, jong } = getJungJong(lastChar);
+  const iotized = IOTIZED_JUNG.has(jung);
   if (init === INIT_R) {
-    out.add(composeSyllable(INIT_N, jung, jong));
-  } else if (init === INIT_N) {
+    out.add(composeSyllable(iotized ? INIT_IEUNG : INIT_N, jung, jong));
+  } else if (init === INIT_N && iotized) {
     out.add(composeSyllable(INIT_IEUNG, jung, jong));
   }
   return out;

@@ -355,7 +355,7 @@ export class DrawQuizRenderer {
     ctx.font = `700 13px ${FONT}`;
     ctx.textAlign = 'left';
     ctx.textBaseline = 'middle';
-    ctx.fillText('🏆 점수', PANEL_X + 14, y0);
+    ctx.fillText('🏆 맞춘 개수', PANEL_X + 14, y0);
 
     // 점수 내림차순
     const sorted = [...game.players].sort((a, b) => b.score - a.score);

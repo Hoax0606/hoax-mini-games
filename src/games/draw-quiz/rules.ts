@@ -60,12 +60,6 @@ export interface DrawQuizGame {
 /** 라운드 제한 시간 */
 export const ROUND_DURATION_MS = 70_000;
 export const TIMEOUT_GRACE_MS = 500;
-/** 정답 1등 점수, 이후 순위마다 차감, 최소 점수 */
-const SCORE_FIRST = 100;
-const SCORE_STEP = 10;
-const SCORE_MIN = 50;
-/** 출제자가 받는 점수 (맞힌 사람 1명당) */
-const DRAWER_SCORE_PER_CORRECT = 30;
 
 // ============================================
 // 초기화
@@ -120,27 +114,18 @@ export function isCorrectGuess(guess: string, answer: string): boolean {
 }
 
 /**
- * 정답 맞힌 사람에게 점수 부여 (호스트만).
- * 이미 맞힌 사람이면 무시. 순위(빠른 순)에 따라 점수 차등.
- * 반환: 부여된 점수 (이미 맞혔으면 0)
+ * 정답 맞힌 사람의 "맞춘 개수" +1 (호스트만).
+ * 이미 맞힌 사람/출제자는 무시. 출제자(그리는 사람)는 점수를 받지 않는다.
+ * 반환: 맞힌 것으로 처리됐으면 true.
  */
-export function awardCorrect(game: DrawQuizGame, peerId: string): number {
-  if (game.correctThisRound.includes(peerId)) return 0;
-  if (peerId === game.drawerPeerId) return 0; // 출제자는 못 맞힘
-  const rank = game.correctThisRound.length; // 0-based
-  const score = Math.max(SCORE_MIN, SCORE_FIRST - rank * SCORE_STEP);
+export function awardCorrect(game: DrawQuizGame, peerId: string): boolean {
+  if (game.correctThisRound.includes(peerId)) return false;
+  if (peerId === game.drawerPeerId) return false; // 출제자는 못 맞힘
   const player = game.players.find((p) => p.peerId === peerId);
-  if (!player) return 0;
-  player.score += score;
+  if (!player) return false;
+  player.score += 1; // 맞춘 개수 누적 (순위 = 누적 정답 수)
   game.correctThisRound.push(peerId);
-  return score;
-}
-
-/** 라운드 종료 시 출제자 점수 정산 (맞힌 사람 수 비례). */
-export function awardDrawer(game: DrawQuizGame): void {
-  const drawer = game.players.find((p) => p.peerId === game.drawerPeerId);
-  if (!drawer) return;
-  drawer.score += game.correctThisRound.length * DRAWER_SCORE_PER_CORRECT;
+  return true;
 }
 
 /** 비출제자(추측 가능한 사람) 전원이 맞혔는지 — 라운드 조기 종료 판정. */

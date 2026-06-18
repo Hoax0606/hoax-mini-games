@@ -1076,7 +1076,7 @@ function buildDrawQuizResultHTML(args: {
 
   const rankingsHTML = `
     <div class="result-tetris-rankings">
-      <div class="result-tetris-rankings-title">🏅 최종 점수</div>
+      <div class="result-tetris-rankings-title">🏅 맞춘 개수</div>
       ${summary.rankings.map((r) => {
         const isMe = r.peerId === summary.myPeerId;
         const badgeClass = r.rank <= 3 ? `rank-${r.rank}` : '';
@@ -1084,7 +1084,7 @@ function buildDrawQuizResultHTML(args: {
           <div class="result-tetris-rank-row ${isMe ? 'is-me' : ''}">
             <span class="result-tetris-rank-badge ${badgeClass}">${r.rank}</span>
             <span class="result-tetris-rank-name">${escapeHtml(r.nickname)}</span>
-            <span class="result-apple-rank-score">${r.score}점</span>
+            <span class="result-apple-rank-score">${r.score}개</span>
             ${isMe ? '<span class="result-tetris-rank-me-tag">나</span>' : ''}
           </div>
         `;

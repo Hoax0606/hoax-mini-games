@@ -127,8 +127,12 @@ export function initialStonePositions(
 
   // 변(edge) 위에 알을 일렬로 배치할 때, 절벽으로부터 마진
   const EDGE_MARGIN = 36;
-  // 일렬 배치 시 알들 사이 간격
-  const lineSpan = BOARD_SIZE - EDGE_MARGIN * 2;
+  // 변을 따라 늘어놓을 때 모서리(코너)에서 떨어뜨리는 마진.
+  //   EDGE_MARGIN 만 쓰면 3·4인에서 인접한 두 변의 끝 알이 같은 코너 좌표에 겹쳐
+  //   "내 알이 몇 개 안 보이다가 첫 충돌 후 분리되며 나타나는" 버그가 났음.
+  //   알 지름(STONE_RADIUS*2=24)보다 충분히 크게 잡아 코너 충돌을 원천 차단.
+  const CORNER_MARGIN = 64;
+  const lineSpan = BOARD_SIZE - CORNER_MARGIN * 2;
   const gap = lineSpan / (stonesPerPlayer - 1);
 
   /** 한 변 위에 stonesPerPlayer 개를 일렬로 — edgeAxis: 'h'(가로) | 'v'(세로),
@@ -139,7 +143,7 @@ export function initialStonePositions(
     edgePos: number,
   ): void => {
     for (let i = 0; i < stonesPerPlayer; i++) {
-      const along = -BOARD_HALF + EDGE_MARGIN + gap * i;
+      const along = -BOARD_HALF + CORNER_MARGIN + gap * i;
       if (edgeAxis === 'h') {
         out.push({ owner, x: along, y: edgePos });
       } else {

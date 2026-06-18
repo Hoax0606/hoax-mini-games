@@ -25,7 +25,6 @@ import {
   pickNextDrawer,
   isCorrectGuess,
   awardCorrect,
-  awardDrawer,
   allGuessersCorrect,
   scoreMap,
   computeWinner,
@@ -421,7 +420,7 @@ class DrawQuizGameModule implements GameModule {
   }
 
   private endRoundAsHost(): void {
-    awardDrawer(this.game);
+    // 출제자는 점수 없음 (맞춘 사람만 +1). awardDrawer 제거됨.
     this.game.phase = 'round_result';
     this.revealedWord = this.game.currentWord;
     this.resultEndsAt = performance.now() + ROUND_RESULT_MS;
@@ -650,8 +649,8 @@ class DrawQuizGameModule implements GameModule {
     if (this.game.correctThisRound.includes(peerId)) return;
     if (!isCorrectGuess(word, this.game.currentWord)) return; // 오답 — 무시
 
-    const gained = awardCorrect(this.game, peerId);
-    if (gained > 0) {
+    const ok = awardCorrect(this.game, peerId);
+    if (ok) {
       const rank = this.game.correctThisRound.indexOf(peerId) + 1;
       this.ctx.sendToPeer(encodeCorrect({
         peerId, nickname, scores: scoreMap(this.game), rank,

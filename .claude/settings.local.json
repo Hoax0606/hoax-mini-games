@@ -4,7 +4,22 @@
       "Bash(npm run *)",
       "Bash(git -C \"/Users/hoax/Personal Project/hoax-mini-games\" mv public/favicon.svg public/favicon-old.svg)",
       "Bash(npm install *)",
-      "Bash(npx tsc *)"
+      "Bash(npx tsc *)",
+      "Bash(node -e ' *)",
+      "Bash(./node_modules/.bin/tsc --noEmit --strict --skipLibCheck src/games/draw-quiz/words.ts)",
+      "Bash(echo \"exit:$?\")",
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)",
+      "WebSearch",
+      "Read(//private/tmp/**)",
+      "Bash(curl -sL \"https://api.github.com/repos/han-dle/pd-korean-noun-list-for-wordles/contents/\")",
+      "Bash(curl -sL \"https://raw.githubusercontent.com/han-dle/pd-korean-noun-list-for-wordles/main/LICENSE\")",
+      "Bash(curl -sL \"https://api.github.com/repos/han-dle/pd-korean-noun-list-for-wordles/contents/src\")",
+      "Bash(curl -sL \"https://raw.githubusercontent.com/han-dle/pd-korean-noun-list-for-wordles/main/src/CommonNouns.js\")",
+      "Bash(curl -sL \"https://raw.githubusercontent.com/han-dle/pd-korean-noun-list-for-wordles/main/src/AllNouns.js\")",
+      "Bash(curl -sL \"https://raw.githubusercontent.com/han-dle/pd-korean-noun-list-for-wordles/main/src/AllNouns.js\" -o allnouns.js)",
+      "Bash(curl -sL \"https://raw.githubusercontent.com/han-dle/pd-korean-noun-list-for-wordles/main/src/CommonNouns.js\" -o commonnouns.js)",
+      "Bash(python3 -c ' *)"
     ]
   }
 }
