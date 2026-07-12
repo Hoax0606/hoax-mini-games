@@ -236,7 +236,19 @@ export const games: GameEntry[] = [
       thumbnail: fortressThumbnail,
       minPlayers: 2,
       maxPlayers: 6,
-      roomOptions: [],
+      roomOptions: [
+        {
+          key: 'fortsPerPlayer',
+          label: '1인당 포대 수',
+          type: 'select',
+          choices: [
+            { value: '1', label: '1개' },
+            { value: '2', label: '2개' },
+            { value: '3', label: '3개' },
+          ],
+          defaultValue: '1',
+        },
+      ],
     },
     load: async () => {
       const mod = await import('./fortress');

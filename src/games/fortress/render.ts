@@ -7,11 +7,10 @@
  * 조준 UI: 알까기/다트와 동일한 "드래그 반대 방향 발사" 규약.
  */
 
-import { TERRAIN_WIDTH, terrainTopAt } from './terrain';
+import { terrainTopAt, TERRAIN_HEIGHT } from './terrain';
 import { MAX_WIND } from './physics';
-import { fortCenterY, FORT_HP, type FortressGame, type Fort } from './rules';
+import { fortCenterY, FORT_HP, type FortressGame } from './rules';
 
-const CANVAS_W = 800;
 const CANVAS_H = 400;
 
 const FONT = `'Pretendard', 'Apple SD Gothic Neo', 'Noto Sans KR', system-ui, sans-serif`;
@@ -42,9 +41,8 @@ const COLORS = {
 // 좌표 변환
 // ============================================
 
-export function canvasToLogical(px: number, py: number, rect: DOMRect): { x: number; y: number } {
-  return { x: px * (CANVAS_W / rect.width), y: py * (CANVAS_H / rect.height) };
-}
+// 좌표 변환은 논리 폭이 가변이라 Renderer.screenToLogical 메서드로 이동
+//   (uniform scale + letterbox offset 을 render 시점에 저장해 역변환).
 
 // ============================================
 // Renderer
@@ -71,6 +69,16 @@ export class FortressRenderer {
   private ctx: CanvasRenderingContext2D;
   private ro: ResizeObserver;
 
+  // 마지막 render 의 논리→화면 변환 (screenToLogical 역변환용, CSS 픽셀 기준)
+  private scaleCss = 1;
+  private offXCss = 0;
+  private offYCss = 0;
+
+  /** 화면(rect 내 CSS 픽셀) 좌표 → 게임 논리 좌표 */
+  screenToLogical(px: number, py: number): { x: number; y: number } {
+    return { x: (px - this.offXCss) / this.scaleCss, y: (py - this.offYCss) / this.scaleCss };
+  }
+
   constructor(args: FortressRendererArgs) {
     this.canvas = args.canvas;
     const ctx = args.canvas.getContext('2d');
@@ -96,40 +104,53 @@ export class FortressRenderer {
   render(state: RenderState): void {
     const ctx = this.ctx;
     const rect = this.canvas.getBoundingClientRect();
+    if (rect.width === 0) return;
     const dpr = window.devicePixelRatio || 1;
+    const logicalW = state.game.terrainWidth;
+
+    // uniform scale + letterbox — 논리(logicalW × 400)를 화면에 왜곡 없이 담기
+    const scale = Math.min(rect.width / logicalW, rect.height / TERRAIN_HEIGHT);
+    this.scaleCss = scale;
+    this.offXCss = (rect.width - logicalW * scale) / 2;
+    this.offYCss = (rect.height - TERRAIN_HEIGHT * scale) / 2;
+
+    // 전체 배경(레터박스 여백) 채우기
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
-    const sx = (rect.width * dpr) / CANVAS_W;
-    const sy = (rect.height * dpr) / CANVAS_H;
-    ctx.setTransform(sx, 0, 0, sy, 0, 0);
+    ctx.fillStyle = '#efe7f2';
+    ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
 
-    this.drawSky();
+    // 논리 좌표계로 전환 (물리픽셀 = CSS × dpr)
+    ctx.setTransform(scale * dpr, 0, 0, scale * dpr, this.offXCss * dpr, this.offYCss * dpr);
+
+    this.drawSky(logicalW);
     this.drawTerrain(state.hm);
     this.drawForts(state);
     if (state.projectile) this.drawProjectile(state.projectile);
     if (state.aim) this.drawAim(state.aim);
-    this.drawHUD(state);
-    if (state.game.phase === 'ended') this.drawEndOverlay(state);
+    this.drawHUD(state, logicalW);
+    if (state.game.phase === 'ended') this.drawEndOverlay(state, logicalW);
   }
 
-  private drawSky(): void {
+  private drawSky(logicalW: number): void {
     const ctx = this.ctx;
-    const g = ctx.createLinearGradient(0, 0, 0, CANVAS_H);
+    const g = ctx.createLinearGradient(0, 0, 0, TERRAIN_HEIGHT);
     g.addColorStop(0, COLORS.skyTop);
     g.addColorStop(1, COLORS.skyBot);
     ctx.fillStyle = g;
-    ctx.fillRect(0, 0, CANVAS_W, CANVAS_H);
+    ctx.fillRect(0, 0, logicalW, TERRAIN_HEIGHT);
   }
 
   private drawTerrain(hm: number[]): void {
     const ctx = this.ctx;
+    const w = hm.length;
     ctx.beginPath();
     ctx.moveTo(0, hm[0]!);
-    for (let x = 1; x < TERRAIN_WIDTH; x++) ctx.lineTo(x, hm[x]!);
-    ctx.lineTo(CANVAS_W, CANVAS_H);
-    ctx.lineTo(0, CANVAS_H);
+    for (let x = 1; x < w; x++) ctx.lineTo(x, hm[x]!);
+    ctx.lineTo(w, TERRAIN_HEIGHT);
+    ctx.lineTo(0, TERRAIN_HEIGHT);
     ctx.closePath();
-    const g = ctx.createLinearGradient(0, 150, 0, CANVAS_H);
+    const g = ctx.createLinearGradient(0, 150, 0, TERRAIN_HEIGHT);
     g.addColorStop(0, COLORS.soil);
     g.addColorStop(1, COLORS.soilDark);
     ctx.fillStyle = g;
@@ -139,7 +160,7 @@ export class FortressRenderer {
     ctx.lineWidth = 2;
     ctx.beginPath();
     ctx.moveTo(0, hm[0]!);
-    for (let x = 1; x < TERRAIN_WIDTH; x++) ctx.lineTo(x, hm[x]!);
+    for (let x = 1; x < w; x++) ctx.lineTo(x, hm[x]!);
     ctx.stroke();
   }
 
@@ -158,11 +179,11 @@ export class FortressRenderer {
         continue;
       }
       const cy = fortCenterY(state.hm, f);
-      const fill = FILL[f.index] ?? FILL[0];
-      const stroke = STROKE[f.index] ?? STROKE[0];
+      const fill = FILL[f.ownerIndex] ?? FILL[0];
+      const stroke = STROKE[f.ownerIndex] ?? STROKE[0];
 
       // 차례 표시 펄스
-      if (f.index === currentTurn) {
+      if (f.id === currentTurn) {
         const pulse = 0.6 + 0.4 * Math.sin(state.now / 260);
         ctx.strokeStyle = `rgba(255,90,146,${pulse})`;
         ctx.lineWidth = 2.5;
@@ -194,12 +215,12 @@ export class FortressRenderer {
       ctx.fillRect(barX, barY, barW * ratio, 5);
 
       // 닉네임 (내 포대면 강조)
-      const isMe = f.peerId === state.myPeerId;
+      const isMe = f.ownerPeerId === state.myPeerId;
       ctx.fillStyle = isMe ? COLORS.accentPink : COLORS.textMuted;
       ctx.font = `${isMe ? 700 : 500} 11px ${FONT}`;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'bottom';
-      const nick = f.nickname.length > 6 ? f.nickname.slice(0, 5) + '…' : f.nickname;
+      const nick = f.ownerNickname.length > 6 ? f.ownerNickname.slice(0, 5) + '…' : f.ownerNickname;
       ctx.fillText(nick + (isMe ? ' (나)' : ''), f.x, barY - 3);
     }
   }
@@ -251,26 +272,26 @@ export class FortressRenderer {
     ctx.fill();
   }
 
-  private drawHUD(state: RenderState): void {
+  private drawHUD(state: RenderState, logicalW: number): void {
     const ctx = this.ctx;
     const g = state.game;
 
     // 상단 중앙 HUD 박스
     const boxW = 240;
-    const boxX = (CANVAS_W - boxW) / 2;
+    const boxX = (logicalW - boxW) / 2;
     ctx.fillStyle = COLORS.hudBg;
     this.roundRect(boxX, 8, boxW, 34, 10);
     ctx.fill();
 
     ctx.textBaseline = 'middle';
     // 좌: 현재 차례
-    const cur = g.forts.find((f) => f.index === g.currentTurn);
+    const cur = g.forts.find((f) => f.id === g.currentTurn);
     ctx.fillStyle = COLORS.textMain;
     ctx.font = `700 13px ${FONT}`;
     ctx.textAlign = 'left';
     const turnLabel = g.phase === 'ended' ? '게임 종료'
       : g.phase === 'firing' ? '발사 중…'
-      : `${cur?.nickname ?? '?'} 차례`;
+      : `${cur?.ownerNickname ?? '?'} 차례`;
     ctx.fillText(`🎯 ${turnLabel}`, boxX + 14, 25);
 
     // 우: 바람 (화살표 + 세기)
@@ -288,14 +309,14 @@ export class FortressRenderer {
       ctx.fillStyle = COLORS.textMuted;
       ctx.font = `600 12px ${FONT}`;
       ctx.textAlign = 'center';
-      ctx.fillText('👀 관전 중', CANVAS_W / 2, 56);
+      ctx.fillText('👀 관전 중', logicalW / 2, 56);
     }
   }
 
-  private drawEndOverlay(state: RenderState): void {
+  private drawEndOverlay(state: RenderState, logicalW: number): void {
     const ctx = this.ctx;
     ctx.fillStyle = COLORS.endOverlay;
-    ctx.fillRect(0, 0, CANVAS_W, CANVAS_H);
+    ctx.fillRect(0, 0, logicalW, CANVAS_H);
     const winners = state.game.winnerPeerIds;
     const iWon = winners.includes(state.myPeerId);
     const isDraw = winners.length === 0;
@@ -303,15 +324,15 @@ export class FortressRenderer {
     ctx.textBaseline = 'middle';
     ctx.font = `900 56px ${FONT}`;
     ctx.fillStyle = '#fff';
-    ctx.fillText(isDraw ? '⚖️' : '🏆', CANVAS_W / 2, CANVAS_H / 2 - 26);
+    ctx.fillText(isDraw ? '⚖️' : '🏆', logicalW / 2, CANVAS_H / 2 - 26);
     ctx.font = `900 26px ${FONT}`;
     ctx.fillStyle = iWon ? COLORS.accentPink : '#fff';
-    const winNames = state.game.forts
-      .filter((f) => winners.includes(f.peerId))
-      .map((f) => f.nickname)
+    const winNames = [...new Set(state.game.forts
+      .filter((f) => winners.includes(f.ownerPeerId))
+      .map((f) => f.ownerNickname))]
       .join(', ');
     const title = isDraw ? '무승부' : iWon ? (winners.length >= 2 ? '공동 우승!' : '승리!') : `${winNames} 승리`;
-    ctx.fillText(title, CANVAS_W / 2, CANVAS_H / 2 + 26);
+    ctx.fillText(title, logicalW / 2, CANVAS_H / 2 + 26);
   }
 
   private roundRect(x: number, y: number, w: number, h: number, r: number): void {

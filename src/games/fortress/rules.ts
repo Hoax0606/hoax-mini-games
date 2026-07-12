@@ -5,14 +5,17 @@
  * 여기서는 높이맵을 인자로 받아 포대 y·데미지만 계산한다.
  */
 
-import { terrainTopAt, TERRAIN_WIDTH } from './terrain';
+import { terrainTopAt, mapWidthForPlayers } from './terrain';
 
 export type FortIndex = 0 | 1 | 2 | 3 | 4 | 5;
 
 export interface Fort {
-  peerId: string;
-  nickname: string;
-  index: FortIndex;
+  /** 포대 고유 id (턴/HP 식별). 한 플레이어가 여러 포대를 가질 수 있음 */
+  id: number;
+  ownerPeerId: string;
+  ownerNickname: string;
+  /** 소유자 순번 (0~5) — 색 구분용 */
+  ownerIndex: FortIndex;
   /** 지형 위 x 위치 (고정). y 는 지형에서 계산 */
   x: number;
   hp: number;
@@ -24,10 +27,13 @@ export type GamePhase = 'aiming' | 'firing' | 'ended';
 export interface FortressGame {
   /** 지형 생성 seed */
   seed: number;
+  /** 지형 논리 폭 (인원 비례 — 많을수록 넓음) */
+  terrainWidth: number;
   forts: Fort[];
   /** 현재 바람 가속 (px/s², +오른쪽). 턴마다 갱신 */
   wind: number;
-  currentTurn: FortIndex;
+  /** 현재 차례 포대 id (살아있는 포대 순환) */
+  currentTurn: number;
   phase: GamePhase;
   turnCount: number;
   winnerPeerIds: string[];
@@ -48,10 +54,10 @@ export const CRATER_RADIUS = 34;
 // ============================================
 
 /** 포대를 지형 폭에 균등 배치 (양 끝 여백). */
-function layoutFortX(n: number): number[] {
+function layoutFortX(n: number, width: number): number[] {
   const margin = 70;
-  const span = TERRAIN_WIDTH - margin * 2;
-  if (n === 1) return [TERRAIN_WIDTH / 2];
+  const span = width - margin * 2;
+  if (n === 1) return [width / 2];
   const xs: number[] = [];
   for (let i = 0; i < n; i++) xs.push(margin + (span * i) / (n - 1));
   return xs;
@@ -61,21 +67,40 @@ export function createInitialGame(
   players: Array<{ peerId: string; nickname: string }>,
   seed: number,
   wind: number,
+  fortsPerPlayer = 1,
 ): FortressGame {
   if (players.length < 2 || players.length > 6) {
     throw new Error(`포트리스는 2~6인만 지원해요 (현재 ${players.length}인)`);
   }
-  const xs = layoutFortX(players.length);
-  const forts: Fort[] = players.map((p, i) => ({
-    peerId: p.peerId,
-    nickname: p.nickname,
-    index: i as FortIndex,
-    x: xs[i]!,
-    hp: FORT_HP,
-    alive: true,
-  }));
+  const perPlayer = Math.max(1, Math.min(3, fortsPerPlayer));
+  const total = players.length * perPlayer;
+  const terrainWidth = mapWidthForPlayers(players.length);
+  const xs = layoutFortX(total, terrainWidth);
+
+  // 라운드로빈 배치: 좌→우로 P0,P1,...,P0,P1,... — 같은 소유자 포대가 흩어져 균형
+  const forts: Fort[] = [];
+  let fid = 0;
+  for (let k = 0; k < perPlayer; k++) {
+    for (let pi = 0; pi < players.length; pi++) {
+      forts.push({
+        id: fid,
+        ownerPeerId: players[pi]!.peerId,
+        ownerNickname: players[pi]!.nickname,
+        ownerIndex: pi as FortIndex,
+        x: xs[fid]!,
+        hp: FORT_HP,
+        alive: true,
+      });
+      fid++;
+    }
+  }
+  // x 순으로 정렬하고 id 재부여(턴이 좌→우 순서로 자연스럽게)
+  forts.sort((a, b) => a.x - b.x);
+  forts.forEach((f, i) => { f.id = i; });
+
   return {
     seed,
+    terrainWidth,
     forts,
     wind,
     currentTurn: 0,
@@ -94,9 +119,9 @@ export function fortCenterY(hm: number[], fort: Fort): number {
   return terrainTopAt(hm, fort.x) - FORT_RISE;
 }
 
-/** 다음 턴 — 현재 다음으로 살아있는 포대 */
-export function getNextTurn(game: FortressGame): FortIndex {
-  const alive = game.forts.filter((f) => f.alive).map((f) => f.index);
+/** 다음 턴 — 현재 다음으로 살아있는 포대 id */
+export function getNextTurn(game: FortressGame): number {
+  const alive = game.forts.filter((f) => f.alive).map((f) => f.id);
   if (alive.length === 0) return 0;
   const cur = alive.indexOf(game.currentTurn);
   const next = cur === -1 ? 0 : (cur + 1) % alive.length;
@@ -108,7 +133,7 @@ export function getNextTurn(game: FortressGame): FortIndex {
 // ============================================
 
 export interface BlastResult {
-  /** 각 포대 index → 갱신된 hp */
+  /** 각 포대 id → 갱신된 hp */
   hp: Record<number, number>;
   /** 이번 착탄으로 게임이 끝났는지 */
   ended: boolean;
@@ -131,14 +156,15 @@ export function applyBlast(game: FortressGame, hm: number[], cx: number, cy: num
   }
 
   const hp: Record<number, number> = {};
-  for (const f of game.forts) hp[f.index] = f.hp;
+  for (const f of game.forts) hp[f.id] = f.hp;
 
-  const survivors = game.forts.filter((f) => f.alive);
+  // 승패는 "살아있는 포대의 소유자" 단위 — 한 플레이어의 모든 포대가 부서지면 탈락
+  const survivorOwners = [...new Set(game.forts.filter((f) => f.alive).map((f) => f.ownerPeerId))];
   let ended = false;
-  if (survivors.length <= 1) {
+  if (survivorOwners.length <= 1) {
     ended = true;
     game.phase = 'ended';
-    game.winnerPeerIds = survivors.map((f) => f.peerId); // 0명이면 무승부(빈 배열)
+    game.winnerPeerIds = survivorOwners; // 0명이면 무승부(빈 배열)
   }
   return { hp, ended };
 }

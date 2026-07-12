@@ -16,16 +16,16 @@ import { sound } from '../../core/sound';
 import {
   createInitialGame, applyBlast, advanceTurn, fortCenterY,
   CRATER_RADIUS,
-  type FortressGame, type FortIndex,
+  type FortressGame, type Fort,
 } from './rules';
 import {
-  generateTerrain, carveCrater, terrainTopAt, TERRAIN_WIDTH,
+  generateTerrain, carveCrater, terrainTopAt,
 } from './terrain';
 import {
   launchVelocity, stepProjectile, MAX_WIND, type Projectile,
 } from './physics';
 import {
-  FortressRenderer, canvasToLogical, type RenderState,
+  FortressRenderer, type RenderState,
 } from './render';
 import {
   encodeHello, decodeHello,
@@ -52,7 +52,6 @@ class FortressGameModule implements GameModule {
   private myPeerId = '';
   private isHost = false;
   private isSpectator = false;
-  private myIndex: FortIndex | -1 = -1;
 
   private rafId: number | null = null;
   private destroyed = false;
@@ -86,15 +85,12 @@ class FortressGameModule implements GameModule {
     // 호스트가 seed/바람 결정 (게스트는 sync 로 덮어씀)
     const seed = this.isHost ? (Math.floor(Math.random() * 2 ** 31) || 1) : 1;
     const wind0 = this.isHost ? this.randomWind() : 0;
+    const fortsPerPlayer = Math.max(1, Math.min(3, Number(ctx.roomOptions['fortsPerPlayer']) || 1));
     this.game = createInitialGame(
       ordered.map((p) => ({ peerId: p.peerId, nickname: p.nickname })),
-      seed, wind0,
+      seed, wind0, fortsPerPlayer,
     );
-    this.hm = generateTerrain(this.game.seed);
-
-    if (!this.isSpectator) {
-      this.myIndex = this.game.forts.find((f) => f.peerId === this.myPeerId)?.index ?? -1;
-    }
+    this.hm = generateTerrain(this.game.seed, this.game.terrainWidth);
 
     this.renderer = new FortressRenderer({ canvas: ctx.canvas });
     ctx.canvas.style.cursor = 'crosshair';
@@ -123,11 +119,8 @@ class FortressGameModule implements GameModule {
       if (!this.isHost) {
         this.game = sync.game;
         this.craters = sync.craters;
-        this.hm = generateTerrain(this.game.seed);
+        this.hm = generateTerrain(this.game.seed, this.game.terrainWidth);
         for (const c of this.craters) carveCrater(this.hm, c.cx, c.cy, c.r);
-        if (!this.isSpectator) {
-          this.myIndex = this.game.forts.find((f) => f.peerId === this.myPeerId)?.index ?? -1;
-        }
       }
       return;
     }
@@ -222,7 +215,7 @@ class FortressGameModule implements GameModule {
     if (!p) return false;
 
     // 화면 밖으로 크게 이탈 → 빗나감 (호스트만 처리, 게스트는 impact 대기)
-    const off = p.x < -60 || p.x > TERRAIN_WIDTH + 60 || p.y > 440;
+    const off = p.x < -60 || p.x > this.game.terrainWidth + 60 || p.y > 440;
     const hitGround = p.y >= terrainTopAt(this.hm, p.x);
     let hitFort = false;
     for (const f of this.game.forts) {
@@ -256,26 +249,32 @@ class FortressGameModule implements GameModule {
     window.removeEventListener('mouseup', this.onUp);
   }
 
+  /** 현재 차례 포대 (내 소유일 때만 조준 가능) */
+  private currentFort(): Fort | undefined {
+    return this.game.forts.find((f) => f.id === this.game.currentTurn);
+  }
+
   private canAim(): boolean {
-    return !this.isSpectator && !this.paused && this.game.phase === 'aiming'
-      && this.myIndex === this.game.currentTurn && !this.projectile;
+    if (this.isSpectator || this.paused || this.game.phase !== 'aiming' || this.projectile) return false;
+    const cf = this.currentFort();
+    return !!cf && cf.ownerPeerId === this.myPeerId;
   }
 
   private onDown = (e: MouseEvent): void => {
     if (!this.canAim()) return;
-    const me = this.game.forts.find((f) => f.index === this.myIndex);
+    const me = this.currentFort();
     if (!me) return;
     this.aiming = true;
     this.aimFromX = me.x;
     this.aimFromY = fortCenterY(this.hm, me) - MUZZLE_RISE;
     const rect = this.ctx.canvas.getBoundingClientRect();
-    const { x, y } = canvasToLogical(e.clientX - rect.left, e.clientY - rect.top, rect);
+    const { x, y } = this.renderer.screenToLogical(e.clientX - rect.left, e.clientY - rect.top);
     this.mouseX = x; this.mouseY = y;
   };
 
   private onMove = (e: MouseEvent): void => {
     const rect = this.ctx.canvas.getBoundingClientRect();
-    const { x, y } = canvasToLogical(e.clientX - rect.left, e.clientY - rect.top, rect);
+    const { x, y } = this.renderer.screenToLogical(e.clientX - rect.left, e.clientY - rect.top);
     this.mouseX = x; this.mouseY = y;
   };
 
@@ -296,7 +295,7 @@ class FortressGameModule implements GameModule {
     // 로컬 즉시 시작 + broadcast (게스트/호스트 공통)
     this.beginProjectile(this.aimFromX, this.aimFromY, angleRad, power01, wind);
     this.ctx.sendToPeer(encodeFire({
-      fromIndex: this.myIndex as FortIndex,
+      fromFortId: this.game.currentTurn,
       startX: this.aimFromX, startY: this.aimFromY,
       angleRad, power01, wind,
     }));
@@ -350,7 +349,7 @@ class FortressGameModule implements GameModule {
       this.craters.push({ cx: p.cx, cy: p.cy, r: p.craterR });
     }
     for (const f of this.game.forts) {
-      const hp = p.hp[f.index];
+      const hp = p.hp[f.id];
       if (hp !== undefined) { f.hp = hp; f.alive = hp > 0; }
     }
     this.projectile = null;
@@ -367,7 +366,7 @@ class FortressGameModule implements GameModule {
 
   private hpMap(): Record<number, number> {
     const out: Record<number, number> = {};
-    for (const f of this.game.forts) out[f.index] = f.hp;
+    for (const f of this.game.forts) out[f.id] = f.hp;
     return out;
   }
 
@@ -383,13 +382,24 @@ class FortressGameModule implements GameModule {
     if (this.gameFinished) return;
     this.gameFinished = true;
     const winners = this.game.winnerPeerIds;
+    // 플레이어(소유자) 단위 집계 — 남은 포대 총 HP 합으로 순위. (포대 여러 개 대응)
+    const byOwner = new Map<string, { nickname: string; hp: number; alive: boolean }>();
+    for (const f of this.game.forts) {
+      const e = byOwner.get(f.ownerPeerId) ?? { nickname: f.ownerNickname, hp: 0, alive: false };
+      e.hp += f.hp;
+      if (f.alive) e.alive = true;
+      byOwner.set(f.ownerPeerId, e);
+    }
+    const coWinnerNicknames = [...new Set(this.game.forts
+      .filter((f) => winners.includes(f.ownerPeerId)).map((f) => f.ownerNickname))];
+    const rankings = [...byOwner.entries()]
+      .sort((a, b) => (b[1].alive ? 1 : 0) - (a[1].alive ? 1 : 0) || b[1].hp - a[1].hp)
+      .map(([peerId, e], i) => ({ peerId, nickname: e.nickname, hp: e.hp, rank: i + 1 }));
     const baseSummary: Record<string, unknown> = {
       gameId: 'fortress',
       isCoWin: winners.length >= 2,
-      coWinnerNicknames: this.game.forts.filter((f) => winners.includes(f.peerId)).map((f) => f.nickname),
-      rankings: [...this.game.forts]
-        .sort((a, b) => (b.alive ? 1 : 0) - (a.alive ? 1 : 0) || b.hp - a.hp)
-        .map((f, i) => ({ peerId: f.peerId, nickname: f.nickname, hp: f.hp, rank: i + 1 })),
+      coWinnerNicknames,
+      rankings,
     };
     for (const p of this.ctx.players) {
       if (p.peerId === this.myPeerId) continue;

@@ -14,7 +14,16 @@
  *   착탄 지점 중심 반원으로 지면을 아래로 깎는다(= heightmap 값 증가).
  */
 
+/** 기본(2인) 지형 폭 = canvas 논리 폭 */
 export const TERRAIN_WIDTH = 800;
+/** 논리 세로(고정) */
+export const TERRAIN_HEIGHT = 400;
+
+/** 인원수에 따른 지형 폭 — 많을수록 넓게 (2인 800 → 6인 1320). */
+export function mapWidthForPlayers(n: number): number {
+  return TERRAIN_WIDTH + Math.max(0, n - 2) * 130;
+}
+
 /** 지면 평균 top y. 이 아래로 흙. 위쪽(0~) 은 하늘 = 포탄 궤적 공간. */
 const BASE_Y = 300;
 /** 지면 top y 허용 범위 (너무 높거나 낮지 않게) */
@@ -37,7 +46,7 @@ function mulberry32(seed: number): () => number {
  * seed 로 부드러운 언덕 지형 생성. 사인파 3겹 합성.
  * 반환: 길이 TERRAIN_WIDTH 의 높이맵 (각 x 의 지면 top y).
  */
-export function generateTerrain(seed: number): number[] {
+export function generateTerrain(seed: number, width: number = TERRAIN_WIDTH): number[] {
   const rng = mulberry32(seed);
   // 겹겹의 사인파 — 낮은 주파수(큰 언덕) + 높은 주파수(잔굴곡)
   const layers = [
@@ -45,8 +54,8 @@ export function generateTerrain(seed: number): number[] {
     { amp: 22 + rng() * 18, freq: (1.4 + rng() * 0.8) / 100, phase: rng() * Math.PI * 2 },
     { amp: 10 + rng() * 8,  freq: (3.0 + rng() * 1.5) / 100, phase: rng() * Math.PI * 2 },
   ];
-  const hm = new Array<number>(TERRAIN_WIDTH);
-  for (let x = 0; x < TERRAIN_WIDTH; x++) {
+  const hm = new Array<number>(width);
+  for (let x = 0; x < width; x++) {
     let h = BASE_Y;
     for (const l of layers) h -= l.amp * Math.sin(l.freq * x + l.phase);
     hm[x] = Math.max(MIN_TOP, Math.min(MAX_TOP, h));
@@ -56,7 +65,7 @@ export function generateTerrain(seed: number): number[] {
 
 /** 안전한 지면 높이 조회 (x 범위 밖은 가장자리 값) */
 export function terrainTopAt(hm: number[], x: number): number {
-  const ix = Math.max(0, Math.min(TERRAIN_WIDTH - 1, Math.round(x)));
+  const ix = Math.max(0, Math.min(hm.length - 1, Math.round(x)));
   return hm[ix]!;
 }
 
@@ -66,7 +75,7 @@ export function terrainTopAt(hm: number[], x: number): number {
  */
 export function carveCrater(hm: number[], cx: number, cy: number, r: number): void {
   const x0 = Math.max(0, Math.floor(cx - r));
-  const x1 = Math.min(TERRAIN_WIDTH - 1, Math.ceil(cx + r));
+  const x1 = Math.min(hm.length - 1, Math.ceil(cx + r));
   for (let x = x0; x <= x1; x++) {
     const dx = x - cx;
     const inside = r * r - dx * dx;

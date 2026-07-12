@@ -9,7 +9,7 @@
  */
 
 import type { GameMessage, GameResult } from '../types';
-import type { FortressGame, FortIndex } from './rules';
+import type { FortressGame } from './rules';
 
 const T_HELLO = 'fr:hello';
 const T_SYNC = 'fr:sync';
@@ -51,7 +51,8 @@ export function decodeSync(msg: GameMessage): SyncPayload | null {
 
 // --- fire (발사 파라미터) ---
 export interface FirePayload {
-  fromIndex: FortIndex;
+  /** 발사한 포대 id (정보성 — 궤적은 start 좌표로 재생) */
+  fromFortId: number;
   startX: number;
   startY: number;
   angleRad: number;
@@ -67,7 +68,7 @@ export function decodeFire(msg: GameMessage): FirePayload | null {
   if (!p) return null;
   if (typeof p.startX !== 'number' || typeof p.startY !== 'number') return null;
   if (typeof p.angleRad !== 'number' || typeof p.power01 !== 'number') return null;
-  if (typeof p.wind !== 'number' || typeof p.fromIndex !== 'number') return null;
+  if (typeof p.wind !== 'number' || typeof p.fromFortId !== 'number') return null;
   return p as FirePayload;
 }
 
@@ -76,11 +77,11 @@ export interface ImpactPayload {
   cx: number;
   cy: number;
   craterR: number;
-  /** 포대 index → 갱신 hp */
+  /** 포대 id → 갱신 hp */
   hp: Record<number, number>;
   ended: boolean;
-  /** 게임 안 끝났을 때 다음 턴/바람 */
-  nextTurn: FortIndex | -1;
+  /** 게임 안 끝났을 때 다음 턴 포대 id/바람 */
+  nextTurn: number | -1;
   nextWind: number;
   /** 끝났을 때 우승자 peerId 들 (공동 우승/무승부 표현) */
   winnerPeerIds: string[];
