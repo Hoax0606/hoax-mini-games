@@ -21,12 +21,14 @@
 // 보드 상수
 // ============================================
 
-/** 보드 한 변 길이 (논리 좌표). 정사각형 중앙이 (0, 0) */
-export const BOARD_SIZE = 380;
-export const BOARD_HALF = BOARD_SIZE / 2; // 190
+/** 보드 한 변 길이 (논리 좌표). 정사각형 중앙이 (0, 0).
+ *  canvas 세로(400)가 정사각 보드의 한계라 상하 여백 6px 만 남기고 최대치까지. */
+export const BOARD_SIZE = 388;
+export const BOARD_HALF = BOARD_SIZE / 2; // 194
 
-/** 알 반지름 (논리 좌표) */
-export const STONE_RADIUS = 12;
+/** 알 반지름 (논리 좌표). 보드 대비 알을 작게 해서 여유 공간 ↑
+ *  (예전 12 → 10: 알 대비 보드 넓어져 한 번에 우르르 안 나가고 조준 여유) */
+export const STONE_RADIUS = 10;
 
 /** 마찰 계수 — 매 초당 속도가 (1 - FRICTION) 배로 감소.
  *  값이 클수록 빨리 멈춤. 0.85 ~ 0.95 사이가 자연스러움. */

@@ -1042,15 +1042,20 @@ interface DrawQuizRankEntry {
 
 interface DrawQuizSummary {
   myPeerId: string;
-  winnerNickname: string | null;
+  coWinnerNicknames: string[];
+  isCoWin: boolean;
   rankings: DrawQuizRankEntry[];
 }
 
 function parseDrawQuizSummary(summary: Record<string, unknown>): DrawQuizSummary | null {
   if (summary['gameId'] !== 'draw-quiz') return null;
   const myPeerId = typeof summary['myPeerId'] === 'string' ? (summary['myPeerId'] as string) : null;
-  const winnerNickname = typeof summary['winnerNickname'] === 'string' ? (summary['winnerNickname'] as string) : null;
   if (!myPeerId) return null;
+
+  const rawWinners = summary['coWinnerNicknames'] as unknown;
+  const coWinnerNicknames: string[] = Array.isArray(rawWinners)
+    ? (rawWinners as unknown[]).filter((w): w is string => typeof w === 'string')
+    : [];
 
   const rawRankings = summary['rankings'] as unknown;
   const rankings: DrawQuizRankEntry[] = Array.isArray(rawRankings)
@@ -1059,7 +1064,7 @@ function parseDrawQuizSummary(summary: Record<string, unknown>): DrawQuizSummary
         .map((r) => ({ peerId: r.peerId!, nickname: r.nickname!, score: r.score!, rank: typeof r.rank === 'number' ? r.rank : 0 }))
     : [];
 
-  return { myPeerId, winnerNickname, rankings };
+  return { myPeerId, coWinnerNicknames, isCoWin: summary['isCoWin'] === true, rankings };
 }
 
 function buildDrawQuizResultHTML(args: {
@@ -1069,9 +1074,14 @@ function buildDrawQuizResultHTML(args: {
   isSpectator: boolean;
 }): string {
   const { myWinner, summary, isHost, isSpectator } = args;
-  const { emoji, title, titleClass } = isSpectator
+  // 공동 우승이면 승리 타이틀을 "공동 우승" 으로 (내가 그 안에 들면 강조)
+  let visuals = isSpectator
     ? { emoji: '🎨', title: '그림 퀴즈 종료', titleClass: 'result-title-draw' }
     : winnerVisuals(myWinner);
+  if (!isSpectator && summary.isCoWin && myWinner === 'me') {
+    visuals = { emoji: '🏆', title: '공동 우승!', titleClass: 'result-title-win' };
+  }
+  const { emoji, title, titleClass } = visuals;
   const actionsHTML = buildActionsHTML(isHost);
 
   const rankingsHTML = `
@@ -1092,9 +1102,11 @@ function buildDrawQuizResultHTML(args: {
     </div>
   `;
 
-  const reasonBadge = summary.winnerNickname
-    ? `<div class="result-gomoku-reason">${escapeHtml(summary.winnerNickname)} 우승 🎉</div>`
-    : '';
+  const reasonBadge = summary.coWinnerNicknames.length === 0
+    ? `<div class="result-gomoku-reason">무승부 🤝</div>`
+    : summary.coWinnerNicknames.length >= 2
+      ? `<div class="result-gomoku-reason">🤝 공동 우승 · ${summary.coWinnerNicknames.map(escapeHtml).join(', ')}</div>`
+      : `<div class="result-gomoku-reason">${escapeHtml(summary.coWinnerNicknames[0]!)} 우승 🎉</div>`;
 
   return `
     <div class="result-card result-card-tetris">

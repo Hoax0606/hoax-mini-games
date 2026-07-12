@@ -54,7 +54,8 @@ export interface DrawQuizGame {
   usedWords: Set<string>;
   /** 이번 라운드에 이미 정답 맞힌 peerId 들 (순서 = 맞힌 순) */
   correctThisRound: string[];
-  winnerPeerId: string | null;
+  /** 최종 우승자 peerId 들 — 동점이면 여럿(공동 우승), 무승부면 빈 배열 */
+  winnerPeerIds: string[];
 }
 
 /** 라운드 제한 시간 */
@@ -88,7 +89,7 @@ export function createInitialGame(
     players: metas,
     usedWords: new Set(),
     correctThisRound: [],
-    winnerPeerId: null,
+    winnerPeerIds: [],
   };
 }
 
@@ -115,11 +116,11 @@ export function isCorrectGuess(guess: string, answer: string): boolean {
 
 /**
  * 정답 맞힌 사람의 "맞춘 개수" +1 (호스트만).
- * 이미 맞힌 사람/출제자는 무시. 출제자(그리는 사람)는 점수를 받지 않는다.
- * 반환: 맞힌 것으로 처리됐으면 true.
+ * **가장 먼저 맞힌 1명만** 점수 — 이미 이번 라운드에 정답자가 있거나, 출제자면 무시.
+ * 반환: 맞힌 것으로 처리됐으면 true (= 라운드 종료 트리거).
  */
 export function awardCorrect(game: DrawQuizGame, peerId: string): boolean {
-  if (game.correctThisRound.includes(peerId)) return false;
+  if (game.correctThisRound.length > 0) return false; // 첫 정답자 이미 나옴 → 1명만 인정
   if (peerId === game.drawerPeerId) return false; // 출제자는 못 맞힘
   const player = game.players.find((p) => p.peerId === peerId);
   if (!player) return false;
@@ -128,10 +129,15 @@ export function awardCorrect(game: DrawQuizGame, peerId: string): boolean {
   return true;
 }
 
-/** 비출제자(추측 가능한 사람) 전원이 맞혔는지 — 라운드 조기 종료 판정. */
-export function allGuessersCorrect(game: DrawQuizGame): boolean {
-  const guessers = game.players.filter((p) => p.peerId !== game.drawerPeerId);
-  return guessers.length > 0 && game.correctThisRound.length >= guessers.length;
+/** 이번 라운드에 정답자가 나왔는지 — 첫 정답 시 라운드 조기 종료 판정. */
+export function roundHasCorrect(game: DrawQuizGame): boolean {
+  return game.correctThisRound.length > 0;
+}
+
+/** 인원수에 따른 "1인당 그리는 횟수" — 적을수록 많이(최대 10), 많을수록 적게(최소 3). */
+export function roundsPerPlayer(playerCount: number): number {
+  const raw = Math.round(15 / Math.max(1, playerCount));
+  return Math.max(3, Math.min(10, raw));
 }
 
 /** 점수 맵 추출 (네트워크 전송용) */
@@ -141,12 +147,13 @@ export function scoreMap(game: DrawQuizGame): Record<string, number> {
   return out;
 }
 
-/** 최종 우승자 판정 — 최고 점수. 동점이면 첫 번째. */
-export function computeWinner(game: DrawQuizGame): string | null {
-  if (game.players.length === 0) return null;
-  let best = game.players[0]!;
-  for (const p of game.players) {
-    if (p.score > best.score) best = p;
-  }
-  return best.peerId;
+/**
+ * 최종 우승자들 — 최고 점수인 사람 전원 (동점이면 공동 우승).
+ * 아무도 점수를 못 냈으면(최고점 0) 빈 배열 = 무승부.
+ */
+export function computeWinners(game: DrawQuizGame): PlayerMeta[] {
+  let maxScore = 0;
+  for (const p of game.players) if (p.score > maxScore) maxScore = p.score;
+  if (maxScore <= 0) return [];
+  return game.players.filter((p) => p.score === maxScore);
 }

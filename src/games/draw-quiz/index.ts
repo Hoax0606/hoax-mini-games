@@ -25,9 +25,10 @@ import {
   pickNextDrawer,
   isCorrectGuess,
   awardCorrect,
-  allGuessersCorrect,
+  roundHasCorrect,
+  roundsPerPlayer,
   scoreMap,
-  computeWinner,
+  computeWinners,
   ROUND_DURATION_MS,
   TIMEOUT_GRACE_MS,
   type DrawQuizGame,
@@ -108,8 +109,10 @@ class DrawQuizGameModule implements GameModule {
     const playerList = ctx.players.filter((p) => p.role === 'player');
     const ordered = orderPlayersHostFirst(playerList);
 
-    // 라운드 수 = 플레이어 수 (전원 한 번씩 출제). 최소 2.
-    const rounds = Math.max(2, ordered.length);
+    // 전체 라운드 = 1인당 그리는 횟수 × 인원. 1인당 횟수는 인원 반비례(적으면 많이).
+    //   pickNextDrawer 가 한 바퀴 다 돌면 hasDrawn 리셋해 다음 바퀴로 넘어가므로,
+    //   totalRounds 만 늘리면 전원이 여러 번 돌아가며 출제하게 된다.
+    const rounds = roundsPerPlayer(ordered.length) * ordered.length;
     this.game = createInitialGame(
       ordered.map((p) => ({ peerId: p.peerId, nickname: p.nickname })),
       rounds,
@@ -257,8 +260,8 @@ class DrawQuizGameModule implements GameModule {
         const elapsed = now - this.game.turnStartedAt;
         if (elapsed > ROUND_DURATION_MS + TIMEOUT_GRACE_MS) {
           this.endRoundAsHost();
-        } else if (allGuessersCorrect(this.game)) {
-          // 전원 정답 — 조기 종료
+        } else if (roundHasCorrect(this.game)) {
+          // 첫 정답자 나옴 — 그 1명만 득점하고 라운드 즉시 종료
           this.endRoundAsHost();
         }
       } else if (this.game.phase === 'round_result') {
@@ -437,11 +440,15 @@ class DrawQuizGameModule implements GameModule {
     if (this.gameFinished) return;
     this.gameFinished = true;
     this.game.phase = 'ended';
-    this.game.winnerPeerId = computeWinner(this.game);
+    const winners = computeWinners(this.game);
+    this.game.winnerPeerIds = winners.map((w) => w.peerId);
 
+    const coWinnerNicknames = winners.map((w) => w.nickname);
     const baseSummary: Record<string, unknown> = {
       gameId: 'draw-quiz',
-      winnerNickname: this.game.players.find((p) => p.peerId === this.game.winnerPeerId)?.nickname ?? null,
+      // 단독 우승이면 닉 1개, 공동 우승이면 여러 개, 무승부면 빈 배열
+      coWinnerNicknames,
+      isCoWin: winners.length >= 2,
       rankings: [...this.game.players]
         .sort((a, b) => b.score - a.score)
         .map((p, i) => ({ peerId: p.peerId, nickname: p.nickname, score: p.score, rank: i + 1 })),
@@ -460,10 +467,11 @@ class DrawQuizGameModule implements GameModule {
     });
   }
 
+  /** 공동 우승자 목록에 있으면 'me'(승리), 무승부(빈 목록)면 null, 그 외 'opponent'. */
   private computeWinnerForPeer(p: Player): GameResult['winner'] {
-    if (this.game.winnerPeerId === null) return null;
+    if (this.game.winnerPeerIds.length === 0) return null; // 무승부
     if (p.role === 'spectator') return 'opponent';
-    return this.game.winnerPeerId === p.peerId ? 'me' : 'opponent';
+    return this.game.winnerPeerIds.includes(p.peerId) ? 'me' : 'opponent';
   }
 
   private scheduleEndGame(result: GameResult): void {

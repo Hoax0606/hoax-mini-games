@@ -141,6 +141,17 @@ export interface WordChainGame {
 export const TURN_TIME_MS = 30_000;
 export const TIMEOUT_GRACE_MS = 500;
 
+/**
+ * 라운드가 길어질수록 제한 시간 단축 (긴장감).
+ *   제출된 단어 10개마다 5초씩 감소, 하한 15초.
+ *   (0~9단어: 30초 / 10~19: 25 / 20~29: 20 / 30+: 15)
+ * @param wordCount 지금까지 제출된 단어 수 (game.history.length — 시드 포함이라 대략치로 충분)
+ */
+export function getTurnTimeMs(wordCount: number): number {
+  const reduced = TURN_TIME_MS - Math.floor(wordCount / 10) * 5_000;
+  return Math.max(15_000, reduced);
+}
+
 // ============================================
 // 초기 게임 생성
 // ============================================
@@ -189,6 +200,10 @@ export function validateSubmission(game: WordChainGame, word: string): SubmitRes
   const trimmed = word.trim();
   if (!isValidHangulWord(trimmed)) {
     return { ok: false, reason: 'invalid', message: '한글 두 글자 이상의 단어만 가능해요' };
+  }
+  // 같은 글자만 반복되는 단어(라라, 고고, 가가가 등) 금지
+  if (new Set([...trimmed]).size === 1) {
+    return { ok: false, reason: 'invalid', message: '같은 글자만 반복되는 단어는 안 돼요' };
   }
   const lastWord = game.history[game.history.length - 1]!.word;
   const lastChar = lastWord[lastWord.length - 1]!;

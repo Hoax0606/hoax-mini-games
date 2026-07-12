@@ -17,7 +17,7 @@
 import {
   type WordChainGame,
   allowedStartLetters,
-  TURN_TIME_MS,
+  getTurnTimeMs,
 } from './rules';
 
 const CANVAS_W = 800;
@@ -245,9 +245,10 @@ export class WordChainRenderer {
     const ringCx = PANEL_X + PANEL_W / 2;
     const ringCy = 60;
     const ringR = 36;
+    const turnTime = getTurnTimeMs(game.history.length);
     const elapsed = game.phase === 'aiming' ? Math.max(0, state.now - game.turnStartedAt) : 0;
-    const remaining = Math.max(0, TURN_TIME_MS - elapsed);
-    const ratio = remaining / TURN_TIME_MS;
+    const remaining = Math.max(0, turnTime - elapsed);
+    const ratio = remaining / turnTime;
     const remainSec = Math.ceil(remaining / 1000);
 
     // 배경 ring

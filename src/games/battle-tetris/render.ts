@@ -27,11 +27,12 @@ import type { EngineState } from './engine';
 const CANVAS_W = 800;
 const CANVAS_H = 400;
 
-/** 메인 필드 셀 크기 (px, 논리 좌표) */
-const CELL = 18;
-const FIELD_PX_W = CELL * FIELD_WIDTH;   // 180
+/** 메인 필드 셀 크기 (px, 논리 좌표).
+ *  FIELD_HEIGHT 24 × CELL 15 = 360px 로 CANVAS_H(400) 안에 상하 여백 20px씩. */
+const CELL = 15;
+const FIELD_PX_W = CELL * FIELD_WIDTH;   // 150
 const FIELD_PX_H = CELL * FIELD_HEIGHT;  // 360
-const FIELD_X = Math.round((CANVAS_W - FIELD_PX_W) / 2); // 310
+const FIELD_X = Math.round((CANVAS_W - FIELD_PX_W) / 2);
 const FIELD_Y = 20;
 
 /** HOLD 박스 — 좌측 상단 */
@@ -57,14 +58,15 @@ const OPP_Y0 = 235;
 const OPP_GAP = 8;
 
 /** 관전자 2×2 격자 슬롯
- *  Canvas 800×400 → 4분할(400×200). 슬롯당 닉네임 헤더(24px) + 필드(80×160) 가운데. */
-const SPEC_CELL = 8;
-const SPEC_FIELD_W = SPEC_CELL * FIELD_WIDTH;   // 80
-const SPEC_FIELD_H = SPEC_CELL * FIELD_HEIGHT;  // 160
+ *  Canvas 800×400 → 4분할(400×200). 슬롯당 닉네임 헤더 + 필드 가운데.
+ *  FIELD_HEIGHT 24 라 SPEC_CELL 7 → 필드 높이 168, 헤더 오프셋 26 = 194 < 슬롯 200. */
+const SPEC_CELL = 7;
+const SPEC_FIELD_W = SPEC_CELL * FIELD_WIDTH;   // 70
+const SPEC_FIELD_H = SPEC_CELL * FIELD_HEIGHT;  // 168
 const SPEC_SLOT_W = CANVAS_W / 2;               // 400
 const SPEC_SLOT_H = CANVAS_H / 2;               // 200
-const SPEC_NICK_Y = 16;
-const SPEC_FIELD_OFFSET_Y = 30;
+const SPEC_NICK_Y = 15;
+const SPEC_FIELD_OFFSET_Y = 26;
 
 const COLORS = {
   bg: '#fff9fd',

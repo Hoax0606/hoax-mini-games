@@ -12,7 +12,7 @@
 import { PIECES, forEachMino, type PieceId, type PieceState } from './pieces';
 
 export const FIELD_WIDTH = 10;
-export const FIELD_HEIGHT = 20;
+export const FIELD_HEIGHT = 24; // 더 높게 (20→24) — 쌓을 공간 넉넉하게
 
 /** 한 칸. null=빈칸, PieceId=고정된 피스 블록, 'G'=가비지(공격으로 받은) 블록,
  *  'U'=언브레이커블(시간 경과로 자동 푸시되는 안 깨지는 블록 — 게임 강제 종료용) */

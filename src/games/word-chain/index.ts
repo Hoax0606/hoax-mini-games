@@ -26,7 +26,7 @@ import {
   applySubmission,
   eliminatePlayer,
   allowedStartLetters,
-  TURN_TIME_MS,
+  getTurnTimeMs,
   TIMEOUT_GRACE_MS,
   type WordChainGame,
   type PlayerIndex,
@@ -247,7 +247,7 @@ class WordChainGameModule implements GameModule {
 
     if (this.isHost && !this.paused && this.game.phase === 'aiming') {
       const elapsed = now - this.game.turnStartedAt;
-      if (elapsed > TURN_TIME_MS + TIMEOUT_GRACE_MS) {
+      if (elapsed > getTurnTimeMs(this.game.history.length) + TIMEOUT_GRACE_MS) {
         this.handleTimeoutAsHost(now);
       }
     }
