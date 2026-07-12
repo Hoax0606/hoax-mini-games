@@ -19,6 +19,7 @@ import dartsThumbnail from './darts/thumbnail.svg';
 import algagiThumbnail from './algagi/thumbnail.svg';
 import wordChainThumbnail from './word-chain/thumbnail.svg';
 import drawQuizThumbnail from './draw-quiz/thumbnail.svg';
+import fortressThumbnail from './fortress/thumbnail.svg';
 
 export const games: GameEntry[] = [
   {
@@ -225,6 +226,21 @@ export const games: GameEntry[] = [
     load: async () => {
       const mod = await import('./draw-quiz');
       return mod.createDrawQuizGame();
+    },
+  },
+  {
+    meta: {
+      id: 'fortress',
+      name: '포트리스',
+      description: '각도와 세기를 조준해 포탄 발사! 바람을 읽고 지형을 무너뜨려 상대 포대를 맞혀라. 최후 생존 승리.',
+      thumbnail: fortressThumbnail,
+      minPlayers: 2,
+      maxPlayers: 6,
+      roomOptions: [],
+    },
+    load: async () => {
+      const mod = await import('./fortress');
+      return mod.createFortressGame();
     },
   },
 ];

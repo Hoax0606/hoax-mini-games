@@ -1123,6 +1123,96 @@ function buildDrawQuizResultHTML(args: {
 }
 
 // ============================================
+// 포트리스 전용 결과 HTML
+// ============================================
+
+interface FortressRankEntry {
+  peerId: string;
+  nickname: string;
+  hp: number;
+  rank: number;
+}
+
+interface FortressSummary {
+  myPeerId: string;
+  coWinnerNicknames: string[];
+  isCoWin: boolean;
+  rankings: FortressRankEntry[];
+}
+
+function parseFortressSummary(summary: Record<string, unknown>): FortressSummary | null {
+  if (summary['gameId'] !== 'fortress') return null;
+  const myPeerId = typeof summary['myPeerId'] === 'string' ? (summary['myPeerId'] as string) : null;
+  if (!myPeerId) return null;
+  const rawWinners = summary['coWinnerNicknames'] as unknown;
+  const coWinnerNicknames: string[] = Array.isArray(rawWinners)
+    ? (rawWinners as unknown[]).filter((w): w is string => typeof w === 'string')
+    : [];
+  const rawRankings = summary['rankings'] as unknown;
+  const rankings: FortressRankEntry[] = Array.isArray(rawRankings)
+    ? (rawRankings as Array<Partial<FortressRankEntry>>)
+        .filter((r) => typeof r.peerId === 'string' && typeof r.nickname === 'string' && typeof r.hp === 'number')
+        .map((r) => ({ peerId: r.peerId!, nickname: r.nickname!, hp: r.hp!, rank: typeof r.rank === 'number' ? r.rank : 0 }))
+    : [];
+  return { myPeerId, coWinnerNicknames, isCoWin: summary['isCoWin'] === true, rankings };
+}
+
+function buildFortressResultHTML(args: {
+  myWinner: 'me' | 'opponent' | null;
+  summary: FortressSummary;
+  isHost: boolean;
+  isSpectator: boolean;
+}): string {
+  const { myWinner, summary, isHost, isSpectator } = args;
+  let visuals = isSpectator
+    ? { emoji: '💥', title: '포트리스 종료', titleClass: 'result-title-draw' }
+    : winnerVisuals(myWinner);
+  if (!isSpectator && summary.isCoWin && myWinner === 'me') {
+    visuals = { emoji: '🏆', title: '공동 우승!', titleClass: 'result-title-win' };
+  }
+  const { emoji, title, titleClass } = visuals;
+  const actionsHTML = buildActionsHTML(isHost);
+
+  const rankingsHTML = `
+    <div class="result-tetris-rankings">
+      <div class="result-tetris-rankings-title">🏅 결과</div>
+      ${summary.rankings.map((r) => {
+        const isMe = r.peerId === summary.myPeerId;
+        const badgeClass = r.rank <= 3 ? `rank-${r.rank}` : '';
+        const status = r.hp > 0 ? `❤️ ${r.hp}` : '💥 파괴';
+        return `
+          <div class="result-tetris-rank-row ${isMe ? 'is-me' : ''}">
+            <span class="result-tetris-rank-badge ${badgeClass}">${r.rank}</span>
+            <span class="result-tetris-rank-name">${escapeHtml(r.nickname)}</span>
+            <span class="result-apple-rank-score">${status}</span>
+            ${isMe ? '<span class="result-tetris-rank-me-tag">나</span>' : ''}
+          </div>
+        `;
+      }).join('')}
+    </div>
+  `;
+
+  const reasonBadge = summary.coWinnerNicknames.length === 0
+    ? `<div class="result-gomoku-reason">무승부 🤝</div>`
+    : summary.coWinnerNicknames.length >= 2
+      ? `<div class="result-gomoku-reason">🤝 공동 우승 · ${summary.coWinnerNicknames.map(escapeHtml).join(', ')}</div>`
+      : `<div class="result-gomoku-reason">${escapeHtml(summary.coWinnerNicknames[0]!)} 승리 🎉</div>`;
+
+  return `
+    <div class="result-card result-card-tetris">
+      <div class="result-emoji">${emoji}</div>
+      <div class="result-title ${titleClass}">${title}</div>
+      ${reasonBadge}
+      ${rankingsHTML}
+
+      <div class="result-actions">
+        ${actionsHTML}
+      </div>
+    </div>
+  `;
+}
+
+// ============================================
 // 호스트 결과 화면
 // ============================================
 
@@ -1157,6 +1247,7 @@ export function createResultScreenAsHostScreen(args: ResultScreenAsHostArgs): Sc
       const algagi = parseAlgagiSummary(result.summary);
       const wordChain = parseWordChainSummary(result.summary);
       const drawQuiz = parseDrawQuizSummary(result.summary);
+      const fortress = parseFortressSummary(result.summary);
       if (tetris) {
         el.innerHTML = buildTetrisResultHTML({
           myWinner: result.winner,
@@ -1202,6 +1293,13 @@ export function createResultScreenAsHostScreen(args: ResultScreenAsHostArgs): Sc
         el.innerHTML = buildDrawQuizResultHTML({
           myWinner: result.winner,
           summary: drawQuiz,
+          isHost: true,
+          isSpectator: false,
+        });
+      } else if (fortress) {
+        el.innerHTML = buildFortressResultHTML({
+          myWinner: result.winner,
+          summary: fortress,
           isHost: true,
           isSpectator: false,
         });
@@ -1377,6 +1475,7 @@ export function createResultScreenAsGuestScreen(args: ResultScreenAsGuestArgs): 
       const algagi = parseAlgagiSummary(result.summary);
       const wordChain = parseWordChainSummary(result.summary);
       const drawQuiz = parseDrawQuizSummary(result.summary);
+      const fortress = parseFortressSummary(result.summary);
       // 관전자는 summary.myPeerId 가 자기가 아닐 수 있음 — 자기 peerId 는 guest.myPeerId.
       // rankings 에 "나" 가 없으면 관전자로 간주.
       const myPeerIdForResult = guest.myPeerId;
@@ -1430,6 +1529,14 @@ export function createResultScreenAsGuestScreen(args: ResultScreenAsGuestArgs): 
         el.innerHTML = buildDrawQuizResultHTML({
           myWinner: result.winner,
           summary: isSpec ? { ...drawQuiz, myPeerId: myPeerIdForResult } : drawQuiz,
+          isHost: false,
+          isSpectator: isSpec,
+        });
+      } else if (fortress) {
+        const isSpec = !fortress.rankings.some((r) => r.peerId === myPeerIdForResult);
+        el.innerHTML = buildFortressResultHTML({
+          myWinner: result.winner,
+          summary: isSpec ? { ...fortress, myPeerId: myPeerIdForResult } : fortress,
           isHost: false,
           isSpectator: isSpec,
         });

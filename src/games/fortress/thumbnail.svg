@@ -1,0 +1,58 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 200">
+  <defs>
+    <linearGradient id="frSky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#ffe4ee"/>
+      <stop offset="100%" stop-color="#e0f2ff"/>
+    </linearGradient>
+    <linearGradient id="frSoil" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#d8b89a"/>
+      <stop offset="100%" stop-color="#b8946e"/>
+    </linearGradient>
+  </defs>
+
+  <!-- 하늘 배경 -->
+  <rect x="0" y="0" width="320" height="200" rx="22" fill="url(#frSky)"/>
+
+  <!-- 모서리 점 데코 -->
+  <circle cx="26" cy="26" r="3" fill="#ff6b9e" opacity="0.5"/>
+  <circle cx="296" cy="30" r="3" fill="#86e8c4" opacity="0.55"/>
+  <circle cx="30" cy="60" r="2.5" fill="#b89aff" opacity="0.5"/>
+
+  <!-- 별 데코 -->
+  <path d="M 250 42 l 1.5 3.8 4.1 0.35 -3.2 2.6 0.95 4 -3.35 -2.25 -3.35 2.25 0.95 -4 -3.2 -2.6 4.1 -0.35 z"
+        fill="#ff82ac" opacity="0.7"/>
+
+  <!-- 지형 (언덕) — clip 으로 라운드 유지 -->
+  <clipPath id="frClip"><rect x="0" y="0" width="320" height="200" rx="22"/></clipPath>
+  <g clip-path="url(#frClip)">
+    <path d="M 0 140 Q 50 110 90 128 Q 140 150 190 120 Q 240 95 320 130 L 320 200 L 0 200 Z"
+          fill="url(#frSoil)" stroke="#8a6a4a" stroke-width="2"/>
+    <!-- 크레이터(파인 자국) -->
+    <path d="M 150 133 a 16 12 0 0 1 32 0 z" fill="#b8946e" stroke="#8a6a4a" stroke-width="1.2"/>
+  </g>
+
+  <!-- 좌측 포대 (민트) -->
+  <g transform="translate(60, 122)">
+    <path d="M -11 5 L -11 0 A 11 11 0 0 1 11 0 L 11 5 Z" fill="#6ed9b3" stroke="#2e8a70" stroke-width="1.4"/>
+    <!-- 포신 -->
+    <rect x="0" y="-4" width="20" height="5" rx="2" fill="#2e8a70" transform="rotate(-32 0 -2)"/>
+  </g>
+
+  <!-- 우측 포대 (핑크) -->
+  <g transform="translate(250, 118)">
+    <path d="M -11 5 L -11 0 A 11 11 0 0 1 11 0 L 11 5 Z" fill="#ff6b9e" stroke="#c93d73" stroke-width="1.4"/>
+    <rect x="-20" y="-4" width="20" height="5" rx="2" fill="#c93d73" transform="rotate(32 0 -2)"/>
+  </g>
+
+  <!-- 포탄 포물선 궤적 (점선) -->
+  <path d="M 78 108 Q 160 40 232 100" fill="none" stroke="#ff5a92" stroke-width="2.5"
+        stroke-dasharray="3 6" stroke-linecap="round" opacity="0.85"/>
+  <!-- 날아가는 포탄 -->
+  <circle cx="160" cy="62" r="5" fill="#4a3a4a"/>
+
+  <!-- 바람 화살표 (상단) -->
+  <g transform="translate(160, 26)" opacity="0.7">
+    <text x="0" y="0" text-anchor="middle" dominant-baseline="middle"
+          font-family="sans-serif" font-size="13" fill="#5b9cff">💨 ▶</text>
+  </g>
+</svg>
