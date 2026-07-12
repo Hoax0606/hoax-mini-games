@@ -52,6 +52,8 @@ class FortressGameModule implements GameModule {
   private myPeerId = '';
   private isHost = false;
   private isSpectator = false;
+  /** 게스트가 호스트 지형/상태 sync 를 받았는지 — 받기 전엔 조준·발사 금지(지형 불일치 방지) */
+  private ready = false;
 
   private rafId: number | null = null;
   private destroyed = false;
@@ -91,6 +93,7 @@ class FortressGameModule implements GameModule {
       seed, wind0, fortsPerPlayer,
     );
     this.hm = generateTerrain(this.game.seed, this.game.terrainWidth);
+    this.ready = this.isHost; // 호스트는 자기 생성이라 즉시 준비. 게스트는 sync 후.
 
     this.renderer = new FortressRenderer({ canvas: ctx.canvas });
     ctx.canvas.style.cursor = 'crosshair';
@@ -121,6 +124,7 @@ class FortressGameModule implements GameModule {
         this.craters = sync.craters;
         this.hm = generateTerrain(this.game.seed, this.game.terrainWidth);
         for (const c of this.craters) carveCrater(this.hm, c.cx, c.cy, c.r);
+        this.ready = true; // 호스트 지형/상태 동기화 완료 — 이제 조준 허용
       }
       return;
     }
@@ -255,7 +259,7 @@ class FortressGameModule implements GameModule {
   }
 
   private canAim(): boolean {
-    if (this.isSpectator || this.paused || this.game.phase !== 'aiming' || this.projectile) return false;
+    if (!this.ready || this.isSpectator || this.paused || this.game.phase !== 'aiming' || this.projectile) return false;
     const cf = this.currentFort();
     return !!cf && cf.ownerPeerId === this.myPeerId;
   }
