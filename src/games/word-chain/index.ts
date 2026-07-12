@@ -190,8 +190,9 @@ class WordChainGameModule implements GameModule {
           victim.outReason = 'timeout';
         }
         if (tm.nextTurn === -1) {
-          // 게임 종료 — winnerPeerId 는 wc:end 에서 받음
+          // 게임 종료 — 우승자도 즉시 반영해야 종료 오버레이가 무승부로 잘못 뜨지 않음
           this.game.phase = 'ended';
+          this.game.winnerPeerId = tm.winnerPeerId ?? null;
         } else {
           this.game.currentTurn = tm.nextTurn as PlayerIndex;
           this.game.turnStartedAt = performance.now();
@@ -336,6 +337,8 @@ class WordChainGameModule implements GameModule {
       victimIndex: victim,
       nextTurn: ended ? -1 : this.game.currentTurn,
       turnStartedAt: now,
+      // 종료면 우승자 peerId 동봉 — 게스트가 종료 오버레이를 승/패로 정확히 그리도록
+      winnerPeerId: ended ? this.game.winnerPeerId : null,
     }));
     sound.play('button_click');
     if (ended) {

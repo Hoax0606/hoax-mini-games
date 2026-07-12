@@ -118,6 +118,9 @@ export interface TimeoutPayload {
   /** 다음 턴 (게임 안 끝났을 때만 유효). 끝났으면 -1 */
   nextTurn: PlayerIndex | -1;
   turnStartedAt: number;
+  /** 이 타임아웃으로 게임이 끝났을 때(nextTurn===-1) 우승자 peerId.
+   *  게스트가 종료 오버레이를 올바르게(승/패) 그리도록 즉시 전달 — 없으면 무승부로 오표시됨. */
+  winnerPeerId?: string | null;
 }
 export function encodeTimeout(p: TimeoutPayload): GameMessage {
   return { type: T_TIMEOUT, payload: p };
@@ -129,7 +132,12 @@ export function decodeTimeout(msg: GameMessage): TimeoutPayload | null {
   if (typeof p.victimIndex !== 'number') return null;
   if (typeof p.nextTurn !== 'number') return null;
   if (typeof p.turnStartedAt !== 'number') return null;
-  return p as TimeoutPayload;
+  return {
+    victimIndex: p.victimIndex,
+    nextTurn: p.nextTurn,
+    turnStartedAt: p.turnStartedAt,
+    winnerPeerId: typeof p.winnerPeerId === 'string' ? p.winnerPeerId : null,
+  };
 }
 
 // --- end (호스트 → per-peer) ---
