@@ -95,10 +95,13 @@ function buildHeaderHTML(args: {
   /** 관전자 뷰면 점수판 대신 "관전 중" 배지 표시 */
   spectator?: boolean;
 }): string {
+  // 점수판은 기본 숨김 — 실제로 점수를 쓰는 게임(에어하키 등)이 onStatusUpdate 로
+  //   hostScore/guestScore 를 보낼 때만 표시. 알까기·끝말·그림처럼 자체 UI 로
+  //   점수/상태를 그리는 게임엔 "0:0" 이 뜨지 않게.
   const centerHTML = args.spectator
     ? `<div class="game-score game-score-spectator">👀 관전 중</div>`
     : `
-      <div class="game-score">
+      <div class="game-score" id="game-score" style="display:none">
         <span class="game-score-home" id="score-home">0</span>
         <span class="game-score-sep">:</span>
         <span class="game-score-away" id="score-away">0</span>
@@ -418,6 +421,10 @@ export function createGameScreenAsHostScreen(args: GameScreenAsHostArgs): Screen
           }, 900);
         },
         onStatusUpdate: (status) => {
+          if (!('hostScore' in status) && !('guestScore' in status)) return;
+          // 점수를 쓰는 게임 — 숨겨둔 점수판 표시
+          const scoreBox = el.querySelector<HTMLDivElement>('#game-score');
+          if (scoreBox) scoreBox.style.display = '';
           const h = Number(status['hostScore']) || 0;
           const g = Number(status['guestScore']) || 0;
           if (scoreHome.textContent !== String(h)) {
@@ -716,6 +723,9 @@ export function createGameScreenAsGuestScreen(args: GameScreenAsGuestArgs): Scre
         onStatusUpdate: (status) => {
           // 관전자 뷰는 점수판 DOM이 없으므로 업데이트 스킵
           if (!scoreHome || !scoreAway) return;
+          if (!('hostScore' in status) && !('guestScore' in status)) return;
+          const scoreBox = el.querySelector<HTMLDivElement>('#game-score');
+          if (scoreBox) scoreBox.style.display = '';
           const h = Number(status['hostScore']) || 0;
           const g = Number(status['guestScore']) || 0;
           if (scoreHome.textContent !== String(h)) {
