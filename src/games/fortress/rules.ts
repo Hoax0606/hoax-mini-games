@@ -119,13 +119,20 @@ export function fortCenterY(hm: number[], fort: Fort): number {
   return terrainTopAt(hm, fort.x) - FORT_RISE;
 }
 
-/** 다음 턴 — 현재 다음으로 살아있는 포대 id */
+/**
+ * 다음 턴 — 현재 위치(포대 id, 좌→우 순) 다음으로 살아있는 포대 id.
+ *
+ * id 는 x 좌표 순으로 0,1,2… 부여돼 있어 "위치 순서" == "id 순서".
+ * 현재 포대가 죽어(currentTurn 이 alive 목록에 없어도) id 기준으로 그 다음 위치를
+ * 이어가므로 자폭 후에도 턴 순서가 왼쪽으로 튀지 않는다.
+ * (예전엔 indexOf===-1 → alive[0] 로 점프해 순서가 깨지던 버그)
+ */
 export function getNextTurn(game: FortressGame): number {
-  const alive = game.forts.filter((f) => f.alive).map((f) => f.id);
+  const alive = game.forts.filter((f) => f.alive).map((f) => f.id).sort((a, b) => a - b);
   if (alive.length === 0) return 0;
-  const cur = alive.indexOf(game.currentTurn);
-  const next = cur === -1 ? 0 : (cur + 1) % alive.length;
-  return alive[next]!;
+  // 현재 id 보다 큰 첫 살아있는 포대, 없으면 wrap 해서 가장 작은 살아있는 포대
+  const nextGreater = alive.find((id) => id > game.currentTurn);
+  return nextGreater !== undefined ? nextGreater : alive[0]!;
 }
 
 // ============================================

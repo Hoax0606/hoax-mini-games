@@ -41,6 +41,10 @@ const END_GAME_DELAY_MS = 1800;
 const MAX_DRAG_PX = 200;         // 이 이상 당기면 파워 100%
 /** 포신 발사 시작점 — 포대 중심에서 위로 */
 const MUZZLE_RISE = 13;
+/** 한 턴 제한 시간(ms). 안 쏘면 호스트가 턴을 넘겨 무한 정지 방지 */
+const TURN_TIME_MS = 30_000;
+/** 게스트가 'firing' 상태로 이 시간 넘게 갇히면 재동기화 요청 (착탄 메시지 유실/중간합류 복구) */
+const FIRING_WATCHDOG_MS = 8_000;
 
 class FortressGameModule implements GameModule {
   private ctx!: GameContext;
@@ -64,6 +68,11 @@ class FortressGameModule implements GameModule {
   // 궤적
   private projectile: Projectile | null = null;
   private fireWind = 0;
+
+  /** 현재 aiming 턴 시작 시각 (호스트만 사용 — 타임아웃 스킵 판정) */
+  private turnStartedAt = 0;
+  /** firing 진입 시각 (게스트 워치독용) */
+  private firingStartedAt = 0;
 
   // 드래그 조준
   private aiming = false;
@@ -103,6 +112,7 @@ class FortressGameModule implements GameModule {
     if (!this.isHost) this.ctx.sendToPeer(encodeHello(this.myPeerId));
 
     this.lastFrameTime = performance.now();
+    this.turnStartedAt = performance.now();
     this.rafId = requestAnimationFrame(this.loop);
   }
 
@@ -124,15 +134,20 @@ class FortressGameModule implements GameModule {
         this.craters = sync.craters;
         this.hm = generateTerrain(this.game.seed, this.game.terrainWidth);
         for (const c of this.craters) carveCrater(this.hm, c.cx, c.cy, c.r);
+        this.projectile = null;
         this.ready = true; // 호스트 지형/상태 동기화 완료 — 이제 조준 허용
+        // 합류 시점에 호스트가 발사 중이면 포탄을 못 받으니 워치독으로 재동기화되게 시각 기록
+        this.firingStartedAt = this.game.phase === 'firing' ? performance.now() : 0;
       }
       return;
     }
 
     const fire = decodeFire(msg);
     if (fire) {
-      // 모든 클라 궤적 재생 (발사자 자신은 로컬에서 이미 시작했으면 중복 방지)
-      if (this.game.phase !== 'firing') {
+      // 차례 검증 — 현재 턴 포대가 aiming 상태에서 보낸 발사만 재생한다.
+      //   (차례 아닌 발사를 받아들이면 호스트가 엉뚱한 포대 기준으로 턴을 넘겨 꼬임)
+      //   발사자 자신은 로컬에서 이미 firing 이라 여기 안 걸림(중복 방지).
+      if (this.game.phase === 'aiming' && fire.fromFortId === this.game.currentTurn) {
         this.beginProjectile(fire.startX, fire.startY, fire.angleRad, fire.power01, fire.wind);
       }
       return;
@@ -193,10 +208,36 @@ class FortressGameModule implements GameModule {
         if (this.checkImpact()) break; // 착탄 시 처리 후 종료
       }
     }
+
+    if (!this.paused && !this.gameFinished) {
+      // 호스트: 현재 플레이어가 제한 시간 내 안 쏘면 턴 스킵 (무한 정지 방지)
+      if (this.isHost && this.game.phase === 'aiming' && now - this.turnStartedAt > TURN_TIME_MS) {
+        this.skipTurnAsHost();
+      }
+      // 게스트: firing 상태로 너무 오래 갇히면 (착탄 유실/중간합류) 재동기화 요청
+      if (!this.isHost && this.ready && this.game.phase === 'firing'
+        && this.firingStartedAt > 0 && now - this.firingStartedAt > FIRING_WATCHDOG_MS) {
+        this.firingStartedAt = now; // 재요청 간격 확보
+        this.ctx.sendToPeer(encodeHello(this.myPeerId));
+      }
+    }
+
     this.lastFrameTime = now;
 
     this.renderer.render(this.buildRenderState(now));
   };
+
+  /** 호스트: 시간 초과한 현재 턴을 발사 없이 넘긴다. 착탄 없는 impact(변화 0)로 전원 동기화. */
+  private skipTurnAsHost(): void {
+    const nextWind = this.randomWind();
+    advanceTurn(this.game, nextWind, performance.now());
+    this.turnStartedAt = performance.now();
+    this.ctx.sendToPeer(encodeImpact({
+      cx: 0, cy: 0, craterR: 0, hp: this.hpMap(), ended: false,
+      nextTurn: this.game.currentTurn, nextWind, winnerPeerIds: [],
+    }));
+    sound.play('button_click');
+  }
 
   private buildRenderState(now: number): RenderState {
     const aim = (this.aiming && this.mouseX !== null && this.mouseY !== null)
@@ -311,6 +352,7 @@ class FortressGameModule implements GameModule {
     this.fireWind = wind;
     this.game.phase = 'firing';
     this.lastFrameTime = performance.now();
+    this.firingStartedAt = performance.now();
     sound.play('mallet_hit', { intensity: 0.5 });
   }
 
@@ -337,6 +379,7 @@ class FortressGameModule implements GameModule {
       this.finishAsHost();
     } else {
       advanceTurn(this.game, nextWind, performance.now());
+      this.turnStartedAt = performance.now(); // 다음 턴 타임아웃 카운트 리셋
       this.ctx.sendToPeer(encodeImpact({
         cx, cy, craterR, hp: blast.hp, ended: false,
         nextTurn: this.game.currentTurn, nextWind, winnerPeerIds: [],
