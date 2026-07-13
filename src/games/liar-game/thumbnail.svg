@@ -1,0 +1,41 @@
+<svg viewBox="0 0 320 200" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="lgBg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#ffe4ee"/>
+      <stop offset="1" stop-color="#e0fff4"/>
+    </linearGradient>
+  </defs>
+  <rect x="0" y="0" width="320" height="200" rx="22" fill="url(#lgBg)"/>
+
+  <!-- 모서리 점 데코 -->
+  <circle cx="30" cy="28" r="6" fill="#ffc9dd"/>
+  <circle cx="292" cy="34" r="5" fill="#86e8c4"/>
+  <circle cx="36" cy="170" r="5" fill="#b89aff"/>
+  <circle cx="288" cy="166" r="6" fill="#ffeec2"/>
+
+  <!-- 별 데코 2개 -->
+  <path d="M250 54 l3 7 7 1 -5 5 1 7 -6 -3 -6 3 1 -7 -5 -5 7 -1 z" fill="#ffd454" opacity="0.85"/>
+  <path d="M64 120 l2.4 5.6 5.6 0.8 -4 4 1 5.6 -5 -2.4 -5 2.4 1 -5.6 -4 -4 5.6 -0.8 z" fill="#b89aff" opacity="0.8"/>
+
+  <!-- 시민 토큰 2개 (민트) + 라이어 토큰 1개(핑크, 가면) -->
+  <!-- 시민 -->
+  <circle cx="118" cy="112" r="26" fill="#86e8c4" stroke="#2e8a70" stroke-width="3"/>
+  <circle cx="110" cy="108" r="3.2" fill="#1f6a55"/>
+  <circle cx="126" cy="108" r="3.2" fill="#1f6a55"/>
+  <path d="M110 120 q8 6 16 0" fill="none" stroke="#1f6a55" stroke-width="3" stroke-linecap="round"/>
+
+  <!-- 라이어 (가면 쓴) -->
+  <circle cx="196" cy="108" r="30" fill="#ffb3cd" stroke="#c93d73" stroke-width="3"/>
+  <!-- 도미노 가면 -->
+  <path d="M178 100 q18 -12 36 0 q0 12 -18 12 q-18 0 -18 -12 z" fill="#4a3a4a"/>
+  <circle cx="188" cy="104" r="3.4" fill="#fff"/>
+  <circle cx="204" cy="104" r="3.4" fill="#fff"/>
+  <path d="M188 120 q8 4 16 0" fill="none" stroke="#8e2a52" stroke-width="3" stroke-linecap="round"/>
+
+  <!-- 물음표 말풍선 -->
+  <g>
+    <rect x="222" y="58" width="52" height="42" rx="14" fill="#ffffff" stroke="#ffa8c7" stroke-width="3"/>
+    <path d="M236 98 l-6 12 16 -8 z" fill="#ffffff" stroke="#ffa8c7" stroke-width="3"/>
+    <text x="248" y="88" text-anchor="middle" font-family="system-ui, sans-serif" font-size="28" font-weight="800" fill="#ff5a92">?</text>
+  </g>
+</svg>

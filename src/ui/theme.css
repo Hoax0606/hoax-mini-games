@@ -1465,6 +1465,74 @@ input {
   transition: width 0.08s linear;
 }
 
+/* ============================================
+   라이어 게임 입력/투표 UI (canvas 아래)
+   ============================================ */
+.lg-panel {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+  min-height: 52px;
+}
+.lg-msg {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-muted);
+  min-height: 18px;
+}
+.lg-input-form {
+  display: flex;
+  gap: 8px;
+  width: 100%;
+  max-width: 460px;
+}
+.lg-input {
+  flex: 1;
+  padding: 10px 14px;
+  border-radius: var(--radius-full);
+  border: 2px solid var(--border-soft);
+  background: var(--bg-card);
+  font-size: 15px;
+  color: var(--text-main);
+  outline: none;
+}
+.lg-input:focus { border-color: var(--pink-300); }
+.lg-input:disabled { opacity: 0.5; }
+.lg-submit {
+  padding: 10px 18px;
+  border-radius: var(--radius-full);
+  border: none;
+  background: var(--pink-400);
+  color: #fff;
+  font-weight: 700;
+  font-size: 14px;
+  cursor: pointer;
+  transition: background 0.15s, transform 0.1s;
+}
+.lg-submit:hover:not(:disabled) { background: var(--pink-500); }
+.lg-submit:active:not(:disabled) { transform: scale(0.96); }
+.lg-submit:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.lg-vote { display: flex; flex-direction: column; align-items: center; gap: 8px; }
+.lg-vote-title { font-size: 14px; font-weight: 800; color: var(--text-main); }
+.lg-vote-row { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; }
+.lg-vote-btn {
+  padding: 8px 16px;
+  border-radius: var(--radius-full);
+  border: 2px solid var(--lavender-300);
+  background: var(--bg-card);
+  color: var(--text-main);
+  font-weight: 700;
+  font-size: 14px;
+  cursor: pointer;
+  transition: transform 0.1s, background 0.15s, border-color 0.15s;
+}
+.lg-vote-btn:hover:not(:disabled) { background: var(--lavender-100); transform: translateY(-2px); }
+.lg-vote-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+.lg-vote-btn.voted { background: var(--pink-100); border-color: var(--pink-400); }
+
 /* 게임 화면 좌측 하단 플로팅 바 — 우측은 채팅 패널 영역이라 좌측으로 이동 */
 .reaction-bar-floating {
   position: fixed;

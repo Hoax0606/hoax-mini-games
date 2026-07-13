@@ -20,6 +20,7 @@ import algagiThumbnail from './algagi/thumbnail.svg';
 import wordChainThumbnail from './word-chain/thumbnail.svg';
 import drawQuizThumbnail from './draw-quiz/thumbnail.svg';
 import fortressThumbnail from './fortress/thumbnail.svg';
+import liarGameThumbnail from './liar-game/thumbnail.svg';
 
 export const games: GameEntry[] = [
   {
@@ -253,6 +254,32 @@ export const games: GameEntry[] = [
     load: async () => {
       const mod = await import('./fortress');
       return mod.createFortressGame();
+    },
+  },
+  {
+    meta: {
+      id: 'liar-game',
+      name: '라이어 게임',
+      description: '한 명은 제시어를 모르는 라이어! 돌아가며 제시어를 설명하고, 누가 라이어인지 투표로 찾아라. 5라운드 누적 점수 승부.',
+      thumbnail: liarGameThumbnail,
+      minPlayers: 3,
+      maxPlayers: 8,
+      roomOptions: [
+        {
+          key: 'mode',
+          label: '모드',
+          type: 'select',
+          choices: [
+            { value: 'normal', label: '일반 (라이어는 제시어만 모름)' },
+            { value: 'fool', label: '바보 (라이어도 자기가 라이어인 줄 모름)' },
+          ],
+          defaultValue: 'normal',
+        },
+      ],
+    },
+    load: async () => {
+      const mod = await import('./liar-game');
+      return mod.createLiarGame();
     },
   },
 ];
