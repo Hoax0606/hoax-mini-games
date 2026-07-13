@@ -26,7 +26,7 @@ import type { PeerJSOption } from 'peerjs';
  * 형식: 순수 호스트명만. "https://" 나 끝 슬래시 붙이지 말 것.
  *   예) 'hoax-peerserver.onrender.com'
  */
-const DEFAULT_PEER_HOST = '';
+const DEFAULT_PEER_HOST = 'hoax-mini-games.onrender.com';
 
 /** 빌드 환경변수 우선, 없으면 위 기본값 */
 const PEER_HOST: string =
