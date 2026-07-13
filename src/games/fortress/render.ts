@@ -9,7 +9,7 @@
 
 import { terrainTopAt, TERRAIN_HEIGHT } from './terrain';
 import { MAX_WIND } from './physics';
-import { fortCenterY, FORT_HP, type FortressGame } from './rules';
+import { FORT_HP, type FortressGame } from './rules';
 
 const CANVAS_H = 400;
 
@@ -25,6 +25,11 @@ const COLORS = {
   soil: '#d8b89a',
   soilDark: '#b8946e',
   soilEdge: '#8a6a4a',
+  grass: '#9fd6a0',
+  tread: '#5a4a52',
+  wheel: '#8a7a82',
+  stone: '#c9c2cf',
+  stoneStroke: '#8a7a8a',
   textMain: '#4a3a4a',
   textMuted: '#8a7a8a',
   accentPink: '#ff5a92',
@@ -155,62 +160,73 @@ export class FortressRenderer {
     g.addColorStop(1, COLORS.soilDark);
     ctx.fillStyle = g;
     ctx.fill();
-    // 지면 윗선 (풀/가장자리 강조)
+    // 지면 윗선 — 흙 가장자리 위에 풀색 라인 덧그려 "땅" 느낌
+    const topLine = (): void => {
+      ctx.beginPath();
+      ctx.moveTo(0, hm[0]!);
+      for (let x = 1; x < w; x++) ctx.lineTo(x, hm[x]!);
+      ctx.stroke();
+    };
     ctx.strokeStyle = COLORS.soilEdge;
+    ctx.lineWidth = 3;
+    topLine();
+    ctx.strokeStyle = COLORS.grass;
     ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.moveTo(0, hm[0]!);
-    for (let x = 1; x < w; x++) ctx.lineTo(x, hm[x]!);
-    ctx.stroke();
+    topLine();
   }
 
   private drawForts(state: RenderState): void {
     const ctx = this.ctx;
+    const center = state.game.terrainWidth / 2;
     const currentTurn = state.game.phase === 'aiming' ? state.game.currentTurn : -1;
     for (const f of state.game.forts) {
+      const baseY = terrainTopAt(state.hm, f.x); // 지면 top — 탱크를 이 위로 쌓아 올림
       if (!f.alive) {
-        // 파괴된 포대 — 지면에 작은 잔해 표시
-        const y = terrainTopAt(state.hm, f.x);
-        ctx.fillStyle = 'rgba(74,58,74,0.35)';
-        ctx.font = `14px ${FONT}`;
+        this.drawTombstone(f.x, baseY);
+        // 죽은 소유자 이름 — 묘비 위 (연한 회색)
+        const deadNick = f.ownerNickname.length > 6 ? f.ownerNickname.slice(0, 5) + '…' : f.ownerNickname;
+        ctx.fillStyle = COLORS.textMuted;
+        ctx.font = `500 11px ${FONT}`;
         ctx.textAlign = 'center';
         ctx.textBaseline = 'bottom';
-        ctx.fillText('💥', f.x, y);
+        ctx.fillText(deadNick, f.x, baseY - 26);
         continue;
       }
-      const cy = fortCenterY(state.hm, f);
       const fill = FILL[f.ownerIndex] ?? FILL[0];
       const stroke = STROKE[f.ownerIndex] ?? STROKE[0];
 
-      // 차례 표시 펄스
+      // 포신 각도 (Canvas 좌표계 = y 아래로 +).
+      let barrelAngle: number;
+      if (f.id === currentTurn && state.aim) {
+        // 내 차례 조준 중 — 발사 방향 = 드래그 반대
+        const dx = state.aim.mx - state.aim.fromX;
+        const dy = state.aim.my - state.aim.fromY;
+        barrelAngle = Math.atan2(-dy, -dx);
+      } else {
+        // 대기 — 맵 중앙 쪽으로 약 34° 올려 조준
+        const dirX = f.x <= center ? 1 : -1;
+        barrelAngle = Math.atan2(-Math.sin(0.6), dirX * Math.cos(0.6));
+      }
+
+      // 차례 표시 펄스 링 (탱크 감싸게)
       if (f.id === currentTurn) {
         const pulse = 0.6 + 0.4 * Math.sin(state.now / 260);
         ctx.strokeStyle = `rgba(255,90,146,${pulse})`;
         ctx.lineWidth = 2.5;
         ctx.beginPath();
-        ctx.arc(f.x, cy, 18, 0, Math.PI * 2);
+        ctx.arc(f.x, baseY - 12, 21, 0, Math.PI * 2);
         ctx.stroke();
       }
 
-      // 포대 몸통 (반원 돔)
-      ctx.fillStyle = fill;
-      ctx.beginPath();
-      ctx.arc(f.x, cy, 11, Math.PI, 0);
-      ctx.lineTo(f.x + 11, cy + 5);
-      ctx.lineTo(f.x - 11, cy + 5);
-      ctx.closePath();
-      ctx.fill();
-      ctx.strokeStyle = stroke;
-      ctx.lineWidth = 1.4;
-      ctx.stroke();
+      this.drawTank(f.x, baseY, fill, stroke, barrelAngle);
 
-      // HP 바 (포대 위)
+      // HP 바 (탱크 위)
       const barW = 30;
       const barX = f.x - barW / 2;
-      const barY = cy - 26;
+      const barY = baseY - 40;
       ctx.fillStyle = COLORS.hpBack;
       ctx.fillRect(barX, barY, barW, 5);
-      const ratio = f.hp / FORT_HP;
+      const ratio = Math.max(0, f.hp / FORT_HP);
       ctx.fillStyle = ratio <= 0.3 ? COLORS.hpLow : COLORS.hpFill;
       ctx.fillRect(barX, barY, barW * ratio, 5);
 
@@ -223,6 +239,81 @@ export class FortressRenderer {
       const nick = f.ownerNickname.length > 6 ? f.ownerNickname.slice(0, 5) + '…' : f.ownerNickname;
       ctx.fillText(nick + (isMe ? ' (나)' : ''), f.x, barY - 3);
     }
+  }
+
+  /**
+   * 미니 심플 탱크 (모양 A). baseY = 지면 top.
+   * 아래→위로 궤도 → 차체 → 포탑을 쌓고, 포탑 중앙에서 포신을 barrelAngle 로 회전.
+   * barrelAngle 은 Canvas 좌표(y 아래+) 기준 라디안.
+   */
+  private drawTank(x: number, baseY: number, fill: string, stroke: string, barrelAngle: number): void {
+    const ctx = this.ctx;
+    const hullW = 24, hullH = 8, treadH = 7, turretW = 13, turretH = 7;
+    const treadTop = baseY - treadH;
+    const hullTop = treadTop - hullH;
+    const turretTop = hullTop - turretH;
+    const pivotY = turretTop + turretH / 2; // 포신 회전 중심 = 포탑 중앙
+
+    // 궤도 + 바퀴 점
+    ctx.fillStyle = COLORS.tread;
+    this.roundRect(x - hullW / 2 - 2, treadTop, hullW + 4, treadH, 3.5);
+    ctx.fill();
+    ctx.fillStyle = COLORS.wheel;
+    for (let i = 0; i < 4; i++) {
+      const wx = x - hullW / 2 + 3 + (i * (hullW - 6)) / 3;
+      ctx.beginPath();
+      ctx.arc(wx, treadTop + treadH / 2, 2, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // 포신 — 포탑보다 먼저 그려 뿌리가 포탑 뒤로 들어가게. pivot 기준 회전.
+    ctx.save();
+    ctx.translate(x, pivotY);
+    ctx.rotate(barrelAngle);
+    ctx.fillStyle = stroke;
+    this.roundRect(0, -2.5, 15, 5, 2.5);
+    ctx.fill();
+    ctx.restore();
+
+    // 차체
+    ctx.fillStyle = fill;
+    ctx.strokeStyle = stroke;
+    ctx.lineWidth = 2;
+    this.roundRect(x - hullW / 2, hullTop, hullW, hullH, 3);
+    ctx.fill();
+    ctx.stroke();
+
+    // 포탑
+    this.roundRect(x - turretW / 2, turretTop, turretW, turretH, 3);
+    ctx.fill();
+    ctx.stroke();
+  }
+
+  /** 파괴된 포대 — 묘비 (둥근 윗부분 슬랩 + 작은 십자) */
+  private drawTombstone(x: number, baseY: number): void {
+    const ctx = this.ctx;
+    const hw = 8; // 반폭
+    // 슬랩 (아래 직선 → 위 반원)
+    ctx.beginPath();
+    ctx.moveTo(x - hw, baseY);
+    ctx.lineTo(x - hw, baseY - 13);
+    ctx.arc(x, baseY - 13, hw, Math.PI, 0); // 둥근 머리
+    ctx.lineTo(x + hw, baseY);
+    ctx.closePath();
+    ctx.fillStyle = COLORS.stone;
+    ctx.fill();
+    ctx.strokeStyle = COLORS.stoneStroke;
+    ctx.lineWidth = 1.6;
+    ctx.stroke();
+    // 십자 각인
+    ctx.strokeStyle = COLORS.stoneStroke;
+    ctx.lineWidth = 1.6;
+    ctx.beginPath();
+    ctx.moveTo(x, baseY - 18);
+    ctx.lineTo(x, baseY - 8);
+    ctx.moveTo(x - 4, baseY - 15);
+    ctx.lineTo(x + 4, baseY - 15);
+    ctx.stroke();
   }
 
   private drawProjectile(p: { x: number; y: number }): void {
