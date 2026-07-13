@@ -45,6 +45,18 @@ const MUZZLE_RISE = 13;
 const TURN_TIME_MS = 30_000;
 /** 게스트가 'firing' 상태로 이 시간 넘게 갇히면 재동기화 요청 (착탄 메시지 유실/중간합류 복구) */
 const FIRING_WATCHDOG_MS = 8_000;
+/** 분열탄 파편 각 벌림(라디안) */
+const SPLIT_SPREAD = 0.30;
+/** 수류탄 지형 반사 감쇠 계수 */
+const BOUNCE_DAMP = 0.55;
+
+/** 날아가는 포탄 하나. bounces/fuseLeft 는 수류탄, landed 는 착지 여부 */
+interface Shell extends Projectile {
+  bounces: number;
+  /** 남은 퓨즈(ms). 수류탄만 유의미, 나머지는 Infinity */
+  fuseLeft: number;
+  landed: boolean;
+}
 
 class FortressGameModule implements GameModule {
   private ctx!: GameContext;
@@ -65,11 +77,17 @@ class FortressGameModule implements GameModule {
   private endGameScheduled = false;
   private lastFrameTime = 0;
 
-  // 궤적
-  private projectile: Projectile | null = null;
+  // 궤적 — 여러 포탄(분열탄은 3개 동시)
+  private shells: Shell[] = [];
   private fireWind = 0;
   /** 지금 날아가는 포탄의 무기 (착탄 폭발 파라미터 결정) */
   private flyingWeapon: WeaponId = 'normal';
+  /** 분열탄이 이번 발사에서 이미 분열했는지 */
+  private splitDone = false;
+  /** 호스트: 이번 발사에서 누적된 폭발(분열탄 여러 개) */
+  private pendingBlasts: Crater[] = [];
+  /** 호스트: 이번 발사로 게임이 끝났는지 */
+  private pendingEnded = false;
   /** 내가 선택한 무기 (무기 바) */
   private selectedWeapon: WeaponId = 'normal';
   /** 무기 바 DOM */
@@ -141,7 +159,7 @@ class FortressGameModule implements GameModule {
         this.craters = sync.craters;
         this.hm = generateTerrain(this.game.seed, this.game.terrainWidth);
         for (const c of this.craters) carveCrater(this.hm, c.cx, c.cy, c.r);
-        this.projectile = null;
+        this.shells = [];
         this.ready = true; // 호스트 지형/상태 동기화 완료 — 이제 조준 허용
         this.turnStartedAt = performance.now(); // 타이머 표시 기준 리셋
         // 합류 시점에 호스트가 발사 중이면 포탄을 못 받으니 워치독으로 재동기화되게 시각 기록
@@ -212,14 +230,13 @@ class FortressGameModule implements GameModule {
     if (this.destroyed) return;
     const now = performance.now();
 
-    if (!this.paused && this.projectile && this.game.phase === 'firing') {
+    if (!this.paused && this.shells.length && this.game.phase === 'firing') {
       const elapsed = Math.min(0.1, (now - this.lastFrameTime) / 1000);
       let remaining = elapsed;
-      while (remaining > 0 && this.projectile) {
+      while (remaining > 0 && this.shells.length && this.game.phase === 'firing') {
         const dt = Math.min(SIM_DT, remaining);
-        stepProjectile(this.projectile, this.fireWind, dt);
+        this.stepShells(dt);
         remaining -= dt;
-        if (this.checkImpact()) break; // 착탄 시 처리 후 종료
       }
     }
 
@@ -268,7 +285,8 @@ class FortressGameModule implements GameModule {
       hm: this.hm,
       myPeerId: this.myPeerId,
       isSpectator: this.isSpectator,
-      projectile: this.projectile ? { x: this.projectile.x, y: this.projectile.y } : null,
+      shells: this.shells.map((s) => ({ x: s.x, y: s.y, fuseLeft: s.fuseLeft })),
+      flyingWeapon: this.flyingWeapon,
       aim,
       now,
       // 턴 타이머 표시용 — 각 클라 로컬 시각(자기 시계 기준). 호스트가 실제 타임아웃 판정.
@@ -277,29 +295,107 @@ class FortressGameModule implements GameModule {
     };
   }
 
-  /** 착탄 판정 (호스트만 확정). 착탄했으면 true. */
-  private checkImpact(): boolean {
-    const p = this.projectile;
-    if (!p) return false;
+  /**
+   * 모든 shell 한 스텝 진행 + 무기별 처리(분열/튕김/퓨즈/착탄).
+   * 결정론적: 모든 클라가 같은 파라미터로 같은 궤적/분열/튕김을 재생.
+   * 착탄 폭발 확정은 호스트만 (landShell 에서 누적) → 전부 착지 시 finalizeImpactAsHost.
+   */
+  private stepShells(dt: number): void {
+    const spec = WEAPONS[this.flyingWeapon];
 
-    // 화면 밖으로 크게 이탈 → 빗나감 (호스트만 처리, 게스트는 impact 대기)
-    const off = p.x < -60 || p.x > this.game.terrainWidth + 60 || p.y > 440;
-    const hitGround = p.y >= terrainTopAt(this.hm, p.x);
-    let hitFort = false;
-    for (const f of this.game.forts) {
-      if (!f.alive) continue;
-      if (Math.hypot(f.x - p.x, fortCenterY(this.hm, f) - p.y) < 12) { hitFort = true; break; }
+    // 분열탄: 정점(올라가다 vy≥0 로 전환) 도달 시 1개 → 3개
+    if (spec.split && !this.splitDone && this.shells.length === 1 && (this.shells[0]!.landed === false) && this.shells[0]!.vy >= 0) {
+      this.splitFragments(this.shells[0]!);
+      this.splitDone = true;
     }
 
-    if (!off && !hitGround && !hitFort) return false;
+    for (const s of this.shells) {
+      if (s.landed) continue;
+      if (spec.fuseMs) s.fuseLeft -= dt * 1000;
+      stepProjectile(s, this.fireWind, dt);
 
-    // 착탄 — 호스트만 확정 broadcast. 게스트는 궤적만 멈춤.
-    if (this.isHost) {
-      this.handleImpactAsHost(p.x, Math.min(p.y, terrainTopAt(this.hm, p.x)), off && !hitGround && !hitFort);
+      const off = s.x < -60 || s.x > this.game.terrainWidth + 60 || s.y > 440;
+      const groundY = terrainTopAt(this.hm, s.x);
+      const hitGround = s.y >= groundY;
+
+      if (spec.fuseMs) {
+        // 수류탄: 퓨즈 끝나면 폭발, 아니면 지형에 튕기며 굴러감
+        if (off) this.landShell(s, true);
+        else if (s.fuseLeft <= 0) this.landShell(s, false);
+        else if (hitGround) {
+          s.y = groundY - 1;
+          s.vy = -Math.abs(s.vy) * BOUNCE_DAMP;
+          s.vx *= BOUNCE_DAMP;
+          s.bounces++;
+        }
+      } else {
+        let hitFort = false;
+        for (const f of this.game.forts) {
+          if (!f.alive) continue;
+          if (Math.hypot(f.x - s.x, fortCenterY(this.hm, f) - s.y) < 12) { hitFort = true; break; }
+        }
+        if (off && !hitGround && !hitFort) this.landShell(s, true);
+        else if (hitGround || hitFort) this.landShell(s, false);
+      }
+    }
+
+    // 모든 포탄 착지 → 호스트가 이번 발사 결과 확정
+    if (this.shells.length > 0 && this.shells.every((s) => s.landed)) {
+      if (this.isHost) this.finalizeImpactAsHost();
+      // 게스트는 landed 상태로 두고 호스트 impact 를 기다림 (applyImpactLocal 에서 정리)
+    }
+  }
+
+  /** 분열탄 파편 3개 생성 (현재 속도 기준 ±SPLIT_SPREAD). */
+  private splitFragments(s: Shell): void {
+    const speed = Math.hypot(s.vx, s.vy);
+    const base = Math.atan2(s.vy, s.vx);
+    this.shells = [-SPLIT_SPREAD, 0, SPLIT_SPREAD].map((d) => ({
+      x: s.x, y: s.y,
+      vx: Math.cos(base + d) * speed,
+      vy: Math.sin(base + d) * speed,
+      bounces: 0, fuseLeft: Infinity, landed: false,
+    }));
+  }
+
+  /** 포탄 착지 표시. 호스트는 즉시 폭발 적용 + 크레이터 누적 (miss 면 폭발 없음). */
+  private landShell(s: Shell, isMiss: boolean): void {
+    s.landed = true;
+    if (!this.isHost || isMiss) return;
+    const spec = WEAPONS[this.flyingWeapon];
+    const cx = s.x;
+    const cy = Math.min(s.y, terrainTopAt(this.hm, s.x));
+    carveCrater(this.hm, cx, cy, spec.craterRadius);
+    this.craters.push({ cx, cy, r: spec.craterRadius });
+    this.pendingBlasts.push({ cx, cy, r: spec.craterRadius });
+    const res = applyBlast(this.game, this.hm, cx, cy, spec.blastRadius, spec.maxDamage);
+    if (res.ended) this.pendingEnded = true;
+  }
+
+  /** 호스트: 이번 발사의 모든 폭발을 한 번에 확정 broadcast + 턴 진행/종료. */
+  private finalizeImpactAsHost(): void {
+    const nextWind = this.randomWind();
+    const ended = this.pendingEnded || this.game.phase === 'ended';
+    if (ended) {
+      this.game.phase = 'ended';
+      this.ctx.sendToPeer(encodeImpact({
+        blasts: this.pendingBlasts, hp: this.hpMap(), ended: true,
+        nextTurn: -1, nextWind, winnerPeerIds: this.game.winnerPeerIds,
+      }));
+      this.finishAsHost();
     } else {
-      this.projectile = null; // 게스트: 궤적 정지, impact 대기
+      advanceTurn(this.game, nextWind, performance.now());
+      this.turnStartedAt = performance.now();
+      this.ctx.sendToPeer(encodeImpact({
+        blasts: this.pendingBlasts, hp: this.hpMap(), ended: false,
+        nextTurn: this.game.currentTurn, nextWind, winnerPeerIds: [],
+      }));
+      this.refreshWeaponBar();
     }
-    return true;
+    this.shells = [];
+    this.pendingBlasts = [];
+    this.pendingEnded = false;
+    sound.play('tetris_garbage');
   }
 
   // ============================================
@@ -323,7 +419,7 @@ class FortressGameModule implements GameModule {
   }
 
   private canAim(): boolean {
-    if (!this.ready || this.isSpectator || this.paused || this.game.phase !== 'aiming' || this.projectile) return false;
+    if (!this.ready || this.isSpectator || this.paused || this.game.phase !== 'aiming' || this.shells.length > 0) return false;
     const cf = this.currentFort();
     return !!cf && cf.ownerPeerId === this.myPeerId;
   }
@@ -445,7 +541,11 @@ class FortressGameModule implements GameModule {
 
   private beginProjectile(sx: number, sy: number, angleRad: number, power01: number, wind: number, weapon: WeaponId): void {
     const { vx, vy } = launchVelocity(angleRad, power01);
-    this.projectile = { x: sx, y: sy, vx, vy };
+    const spec = WEAPONS[weapon];
+    this.shells = [{ x: sx, y: sy, vx, vy, bounces: 0, fuseLeft: spec.fuseMs ?? Infinity, landed: false }];
+    this.splitDone = false;
+    this.pendingBlasts = [];
+    this.pendingEnded = false;
     this.fireWind = wind;
     this.flyingWeapon = weapon;
     this.game.phase = 'firing';
@@ -458,40 +558,6 @@ class FortressGameModule implements GameModule {
   // 착탄 처리
   // ============================================
 
-  private handleImpactAsHost(cx: number, cy: number, isMiss: boolean): void {
-    const spec = WEAPONS[this.flyingWeapon];
-    const blasts: Crater[] = [];
-    let blast: { hp: Record<number, number>; ended: boolean };
-    if (isMiss) {
-      blast = { hp: this.hpMap(), ended: false };
-    } else {
-      const craterR = spec.craterRadius;
-      carveCrater(this.hm, cx, cy, craterR);
-      this.craters.push({ cx, cy, r: craterR });
-      blasts.push({ cx, cy, r: craterR });
-      blast = applyBlast(this.game, this.hm, cx, cy, spec.blastRadius, spec.maxDamage);
-    }
-    this.projectile = null;
-
-    const nextWind = this.randomWind();
-    if (blast.ended) {
-      this.ctx.sendToPeer(encodeImpact({
-        blasts, hp: blast.hp, ended: true,
-        nextTurn: -1, nextWind, winnerPeerIds: this.game.winnerPeerIds,
-      }));
-      this.finishAsHost();
-    } else {
-      advanceTurn(this.game, nextWind, performance.now());
-      this.turnStartedAt = performance.now(); // 다음 턴 타임아웃 카운트 리셋
-      this.ctx.sendToPeer(encodeImpact({
-        blasts, hp: blast.hp, ended: false,
-        nextTurn: this.game.currentTurn, nextWind, winnerPeerIds: [],
-      }));
-      this.refreshWeaponBar();
-    }
-    sound.play('tetris_garbage');
-  }
-
   /** 게스트: 확정 impact 반영 */
   private applyImpactLocal(p: ReturnType<typeof decodeImpact>): void {
     if (!p) return;
@@ -503,7 +569,7 @@ class FortressGameModule implements GameModule {
       const hp = p.hp[f.id];
       if (hp !== undefined) { f.hp = hp; f.alive = hp > 0; }
     }
-    this.projectile = null;
+    this.shells = [];
     if (p.ended) {
       this.game.phase = 'ended';
       this.game.winnerPeerIds = p.winnerPeerIds;

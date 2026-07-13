@@ -9,7 +9,7 @@
 
 import { terrainTopAt, TERRAIN_HEIGHT } from './terrain';
 import { MAX_WIND } from './physics';
-import { FORT_HP, type FortressGame } from './rules';
+import { FORT_HP, type FortressGame, type WeaponId } from './rules';
 
 const CANVAS_H = 400;
 
@@ -58,8 +58,10 @@ export interface RenderState {
   hm: number[];
   myPeerId: string;
   isSpectator: boolean;
-  /** 날아가는 포탄 (없으면 null) */
-  projectile: { x: number; y: number } | null;
+  /** 날아가는 포탄들 (분열탄은 여러 개). fuseLeft 는 수류탄 카운트다운(ms) */
+  shells: { x: number; y: number; fuseLeft: number }[];
+  /** 현재 날아가는 무기 종류 (포탄 색/수류탄 퓨즈 표시용) */
+  flyingWeapon: WeaponId;
   /** 내 차례 드래그 조준 중 — 포대 기준 + 현재 마우스 (논리 좌표) + 파워(0~1) */
   aim: { fromX: number; fromY: number; mx: number; my: number; power01: number } | null;
   now: number;
@@ -135,7 +137,7 @@ export class FortressRenderer {
     this.drawSky(logicalW);
     this.drawTerrain(state.hm);
     this.drawForts(state);
-    if (state.projectile) this.drawProjectile(state.projectile);
+    this.drawShells(state.shells, state.flyingWeapon);
     if (state.aim) this.drawAim(state.aim);
     this.drawHUD(state, logicalW);
     if (state.game.phase === 'ended') this.drawEndOverlay(state, logicalW);
@@ -333,12 +335,23 @@ export class FortressRenderer {
     ctx.stroke();
   }
 
-  private drawProjectile(p: { x: number; y: number }): void {
+  private drawShells(shells: RenderState['shells'], weapon: WeaponId): void {
     const ctx = this.ctx;
-    ctx.fillStyle = COLORS.projectile;
-    ctx.beginPath();
-    ctx.arc(p.x, p.y, 4, 0, Math.PI * 2);
-    ctx.fill();
+    const isGrenade = weapon === 'grenade';
+    for (const s of shells) {
+      ctx.fillStyle = isGrenade ? '#5a7a3a' : COLORS.projectile; // 수류탄은 올리브색
+      ctx.beginPath();
+      ctx.arc(s.x, s.y, isGrenade ? 5 : 4, 0, Math.PI * 2);
+      ctx.fill();
+      // 수류탄: 남은 퓨즈 초를 포탄 위에 작게 표시 (따라다님)
+      if (isGrenade && s.fuseLeft !== Infinity && s.fuseLeft > 0) {
+        ctx.fillStyle = COLORS.accentPink;
+        ctx.font = `700 11px ${FONT}`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'bottom';
+        ctx.fillText(String(Math.ceil(s.fuseLeft / 1000)), s.x, s.y - 8);
+      }
+    }
   }
 
   private drawAim(aim: NonNullable<RenderState['aim']>): void {

@@ -58,7 +58,7 @@ export const CRATER_RADIUS = 34;
 // 무기 정의
 // ============================================
 
-export type WeaponId = 'normal' | 'big' | 'split' | 'guided' | 'bombard' | 'grenade' | 'timed';
+export type WeaponId = 'normal' | 'big' | 'split' | 'guided' | 'bombard' | 'grenade';
 
 export interface WeaponSpec {
   id: WeaponId;
@@ -72,6 +72,10 @@ export interface WeaponSpec {
   craterRadius: number;
   /** true 면 바람 무시(유도탄) */
   ignoreWind?: boolean;
+  /** 정점에서 분열하는 무기(분열탄) */
+  split?: boolean;
+  /** 퓨즈 시간(ms). 있으면 지형에 튕기며 이 시간 뒤 폭발(수류탄) */
+  fuseMs?: number;
 }
 
 export const WEAPONS: Record<WeaponId, WeaponSpec> = {
@@ -80,17 +84,12 @@ export const WEAPONS: Record<WeaponId, WeaponSpec> = {
   big:     { id: 'big',     name: '대형탄', icon: '💥', blastRadius: 90, maxDamage: 45, craterRadius: 50 },
   guided:  { id: 'guided',  name: '유도탄', icon: '🛰️', blastRadius: 62, maxDamage: 36, craterRadius: 34, ignoreWind: true },
   bombard: { id: 'bombard', name: '폭격탄', icon: '☄️', blastRadius: 55, maxDamage: 30, craterRadius: 60 },
-  // 복합 무기(슬라이스 3b) — 스펙만 미리 정의, 궤적 로직은 3b 에서
-  split:   { id: 'split',   name: '분열탄', icon: '✴️', blastRadius: 42, maxDamage: 22, craterRadius: 24 },
-  grenade: { id: 'grenade', name: '수류탄', icon: '🧨', blastRadius: 55, maxDamage: 34, craterRadius: 30 },
-  timed:   { id: 'timed',   name: '시한폭탄', icon: '⏱️', blastRadius: 70, maxDamage: 40, craterRadius: 38 },
+  split:   { id: 'split',   name: '분열탄', icon: '✴️', blastRadius: 42, maxDamage: 22, craterRadius: 24, split: true },
+  grenade: { id: 'grenade', name: '수류탄', icon: '🧨', blastRadius: 58, maxDamage: 34, craterRadius: 32, fuseMs: 3000 },
 };
 
-/**
- * 랜덤 배분 대상 특수 무기 풀.
- * 3a 에서는 단순형(단일 포탄)만 — 3b 에서 split/grenade/timed 추가.
- */
-export const SPECIAL_POOL: WeaponId[] = ['big', 'guided', 'bombard'];
+/** 랜덤 배분 대상 특수 무기 풀 (5종 중 각 플레이어 2종). */
+export const SPECIAL_POOL: WeaponId[] = ['big', 'guided', 'bombard', 'split', 'grenade'];
 
 /** 무기당 배분 발수 */
 export const AMMO_PER_WEAPON = 2;
