@@ -92,14 +92,16 @@ export const WEAPONS: Record<WeaponId, WeaponSpec> = {
 export const SPECIAL_POOL: WeaponId[] = ['big', 'guided', 'bombard', 'split', 'grenade'];
 
 /** 무기당 배분 발수 */
-export const AMMO_PER_WEAPON = 2;
+export const AMMO_PER_WEAPON = 3;
+/** 플레이어당 특수 무기 종류 수 */
+export const SPECIALS_PER_PLAYER = 3;
 
-/** 플레이어마다 특수 풀에서 랜덤 2종 골라 잔탄 초기화. (호스트가 만들어 sync 하므로 랜덤 OK) */
+/** 플레이어마다 특수 풀에서 랜덤 3종 골라 잔탄 초기화. (호스트가 만들어 sync 하므로 랜덤 OK) */
 export function assignLoadouts(peerIds: string[]): FortressGame['ammo'] {
   const ammo: FortressGame['ammo'] = {};
   for (const pid of peerIds) {
     const shuffled = [...SPECIAL_POOL].sort(() => Math.random() - 0.5);
-    const picks = shuffled.slice(0, 2);
+    const picks = shuffled.slice(0, SPECIALS_PER_PLAYER);
     const inv: Partial<Record<WeaponId, number>> = {};
     for (const w of picks) inv[w] = AMMO_PER_WEAPON;
     ammo[pid] = inv;
