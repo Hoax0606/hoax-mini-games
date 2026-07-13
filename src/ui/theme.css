@@ -1426,6 +1426,45 @@ input {
 .fw-name { font-size: 11px; font-weight: 700; color: var(--text-main); }
 .fw-ammo { font-size: 10px; color: var(--text-muted); font-weight: 600; }
 
+/* 포트리스 이동 바 (◀ 연료 ▶) */
+.fortress-move-bar {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  justify-content: center;
+  margin-top: 8px;
+  transition: opacity 0.15s;
+}
+.fortress-move-bar.inactive { opacity: 0.4; }
+.fm-btn {
+  width: 42px;
+  height: 34px;
+  border-radius: 10px;
+  background: var(--bg-card);
+  border: 2px solid var(--border-soft);
+  font-size: 16px;
+  color: var(--text-main);
+  cursor: pointer;
+  transition: transform 0.1s, border-color 0.15s;
+}
+.fm-btn:hover:not(:disabled) { border-color: var(--accent-soft); }
+.fm-btn:active:not(:disabled) { transform: scale(0.92); }
+.fm-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.fm-fuel {
+  width: 120px;
+  height: 8px;
+  border-radius: var(--radius-full);
+  background: rgba(74, 58, 74, 0.12);
+  overflow: hidden;
+}
+.fm-fuel-fill {
+  height: 100%;
+  width: 100%;
+  border-radius: var(--radius-full);
+  background: linear-gradient(90deg, var(--mint-300), var(--sky-300));
+  transition: width 0.08s linear;
+}
+
 /* 게임 화면 좌측 하단 플로팅 바 — 우측은 채팅 패널 영역이라 좌측으로 이동 */
 .reaction-bar-floating {
   position: fixed;

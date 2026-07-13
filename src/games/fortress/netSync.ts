@@ -16,6 +16,7 @@ const T_SYNC = 'fr:sync';
 const T_FIRE = 'fr:fire';
 const T_IMPACT = 'fr:impact';
 const T_END = 'fr:end';
+const T_MOVE = 'fr:move';
 
 export interface Crater {
   cx: number;
@@ -104,6 +105,22 @@ export function decodeImpact(msg: GameMessage): ImpactPayload | null {
     nextWind: typeof p.nextWind === 'number' ? p.nextWind : 0,
     winnerPeerIds: Array.isArray(p.winnerPeerIds) ? (p.winnerPeerIds as string[]) : [],
   };
+}
+
+// --- move (현재 턴 포대 좌우 이동) ---
+export interface MovePayload {
+  fromFortId: number;
+  /** 갱신된 x 위치 */
+  x: number;
+}
+export function encodeMove(p: MovePayload): GameMessage {
+  return { type: T_MOVE, payload: p };
+}
+export function decodeMove(msg: GameMessage): MovePayload | null {
+  if (msg.type !== T_MOVE) return null;
+  const p = msg.payload as Partial<MovePayload> | null;
+  if (!p || typeof p.fromFortId !== 'number' || typeof p.x !== 'number') return null;
+  return { fromFortId: p.fromFortId, x: p.x };
 }
 
 // --- end ---

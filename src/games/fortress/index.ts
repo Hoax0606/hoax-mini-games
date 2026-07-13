@@ -32,6 +32,7 @@ import {
   encodeSync, decodeSync,
   encodeFire, decodeFire,
   encodeImpact, decodeImpact,
+  encodeMove, decodeMove,
   encodeEnd, decodeEnd,
   type Crater,
 } from './netSync';
@@ -49,6 +50,12 @@ const FIRING_WATCHDOG_MS = 8_000;
 const SPLIT_SPREAD = 0.30;
 /** 수류탄 지형 반사 감쇠 계수 */
 const BOUNCE_DAMP = 0.55;
+/** 턴당 이동 연료(=이동 가능 px). 턴마다 재충전 */
+const FUEL_PER_TURN = 100;
+/** 이동 속도 (px/s) */
+const MOVE_SPEED = 60;
+/** 이동 위치 broadcast 간격(ms) */
+const MOVE_BROADCAST_MS = 100;
 
 /** 날아가는 포탄 하나. bounces/fuseLeft 는 수류탄, landed 는 착지 여부 */
 interface Shell extends Projectile {
@@ -92,6 +99,16 @@ class FortressGameModule implements GameModule {
   private selectedWeapon: WeaponId = 'normal';
   /** 무기 바 DOM */
   private weaponBar: HTMLDivElement | null = null;
+  /** 이동 바 DOM */
+  private moveBar: HTMLDivElement | null = null;
+  /** 남은 이동 연료(px). 턴마다 FUEL_PER_TURN 으로 재충전 */
+  private fuelLeft = FUEL_PER_TURN;
+  /** 이동 방향: -1 왼쪽 / 0 정지 / 1 오른쪽 (버튼 홀드) */
+  private moveDir: -1 | 0 | 1 = 0;
+  /** 마지막 이동 위치 broadcast 시각 */
+  private moveBroadcastAt = 0;
+  /** window mouseup 이동정지 핸들러 (cleanup 용) */
+  private moveReleaseHandler: (() => void) | null = null;
 
   /** 현재 aiming 턴 시작 시각 (호스트만 사용 — 타임아웃 스킵 판정) */
   private turnStartedAt = 0;
@@ -131,7 +148,11 @@ class FortressGameModule implements GameModule {
     this.renderer = new FortressRenderer({ canvas: ctx.canvas });
     ctx.canvas.style.cursor = 'crosshair';
     this.attachInput();
-    if (!this.isSpectator) this.mountWeaponBar();
+    this.fuelLeft = FUEL_PER_TURN;
+    if (!this.isSpectator) {
+      this.mountMoveBar();
+      this.mountWeaponBar();
+    }
     sound.startBgm('battle-tetris'); // 긴장감 BGM 재활용
 
     if (!this.isHost) this.ctx.sendToPeer(encodeHello(this.myPeerId));
@@ -189,6 +210,16 @@ class FortressGameModule implements GameModule {
       return;
     }
 
+    const mv = decodeMove(msg);
+    if (mv) {
+      // 현재 턴 포대의 이동만 반영 (다른 포대 이동은 무시)
+      if (mv.fromFortId === this.game.currentTurn) {
+        const f = this.game.forts.find((ff) => ff.id === mv.fromFortId);
+        if (f) f.x = mv.x;
+      }
+      return;
+    }
+
     const end = decodeEnd(msg);
     if (end) {
       this.scheduleEndGame(end);
@@ -204,6 +235,12 @@ class FortressGameModule implements GameModule {
     this.detachInput();
     this.weaponBar?.remove();
     this.weaponBar = null;
+    this.moveBar?.remove();
+    this.moveBar = null;
+    if (this.moveReleaseHandler) {
+      window.removeEventListener('mouseup', this.moveReleaseHandler);
+      this.moveReleaseHandler = null;
+    }
     if (this.ctx?.canvas) this.ctx.canvas.style.cursor = '';
     this.renderer?.destroy();
     sound.stopBgm();
@@ -240,6 +277,24 @@ class FortressGameModule implements GameModule {
       }
     }
 
+    // 포대 이동 (◀▶ 홀드 중 + 내 차례 + 연료 남음)
+    if (!this.paused && this.moveDir !== 0 && this.canMove()) {
+      const cf = this.currentFort();
+      if (cf) {
+        const frameDt = Math.min(0.05, (now - this.lastFrameTime) / 1000);
+        let dx = this.moveDir * MOVE_SPEED * frameDt;
+        if (Math.abs(dx) > this.fuelLeft) dx = this.moveDir * this.fuelLeft; // 연료 한도
+        this.fuelLeft = Math.max(0, this.fuelLeft - Math.abs(dx));
+        const margin = 30;
+        cf.x = Math.max(margin, Math.min(this.game.terrainWidth - margin, cf.x + dx));
+        if (now - this.moveBroadcastAt > MOVE_BROADCAST_MS) {
+          this.ctx.sendToPeer(encodeMove({ fromFortId: cf.id, x: cf.x }));
+          this.moveBroadcastAt = now;
+        }
+        this.refreshMoveBar();
+      }
+    }
+
     if (!this.paused && !this.gameFinished) {
       // 호스트: 현재 플레이어가 제한 시간 내 안 쏘면 턴 스킵 (무한 정지 방지)
       if (this.isHost && this.game.phase === 'aiming' && now - this.turnStartedAt > TURN_TIME_MS) {
@@ -263,6 +318,7 @@ class FortressGameModule implements GameModule {
     const nextWind = this.randomWind();
     advanceTurn(this.game, nextWind, performance.now());
     this.turnStartedAt = performance.now();
+    this.fuelLeft = FUEL_PER_TURN; // 새 턴 이동 연료 재충전
     this.ctx.sendToPeer(encodeImpact({
       blasts: [], hp: this.hpMap(), ended: false,
       nextTurn: this.game.currentTurn, nextWind, winnerPeerIds: [],
@@ -386,6 +442,7 @@ class FortressGameModule implements GameModule {
     } else {
       advanceTurn(this.game, nextWind, performance.now());
       this.turnStartedAt = performance.now();
+      this.fuelLeft = FUEL_PER_TURN; // 새 턴 이동 연료 재충전
       this.ctx.sendToPeer(encodeImpact({
         blasts: this.pendingBlasts, hp: this.hpMap(), ended: false,
         nextTurn: this.game.currentTurn, nextWind, winnerPeerIds: [],
@@ -485,6 +542,68 @@ class FortressGameModule implements GameModule {
       btn.classList.toggle('disabled', disabled);
       btn.classList.toggle('selected', w === this.selectedWeapon && !empty);
     });
+    this.refreshMoveBar();
+  }
+
+  // ============================================
+  // 이동 바 UI (◀ ▶ 홀드)
+  // ============================================
+
+  private canMove(): boolean {
+    if (!this.ready || this.isSpectator || this.paused || this.game.phase !== 'aiming' || this.shells.length > 0) return false;
+    if (this.fuelLeft <= 0) return false;
+    const cf = this.currentFort();
+    return !!cf && cf.ownerPeerId === this.myPeerId;
+  }
+
+  private mountMoveBar(): void {
+    const parent = this.ctx.canvas.parentElement;
+    if (!parent) return;
+    const bar = document.createElement('div');
+    bar.className = 'fortress-move-bar';
+    bar.innerHTML = `
+      <button class="fm-btn" data-dir="-1" title="왼쪽 이동">◀</button>
+      <div class="fm-fuel"><div class="fm-fuel-fill"></div></div>
+      <button class="fm-btn" data-dir="1" title="오른쪽 이동">▶</button>
+    `;
+    parent.appendChild(bar);
+    this.moveBar = bar;
+
+    // 버튼 누르는 동안 이동, 떼면 정지 + 최종 위치 확정 broadcast
+    bar.querySelectorAll<HTMLButtonElement>('.fm-btn').forEach((b) => {
+      const dir = Number(b.dataset.dir) as -1 | 1;
+      b.addEventListener('mousedown', (e) => {
+        e.preventDefault();
+        if (this.canMove()) this.moveDir = dir;
+      });
+    });
+    const release = (): void => {
+      if (this.moveDir === 0) return;
+      this.moveDir = 0;
+      const cf = this.currentFort();
+      if (cf && cf.ownerPeerId === this.myPeerId) {
+        this.ctx.sendToPeer(encodeMove({ fromFortId: cf.id, x: cf.x })); // 최종 위치 수렴
+      }
+      this.refreshMoveBar();
+    };
+    window.addEventListener('mouseup', release);
+    this.moveReleaseHandler = release;
+
+    this.refreshMoveBar();
+  }
+
+  /** 이동 버튼 활성/연료바 갱신 */
+  private refreshMoveBar(): void {
+    if (!this.moveBar) return;
+    const cf = this.currentFort();
+    const myTurn = this.game.phase === 'aiming' && !this.isSpectator
+      && this.shells.length === 0 && !!cf && cf.ownerPeerId === this.myPeerId;
+    this.moveBar.querySelectorAll<HTMLButtonElement>('.fm-btn').forEach((b) => {
+      b.disabled = !myTurn || this.fuelLeft <= 0;
+    });
+    const fill = this.moveBar.querySelector<HTMLElement>('.fm-fuel-fill');
+    if (fill) fill.style.width = `${Math.round((this.fuelLeft / FUEL_PER_TURN) * 100)}%`;
+    this.moveBar.classList.toggle('inactive', !myTurn);
   }
 
   private onDown = (e: MouseEvent): void => {
@@ -578,6 +697,7 @@ class FortressGameModule implements GameModule {
       this.game.wind = p.nextWind;
       this.game.phase = 'aiming';
       this.turnStartedAt = performance.now(); // 새 턴 타이머 표시 리셋
+      this.fuelLeft = FUEL_PER_TURN; // 새 턴 이동 연료 재충전
       this.refreshWeaponBar();
     }
     sound.play('tetris_garbage');
