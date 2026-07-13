@@ -62,6 +62,8 @@ export interface RenderState {
   shells: { x: number; y: number; fuseLeft: number }[];
   /** 현재 날아가는 무기 종류 (포탄 색/수류탄 퓨즈 표시용) */
   flyingWeapon: WeaponId;
+  /** 폭발 이펙트 (확장 후 페이드) */
+  explosions: { x: number; y: number; r: number; start: number }[];
   /** 내 차례 드래그 조준 중 — 포대 기준 + 현재 마우스 (논리 좌표) + 파워(0~1) */
   aim: { fromX: number; fromY: number; mx: number; my: number; power01: number } | null;
   now: number;
@@ -138,6 +140,7 @@ export class FortressRenderer {
     this.drawTerrain(state.hm);
     this.drawForts(state);
     this.drawShells(state.shells, state.flyingWeapon);
+    this.drawExplosions(state.explosions, state.now);
     if (state.aim) this.drawAim(state.aim);
     this.drawHUD(state, logicalW);
     if (state.game.phase === 'ended') this.drawEndOverlay(state, logicalW);
@@ -351,6 +354,37 @@ export class FortressRenderer {
         ctx.textBaseline = 'bottom';
         ctx.fillText(String(Math.ceil(s.fuseLeft / 1000)), s.x, s.y - 8);
       }
+    }
+  }
+
+  /** 폭발 이펙트 — 확장하는 노랑 링 + 주황 글로우 + 초반 흰 플래시, 480ms 페이드 */
+  private drawExplosions(list: RenderState['explosions'], now: number): void {
+    const ctx = this.ctx;
+    for (const e of list) {
+      const t = Math.min(1, Math.max(0, (now - e.start) / 480));
+      const rad = e.r * (0.35 + 0.85 * t);
+      // 주황 글로우
+      ctx.globalAlpha = (1 - t) * 0.5;
+      ctx.fillStyle = '#ff9a3c';
+      ctx.beginPath();
+      ctx.arc(e.x, e.y, rad, 0, Math.PI * 2);
+      ctx.fill();
+      // 노랑 링
+      ctx.globalAlpha = (1 - t) * 0.9;
+      ctx.lineWidth = 3;
+      ctx.strokeStyle = '#ffd454';
+      ctx.beginPath();
+      ctx.arc(e.x, e.y, rad, 0, Math.PI * 2);
+      ctx.stroke();
+      // 초반 흰 플래시 코어
+      if (t < 0.45) {
+        ctx.globalAlpha = 1 - t / 0.45;
+        ctx.fillStyle = '#fff7e6';
+        ctx.beginPath();
+        ctx.arc(e.x, e.y, e.r * 0.3 * (1 - t), 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.globalAlpha = 1;
     }
   }
 

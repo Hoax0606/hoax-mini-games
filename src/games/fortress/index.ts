@@ -50,6 +50,12 @@ const FIRING_WATCHDOG_MS = 8_000;
 const SPLIT_SPREAD = 0.30;
 /** 수류탄 지형 반사 감쇠 계수 */
 const BOUNCE_DAMP = 0.55;
+/** 발사 직후 이 거리(px)까진 지형/포대 충돌 무시 — 총구 앞 오조준 착탄 방지 */
+const LAUNCH_CLEARANCE = 20;
+/** 포대 피격 판정 반경 (탱크 몸통) */
+const FORT_HIT_RADIUS = 13;
+/** 포대 몸통 중심 y = 지형top - 이 값 (탱크 차체 높이) */
+const FORT_HIT_RISE = 11;
 /** 턴당 이동 연료(=이동 가능 px). 턴마다 재충전 */
 const FUEL_PER_TURN = 100;
 /** 이동 속도 (px/s) */
@@ -63,6 +69,9 @@ interface Shell extends Projectile {
   /** 남은 퓨즈(ms). 수류탄만 유의미, 나머지는 Infinity */
   fuseLeft: number;
   landed: boolean;
+  /** 발사(생성) 지점 — 총구 클리어런스 계산용 */
+  spawnX: number;
+  spawnY: number;
 }
 
 class FortressGameModule implements GameModule {
@@ -95,6 +104,8 @@ class FortressGameModule implements GameModule {
   private pendingBlasts: Crater[] = [];
   /** 호스트: 이번 발사로 게임이 끝났는지 */
   private pendingEnded = false;
+  /** 폭발 이펙트 (클라 로컬 시각화, 확장 후 페이드) */
+  private explosions: { x: number; y: number; r: number; start: number }[] = [];
   /** 내가 선택한 무기 (무기 바) */
   private selectedWeapon: WeaponId = 'normal';
   /** 무기 바 DOM */
@@ -315,6 +326,11 @@ class FortressGameModule implements GameModule {
 
     this.lastFrameTime = now;
 
+    // 폭발 이펙트 만료 정리 (480ms)
+    if (this.explosions.length) {
+      this.explosions = this.explosions.filter((e) => now - e.start < 480);
+    }
+
     this.renderer.render(this.buildRenderState(now));
   };
 
@@ -348,6 +364,7 @@ class FortressGameModule implements GameModule {
       isSpectator: this.isSpectator,
       shells: this.shells.map((s) => ({ x: s.x, y: s.y, fuseLeft: s.fuseLeft })),
       flyingWeapon: this.flyingWeapon,
+      explosions: this.explosions,
       aim,
       now,
       // 턴 타이머 표시용 — 각 클라 로컬 시각(자기 시계 기준). 호스트가 실제 타임아웃 판정.
@@ -376,8 +393,10 @@ class FortressGameModule implements GameModule {
       stepProjectile(s, this.fireWind, dt);
 
       const off = s.x < -60 || s.x > this.game.terrainWidth + 60 || s.y > 440;
+      // 총구 클리어런스 — 발사 직후 일정 거리 전엔 지형/포대 충돌 무시(오조준 착탄 방지)
+      const cleared = Math.hypot(s.x - s.spawnX, s.y - s.spawnY) > LAUNCH_CLEARANCE;
       const groundY = terrainTopAt(this.hm, s.x);
-      const hitGround = s.y >= groundY;
+      const hitGround = cleared && s.y >= groundY;
 
       if (spec.fuseMs) {
         // 수류탄: 퓨즈 끝나면 폭발, 아니면 지형에 튕기며 굴러감
@@ -391,9 +410,13 @@ class FortressGameModule implements GameModule {
         }
       } else {
         let hitFort = false;
-        for (const f of this.game.forts) {
-          if (!f.alive) continue;
-          if (Math.hypot(f.x - s.x, fortCenterY(this.hm, f) - s.y) < 12) { hitFort = true; break; }
+        if (cleared) {
+          for (const f of this.game.forts) {
+            if (!f.alive) continue;
+            // 탱크 몸통 중심 기준 원형 히트박스 (지면 근처가 아니라 차체 높이)
+            const fy = terrainTopAt(this.hm, f.x) - FORT_HIT_RISE;
+            if (Math.hypot(f.x - s.x, fy - s.y) < FORT_HIT_RADIUS) { hitFort = true; break; }
+          }
         }
         if (off && !hitGround && !hitFort) this.landShell(s, true);
         else if (hitGround || hitFort) this.landShell(s, false);
@@ -419,6 +442,7 @@ class FortressGameModule implements GameModule {
       vx: Math.cos(base + d) * speed,
       vy: Math.sin(base + d) * speed,
       bounces: 0, fuseLeft: Infinity, landed: false,
+      spawnX: s.x, spawnY: s.y,
     }));
   }
 
@@ -432,8 +456,14 @@ class FortressGameModule implements GameModule {
     carveCrater(this.hm, cx, cy, spec.craterRadius);
     this.craters.push({ cx, cy, r: spec.craterRadius });
     this.pendingBlasts.push({ cx, cy, r: spec.craterRadius });
+    this.addExplosion(cx, cy, spec.blastRadius);
     const res = applyBlast(this.game, this.hm, cx, cy, spec.blastRadius, spec.maxDamage);
     if (res.ended) this.pendingEnded = true;
+  }
+
+  /** 폭발 이펙트 등록 (호스트/게스트 공통) */
+  private addExplosion(x: number, y: number, r: number): void {
+    this.explosions.push({ x, y, r, start: performance.now() });
   }
 
   /** 호스트: 이번 발사의 모든 폭발을 한 번에 확정 broadcast + 턴 진행/종료. */
@@ -674,7 +704,7 @@ class FortressGameModule implements GameModule {
   private beginProjectile(sx: number, sy: number, angleRad: number, power01: number, wind: number, weapon: WeaponId): void {
     const { vx, vy } = launchVelocity(angleRad, power01);
     const spec = WEAPONS[weapon];
-    this.shells = [{ x: sx, y: sy, vx, vy, bounces: 0, fuseLeft: spec.fuseMs ?? Infinity, landed: false }];
+    this.shells = [{ x: sx, y: sy, vx, vy, bounces: 0, fuseLeft: spec.fuseMs ?? Infinity, landed: false, spawnX: sx, spawnY: sy }];
     this.splitDone = false;
     this.pendingBlasts = [];
     this.pendingEnded = false;
@@ -696,6 +726,7 @@ class FortressGameModule implements GameModule {
     for (const b of p.blasts) {
       carveCrater(this.hm, b.cx, b.cy, b.r);
       this.craters.push({ cx: b.cx, cy: b.cy, r: b.r });
+      this.addExplosion(b.cx, b.cy, b.r * 1.7); // 크레이터보다 살짝 크게(폭발 반경 근사)
     }
     for (const f of this.game.forts) {
       const hp = p.hp[f.id];

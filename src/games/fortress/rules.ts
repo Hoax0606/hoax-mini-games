@@ -50,7 +50,7 @@ export const FORT_RISE = 7;
 /** 폭발 피해 반경 (직격일수록 큰 피해) — 일반탄 기본값 */
 export const BLAST_RADIUS = 62;
 /** 직격 최대 피해 — 일반탄 기본값 */
-export const MAX_DAMAGE = 36;
+export const MAX_DAMAGE = 42;
 /** 지형 크레이터 반경 — 일반탄 기본값 */
 export const CRATER_RADIUS = 34;
 
@@ -80,12 +80,12 @@ export interface WeaponSpec {
 
 export const WEAPONS: Record<WeaponId, WeaponSpec> = {
   // 데미지는 HP 100 기준 "직격 ~3방에 처치" 밸런스. 반경/크레이터는 유지.
-  normal:  { id: 'normal',  name: '일반탄', icon: '💣', blastRadius: 62, maxDamage: 36, craterRadius: 34 },
-  big:     { id: 'big',     name: '대형탄', icon: '💥', blastRadius: 90, maxDamage: 45, craterRadius: 50 },
-  guided:  { id: 'guided',  name: '유도탄', icon: '🛰️', blastRadius: 62, maxDamage: 36, craterRadius: 34, ignoreWind: true },
-  bombard: { id: 'bombard', name: '폭격탄', icon: '☄️', blastRadius: 55, maxDamage: 30, craterRadius: 60 },
-  split:   { id: 'split',   name: '분열탄', icon: '✴️', blastRadius: 42, maxDamage: 22, craterRadius: 24, split: true },
-  grenade: { id: 'grenade', name: '수류탄', icon: '🧨', blastRadius: 58, maxDamage: 34, craterRadius: 32, fuseMs: 3000 },
+  normal:  { id: 'normal',  name: '일반탄', icon: '💣', blastRadius: 62, maxDamage: 42, craterRadius: 34 },
+  big:     { id: 'big',     name: '대형탄', icon: '💥', blastRadius: 90, maxDamage: 54, craterRadius: 50 },
+  guided:  { id: 'guided',  name: '유도탄', icon: '🛰️', blastRadius: 62, maxDamage: 42, craterRadius: 34, ignoreWind: true },
+  bombard: { id: 'bombard', name: '폭격탄', icon: '☄️', blastRadius: 55, maxDamage: 36, craterRadius: 60 },
+  split:   { id: 'split',   name: '분열탄', icon: '✴️', blastRadius: 42, maxDamage: 27, craterRadius: 24, split: true },
+  grenade: { id: 'grenade', name: '수류탄', icon: '🧨', blastRadius: 58, maxDamage: 40, craterRadius: 32, fuseMs: 3000 },
 };
 
 /** 랜덤 배분 대상 특수 무기 풀 (5종 중 각 플레이어 2종). */
