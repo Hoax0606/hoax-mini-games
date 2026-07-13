@@ -307,7 +307,14 @@ class AlgagiGameModule implements GameModule {
       mouseBoardX: this.mouseBoardX,
       mouseBoardY: this.mouseBoardY,
     };
-    this.renderer.render(renderState);
+    // render 중 예외가 나도 루프가 죽지 않게 방어.
+    //   (렌더는 흰 배경을 먼저 칠하고 나머지를 그린다 — 중간에 throw 하면 흰 배경만 남아
+    //    매 프레임 흰 화면이 반복되던 문제. 여기서 잡아 콘솔에만 남기고 다음 프레임 진행.)
+    try {
+      this.renderer.render(renderState);
+    } catch (err) {
+      console.error('[algagi] render 실패 (프레임 건너뜀)', err);
+    }
   };
 
   // ============================================

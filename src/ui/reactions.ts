@@ -13,16 +13,30 @@
 
 import { escapeHtml } from './escape';
 
-export const REACTION_EMOJIS = ['👍', '😂', '🔥', '👏', '😭', '🫢'] as const;
+export const REACTION_EMOJIS = [
+  '👍', '👏', '🔥', '🎉', '💯', '✨', '🏆', '💪',
+  '😂', '🤣', '😍', '🥰', '🤩', '😎', '🥳', '😏',
+  '🤔', '😅', '😳', '😱', '🤯', '😴', '🙄', '😤',
+  '😭', '🥺', '😢', '😡', '🫢', '🙏', '❤️', '💖',
+  '👀', '👋', '🤝', '⚡', '🌟', '🍀', '🎯', '😇',
+] as const;
 export type ReactionEmoji = typeof REACTION_EMOJIS[number];
 
-/** 이모지 버튼 바 HTML 반환 */
+/**
+ * 이모지 버튼 바 HTML 반환.
+ *
+ * 최소화(접힘) 기본: 평소엔 😊 토글 버튼 하나만 보이고, 누르면 전체 이모지 목록이 펼쳐진다.
+ * 이모지 하나 고르면 다시 접힘. 대기실(인라인) / 게임화면(좌하단 고정) 양쪽에서 같은 마크업 사용.
+ */
 export function buildReactionBarHTML(): string {
   return `
     <div class="reaction-bar" data-reaction-bar>
-      ${REACTION_EMOJIS.map((e) => `
-        <button class="reaction-btn" data-emoji="${e}" title="반응 ${e}">${e}</button>
-      `).join('')}
+      <button class="reaction-toggle" data-reaction-toggle title="반응 보내기" aria-expanded="false">😊</button>
+      <div class="reaction-picker">
+        ${REACTION_EMOJIS.map((e) => `
+          <button class="reaction-btn" data-emoji="${e}" title="반응 ${e}">${e}</button>
+        `).join('')}
+      </div>
     </div>
   `;
 }
@@ -39,8 +53,24 @@ export function wireReactionBar(
   throttleMs = 400,
 ): void {
   let lastAt = 0;
+  const bar = container.querySelector<HTMLElement>('[data-reaction-bar]');
+  const toggle = container.querySelector<HTMLButtonElement>('[data-reaction-toggle]');
+
+  const setOpen = (open: boolean): void => {
+    bar?.classList.toggle('is-open', open);
+    toggle?.setAttribute('aria-expanded', String(open));
+  };
+
   container.addEventListener('click', (e) => {
     const target = e.target as HTMLElement | null;
+
+    // 토글 버튼 — 목록 펼치기/접기 (throttle 대상 아님)
+    if (target?.closest('[data-reaction-toggle]')) {
+      setOpen(!bar?.classList.contains('is-open'));
+      return;
+    }
+
+    // 이모지 버튼 — 반응 전송 후 접기
     const btn = target?.closest<HTMLButtonElement>('.reaction-btn');
     if (!btn) return;
     const now = performance.now();
@@ -48,6 +78,14 @@ export function wireReactionBar(
     lastAt = now;
     const emoji = btn.dataset.emoji;
     if (emoji) onEmoji(emoji);
+    setOpen(false); // 고르면 다시 최소화
+  });
+
+  // 바깥 클릭 시 접기 — 펼쳐둔 채 다른 곳 누르면 자동으로 닫힘
+  document.addEventListener('click', (e) => {
+    if (!bar?.classList.contains('is-open')) return;
+    const t = e.target as Node | null;
+    if (t && !bar.contains(t)) setOpen(false);
   });
 }
 

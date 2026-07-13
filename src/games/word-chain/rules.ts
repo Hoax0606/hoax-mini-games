@@ -156,6 +156,26 @@ export function getTurnTimeMs(wordCount: number): number {
 // 초기 게임 생성
 // ============================================
 
+/**
+ * 플레이어 peerId 목록 → 결정론적 정수 시드.
+ *
+ * 왜 필요한가: 시작 단어를 각 클라이언트가 각자 Math.random 으로 뽑으면 서로 달라진다.
+ *   원래는 호스트 wc:sync 로 맞췄지만, 호스트 게임모듈이 아직 로딩 중일 때 게스트의
+ *   hello 가 도착하면 sync 응답을 놓쳐 그 게스트만 자기 랜덤 단어로 굳는 버그가 있었음.
+ *   → 모든 클라이언트가 공유하는 값(플레이어 peerId 집합)에서 시드를 뽑으면
+ *     sync 없이도 시작 단어가 전원 동일해진다. (peerId 목록은 roomState 로 이미 공유됨)
+ *
+ * 순서 무관하게 같은 값이 나오도록 정렬 후 해시(djb2 변형).
+ */
+export function seedFromPeers(peerIds: string[]): number {
+  const joined = [...peerIds].sort().join('|');
+  let h = 5381;
+  for (let i = 0; i < joined.length; i++) {
+    h = ((h << 5) + h + joined.charCodeAt(i)) | 0; // h*33 + c, 32비트로 유지
+  }
+  return Math.abs(h);
+}
+
 export function createInitialGame(
   players: Array<{ peerId: string; nickname: string }>,
   rngSeed?: number,

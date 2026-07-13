@@ -17,6 +17,7 @@
 
 import { Peer, type DataConnection } from 'peerjs';
 import type { NetworkMessage, JoinRejectedMsg, RoomState } from '../games/types';
+import { PEER_OPTIONS } from './netConfig';
 
 // ============================================
 // 방 코드 생성
@@ -25,6 +26,34 @@ import type { NetworkMessage, JoinRejectedMsg, RoomState } from '../games/types'
 const ROOM_CODE_LEN = 5;
 const ROOM_CODE_ALPHABET = '23456789ABCDEFGHJKLMNPQRSTUVWXYZ'; // 32자 (헷갈리는 문자 제외)
 const PEER_ID_PREFIX = 'hoaxmg-';
+
+// ============================================
+// 창 닫힘/이탈 시 자동 정리
+// ============================================
+// 탭을 닫거나 다른 페이지로 이동하면 열려있는 Peer 를 전부 destroy 한다.
+//   → 호스트는 상대의 conn 'close' 를 받아 나감 처리, 게스트는 방에서 빠진다.
+// 이게 없으면 좀비 연결이 남아 "링크 여러 번 눌렀더니 같은 사람이 여러 명"처럼
+// 보이거나, 창을 닫아도 방에 계속 남아있던 문제가 생김.
+// pagehide 는 탭 닫힘/이동/모바일 백그라운드 전환을 beforeunload 보다 안정적으로 잡는다.
+const livePeers = new Set<Peer>();
+function registerPeer(p: Peer): void {
+  livePeers.add(p);
+}
+function unregisterPeer(p: Peer): void {
+  livePeers.delete(p);
+}
+if (typeof window !== 'undefined') {
+  window.addEventListener('pagehide', () => {
+    for (const p of livePeers) {
+      try {
+        p.destroy();
+      } catch {
+        /* 이미 닫힌 peer 는 무시 */
+      }
+    }
+    livePeers.clear();
+  });
+}
 
 function generateRoomCode(): string {
   let s = '';
@@ -124,6 +153,7 @@ export class HostSession {
   private constructor(peer: Peer, roomId: string) {
     this.peer = peer;
     this.roomId = roomId;
+    registerPeer(peer); // 창 닫힘 시 자동 정리 대상 등록
     this.peer.on('connection', (conn) => this.handleIncoming(conn));
     this.peer.on('error', (err) => {
       console.warn('[host] peer error', err);
@@ -151,7 +181,8 @@ export class HostSession {
 
     for (let i = 0; i < maxRetries; i++) {
       const roomCode = generateRoomCode();
-      const peer = new Peer(codeToPeerId(roomCode));
+      // 자체 PeerServer + ICE(STUN/TURN) 설정 적용 — netConfig.ts 참고
+      const peer = new Peer(codeToPeerId(roomCode), PEER_OPTIONS);
 
       try {
         await waitForPeerOpen(peer);
@@ -285,6 +316,7 @@ export class HostSession {
     this.acceptedConns.clear();
     this._pings.clear();
     this._lastAckAt.clear();
+    unregisterPeer(this.peer);
     this.peer.destroy();
   }
 }
@@ -317,6 +349,7 @@ export class GuestSession {
   private constructor(peer: Peer, conn: DataConnection) {
     this.peer = peer;
     this.conn = conn;
+    registerPeer(peer); // 창 닫힘 시 자동 정리 대상 등록
 
     conn.on('data', (raw) => {
       const msg = raw as NetworkMessage;
@@ -369,7 +402,8 @@ export class GuestSession {
    */
   static async connect(roomCode: string, timeoutMs = 10_000): Promise<GuestSession> {
     const hostPeerId = codeToPeerId(roomCode);
-    const peer = new Peer();
+    // 게스트는 랜덤 id — 옵션만 넘긴다 (자체 PeerServer + ICE). netConfig.ts 참고
+    const peer = new Peer(PEER_OPTIONS);
 
     // 1) 내 peer 자체가 브로커에 붙을 때까지 대기
     try {
@@ -405,6 +439,7 @@ export class GuestSession {
       this.staleCheckId = null;
     }
     this.conn.close();
+    unregisterPeer(this.peer);
     this.peer.destroy();
   }
 }

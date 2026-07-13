@@ -27,6 +27,19 @@ const T_FLICK = 'ag:flick';
 const T_STATE = 'ag:state';
 const T_END = 'ag:end';
 
+/**
+ * 수신한 game 스냅샷이 최소한의 구조를 갖췄는지 검증.
+ *
+ * 왜: 깨지거나 잘린 payload 를 그대로 this.game 에 넣으면, 렌더가 game.stones /
+ *   game.players 를 순회하다 throw → 캔버스가 흰 배경만 칠한 채 멈춰 "흰 화면"이 됨.
+ *   여기서 걸러 잘못된 스냅샷은 무시(적용 안 함)하도록 방어한다.
+ */
+function isValidGame(g: unknown): g is AlgagiGame {
+  if (!g || typeof g !== 'object') return false;
+  const o = g as Record<string, unknown>;
+  return Array.isArray(o.stones) && Array.isArray(o.players);
+}
+
 // ============================================
 // hello — 게스트/관전자가 호스트에게 "현재 상태 줘"
 // ============================================
@@ -52,7 +65,7 @@ export function encodeSync(game: AlgagiGame): GameMessage {
 
 export function decodeSync(msg: GameMessage): AlgagiGame | null {
   if (msg.type !== T_SYNC) return null;
-  return msg.payload as AlgagiGame;
+  return isValidGame(msg.payload) ? msg.payload : null;
 }
 
 // ============================================
@@ -99,7 +112,7 @@ export function encodeState(game: AlgagiGame, impulse = 0): GameMessage {
 export function decodeState(msg: GameMessage): StatePayload | null {
   if (msg.type !== T_STATE) return null;
   const p = msg.payload as Partial<StatePayload> | null;
-  if (!p || !p.game) return null;
+  if (!p || !isValidGame(p.game)) return null;
   return { game: p.game, impulse: typeof p.impulse === 'number' ? p.impulse : 0 };
 }
 

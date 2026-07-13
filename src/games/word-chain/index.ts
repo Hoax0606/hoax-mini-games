@@ -27,6 +27,7 @@ import {
   eliminatePlayer,
   allowedStartLetters,
   getTurnTimeMs,
+  seedFromPeers,
   TIMEOUT_GRACE_MS,
   type WordChainGame,
   type PlayerIndex,
@@ -84,15 +85,21 @@ class WordChainGameModule implements GameModule {
     const playerList = ctx.players.filter((p) => p.role === 'player');
     const ordered = orderPlayersHostFirst(playerList);
 
+    // 공유 시드 — 모든 클라이언트가 같은 값을 얻어 시작 단어가 일치한다.
+    // (호스트 sync 를 놓쳐도 시작 단어가 어긋나지 않음. seedFromPeers 주석 참고)
+    const sharedSeed = seedFromPeers(ordered.map((p) => p.peerId));
+
     if (this.isHost) {
       this.game = createInitialGame(
         ordered.map((p) => ({ peerId: p.peerId, nickname: p.nickname })),
+        sharedSeed,
       );
       this.game.turnStartedAt = performance.now();
     } else {
-      // 게스트는 호스트가 sync 보내기 전 placeholder
+      // 게스트도 같은 시드로 생성 → 시작 단어 일치. 이후 상태는 호스트 broadcast 로 동기화.
       this.game = createInitialGame(
         ordered.map((p) => ({ peerId: p.peerId, nickname: p.nickname })),
+        sharedSeed,
       );
     }
 

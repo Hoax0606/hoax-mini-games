@@ -1344,9 +1344,37 @@ input {
 .reaction-bar {
   display: flex;
   justify-content: center;
+  align-items: center;
   gap: 6px;
   flex-wrap: wrap;
+  position: relative; /* 플로팅 팝업(.reaction-picker)의 기준 */
 }
+
+/* 최소화 토글 버튼 — 평소엔 이것만 보이고 누르면 이모지 목록이 펼쳐진다 */
+.reaction-toggle {
+  font-size: 20px;
+  width: 42px;
+  height: 42px;
+  border-radius: var(--radius-full);
+  background: var(--bg-card);
+  border: 2px solid var(--border-soft);
+  cursor: pointer;
+  padding: 0;
+  line-height: 1;
+  transition: transform 0.1s ease-out, border-color 0.15s;
+}
+.reaction-toggle:hover { transform: scale(1.12); border-color: var(--accent-soft); }
+.reaction-toggle:active { transform: scale(0.95); }
+
+/* 이모지 목록 — 기본 접힘. .is-open 일 때만 표시 */
+.reaction-picker {
+  display: none;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 6px;
+  max-width: 300px;
+}
+.reaction-bar.is-open .reaction-picker { display: flex; }
 
 .reaction-btn {
   font-size: 20px;
@@ -1384,6 +1412,24 @@ input {
   height: 36px;
   font-size: 18px;
   border-width: 1.5px;
+}
+.reaction-bar-floating .reaction-toggle {
+  width: 36px;
+  height: 36px;
+  font-size: 18px;
+  border-width: 1.5px;
+}
+/* 게임화면에선 목록을 토글 "위로" 팝업 (화면 밖으로 안 넘치게) */
+.reaction-bar-floating .reaction-bar.is-open .reaction-picker {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 0;
+  max-width: 288px;
+  padding: 8px;
+  background: rgba(255, 255, 255, 0.96);
+  backdrop-filter: blur(6px);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-md);
 }
 
 /* 화면 하단에 고정된 풍선 스트림 영역. 게임에 방해 안 되도록 pointer-events: none.

@@ -1,0 +1,17 @@
+{
+  "name": "hoax-peerserver",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Hoax Minigames 전용 PeerJS 시그널링 서버",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "peer": "^1.0.2"
+  }
+}

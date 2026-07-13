@@ -542,6 +542,12 @@ export function createGameScreenAsHostScreen(args: GameScreenAsHostArgs): Screen
           if (removed) {
             host.send({ type: 'player_left', peerId, nickname: removed.nickname });
           }
+          // 나간 사람이 ⚙️ 메뉴(일시정지)를 열어둔 채 끊겼다면 resume 이 영영 안 와서
+          // 화면이 흐린 dim 오버레이로 굳는다 → 이탈 시 일시정지 상태를 강제 해제.
+          // (아무도 정지 안 했으면 no-op 이라 안전)
+          hidePauseOverlay(el);
+          gameModule?.setPaused?.(false);
+          host.send({ type: 'resume', byPeerId: peerId });
           return;
         }
         alert('상대가 게임을 나갔어요');
