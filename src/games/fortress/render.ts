@@ -60,9 +60,13 @@ export interface RenderState {
   isSpectator: boolean;
   /** 날아가는 포탄 (없으면 null) */
   projectile: { x: number; y: number } | null;
-  /** 내 차례 드래그 조준 중 — 포대 기준 + 현재 마우스 (논리 좌표) */
-  aim: { fromX: number; fromY: number; mx: number; my: number } | null;
+  /** 내 차례 드래그 조준 중 — 포대 기준 + 현재 마우스 (논리 좌표) + 각도(도)/파워(%) */
+  aim: { fromX: number; fromY: number; mx: number; my: number; angleDeg: number; power: number } | null;
   now: number;
+  /** 현재 aiming 턴 시작 시각 (클라 로컬). 남은 시간 표시용 */
+  turnStartedAt: number;
+  /** 한 턴 제한 시간(ms) */
+  turnTimeMs: number;
 }
 
 export interface FortressRendererArgs {
@@ -324,7 +328,7 @@ export class FortressRenderer {
     ctx.fill();
   }
 
-  private drawAim(aim: { fromX: number; fromY: number; mx: number; my: number }): void {
+  private drawAim(aim: NonNullable<RenderState['aim']>): void {
     const ctx = this.ctx;
     // 드래그 = (마우스 - 포대). 발사 방향은 반대.
     const dx = aim.mx - aim.fromX;
@@ -361,6 +365,20 @@ export class FortressRenderer {
     ctx.lineTo(ax - Math.cos(ang + 0.4) * hl, ay - Math.sin(ang + 0.4) * hl);
     ctx.closePath();
     ctx.fill();
+
+    // 각도/파워 readout — 커서 옆 흰 pill
+    const label = `${aim.angleDeg}° · ${aim.power}%`;
+    ctx.font = `700 12px ${FONT}`;
+    ctx.textBaseline = 'middle';
+    ctx.textAlign = 'left';
+    const tw = ctx.measureText(label).width;
+    const px = aim.mx + 12;
+    const py = aim.my - 8;
+    ctx.fillStyle = 'rgba(255,255,255,0.92)';
+    this.roundRect(px - 5, py - 10, tw + 10, 20, 6);
+    ctx.fill();
+    ctx.fillStyle = COLORS.textMain;
+    ctx.fillText(label, px, py);
   }
 
   private drawHUD(state: RenderState, logicalW: number): void {
@@ -375,14 +393,23 @@ export class FortressRenderer {
     ctx.fill();
 
     ctx.textBaseline = 'middle';
-    // 좌: 현재 차례
+    // 좌: 현재 차례 (+ aiming 이면 남은 초)
     const cur = g.forts.find((f) => f.id === g.currentTurn);
-    ctx.fillStyle = COLORS.textMain;
+    let secsLow = false;
+    let turnLabel: string;
+    if (g.phase === 'ended') {
+      turnLabel = '게임 종료';
+    } else if (g.phase === 'firing') {
+      turnLabel = '발사 중…';
+    } else {
+      const remainMs = Math.max(0, state.turnTimeMs - (state.now - state.turnStartedAt));
+      const secs = Math.ceil(remainMs / 1000);
+      secsLow = secs <= 5;
+      turnLabel = `${cur?.ownerNickname ?? '?'} 차례 · ${secs}초`;
+    }
+    ctx.fillStyle = secsLow ? COLORS.accentPink : COLORS.textMain;
     ctx.font = `700 13px ${FONT}`;
     ctx.textAlign = 'left';
-    const turnLabel = g.phase === 'ended' ? '게임 종료'
-      : g.phase === 'firing' ? '발사 중…'
-      : `${cur?.ownerNickname ?? '?'} 차례`;
     ctx.fillText(`🎯 ${turnLabel}`, boxX + 14, 25);
 
     // 우: 바람 (화살표 + 세기)

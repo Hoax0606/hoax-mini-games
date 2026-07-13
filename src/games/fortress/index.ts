@@ -136,6 +136,7 @@ class FortressGameModule implements GameModule {
         for (const c of this.craters) carveCrater(this.hm, c.cx, c.cy, c.r);
         this.projectile = null;
         this.ready = true; // 호스트 지형/상태 동기화 완료 — 이제 조준 허용
+        this.turnStartedAt = performance.now(); // 타이머 표시 기준 리셋
         // 합류 시점에 호스트가 발사 중이면 포탄을 못 받으니 워치독으로 재동기화되게 시각 기록
         this.firingStartedAt = this.game.phase === 'firing' ? performance.now() : 0;
       }
@@ -240,9 +241,16 @@ class FortressGameModule implements GameModule {
   }
 
   private buildRenderState(now: number): RenderState {
-    const aim = (this.aiming && this.mouseX !== null && this.mouseY !== null)
-      ? { fromX: this.aimFromX, fromY: this.aimFromY, mx: this.mouseX, my: this.mouseY }
-      : null;
+    let aim: RenderState['aim'] = null;
+    if (this.aiming && this.mouseX !== null && this.mouseY !== null) {
+      // 드래그 중 각도/파워 계산 (조준선 옆 표시용). onUp 발사 로직과 동일한 공식.
+      const dx = this.mouseX - this.aimFromX;
+      const dy = this.mouseY - this.aimFromY;
+      const dragLen = Math.hypot(dx, dy);
+      const angleDeg = Math.round((Math.atan2(dy, -dx) * 180) / Math.PI);
+      const power = Math.round(Math.min(1, dragLen / MAX_DRAG_PX) * 100);
+      aim = { fromX: this.aimFromX, fromY: this.aimFromY, mx: this.mouseX, my: this.mouseY, angleDeg, power };
+    }
     return {
       game: this.game,
       hm: this.hm,
@@ -251,6 +259,9 @@ class FortressGameModule implements GameModule {
       projectile: this.projectile ? { x: this.projectile.x, y: this.projectile.y } : null,
       aim,
       now,
+      // 턴 타이머 표시용 — 각 클라 로컬 시각(자기 시계 기준). 호스트가 실제 타임아웃 판정.
+      turnStartedAt: this.turnStartedAt,
+      turnTimeMs: TURN_TIME_MS,
     };
   }
 
@@ -407,6 +418,7 @@ class FortressGameModule implements GameModule {
       this.game.currentTurn = p.nextTurn;
       this.game.wind = p.nextWind;
       this.game.phase = 'aiming';
+      this.turnStartedAt = performance.now(); // 새 턴 타이머 표시 리셋
     }
     sound.play('tetris_garbage');
   }
