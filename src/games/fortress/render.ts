@@ -193,7 +193,7 @@ export class FortressRenderer {
       if (!f.alive) {
         this.drawTombstone(f.x, baseY);
         // 죽은 소유자 이름 — 묘비 위 (연한 회색)
-        const deadNick = f.ownerNickname.length > 6 ? f.ownerNickname.slice(0, 5) + '…' : f.ownerNickname;
+        const deadNick = f.ownerNickname;
         ctx.fillStyle = COLORS.textMuted;
         ctx.font = `500 11px ${FONT}`;
         ctx.textAlign = 'center';
@@ -258,8 +258,7 @@ export class FortressRenderer {
       ctx.font = `${isMe ? 700 : 500} 11px ${FONT}`;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'bottom';
-      const nick = f.ownerNickname.length > 6 ? f.ownerNickname.slice(0, 5) + '…' : f.ownerNickname;
-      ctx.fillText(nick + (isMe ? ' (나)' : ''), f.x, barY - 3);
+      ctx.fillText(f.ownerNickname + (isMe ? ' (나)' : ''), f.x, barY - 3);
     }
   }
 

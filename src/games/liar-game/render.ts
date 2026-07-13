@@ -203,8 +203,7 @@ export class LiarRenderer {
       ctx.textAlign = 'left';
       ctx.font = `700 12px ${FONT}`;
       ctx.fillStyle = isMe ? C.accent : C.hintName;
-      const name = hint.nickname.length > 6 ? hint.nickname.slice(0, 5) + '…' : hint.nickname;
-      ctx.fillText(name, x + 8, ry);
+      ctx.fillText(hint.nickname, x + 8, ry);
       ctx.font = `500 13px ${FONT}`;
       ctx.fillStyle = C.hintText;
       ctx.fillText(hint.text, x + 78, ry);
@@ -242,8 +241,7 @@ export class LiarRenderer {
       ctx.textBaseline = 'middle';
       ctx.fillStyle = C.cardText;
       ctx.font = `700 12px ${FONT}`;
-      const nm = p.nickname.length > 5 ? p.nickname.slice(0, 4) + '…' : p.nickname;
-      ctx.fillText((isLiar ? '🤥 ' : '') + nm + (isMe ? ' (나)' : ''), cx + chipW / 2, y + 15);
+      ctx.fillText((isLiar ? '🤥 ' : '') + p.nickname + (isMe ? ' (나)' : ''), cx + chipW / 2, y + 15);
       ctx.font = `800 15px ${FONT}`;
       ctx.fillStyle = C.accent;
       ctx.fillText(`${g.scores[p.peerId] ?? 0}점`, cx + chipW / 2, y + 33);

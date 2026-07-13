@@ -3,7 +3,11 @@
 다른 머신(집)에서 이 프로젝트를 이어서 작업할 때 읽는 문서.
 **Claude Code 첫 프롬프트로 "HANDOFF.md 정독하고 이어서 진행해줘" 라고 시작하면 됨.**
 
-마지막 업데이트: **2026-06-07** (그림 퀴즈 추가)
+마지막 업데이트: **2026-07-13** (연결 안정화 + 포트리스 대개편 + 라이어 게임 추가)
+- **🆕 라이어 게임** — 3~8인, 고정 5라운드 누적점수. 매 라운드 랜덤 라이어 1명. **2모드**: 일반(라이어는 제시어만 모름) / 바보(라이어도 자기가 라이어인 줄 모름, 같은 주제 가짜 단어 받음). 흐름: 역할배정(per-peer 비밀 `lg:role`) → 힌트 2바퀴 타이핑 → 비밀투표 → (라이어 지목 시)제시어 추측 → 결과. 동점=라이어 승. 점수: 라이어 승 +2 / 시민 승이면 라이어 지목한 시민 각 +1. 힌트 검증(제시어 직접언급 금지+20자), 힌트/투표/추측 타임아웃. 비밀정보는 sync 에 안 담고 host-only. 카테고리 풀 15주제(`liar-game/words.ts`). **미검증(P2P 3인+ 테스트 필요)**.
+- **🔧 연결 안정화** — PeerJS 무료 공용 서버 불안정 → 자체 PeerServer(`peerserver/`, Render 배포) + ICE(STUN/TURN) 설정(`src/core/netConfig.ts`). **배포 후 `DEFAULT_PEER_HOST` 채워야 활성**. 창 닫으면 방 나가기(peer.ts `pagehide`).
+- **🏰 포트리스 대개편** — 탱크 비주얼(궤도+포탑+회전포신+묘비) / 무기 6종(일반∞ + 특수5: 대형/유도/폭격/분열/수류탄, 랜덤 3종×3발) / 포대 이동(◀▶ 홀드+연료) / 턴 타이머 링 / 조준 파워 원뿔 / 폭발 이펙트 / 총구 클리어런스+히트박스 정확도 / 다수 동기화 버그 수정. 설계 스펙 `docs/superpowers/specs/`.
+- **🐛 기타 수정** — 끝말잇기 시작 단어 결정론적 시드(전원 일치), 알까기 흰 화면 방어(sync 검증+render 가드), 이모티콘 40개+최소화 토글, 일시정지 pauser 추적.
 - **🆕 그림 퀴즈 게임** — 3~6인 라운드제. 출제자가 후보 3개 중 1개 골라 그리고(70초), 나머지는 추측 input 으로 맞힘. 빨리 맞힐수록 고득점(100→최소50), 출제자는 맞힌 사람 수×30. 전원 출제 후 누적 최고점 승. 호스트 authoritative. 그리기 도구(펜/지우개/색6/굵기3) canvas 외부 HTML. 정답은 채팅과 분리된 별도 input(단어 노출 방지). 제시어 풀 287개(`draw-quiz/words.ts`).
 - **🆕 끝말잇기 게임** — 2~6인 턴제. 30초 제한. 두음법칙(ㄹ→ㄴ, ㄴ→ㅇ) + 중복 금지 + 사전 검증. 최후 1인 승. 사전 10320단어(`word-chain/dictionary.ts`). 전용 BGM(D 마이너 펜타토닉).
 - **알까기** — 2~4인 턴제 물리. 전용 BGM(A 마이너 펜타토닉) + 충돌 SFX(호·게 동기화) + 통계. 알 12 / 판 380. 차례 외 자기 알 클릭 시 거절음.
@@ -52,7 +56,7 @@ npm run dev       # http://localhost:5173
 **한 줄**: 친구끼리 즐기는 웹 P2P 미니게임 모음집.
 - **스택**: Vite + TypeScript + Canvas + PeerJS (WebRTC, 서버리스 P2P) + GitHub Pages
 - **분위기**: 산리오풍 파스텔. 한국어 UI. PC 전용.
-- **현재 게임 (9종)**:
+- **현재 게임 (11종)**:
   - 에어하키 (2인, 호스트 authoritative 물리)
   - 배틀 테트리스 (2~4인, 로컬 시뮬레이션)
   - 사과 게임 (1~4인, 숫자 사과 합 10 터트리기, 2분)
@@ -62,6 +66,8 @@ npm run dev       # http://localhost:5173
   - 알까기 (2~4인, 턴제 물리. 호스트 authoritative 60Hz 시뮬레이션 + 10Hz state broadcast. `algagi/`)
   - 끝말잇기 (2~6인, 턴제 30초. 두음법칙 + 사전 검증 10320단어. 호스트 authoritative. `word-chain/`)
   - 그림 퀴즈 (3~6인, 라운드제. 출제자 그림 broadcast + 추측 정답 자동 판정. 제시어 287개. `draw-quiz/`)
+  - 포트리스 (2~6인, 턴제 포병. 탱크+무기 6종+포대이동+바람. 결정론적 궤적 재생 + 호스트 착탄 확정. `fortress/`)
+  - 라이어 게임 (3~8인, 5라운드. 라이어 찾기 추리. 일반/바보 2모드. 호스트 authoritative. `liar-game/`)
 - **배포 URL**: https://hoax0606.github.io/hoax-mini-games/
 
 ---
@@ -84,7 +90,7 @@ src/
 │   └── roomDirectory.ts         # 🆕 publicRooms 노드 publish/update/subscribe + onDisconnect 자동 제거
 ├── games/
 │   ├── types.ts                 # GameContext, Player(role), NetworkMessage + ping/reaction/chat
-│   ├── registry.ts              # 등록된 게임 목록 (9종)
+│   ├── registry.ts              # 등록된 게임 목록 (11종)
 │   ├── air-hockey/              # 2인 호스트 authoritative
 │   ├── battle-tetris/           # 2-4인 로컬 시뮬레이션
 │   ├── apple-game/              # 1-4인 독립 보드 + 점수 경쟁 (17×10)
