@@ -243,13 +243,11 @@ class FortressGameModule implements GameModule {
   private buildRenderState(now: number): RenderState {
     let aim: RenderState['aim'] = null;
     if (this.aiming && this.mouseX !== null && this.mouseY !== null) {
-      // 드래그 중 각도/파워 계산 (조준선 옆 표시용). onUp 발사 로직과 동일한 공식.
+      // 드래그 길이 → 파워(0~1). 조준 원뿔 길이/색에 사용. onUp 발사 공식과 동일.
       const dx = this.mouseX - this.aimFromX;
       const dy = this.mouseY - this.aimFromY;
-      const dragLen = Math.hypot(dx, dy);
-      const angleDeg = Math.round((Math.atan2(dy, -dx) * 180) / Math.PI);
-      const power = Math.round(Math.min(1, dragLen / MAX_DRAG_PX) * 100);
-      aim = { fromX: this.aimFromX, fromY: this.aimFromY, mx: this.mouseX, my: this.mouseY, angleDeg, power };
+      const power01 = Math.min(1, Math.hypot(dx, dy) / MAX_DRAG_PX);
+      aim = { fromX: this.aimFromX, fromY: this.aimFromY, mx: this.mouseX, my: this.mouseY, power01 };
     }
     return {
       game: this.game,

@@ -60,8 +60,8 @@ export interface RenderState {
   isSpectator: boolean;
   /** 날아가는 포탄 (없으면 null) */
   projectile: { x: number; y: number } | null;
-  /** 내 차례 드래그 조준 중 — 포대 기준 + 현재 마우스 (논리 좌표) + 각도(도)/파워(%) */
-  aim: { fromX: number; fromY: number; mx: number; my: number; angleDeg: number; power: number } | null;
+  /** 내 차례 드래그 조준 중 — 포대 기준 + 현재 마우스 (논리 좌표) + 파워(0~1) */
+  aim: { fromX: number; fromY: number; mx: number; my: number; power01: number } | null;
   now: number;
   /** 현재 aiming 턴 시작 시각 (클라 로컬). 남은 시간 표시용 */
   turnStartedAt: number;
@@ -212,14 +212,27 @@ export class FortressRenderer {
         barrelAngle = Math.atan2(-Math.sin(0.6), dirX * Math.cos(0.6));
       }
 
-      // 차례 표시 펄스 링 (탱크 감싸게)
+      // 차례 표시 = 남은 시간만큼 남는 링. 시계방향(12시부터)으로 점점 줄어듦.
       if (f.id === currentTurn) {
-        const pulse = 0.6 + 0.4 * Math.sin(state.now / 260);
-        ctx.strokeStyle = `rgba(255,90,146,${pulse})`;
-        ctx.lineWidth = 2.5;
+        const remain = Math.max(0, state.turnTimeMs - (state.now - state.turnStartedAt));
+        const ratio = Math.min(1, remain / state.turnTimeMs);
+        const r = 21;
+        const cyRing = baseY - 12;
+        // 배경 트랙 (옅게)
+        ctx.strokeStyle = 'rgba(255,90,146,0.16)';
+        ctx.lineWidth = 3;
         ctx.beginPath();
-        ctx.arc(f.x, baseY - 12, 21, 0, Math.PI * 2);
+        ctx.arc(f.x, cyRing, r, 0, Math.PI * 2);
         ctx.stroke();
+        // 남은 시간 arc
+        const start = -Math.PI / 2; // 12시 방향
+        ctx.strokeStyle = ratio <= 0.25 ? 'rgba(255,90,146,0.95)' : 'rgba(255,90,146,0.75)';
+        ctx.lineWidth = 3;
+        ctx.lineCap = 'round';
+        ctx.beginPath();
+        ctx.arc(f.x, cyRing, r, start, start + ratio * Math.PI * 2);
+        ctx.stroke();
+        ctx.lineCap = 'butt';
       }
 
       this.drawTank(f.x, baseY, fill, stroke, barrelAngle);
@@ -330,16 +343,15 @@ export class FortressRenderer {
 
   private drawAim(aim: NonNullable<RenderState['aim']>): void {
     const ctx = this.ctx;
-    // 드래그 = (마우스 - 포대). 발사 방향은 반대.
+    // 드래그 = (마우스 - 포대). 발사 방향은 그 반대.
     const dx = aim.mx - aim.fromX;
     const dy = aim.my - aim.fromY;
-    if (Math.hypot(dx, dy) < 4) return;
-    const ax = aim.fromX - dx;
-    const ay = aim.fromY - dy;
+    const len = Math.hypot(dx, dy);
+    if (len < 4) return;
 
-    // 드래그 라인 (뒤로 당김)
+    // 뒤로 당기는 점선 (드래그 방향)
     ctx.setLineDash([5, 4]);
-    ctx.strokeStyle = 'rgba(140,110,150,0.5)';
+    ctx.strokeStyle = 'rgba(140,110,150,0.45)';
     ctx.lineWidth = 1.5;
     ctx.beginPath();
     ctx.moveTo(aim.fromX, aim.fromY);
@@ -347,38 +359,23 @@ export class FortressRenderer {
     ctx.stroke();
     ctx.setLineDash([]);
 
-    // 발사 방향 화살표
-    ctx.strokeStyle = COLORS.aimLine;
-    ctx.lineWidth = 3;
-    ctx.lineCap = 'round';
+    // 파워 원뿔 — 포신에서 발사 방향으로. 길이·폭 = 파워, 색 노랑→빨강 그라데이션.
+    const ux = -dx / len, uy = -dy / len;      // 발사 방향 단위벡터
+    const nx = -uy, ny = ux;                    // 수직
+    const L = 18 + aim.power01 * 60;            // 원뿔 길이
+    const halfW = 4 + aim.power01 * 7;          // 끝단 반폭 (파워 클수록 넓게)
+    const fx = aim.fromX + ux * L, fy = aim.fromY + uy * L;
+    const grad = ctx.createLinearGradient(aim.fromX, aim.fromY, fx, fy);
+    grad.addColorStop(0, '#ffd454'); // 뿌리 노랑
+    grad.addColorStop(1, '#ff3b3b'); // 끝 빨강
+    ctx.fillStyle = grad;
     ctx.beginPath();
-    ctx.moveTo(aim.fromX, aim.fromY);
-    ctx.lineTo(ax, ay);
-    ctx.stroke();
-    ctx.lineCap = 'butt';
-    const ang = Math.atan2(ay - aim.fromY, ax - aim.fromX);
-    const hl = 10;
-    ctx.fillStyle = COLORS.aimLine;
-    ctx.beginPath();
-    ctx.moveTo(ax, ay);
-    ctx.lineTo(ax - Math.cos(ang - 0.4) * hl, ay - Math.sin(ang - 0.4) * hl);
-    ctx.lineTo(ax - Math.cos(ang + 0.4) * hl, ay - Math.sin(ang + 0.4) * hl);
+    ctx.moveTo(aim.fromX + nx * 3, aim.fromY + ny * 3);   // 뿌리(살짝 폭)
+    ctx.lineTo(fx + nx * halfW, fy + ny * halfW);          // 끝 위
+    ctx.lineTo(fx - nx * halfW, fy - ny * halfW);          // 끝 아래
+    ctx.lineTo(aim.fromX - nx * 3, aim.fromY - ny * 3);
     ctx.closePath();
     ctx.fill();
-
-    // 각도/파워 readout — 커서 옆 흰 pill
-    const label = `${aim.angleDeg}° · ${aim.power}%`;
-    ctx.font = `700 12px ${FONT}`;
-    ctx.textBaseline = 'middle';
-    ctx.textAlign = 'left';
-    const tw = ctx.measureText(label).width;
-    const px = aim.mx + 12;
-    const py = aim.my - 8;
-    ctx.fillStyle = 'rgba(255,255,255,0.92)';
-    this.roundRect(px - 5, py - 10, tw + 10, 20, 6);
-    ctx.fill();
-    ctx.fillStyle = COLORS.textMain;
-    ctx.fillText(label, px, py);
   }
 
   private drawHUD(state: RenderState, logicalW: number): void {
@@ -393,34 +390,28 @@ export class FortressRenderer {
     ctx.fill();
 
     ctx.textBaseline = 'middle';
-    // 좌: 현재 차례 (+ aiming 이면 남은 초)
+    // 좌: 현재 차례 (타이머는 탱크 주위 링으로 표시하므로 여기선 이름만)
     const cur = g.forts.find((f) => f.id === g.currentTurn);
-    let secsLow = false;
-    let turnLabel: string;
-    if (g.phase === 'ended') {
-      turnLabel = '게임 종료';
-    } else if (g.phase === 'firing') {
-      turnLabel = '발사 중…';
-    } else {
-      const remainMs = Math.max(0, state.turnTimeMs - (state.now - state.turnStartedAt));
-      const secs = Math.ceil(remainMs / 1000);
-      secsLow = secs <= 5;
-      turnLabel = `${cur?.ownerNickname ?? '?'} 차례 · ${secs}초`;
-    }
-    ctx.fillStyle = secsLow ? COLORS.accentPink : COLORS.textMain;
+    const turnLabel = g.phase === 'ended' ? '게임 종료'
+      : g.phase === 'firing' ? '발사 중…'
+      : `${cur?.ownerNickname ?? '?'} 차례`;
+    ctx.fillStyle = COLORS.textMain;
     ctx.font = `700 13px ${FONT}`;
     ctx.textAlign = 'left';
     ctx.fillText(`🎯 ${turnLabel}`, boxX + 14, 25);
 
-    // 우: 바람 (화살표 + 세기)
+    // 우: 바람 — 방향(▶/◀) 삼각형을 세기만큼 반복
     const wind = g.wind;
-    const windStr = Math.min(1, Math.abs(wind) / MAX_WIND);
     ctx.textAlign = 'right';
     ctx.fillStyle = COLORS.textMuted;
-    ctx.font = `600 12px ${FONT}`;
-    const arrow = wind >= 0 ? '▶' : '◀';
-    const bars = '●'.repeat(1 + Math.round(windStr * 3));
-    ctx.fillText(`바람 ${arrow}${bars}`, boxX + boxW - 14, 25);
+    ctx.font = `600 13px ${FONT}`;
+    if (Math.abs(wind) < 6) {
+      ctx.fillText('바람 무풍', boxX + boxW - 14, 25);
+    } else {
+      const count = 1 + Math.round(Math.min(1, Math.abs(wind) / MAX_WIND) * 3); // 1~4개
+      const tri = (wind >= 0 ? '▶' : '◀').repeat(count);
+      ctx.fillText(`바람 ${tri}`, boxX + boxW - 14, 25);
+    }
 
     // 관전 배지
     if (state.isSpectator) {
