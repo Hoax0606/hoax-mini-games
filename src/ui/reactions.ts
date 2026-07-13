@@ -56,9 +56,17 @@ export function wireReactionBar(
   const bar = container.querySelector<HTMLElement>('[data-reaction-bar]');
   const toggle = container.querySelector<HTMLButtonElement>('[data-reaction-toggle]');
 
+  // 바깥 클릭 시 접기 — 펼쳐진 동안에만 document 리스너를 붙였다 떼어 누수 방지.
+  const onDocClick = (e: MouseEvent): void => {
+    if (!bar?.classList.contains('is-open')) return;
+    const t = e.target as Node | null;
+    if (t && !bar.contains(t)) setOpen(false);
+  };
   const setOpen = (open: boolean): void => {
     bar?.classList.toggle('is-open', open);
     toggle?.setAttribute('aria-expanded', String(open));
+    if (open) document.addEventListener('click', onDocClick);
+    else document.removeEventListener('click', onDocClick);
   };
 
   container.addEventListener('click', (e) => {
@@ -79,13 +87,6 @@ export function wireReactionBar(
     const emoji = btn.dataset.emoji;
     if (emoji) onEmoji(emoji);
     setOpen(false); // 고르면 다시 최소화
-  });
-
-  // 바깥 클릭 시 접기 — 펼쳐둔 채 다른 곳 누르면 자동으로 닫힘
-  document.addEventListener('click', (e) => {
-    if (!bar?.classList.contains('is-open')) return;
-    const t = e.target as Node | null;
-    if (t && !bar.contains(t)) setOpen(false);
   });
 }
 

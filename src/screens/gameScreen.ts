@@ -338,6 +338,8 @@ export function createGameScreenAsHostScreen(args: GameScreenAsHostArgs): Screen
   let cleanupMenu: (() => void) | null = null;
   /** 채팅 패널 cleanup */
   let cleanupChat: (() => void) | null = null;
+  /** 현재 일시정지를 건 사람의 peerId (없으면 null). 그 사람이 나갈 때만 강제 해제 */
+  let pausedByPeerId: string | null = null;
 
   // 게임 시작 시점에 들어와 있던 플레이어들 (관전자와 구분).
   // 게임 도중에 들어오는 사람은 전부 spectators 로. role='spectator' 마킹.
@@ -455,6 +457,7 @@ export function createGameScreenAsHostScreen(args: GameScreenAsHostArgs): Screen
           for (const pid of host.listGuestPeerIds()) {
             if (pid !== fromPeerId) host.sendTo(pid, msg);
           }
+          pausedByPeerId = fromPeerId;
           showPauseOverlay(el, msg.byNickname);
           gameModule?.setPaused?.(true);
           return;
@@ -463,6 +466,7 @@ export function createGameScreenAsHostScreen(args: GameScreenAsHostArgs): Screen
           for (const pid of host.listGuestPeerIds()) {
             if (pid !== fromPeerId) host.sendTo(pid, msg);
           }
+          pausedByPeerId = null;
           hidePauseOverlay(el);
           gameModule?.setPaused?.(false);
           return;
@@ -542,12 +546,15 @@ export function createGameScreenAsHostScreen(args: GameScreenAsHostArgs): Screen
           if (removed) {
             host.send({ type: 'player_left', peerId, nickname: removed.nickname });
           }
-          // 나간 사람이 ⚙️ 메뉴(일시정지)를 열어둔 채 끊겼다면 resume 이 영영 안 와서
-          // 화면이 흐린 dim 오버레이로 굳는다 → 이탈 시 일시정지 상태를 강제 해제.
-          // (아무도 정지 안 했으면 no-op 이라 안전)
-          hidePauseOverlay(el);
-          gameModule?.setPaused?.(false);
-          host.send({ type: 'resume', byPeerId: peerId });
+          // 나간 사람이 일시정지를 걸어둔 당사자였다면 resume 이 영영 안 와서
+          // 화면이 흐린 dim 오버레이로 굳는다 → 그 사람 이탈 시에만 강제 해제.
+          // (다른 사람이 건 일시정지는 건드리지 않음 — 안 그러면 메뉴 연 채 타임아웃 위험)
+          if (pausedByPeerId === peerId) {
+            pausedByPeerId = null;
+            hidePauseOverlay(el);
+            gameModule?.setPaused?.(false);
+            host.send({ type: 'resume', byPeerId: peerId });
+          }
           return;
         }
         alert('상대가 게임을 나갔어요');
@@ -566,10 +573,12 @@ export function createGameScreenAsHostScreen(args: GameScreenAsHostArgs): Screen
       cleanupMenu = wireGameMenuModal(el, {
         onLeaveRequest: () => leaveBtn.click(),
         onOpen: () => {
+          pausedByPeerId = host.myPeerId;
           host.send({ type: 'pause', byPeerId: host.myPeerId, byNickname: hostNickname });
           gameModule?.setPaused?.(true);
         },
         onClose: () => {
+          pausedByPeerId = null;
           host.send({ type: 'resume', byPeerId: host.myPeerId });
           gameModule?.setPaused?.(false);
         },

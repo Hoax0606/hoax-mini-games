@@ -253,7 +253,12 @@ class FortressGameModule implements GameModule {
       this.pauseStart = performance.now();
       this.aiming = false;
     } else if (this.pauseStart > 0) {
-      this.lastFrameTime += performance.now() - this.pauseStart;
+      // 정지 동안 흐른 시간을 각 기준 시각에 더해 보정 —
+      //   안 그러면 턴 타이머/워치독이 정지 시간까지 세서 재개 즉시 턴 스킵됨.
+      const delta = performance.now() - this.pauseStart;
+      this.lastFrameTime += delta;
+      this.turnStartedAt += delta;
+      if (this.firingStartedAt > 0) this.firingStartedAt += delta;
       this.pauseStart = 0;
     }
   }
@@ -395,11 +400,14 @@ class FortressGameModule implements GameModule {
       }
     }
 
-    // 모든 포탄 착지 → 호스트가 이번 발사 결과 확정
-    if (this.shells.length > 0 && this.shells.every((s) => s.landed)) {
-      if (this.isHost) this.finalizeImpactAsHost();
-      // 게스트는 landed 상태로 두고 호스트 impact 를 기다림 (applyImpactLocal 에서 정리)
+    // 호스트: 모든 포탄 착지 OR 게임 종료(분열 파편 하나가 마지막 적 처치) 시 확정.
+    //   phase==='ended' 조건이 없으면, 파편 A 가 게임을 끝냈는데 파편 B 가 아직
+    //   공중이라 every(landed)=false → finalize 안 불려 fr:end 를 못 보내고 전원 멈춤.
+    if (this.isHost && this.shells.length > 0
+      && (this.game.phase === 'ended' || this.shells.every((s) => s.landed))) {
+      this.finalizeImpactAsHost();
     }
+    // 게스트는 landed 상태로 두고 호스트 impact 를 기다림 (applyImpactLocal 에서 정리)
   }
 
   /** 분열탄 파편 3개 생성 (현재 속도 기준 ±SPLIT_SPREAD). */
@@ -628,14 +636,19 @@ class FortressGameModule implements GameModule {
     if (!this.aiming) return;
     this.aiming = false;
     if (this.mouseX === null || this.mouseY === null) return;
+
+    // 발사 직전 턴 재확인 — 드래그 도중 타임아웃 스킵 등으로 내 차례가 끝났으면 발사 취소.
+    //   (없으면 이미 넘어간 남의 차례 포대 id 로 발사가 나가 오동기화)
+    const me = this.currentFort();
+    if (!me || me.ownerPeerId !== this.myPeerId || this.game.phase !== 'aiming' || this.shells.length > 0) return;
+
     const dx = this.mouseX - this.aimFromX;
     const dy = this.mouseY - this.aimFromY;
     const dragLen = Math.hypot(dx, dy);
     if (dragLen < 8) return; // 너무 짧음 — 발사 취소
 
     // 발사 무기 결정 — 잔탄 없으면 일반탄으로 폴백 (UI 가 막지만 방어적)
-    const me = this.currentFort();
-    const ownerPeerId = me?.ownerPeerId ?? this.myPeerId;
+    const ownerPeerId = me.ownerPeerId;
     let weapon = this.selectedWeapon;
     if (!hasAmmo(this.game, ownerPeerId, weapon)) weapon = 'normal';
     const spec = WEAPONS[weapon];
