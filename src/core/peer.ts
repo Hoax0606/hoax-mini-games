@@ -400,7 +400,7 @@ export class GuestSession {
    * 방 코드로 호스트에 연결.
    * 실패 시 PeerConnectError를 throw.
    */
-  static async connect(roomCode: string, timeoutMs = 10_000): Promise<GuestSession> {
+  static async connect(roomCode: string, timeoutMs = 30_000): Promise<GuestSession> {
     const hostPeerId = codeToPeerId(roomCode);
     // 게스트는 랜덤 id — 옵션만 넘긴다 (자체 PeerServer + ICE). netConfig.ts 참고
     const peer = new Peer(PEER_OPTIONS);
@@ -448,7 +448,9 @@ export class GuestSession {
 // 내부 유틸
 // ============================================
 
-function waitForPeerOpen(peer: Peer, timeoutMs = 10_000): Promise<void> {
+// 자체 PeerServer(Render 무료 티어)가 유휴 후 콜드스타트하면 30~60초 걸릴 수 있어
+// 타임아웃을 넉넉히(30초) 준다. (근본 해결은 keep-alive 핑으로 서버를 안 재우는 것)
+function waitForPeerOpen(peer: Peer, timeoutMs = 30_000): Promise<void> {
   return new Promise<void>((resolve, reject) => {
     const timer = setTimeout(() => {
       peer.off('open', onOpen);

@@ -163,6 +163,9 @@ export class AlgagiRenderer {
   render(state: RenderState): void {
     const ctx = this.ctx;
     const rect = this.canvas.getBoundingClientRect();
+    // 캔버스가 아직 레이아웃 안 됐으면(폭/높이 0) 아무것도 안 그림 —
+    //   안 그러면 clearRect 로 지운 뒤 scale 0 으로 아무것도 못 그려 흰 페이지가 비쳐 보임.
+    if (rect.width === 0 || rect.height === 0) return;
     const dpr = window.devicePixelRatio || 1;
 
     ctx.setTransform(1, 0, 0, 1, 0, 0);

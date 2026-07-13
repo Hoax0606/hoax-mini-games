@@ -86,7 +86,8 @@ export function wireReactionBar(
     lastAt = now;
     const emoji = btn.dataset.emoji;
     if (emoji) onEmoji(emoji);
-    setOpen(false); // 고르면 다시 최소화
+    // 이모지를 골라도 창은 유지 — 연속으로 여러 개 보낼 수 있게.
+    // 닫기는 토글 버튼 or 바깥 클릭(onDocClick)으로만.
   });
 }
 
