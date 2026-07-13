@@ -15,8 +15,8 @@ import type { GameModule, GameContext, GameMessage, GameResult, Player } from '.
 import { sound } from '../../core/sound';
 import {
   createInitialGame, applyBlast, advanceTurn, fortCenterY,
-  CRATER_RADIUS,
-  type FortressGame, type Fort,
+  WEAPONS, hasAmmo, spendAmmo,
+  type FortressGame, type Fort, type WeaponId,
 } from './rules';
 import {
   generateTerrain, carveCrater, terrainTopAt,
@@ -68,6 +68,12 @@ class FortressGameModule implements GameModule {
   // 궤적
   private projectile: Projectile | null = null;
   private fireWind = 0;
+  /** 지금 날아가는 포탄의 무기 (착탄 폭발 파라미터 결정) */
+  private flyingWeapon: WeaponId = 'normal';
+  /** 내가 선택한 무기 (무기 바) */
+  private selectedWeapon: WeaponId = 'normal';
+  /** 무기 바 DOM */
+  private weaponBar: HTMLDivElement | null = null;
 
   /** 현재 aiming 턴 시작 시각 (호스트만 사용 — 타임아웃 스킵 판정) */
   private turnStartedAt = 0;
@@ -107,6 +113,7 @@ class FortressGameModule implements GameModule {
     this.renderer = new FortressRenderer({ canvas: ctx.canvas });
     ctx.canvas.style.cursor = 'crosshair';
     this.attachInput();
+    if (!this.isSpectator) this.mountWeaponBar();
     sound.startBgm('battle-tetris'); // 긴장감 BGM 재활용
 
     if (!this.isHost) this.ctx.sendToPeer(encodeHello(this.myPeerId));
@@ -139,6 +146,7 @@ class FortressGameModule implements GameModule {
         this.turnStartedAt = performance.now(); // 타이머 표시 기준 리셋
         // 합류 시점에 호스트가 발사 중이면 포탄을 못 받으니 워치독으로 재동기화되게 시각 기록
         this.firingStartedAt = this.game.phase === 'firing' ? performance.now() : 0;
+        if (this.weaponBar) this.buildWeaponButtons(); // 동기화된 실제 로드아웃으로 갱신
       }
       return;
     }
@@ -149,7 +157,10 @@ class FortressGameModule implements GameModule {
       //   (차례 아닌 발사를 받아들이면 호스트가 엉뚱한 포대 기준으로 턴을 넘겨 꼬임)
       //   발사자 자신은 로컬에서 이미 firing 이라 여기 안 걸림(중복 방지).
       if (this.game.phase === 'aiming' && fire.fromFortId === this.game.currentTurn) {
-        this.beginProjectile(fire.startX, fire.startY, fire.angleRad, fire.power01, fire.wind);
+        // 발사자 탄약 차감 (모든 클라 동일하게 — 결정론적)
+        const shooter = this.game.forts.find((f) => f.id === fire.fromFortId);
+        if (shooter) spendAmmo(this.game, shooter.ownerPeerId, fire.weapon);
+        this.beginProjectile(fire.startX, fire.startY, fire.angleRad, fire.power01, fire.wind, fire.weapon);
       }
       return;
     }
@@ -173,6 +184,8 @@ class FortressGameModule implements GameModule {
     if (this.rafId !== null) cancelAnimationFrame(this.rafId);
     this.rafId = null;
     this.detachInput();
+    this.weaponBar?.remove();
+    this.weaponBar = null;
     if (this.ctx?.canvas) this.ctx.canvas.style.cursor = '';
     this.renderer?.destroy();
     sound.stopBgm();
@@ -234,9 +247,10 @@ class FortressGameModule implements GameModule {
     advanceTurn(this.game, nextWind, performance.now());
     this.turnStartedAt = performance.now();
     this.ctx.sendToPeer(encodeImpact({
-      cx: 0, cy: 0, craterR: 0, hp: this.hpMap(), ended: false,
+      blasts: [], hp: this.hpMap(), ended: false,
       nextTurn: this.game.currentTurn, nextWind, winnerPeerIds: [],
     }));
+    this.refreshWeaponBar();
     sound.play('button_click');
   }
 
@@ -314,6 +328,69 @@ class FortressGameModule implements GameModule {
     return !!cf && cf.ownerPeerId === this.myPeerId;
   }
 
+  // ============================================
+  // 무기 바 UI (canvas 아래 HTML)
+  // ============================================
+
+  private mountWeaponBar(): void {
+    const parent = this.ctx.canvas.parentElement;
+    if (!parent) return;
+    const bar = document.createElement('div');
+    bar.className = 'fortress-weapon-bar';
+    parent.appendChild(bar);
+    this.weaponBar = bar;
+    // 이벤트 위임 — 버튼 클릭 시 무기 선택
+    bar.addEventListener('click', (e) => {
+      const btn = (e.target as HTMLElement).closest<HTMLButtonElement>('.fw-btn');
+      if (!btn || btn.disabled) return;
+      const w = btn.dataset.weapon as WeaponId;
+      if (!hasAmmo(this.game, this.myPeerId, w)) return;
+      this.selectedWeapon = w;
+      this.refreshWeaponBar();
+      sound.play('button_click');
+    });
+    this.buildWeaponButtons();
+  }
+
+  /** 내 로드아웃(일반탄 + 특수 2종)으로 버튼 재생성. sync 로 로드아웃 바뀌면 다시 호출. */
+  private buildWeaponButtons(): void {
+    if (!this.weaponBar) return;
+    const specials = Object.keys(this.game.ammo[this.myPeerId] ?? {}) as WeaponId[];
+    const list: WeaponId[] = ['normal', ...specials];
+    this.weaponBar.innerHTML = list
+      .map((w) => {
+        const s = WEAPONS[w];
+        return `<button class="fw-btn" data-weapon="${w}">
+          <span class="fw-icon">${s.icon}</span>
+          <span class="fw-name">${s.name}</span>
+          <span class="fw-ammo"></span>
+        </button>`;
+      })
+      .join('');
+    if (!list.includes(this.selectedWeapon)) this.selectedWeapon = 'normal';
+    this.refreshWeaponBar();
+  }
+
+  /** 잔탄/선택/활성 상태 갱신 (내 차례 아니면 전체 비활성) */
+  private refreshWeaponBar(): void {
+    if (!this.weaponBar) return;
+    const cf = this.currentFort();
+    const isMyTurn = this.game.phase === 'aiming' && !this.isSpectator
+      && !!cf && cf.ownerPeerId === this.myPeerId;
+    const btns = this.weaponBar.querySelectorAll<HTMLButtonElement>('.fw-btn');
+    btns.forEach((btn) => {
+      const w = btn.dataset.weapon as WeaponId;
+      const left = w === 'normal' ? Infinity : (this.game.ammo[this.myPeerId]?.[w] ?? 0);
+      const ammoEl = btn.querySelector('.fw-ammo');
+      if (ammoEl) ammoEl.textContent = w === 'normal' ? '∞' : `×${left}`;
+      const empty = left <= 0;
+      const disabled = !isMyTurn || empty;
+      btn.disabled = disabled;
+      btn.classList.toggle('disabled', disabled);
+      btn.classList.toggle('selected', w === this.selectedWeapon && !empty);
+    });
+  }
+
   private onDown = (e: MouseEvent): void => {
     if (!this.canAim()) return;
     const me = this.currentFort();
@@ -341,24 +418,36 @@ class FortressGameModule implements GameModule {
     const dragLen = Math.hypot(dx, dy);
     if (dragLen < 8) return; // 너무 짧음 — 발사 취소
 
+    // 발사 무기 결정 — 잔탄 없으면 일반탄으로 폴백 (UI 가 막지만 방어적)
+    const me = this.currentFort();
+    const ownerPeerId = me?.ownerPeerId ?? this.myPeerId;
+    let weapon = this.selectedWeapon;
+    if (!hasAmmo(this.game, ownerPeerId, weapon)) weapon = 'normal';
+    const spec = WEAPONS[weapon];
+    // 유도탄은 바람 무시 — 발사 wind 를 0 으로 보내 모든 클라가 동일 궤적 재생
+    const effWind = spec.ignoreWind ? 0 : this.game.wind;
+
     // 발사 방향 = 당긴 반대. 각도(위가 +) = atan2(dy, -dx)
     const angleRad = Math.atan2(dy, -dx);
     const power01 = Math.min(1, dragLen / MAX_DRAG_PX);
-    const wind = this.game.wind;
 
     // 로컬 즉시 시작 + broadcast (게스트/호스트 공통)
-    this.beginProjectile(this.aimFromX, this.aimFromY, angleRad, power01, wind);
+    this.beginProjectile(this.aimFromX, this.aimFromY, angleRad, power01, effWind, weapon);
+    spendAmmo(this.game, ownerPeerId, weapon);
+    if (!hasAmmo(this.game, ownerPeerId, weapon)) this.selectedWeapon = 'normal'; // 소진 시 기본 복귀
     this.ctx.sendToPeer(encodeFire({
       fromFortId: this.game.currentTurn,
       startX: this.aimFromX, startY: this.aimFromY,
-      angleRad, power01, wind,
+      angleRad, power01, wind: effWind, weapon,
     }));
+    this.refreshWeaponBar();
   };
 
-  private beginProjectile(sx: number, sy: number, angleRad: number, power01: number, wind: number): void {
+  private beginProjectile(sx: number, sy: number, angleRad: number, power01: number, wind: number, weapon: WeaponId): void {
     const { vx, vy } = launchVelocity(angleRad, power01);
     this.projectile = { x: sx, y: sy, vx, vy };
     this.fireWind = wind;
+    this.flyingWeapon = weapon;
     this.game.phase = 'firing';
     this.lastFrameTime = performance.now();
     this.firingStartedAt = performance.now();
@@ -370,19 +459,24 @@ class FortressGameModule implements GameModule {
   // ============================================
 
   private handleImpactAsHost(cx: number, cy: number, isMiss: boolean): void {
-    let craterR = 0;
-    if (!isMiss) {
-      craterR = CRATER_RADIUS;
+    const spec = WEAPONS[this.flyingWeapon];
+    const blasts: Crater[] = [];
+    let blast: { hp: Record<number, number>; ended: boolean };
+    if (isMiss) {
+      blast = { hp: this.hpMap(), ended: false };
+    } else {
+      const craterR = spec.craterRadius;
       carveCrater(this.hm, cx, cy, craterR);
       this.craters.push({ cx, cy, r: craterR });
+      blasts.push({ cx, cy, r: craterR });
+      blast = applyBlast(this.game, this.hm, cx, cy, spec.blastRadius, spec.maxDamage);
     }
-    const blast = isMiss ? { hp: this.hpMap(), ended: false } : applyBlast(this.game, this.hm, cx, cy);
     this.projectile = null;
 
     const nextWind = this.randomWind();
     if (blast.ended) {
       this.ctx.sendToPeer(encodeImpact({
-        cx, cy, craterR, hp: blast.hp, ended: true,
+        blasts, hp: blast.hp, ended: true,
         nextTurn: -1, nextWind, winnerPeerIds: this.game.winnerPeerIds,
       }));
       this.finishAsHost();
@@ -390,9 +484,10 @@ class FortressGameModule implements GameModule {
       advanceTurn(this.game, nextWind, performance.now());
       this.turnStartedAt = performance.now(); // 다음 턴 타임아웃 카운트 리셋
       this.ctx.sendToPeer(encodeImpact({
-        cx, cy, craterR, hp: blast.hp, ended: false,
+        blasts, hp: blast.hp, ended: false,
         nextTurn: this.game.currentTurn, nextWind, winnerPeerIds: [],
       }));
+      this.refreshWeaponBar();
     }
     sound.play('tetris_garbage');
   }
@@ -400,9 +495,9 @@ class FortressGameModule implements GameModule {
   /** 게스트: 확정 impact 반영 */
   private applyImpactLocal(p: ReturnType<typeof decodeImpact>): void {
     if (!p) return;
-    if (p.craterR > 0) {
-      carveCrater(this.hm, p.cx, p.cy, p.craterR);
-      this.craters.push({ cx: p.cx, cy: p.cy, r: p.craterR });
+    for (const b of p.blasts) {
+      carveCrater(this.hm, b.cx, b.cy, b.r);
+      this.craters.push({ cx: b.cx, cy: b.cy, r: b.r });
     }
     for (const f of this.game.forts) {
       const hp = p.hp[f.id];
@@ -417,6 +512,7 @@ class FortressGameModule implements GameModule {
       this.game.wind = p.nextWind;
       this.game.phase = 'aiming';
       this.turnStartedAt = performance.now(); // 새 턴 타이머 표시 리셋
+      this.refreshWeaponBar();
     }
     sound.play('tetris_garbage');
   }

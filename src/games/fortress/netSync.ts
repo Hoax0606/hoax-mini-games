@@ -9,7 +9,7 @@
  */
 
 import type { GameMessage, GameResult } from '../types';
-import type { FortressGame } from './rules';
+import type { FortressGame, WeaponId } from './rules';
 
 const T_HELLO = 'fr:hello';
 const T_SYNC = 'fr:sync';
@@ -51,13 +51,15 @@ export function decodeSync(msg: GameMessage): SyncPayload | null {
 
 // --- fire (발사 파라미터) ---
 export interface FirePayload {
-  /** 발사한 포대 id (정보성 — 궤적은 start 좌표로 재생) */
+  /** 발사한 포대 id — 차례 검증 + 소유자 탄약 차감에 사용 */
   fromFortId: number;
   startX: number;
   startY: number;
   angleRad: number;
   power01: number;
   wind: number;
+  /** 발사 무기 종류 */
+  weapon: WeaponId;
 }
 export function encodeFire(p: FirePayload): GameMessage {
   return { type: T_FIRE, payload: p };
@@ -69,14 +71,15 @@ export function decodeFire(msg: GameMessage): FirePayload | null {
   if (typeof p.startX !== 'number' || typeof p.startY !== 'number') return null;
   if (typeof p.angleRad !== 'number' || typeof p.power01 !== 'number') return null;
   if (typeof p.wind !== 'number' || typeof p.fromFortId !== 'number') return null;
-  return p as FirePayload;
+  // weapon 누락(구버전)이면 normal 로 간주
+  const weapon = (typeof p.weapon === 'string' ? p.weapon : 'normal') as WeaponId;
+  return { ...(p as FirePayload), weapon };
 }
 
 // --- impact (착탄 확정) ---
 export interface ImpactPayload {
-  cx: number;
-  cy: number;
-  craterR: number;
+  /** 이번 착탄의 폭발 목록 (분열탄은 여러 개, 나머지는 1개, 크레이터 없으면 빈 배열) */
+  blasts: Crater[];
   /** 포대 id → 갱신 hp */
   hp: Record<number, number>;
   ended: boolean;
@@ -92,12 +95,9 @@ export function encodeImpact(p: ImpactPayload): GameMessage {
 export function decodeImpact(msg: GameMessage): ImpactPayload | null {
   if (msg.type !== T_IMPACT) return null;
   const p = msg.payload as Partial<ImpactPayload> | null;
-  if (!p) return null;
-  if (typeof p.cx !== 'number' || typeof p.cy !== 'number' || typeof p.craterR !== 'number') return null;
+  if (!p || !Array.isArray(p.blasts)) return null;
   return {
-    cx: p.cx,
-    cy: p.cy,
-    craterR: p.craterR,
+    blasts: p.blasts as Crater[],
     hp: (p.hp ?? {}) as Record<number, number>,
     ended: p.ended === true,
     nextTurn: typeof p.nextTurn === 'number' ? p.nextTurn : -1,

@@ -37,17 +37,88 @@ export interface FortressGame {
   phase: GamePhase;
   turnCount: number;
   winnerPeerIds: string[];
+  /**
+   * 플레이어별 특수 무기 잔탄. peerId → 무기 → 남은 발수.
+   * normal(일반탄)은 키 없음 = 무제한. 한 명이 포대 여러 개여도 탄약은 공유(플레이어 단위).
+   */
+  ammo: Record<string, Partial<Record<WeaponId, number>>>;
 }
 
 export const FORT_HP = 100;
 /** 포대 몸통이 지면 위로 솟은 높이 (중심 y = 지면top - 이 값) */
 export const FORT_RISE = 7;
-/** 폭발 피해 반경 (직격일수록 큰 피해) */
+/** 폭발 피해 반경 (직격일수록 큰 피해) — 일반탄 기본값 */
 export const BLAST_RADIUS = 62;
-/** 직격 최대 피해 */
+/** 직격 최대 피해 — 일반탄 기본값 */
 export const MAX_DAMAGE = 52;
-/** 지형 크레이터 반경 */
+/** 지형 크레이터 반경 — 일반탄 기본값 */
 export const CRATER_RADIUS = 34;
+
+// ============================================
+// 무기 정의
+// ============================================
+
+export type WeaponId = 'normal' | 'big' | 'split' | 'guided' | 'bombard' | 'grenade' | 'timed';
+
+export interface WeaponSpec {
+  id: WeaponId;
+  name: string;
+  icon: string;
+  /** 폭발 반경 */
+  blastRadius: number;
+  /** 직격 최대 데미지 */
+  maxDamage: number;
+  /** 지형 크레이터 반경 */
+  craterRadius: number;
+  /** true 면 바람 무시(유도탄) */
+  ignoreWind?: boolean;
+}
+
+export const WEAPONS: Record<WeaponId, WeaponSpec> = {
+  normal:  { id: 'normal',  name: '일반탄', icon: '💣', blastRadius: 62, maxDamage: 52, craterRadius: 34 },
+  big:     { id: 'big',     name: '대형탄', icon: '💥', blastRadius: 90, maxDamage: 75, craterRadius: 50 },
+  guided:  { id: 'guided',  name: '유도탄', icon: '🛰️', blastRadius: 62, maxDamage: 52, craterRadius: 34, ignoreWind: true },
+  bombard: { id: 'bombard', name: '폭격탄', icon: '☄️', blastRadius: 55, maxDamage: 40, craterRadius: 60 },
+  // 복합 무기(슬라이스 3b) — 스펙만 미리 정의, 궤적 로직은 3b 에서
+  split:   { id: 'split',   name: '분열탄', icon: '✴️', blastRadius: 42, maxDamage: 32, craterRadius: 24 },
+  grenade: { id: 'grenade', name: '수류탄', icon: '🧨', blastRadius: 55, maxDamage: 45, craterRadius: 30 },
+  timed:   { id: 'timed',   name: '시한폭탄', icon: '⏱️', blastRadius: 70, maxDamage: 55, craterRadius: 38 },
+};
+
+/**
+ * 랜덤 배분 대상 특수 무기 풀.
+ * 3a 에서는 단순형(단일 포탄)만 — 3b 에서 split/grenade/timed 추가.
+ */
+export const SPECIAL_POOL: WeaponId[] = ['big', 'guided', 'bombard'];
+
+/** 무기당 배분 발수 */
+export const AMMO_PER_WEAPON = 2;
+
+/** 플레이어마다 특수 풀에서 랜덤 2종 골라 잔탄 초기화. (호스트가 만들어 sync 하므로 랜덤 OK) */
+export function assignLoadouts(peerIds: string[]): FortressGame['ammo'] {
+  const ammo: FortressGame['ammo'] = {};
+  for (const pid of peerIds) {
+    const shuffled = [...SPECIAL_POOL].sort(() => Math.random() - 0.5);
+    const picks = shuffled.slice(0, 2);
+    const inv: Partial<Record<WeaponId, number>> = {};
+    for (const w of picks) inv[w] = AMMO_PER_WEAPON;
+    ammo[pid] = inv;
+  }
+  return ammo;
+}
+
+/** 해당 플레이어가 이 무기를 쏠 수 있는지 (normal 무제한, 특수는 잔탄>0) */
+export function hasAmmo(game: FortressGame, peerId: string, w: WeaponId): boolean {
+  if (w === 'normal') return true;
+  return (game.ammo[peerId]?.[w] ?? 0) > 0;
+}
+
+/** 무기 발사 시 잔탄 1 차감 (normal 은 no-op). 모든 클라가 fr:fire 재생 시 호출해 동기 유지. */
+export function spendAmmo(game: FortressGame, peerId: string, w: WeaponId): void {
+  if (w === 'normal') return;
+  const inv = game.ammo[peerId];
+  if (inv && typeof inv[w] === 'number') inv[w] = Math.max(0, inv[w]! - 1);
+}
 
 // ============================================
 // 초기화
@@ -107,6 +178,7 @@ export function createInitialGame(
     phase: 'aiming',
     turnCount: 0,
     winnerPeerIds: [],
+    ammo: assignLoadouts([...new Set(players.map((p) => p.peerId))]),
   };
 }
 
@@ -150,13 +222,20 @@ export interface BlastResult {
  * 착탄점(cx, cy) 폭발 피해 적용 (호스트). 거리 비례 데미지 + 사망/승패 판정.
  * 크레이터(지형 파괴)는 호출부에서 terrain.carveCrater 로 별도 처리.
  */
-export function applyBlast(game: FortressGame, hm: number[], cx: number, cy: number): BlastResult {
+export function applyBlast(
+  game: FortressGame,
+  hm: number[],
+  cx: number,
+  cy: number,
+  blastRadius: number = BLAST_RADIUS,
+  maxDamage: number = MAX_DAMAGE,
+): BlastResult {
   for (const f of game.forts) {
     if (!f.alive) continue;
     const fy = fortCenterY(hm, f);
     const d = Math.hypot(f.x - cx, fy - cy);
-    if (d < BLAST_RADIUS) {
-      const dmg = Math.round(MAX_DAMAGE * (1 - d / BLAST_RADIUS));
+    if (d < blastRadius) {
+      const dmg = Math.round(maxDamage * (1 - d / blastRadius));
       f.hp = Math.max(0, f.hp - dmg);
       if (f.hp <= 0) f.alive = false;
     }
