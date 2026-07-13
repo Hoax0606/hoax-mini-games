@@ -23,3 +23,6 @@ dist-ssr
 *.sln
 *.sw?
 .superpowers/
+
+# Claude Code 개인 로컬 설정 (권한 등) — 공유 불필요
+.claude/settings.local.json
