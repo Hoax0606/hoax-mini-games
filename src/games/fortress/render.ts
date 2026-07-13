@@ -372,7 +372,8 @@ export class FortressRenderer {
     ctx.beginPath();
     ctx.moveTo(aim.fromX + nx * 3, aim.fromY + ny * 3);   // 뿌리(살짝 폭)
     ctx.lineTo(fx + nx * halfW, fy + ny * halfW);          // 끝 위
-    ctx.lineTo(fx - nx * halfW, fy - ny * halfW);          // 끝 아래
+    // 끝을 바깥으로 볼록하게 — 삼각형 대신 둥근 마감
+    ctx.quadraticCurveTo(fx + ux * halfW * 1.4, fy + uy * halfW * 1.4, fx - nx * halfW, fy - ny * halfW);
     ctx.lineTo(aim.fromX - nx * 3, aim.fromY - ny * 3);
     ctx.closePath();
     ctx.fill();
