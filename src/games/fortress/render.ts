@@ -64,6 +64,10 @@ export interface RenderState {
   flyingWeapon: WeaponId;
   /** 폭발 이펙트 (확장 후 페이드) */
   explosions: { x: number; y: number; r: number; start: number }[];
+  /** 데미지 숫자 팝업 */
+  damagePops: { x: number; y: number; dmg: number; start: number }[];
+  /** 포대별 마지막 피격 시각 (탱크 플래시) */
+  fortHitAt: Record<number, number>;
   /** 내 차례 드래그 조준 중 — 포대 기준 + 현재 마우스 (논리 좌표) + 파워(0~1) */
   aim: { fromX: number; fromY: number; mx: number; my: number; power01: number } | null;
   now: number;
@@ -124,8 +128,10 @@ export class FortressRenderer {
     // uniform scale + letterbox — 논리(logicalW × 400)를 화면에 왜곡 없이 담기
     const scale = Math.min(rect.width / logicalW, rect.height / TERRAIN_HEIGHT);
     this.scaleCss = scale;
-    this.offXCss = (rect.width - logicalW * scale) / 2;
-    this.offYCss = (rect.height - TERRAIN_HEIGHT * scale) / 2;
+    // 착탄 직후 화면 흔들림 (타격 피드백)
+    const shake = this.explosionShake(state.explosions, state.now);
+    this.offXCss = (rect.width - logicalW * scale) / 2 + shake;
+    this.offYCss = (rect.height - TERRAIN_HEIGHT * scale) / 2 + shake * 0.7;
 
     // 전체 배경(레터박스 여백) 채우기
     ctx.setTransform(1, 0, 0, 1, 0, 0);
@@ -141,6 +147,7 @@ export class FortressRenderer {
     this.drawForts(state);
     this.drawShells(state.shells, state.flyingWeapon);
     this.drawExplosions(state.explosions, state.now);
+    this.drawDamagePops(state.damagePops, state.now);
     if (state.aim) this.drawAim(state.aim);
     this.drawHUD(state, logicalW);
     if (state.game.phase === 'ended') this.drawEndOverlay(state, logicalW);
@@ -241,6 +248,15 @@ export class FortressRenderer {
       }
 
       this.drawTank(f.x, baseY, fill, stroke, barrelAngle);
+
+      // 피격 플래시 — 최근 맞았으면 흰 광 (200ms)
+      const hitAt = state.fortHitAt[f.id];
+      if (hitAt && state.now - hitAt < 200) {
+        ctx.fillStyle = `rgba(255,255,255,${0.6 * (1 - (state.now - hitAt) / 200)})`;
+        ctx.beginPath();
+        ctx.arc(f.x, baseY - 11, 17, 0, Math.PI * 2);
+        ctx.fill();
+      }
 
       // HP 바 (탱크 위)
       const barW = 30;
@@ -354,6 +370,38 @@ export class FortressRenderer {
         ctx.fillText(String(Math.ceil(s.fuseLeft / 1000)), s.x, s.y - 8);
       }
     }
+  }
+
+  /** 착탄 직후 화면 흔들림 크기(px) — 가장 최근 폭발 기준 220ms 감쇠 */
+  private explosionShake(list: RenderState['explosions'], now: number): number {
+    let mag = 0;
+    for (const e of list) {
+      const age = now - e.start;
+      if (age >= 0 && age < 220) {
+        const m = 9 * (1 - age / 220) * Math.min(1, e.r / 60);
+        if (m > mag) mag = m;
+      }
+    }
+    return mag === 0 ? 0 : (Math.random() * 2 - 1) * mag;
+  }
+
+  /** 데미지 숫자 팝업 — 위로 뜨며 페이드 (900ms) */
+  private drawDamagePops(list: RenderState['damagePops'], now: number): void {
+    const ctx = this.ctx;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    for (const d of list) {
+      const t = Math.min(1, (now - d.start) / 900);
+      const y = d.y - t * 26;
+      ctx.globalAlpha = 1 - t;
+      ctx.font = `900 ${16 + Math.min(8, d.dmg / 8)}px ${FONT}`;
+      ctx.lineWidth = 3;
+      ctx.strokeStyle = 'rgba(255,255,255,0.9)';
+      ctx.strokeText(`-${d.dmg}`, d.x, y);
+      ctx.fillStyle = '#ff3b3b';
+      ctx.fillText(`-${d.dmg}`, d.x, y);
+    }
+    ctx.globalAlpha = 1;
   }
 
   /** 폭발 이펙트 — 확장하는 노랑 링 + 주황 글로우 + 초반 흰 플래시, 480ms 페이드 */

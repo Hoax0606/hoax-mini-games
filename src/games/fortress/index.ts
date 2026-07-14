@@ -108,6 +108,10 @@ class FortressGameModule implements GameModule {
   private pendingEnded = false;
   /** 폭발 이펙트 (클라 로컬 시각화, 확장 후 페이드) */
   private explosions: { x: number; y: number; r: number; start: number }[] = [];
+  /** 데미지 숫자 팝업 (피격 위치에서 위로 뜨며 사라짐) */
+  private damagePops: { x: number; y: number; dmg: number; start: number }[] = [];
+  /** 포대별 마지막 피격 시각 (탱크 플래시용) */
+  private fortHitAt: Record<number, number> = {};
   /** 내가 선택한 무기 (무기 바) */
   private selectedWeapon: WeaponId = 'normal';
   /** 무기 바 DOM */
@@ -353,10 +357,9 @@ class FortressGameModule implements GameModule {
 
     this.lastFrameTime = now;
 
-    // 폭발 이펙트 만료 정리 (480ms)
-    if (this.explosions.length) {
-      this.explosions = this.explosions.filter((e) => now - e.start < 480);
-    }
+    // 이펙트 만료 정리
+    if (this.explosions.length) this.explosions = this.explosions.filter((e) => now - e.start < 480);
+    if (this.damagePops.length) this.damagePops = this.damagePops.filter((d) => now - d.start < 900);
 
     try {
       this.renderer.render(this.buildRenderState(now));
@@ -396,6 +399,8 @@ class FortressGameModule implements GameModule {
       shells: this.shells.map((s) => ({ x: s.x, y: s.y, fuseLeft: s.fuseLeft })),
       flyingWeapon: this.flyingWeapon,
       explosions: this.explosions,
+      damagePops: this.damagePops,
+      fortHitAt: this.fortHitAt,
       aim,
       now,
       // 턴 타이머 표시용 — 각 클라 로컬 시각(자기 시계 기준). 호스트가 실제 타임아웃 판정.
@@ -488,13 +493,29 @@ class FortressGameModule implements GameModule {
     this.craters.push({ cx, cy, r: spec.craterRadius });
     this.pendingBlasts.push({ cx, cy, r: spec.craterRadius });
     this.addExplosion(cx, cy, spec.blastRadius);
+    const before = new Map(this.game.forts.map((f) => [f.id, f.hp]));
     const res = applyBlast(this.game, this.hm, cx, cy, spec.blastRadius, spec.maxDamage);
+    this.registerDamagePops(before);
     if (res.ended) this.pendingEnded = true;
   }
 
   /** 폭발 이펙트 등록 (호스트/게스트 공통) */
   private addExplosion(x: number, y: number, r: number): void {
     this.explosions.push({ x, y, r, start: performance.now() });
+  }
+
+  /** hp 변화(피격) 감지 → 데미지 숫자 팝업 + 탱크 플래시 등록. before = 적용 전 hp 스냅샷 */
+  private registerDamagePops(before: Map<number, number>): void {
+    const now = performance.now();
+    for (const f of this.game.forts) {
+      const prev = before.get(f.id);
+      if (prev === undefined) continue;
+      const dmg = prev - f.hp;
+      if (dmg > 0) {
+        this.fortHitAt[f.id] = now;
+        this.damagePops.push({ x: f.x, y: terrainTopAt(this.hm, f.x) - 34, dmg, start: now });
+      }
+    }
   }
 
   /** 호스트: 이번 발사의 모든 폭발을 한 번에 확정 broadcast + 턴 진행/종료. */
@@ -759,10 +780,12 @@ class FortressGameModule implements GameModule {
       this.craters.push({ cx: b.cx, cy: b.cy, r: b.r });
       this.addExplosion(b.cx, b.cy, b.r * 1.7); // 크레이터보다 살짝 크게(폭발 반경 근사)
     }
+    const before = new Map(this.game.forts.map((f) => [f.id, f.hp]));
     for (const f of this.game.forts) {
       const hp = p.hp[f.id];
       if (hp !== undefined) { f.hp = hp; f.alive = hp > 0; }
     }
+    this.registerDamagePops(before);
     this.shells = [];
     if (p.ended) {
       this.game.phase = 'ended';
