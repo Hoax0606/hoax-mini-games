@@ -244,7 +244,11 @@ class LiarGameModule implements GameModule {
     this.resolved = false;
     this.revealVotes = null;
 
-    resetForRound(this.game, picked.category, players.map((p) => p.peerId));
+    // 시작 순서 로테이션 — 라운드마다 시작 플레이어를 한 칸씩 밀어 시계방향으로 돌게.
+    const base = players.map((p) => p.peerId);
+    const startIdx = (this.game.round - 1) % base.length;
+    const order = [...base.slice(startIdx), ...base.slice(0, startIdx)];
+    resetForRound(this.game, picked.category, order);
 
     // 역할/제시어 개별 전송 (호스트 자신 포함)
     for (const p of players) {
