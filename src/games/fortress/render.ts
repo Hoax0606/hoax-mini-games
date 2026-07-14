@@ -525,12 +525,21 @@ export class FortressRenderer {
     const ctx = this.ctx;
     const g = state.game;
 
-    // 상단 중앙 HUD 박스
-    const boxW = 240;
+    // 상단 중앙 HUD 박스 — 불투명 + 테두리 + 그림자로 밝은 하늘에 묻히지 않게
+    const boxW = 260;
     const boxX = (logicalW - boxW) / 2;
-    ctx.fillStyle = COLORS.hudBg;
-    this.roundRect(boxX, 8, boxW, 34, 10);
+    ctx.save();
+    ctx.shadowColor = 'rgba(150,110,140,0.28)';
+    ctx.shadowBlur = 8;
+    ctx.shadowOffsetY = 2;
+    ctx.fillStyle = '#ffffff';
+    this.roundRect(boxX, 10, boxW, 36, 11);
     ctx.fill();
+    ctx.restore();
+    ctx.lineWidth = 1.5;
+    ctx.strokeStyle = '#ffc9dd';
+    this.roundRect(boxX, 10, boxW, 36, 11);
+    ctx.stroke();
 
     ctx.textBaseline = 'middle';
     // 좌: 현재 차례 (타이머는 탱크 주위 링으로 표시하므로 여기선 이름만)
@@ -538,22 +547,24 @@ export class FortressRenderer {
     const turnLabel = g.phase === 'ended' ? '게임 종료'
       : g.phase === 'firing' ? '발사 중…'
       : `${cur?.ownerNickname ?? '?'} 차례`;
+    const midY = 28; // 박스(10~46) 중앙
     ctx.fillStyle = COLORS.textMain;
     ctx.font = `700 13px ${FONT}`;
     ctx.textAlign = 'left';
-    ctx.fillText(`🎯 ${turnLabel}`, boxX + 14, 25);
+    ctx.fillText(`🎯 ${turnLabel}`, boxX + 14, midY);
 
-    // 우: 바람 — 방향(▶/◀) 삼각형을 세기만큼 반복
+    // 우: 바람 — "바람" 라벨 + 방향(▶/◀) 삼각형(핑크, 세기만큼)
     const wind = g.wind;
     ctx.textAlign = 'right';
-    ctx.fillStyle = COLORS.textMuted;
-    ctx.font = `600 13px ${FONT}`;
+    ctx.font = `700 13px ${FONT}`;
     if (Math.abs(wind) < 6) {
-      ctx.fillText('바람 무풍', boxX + boxW - 14, 25);
+      ctx.fillStyle = COLORS.textMuted;
+      ctx.fillText('바람 무풍', boxX + boxW - 14, midY);
     } else {
       const count = 1 + Math.round(Math.min(1, Math.abs(wind) / MAX_WIND) * 3); // 1~4개
       const tri = (wind >= 0 ? '▶' : '◀').repeat(count);
-      ctx.fillText(`바람 ${tri}`, boxX + boxW - 14, 25);
+      ctx.fillStyle = COLORS.accentPink;
+      ctx.fillText(`바람 ${tri}`, boxX + boxW - 14, midY);
     }
 
     // 관전 배지
@@ -561,7 +572,7 @@ export class FortressRenderer {
       ctx.fillStyle = COLORS.textMuted;
       ctx.font = `600 12px ${FONT}`;
       ctx.textAlign = 'center';
-      ctx.fillText('👀 관전 중', logicalW / 2, 56);
+      ctx.fillText('👀 관전 중', logicalW / 2, 60);
     }
   }
 
