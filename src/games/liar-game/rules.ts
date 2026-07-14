@@ -41,6 +41,8 @@ export interface LiarGame {
   liarGuess: string | null;
   /** 결과 공개 후에만: 라이어가 이겼는지 */
   liarWon: boolean | null;
+  /** 결과 공개 후에만: 실제 제시어(정답) — 라이어 승패와 무관하게 전원에게 공개 */
+  revealedWord: string | null;
   scores: Record<string, number>;
   players: PlayerMeta[];
 }
@@ -72,6 +74,7 @@ export function createInitialGame(players: PlayerMeta[]): LiarGame {
     revealedLiarPeerId: null,
     liarGuess: null,
     liarWon: null,
+    revealedWord: null,
     scores,
     players: players.slice(),
   };
@@ -89,6 +92,7 @@ export function resetForRound(game: LiarGame, category: string, order: string[])
   game.revealedLiarPeerId = null;
   game.liarGuess = null;
   game.liarWon = null;
+  game.revealedWord = null;
 }
 
 // ============================================

@@ -361,6 +361,7 @@ class LiarGameModule implements GameModule {
     this.game.revealedLiarPeerId = this.liarPeerId;
     this.game.liarWon = liarWon;
     this.game.liarGuess = guess;
+    this.game.revealedWord = this.realKeyword; // 정답 공개 (라이어 승패 무관)
     this.game.phase = 'result';
     scoreRound(this.game, this.liarPeerId, this.hostVotes, liarWon);
     this.revealVotes = { ...this.hostVotes };

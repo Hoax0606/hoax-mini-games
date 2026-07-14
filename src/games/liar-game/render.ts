@@ -259,23 +259,30 @@ export class LiarRenderer {
     ctx.textBaseline = 'middle';
     ctx.fillStyle = '#fff';
     ctx.font = `800 20px ${FONT}`;
-    ctx.fillText(`라이어는 ${nick(g.revealedLiarPeerId)} 였습니다!`, W / 2, H / 2 - 40);
+    ctx.fillText(`라이어는 ${nick(g.revealedLiarPeerId)} 였습니다!`, W / 2, H / 2 - 52);
+
+    // 실제 제시어(정답) — 라이어 승패 무관하게 항상 공개
+    if (g.revealedWord) {
+      ctx.font = `700 17px ${FONT}`;
+      ctx.fillStyle = C.category;
+      ctx.fillText(`정답 제시어: "${g.revealedWord}"`, W / 2, H / 2 - 22);
+    }
 
     ctx.font = `700 16px ${FONT}`;
     ctx.fillStyle = g.liarWon ? C.liarMark : C.win;
     let line: string;
     if (g.liarWon === null) line = '';
     else if (g.liarWon) {
-      line = g.liarGuess ? `라이어 역전승! (제시어 "${g.liarGuess}" 정답)` : '라이어 승리! (안 들킴)';
+      line = g.liarGuess ? `라이어 역전승! (제시어 맞힘)` : '라이어 승리! (안 들킴)';
     } else {
-      line = '시민 승리! 라이어를 잡았어요';
+      line = g.liarGuess ? `시민 승리! (라이어 추측 "${g.liarGuess}" 오답)` : '시민 승리! 라이어를 잡았어요';
     }
-    ctx.fillText(line, W / 2, H / 2);
+    ctx.fillText(line, W / 2, H / 2 + 8);
 
     ctx.font = `500 13px ${FONT}`;
     ctx.fillStyle = 'rgba(255,255,255,0.85)';
     const next = g.round >= g.totalRounds ? '최종 결과로…' : '다음 라운드 준비 중…';
-    ctx.fillText(next, W / 2, H / 2 + 36);
+    ctx.fillText(next, W / 2, H / 2 + 40);
   }
 
   private roundRect(x: number, y: number, w: number, h: number, r: number): void {
