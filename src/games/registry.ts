@@ -249,6 +249,16 @@ export const games: GameEntry[] = [
           ],
           defaultValue: '1',
         },
+        {
+          key: 'weaponMode',
+          label: '무기',
+          type: 'select',
+          choices: [
+            { value: 'random', label: '랜덤 (특수 3종 무작위 배분)' },
+            { value: 'all', label: '전체 (모든 무기 사용)' },
+          ],
+          defaultValue: 'random',
+        },
       ],
     },
     load: async () => {

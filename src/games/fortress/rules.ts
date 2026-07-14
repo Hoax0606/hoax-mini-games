@@ -91,19 +91,30 @@ export const WEAPONS: Record<WeaponId, WeaponSpec> = {
 /** 랜덤 배분 대상 특수 무기 풀 (5종 중 각 플레이어 2종). */
 export const SPECIAL_POOL: WeaponId[] = ['big', 'guided', 'bombard', 'split', 'grenade'];
 
-/** 무기당 배분 발수 */
+/** 랜덤 모드: 무기당 배분 발수 */
 export const AMMO_PER_WEAPON = 3;
-/** 플레이어당 특수 무기 종류 수 */
+/** 랜덤 모드: 플레이어당 특수 무기 종류 수 */
 export const SPECIALS_PER_PLAYER = 3;
+/** 전체 모드: 특수 전부 지급, 무기당 발수 */
+export const AMMO_ALL_MODE = 2;
 
-/** 플레이어마다 특수 풀에서 랜덤 3종 골라 잔탄 초기화. (호스트가 만들어 sync 하므로 랜덤 OK) */
-export function assignLoadouts(peerIds: string[]): FortressGame['ammo'] {
+export type WeaponMode = 'random' | 'all';
+
+/**
+ * 플레이어별 특수 무기 잔탄 초기화. (호스트가 만들어 sync 하므로 랜덤 OK)
+ *   - random(기본): 특수 풀에서 랜덤 3종 × 3발.
+ *   - all: 특수 전부(5종) × 2발.
+ */
+export function assignLoadouts(peerIds: string[], mode: WeaponMode = 'random'): FortressGame['ammo'] {
   const ammo: FortressGame['ammo'] = {};
   for (const pid of peerIds) {
-    const shuffled = [...SPECIAL_POOL].sort(() => Math.random() - 0.5);
-    const picks = shuffled.slice(0, SPECIALS_PER_PLAYER);
     const inv: Partial<Record<WeaponId, number>> = {};
-    for (const w of picks) inv[w] = AMMO_PER_WEAPON;
+    if (mode === 'all') {
+      for (const w of SPECIAL_POOL) inv[w] = AMMO_ALL_MODE;
+    } else {
+      const shuffled = [...SPECIAL_POOL].sort(() => Math.random() - 0.5);
+      for (const w of shuffled.slice(0, SPECIALS_PER_PLAYER)) inv[w] = AMMO_PER_WEAPON;
+    }
     ammo[pid] = inv;
   }
   return ammo;
@@ -141,6 +152,7 @@ export function createInitialGame(
   seed: number,
   wind: number,
   fortsPerPlayer = 1,
+  weaponMode: WeaponMode = 'random',
 ): FortressGame {
   if (players.length < 2 || players.length > 6) {
     throw new Error(`포트리스는 2~6인만 지원해요 (현재 ${players.length}인)`);
@@ -180,7 +192,7 @@ export function createInitialGame(
     phase: 'aiming',
     turnCount: 0,
     winnerPeerIds: [],
-    ammo: assignLoadouts([...new Set(players.map((p) => p.peerId))]),
+    ammo: assignLoadouts([...new Set(players.map((p) => p.peerId))], weaponMode),
   };
 }
 

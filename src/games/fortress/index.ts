@@ -149,9 +149,10 @@ class FortressGameModule implements GameModule {
     const seed = this.isHost ? (Math.floor(Math.random() * 2 ** 31) || 1) : 1;
     const wind0 = this.isHost ? this.randomWind() : 0;
     const fortsPerPlayer = Math.max(1, Math.min(3, Number(ctx.roomOptions['fortsPerPlayer']) || 1));
+    const weaponMode = ctx.roomOptions['weaponMode'] === 'all' ? 'all' : 'random';
     this.game = createInitialGame(
       ordered.map((p) => ({ peerId: p.peerId, nickname: p.nickname })),
-      seed, wind0, fortsPerPlayer,
+      seed, wind0, fortsPerPlayer, weaponMode,
     );
     this.hm = generateTerrain(this.game.seed, this.game.terrainWidth);
     this.ready = this.isHost; // 호스트는 자기 생성이라 즉시 준비. 게스트는 sync 후.
