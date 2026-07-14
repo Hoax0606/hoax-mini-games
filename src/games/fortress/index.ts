@@ -90,6 +90,10 @@ class FortressGameModule implements GameModule {
   private isSpectator = false;
   /** 게스트가 호스트 지형/상태 sync 를 받았는지 — 받기 전엔 조준·발사 금지(지형 불일치 방지) */
   private ready = false;
+  /** 게스트: 현재 hm 이 만들어진 seed (같으면 지형 재생성 스킵) */
+  private terrainSeed = -1;
+  /** 호스트: 마지막 주기 sync 브로드캐스트 시각 */
+  private lastSyncAt = 0;
 
   private rafId: number | null = null;
   private destroyed = false;
@@ -199,16 +203,22 @@ class FortressGameModule implements GameModule {
     const sync = decodeSync(msg);
     if (sync) {
       if (!this.isHost) {
-        this.game = sync.game;
-        this.craters = sync.craters;
-        this.hm = generateTerrain(this.game.seed, this.game.terrainWidth);
-        for (const c of this.craters) carveCrater(this.hm, c.cx, c.cy, c.r);
-        this.shells = [];
-        this.ready = true; // 호스트 지형/상태 동기화 완료 — 이제 조준 허용
-        this.turnStartedAt = performance.now(); // 타이머 표시 기준 리셋
-        // 합류 시점에 호스트가 발사 중이면 포탄을 못 받으니 워치독으로 재동기화되게 시각 기록
+        const wasReady = this.ready;
+        const prevPhase = this.game?.phase;
+        this.game = sync.game; // wind/currentTurn/phase/점수 등 최신 반영
+        // 지형은 seed 또는 크레이터 수가 바뀌었을 때만 재생성 (주기 sync 마다 재생성 방지)
+        if (this.terrainSeed !== sync.game.seed || this.craters.length !== sync.craters.length) {
+          this.terrainSeed = sync.game.seed;
+          this.craters = sync.craters;
+          this.hm = generateTerrain(sync.game.seed, sync.game.terrainWidth);
+          for (const c of this.craters) carveCrater(this.hm, c.cx, c.cy, c.r);
+        }
+        // 발사 중이 아니면 잔여 shell 정리(착탄 유실 복구). 발사 중이면 진행 애니 유지.
+        if (this.game.phase !== 'firing') this.shells = [];
+        this.ready = true;
+        if (!wasReady || prevPhase !== this.game.phase) this.turnStartedAt = performance.now();
         this.firingStartedAt = this.game.phase === 'firing' ? performance.now() : 0;
-        if (this.weaponBar) this.buildWeaponButtons(); // 동기화된 실제 로드아웃으로 갱신
+        if (this.weaponBar) this.buildWeaponButtons();
       }
       return;
     }
@@ -350,6 +360,12 @@ class FortressGameModule implements GameModule {
       // 호스트: 현재 플레이어가 제한 시간 내 안 쏘면 턴 스킵 (무한 정지 방지)
       if (this.isHost && this.game.phase === 'aiming' && now - this.turnStartedAt > TURN_TIME_MS) {
         this.skipTurnAsHost();
+      }
+      // 호스트: 주기적으로 전체 상태 재broadcast — 게스트 wind/턴/지형/ready 를 항상 최신으로
+      //   (초기 sync 유실/전환/합류 시에도 자동 복구. 지형은 게스트가 변화 있을 때만 재생성)
+      if (this.isHost && now - this.lastSyncAt > 1500) {
+        this.lastSyncAt = now;
+        this.ctx.sendToPeer(encodeSync({ game: this.game, craters: this.craters }));
       }
       // 게스트: 아직 sync(ready) 못 받았으면 hello 를 주기적으로 재전송 —
       //   초기/재대결 시 hello 유실로 영영 ready 안 돼 조준·이동 전부 막히던 문제 방지.
