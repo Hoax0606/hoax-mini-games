@@ -45,6 +45,8 @@ export interface RenderState {
   myRole: RolePayload | null;
   /** 결과 페이즈 투표 내역 (lg:reveal). 없으면 미공개 */
   revealVotes: Record<string, string> | null;
+  /** 현재 페이즈 남은 시간(ms). 0 이면 타이머 없음 */
+  remainMs: number;
   now: number;
 }
 
@@ -120,11 +122,14 @@ export class LiarRenderer {
       ctx.textAlign = 'left';
       ctx.fillText(label, pillX + 11, pad + bannerH / 2);
     }
-    // 중앙: 페이즈 안내
-    ctx.fillStyle = C.bannerText;
+    // 중앙: 페이즈 안내 + 남은 시간(초). 10초 이하면 빨갛게 경고.
+    const secs = state.remainMs > 0 ? Math.ceil(state.remainMs / 1000) : 0;
+    let phaseLine = this.phaseText(state);
+    if (secs > 0) phaseLine += `   ·   ⏱ ${secs}`;
+    ctx.fillStyle = secs > 0 && secs <= 10 ? '#e5484d' : C.bannerText;
     ctx.font = `700 13px ${FONT}`;
     ctx.textAlign = 'center';
-    ctx.fillText(this.phaseText(state), W / 2, pad + bannerH / 2);
+    ctx.fillText(phaseLine, W / 2, pad + bannerH / 2);
 
     let y = pad + bannerH + 12;
 

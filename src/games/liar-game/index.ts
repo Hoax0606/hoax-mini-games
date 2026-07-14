@@ -69,6 +69,18 @@ class LiarGameModule implements GameModule {
   private phaseDeadline = 0;
   private roundAdvanceScheduled = false;
 
+  /**
+   * 라이어 공정 배분용 "가방". 셔플된 플레이어 순열을 담아 라운드마다 하나씩 소진,
+   * 비면 다시 셔플해 채운다. → n라운드 안에서 각자 정확히 한 번씩 라이어가 되어
+   * 독립 난수(방장 편중 체감)보다 훨씬 공평. (호스트만 사용)
+   */
+  private liarBag: string[] = [];
+
+  /** 표시용 남은시간 데드라인 (로컬 시계). 호스트=phaseDeadline, 게스트=페이즈 변화 시 로컬 기준 재설정 */
+  private displayDeadline = 0;
+  /** 표시 타이머 리셋 감지 키 (round:phase:hintIndex 바뀌면 카운트다운 재시작) */
+  private lastPhaseKey = '';
+
   private rafId: number | null = null;
   private destroyed = false;
   private gameFinished = false;
@@ -192,8 +204,10 @@ class LiarGameModule implements GameModule {
     this.paused = paused;
     if (paused) this.pauseStart = performance.now();
     else if (this.pauseStart > 0) {
-      // 정지 동안 흐른 시간만큼 데드라인 미룸
-      this.phaseDeadline += performance.now() - this.pauseStart;
+      // 정지 동안 흐른 시간만큼 데드라인 미룸 (호스트 판정용 + 게스트 표시용 둘 다)
+      const delta = performance.now() - this.pauseStart;
+      this.phaseDeadline += delta;
+      if (this.displayDeadline > 0) this.displayDeadline += delta;
       this.pauseStart = 0;
     }
   }
@@ -220,12 +234,25 @@ class LiarGameModule implements GameModule {
       this.ctx.sendToPeer(encodeHello(this.myPeerId));
     }
 
+    // 표시용 타이머 — 페이즈/차례가 바뀌면 로컬 데드라인 재시작.
+    //   호스트는 authoritative phaseDeadline 을, 게스트는 페이즈 변화를 감지해 로컬 시계 기준
+    //   카운트다운(cross-clock 문제 회피 — draw-quiz 와 동일 전략).
+    const phaseKey = `${this.game.round}:${this.game.phase}:${this.game.hintIndex}`;
+    if (phaseKey !== this.lastPhaseKey) {
+      this.lastPhaseKey = phaseKey;
+      const dur = this.phaseDurationMs(this.game.phase);
+      this.displayDeadline = dur > 0 ? now + dur : 0;
+    }
+    const activeDeadline = this.isHost ? this.phaseDeadline : this.displayDeadline;
+    const remainMs = activeDeadline > 0 ? Math.max(0, activeDeadline - now) : 0;
+
     const rs: RenderState = {
       game: this.game,
       myPeerId: this.myPeerId,
       isSpectator: this.isSpectator,
       myRole: this.myRole,
       revealVotes: this.revealVotes,
+      remainMs,
       now,
     };
     try {
@@ -256,9 +283,31 @@ class LiarGameModule implements GameModule {
   // 호스트: 라운드 진행
   // ============================================
 
+  /** 가방에서 이번 라운드 라이어 하나 뽑기 (비면 셔플해 재충전 — 공평 보장) */
+  private nextLiar(): string {
+    if (this.liarBag.length === 0) {
+      const ids = this.game.players.map((p) => p.peerId);
+      // Fisher-Yates 셔플
+      for (let i = ids.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [ids[i], ids[j]] = [ids[j]!, ids[i]!];
+      }
+      this.liarBag = ids;
+    }
+    return this.liarBag.shift()!;
+  }
+
+  /** 페이즈별 제한시간(ms) — 타이머 표시/게스트 로컬 카운트다운에 사용 */
+  private phaseDurationMs(phase: LiarGame['phase']): number {
+    if (phase === 'hint') return HINT_TIMEOUT_MS;
+    if (phase === 'vote') return VOTE_TIMEOUT_MS;
+    if (phase === 'guess') return GUESS_TIMEOUT_MS;
+    return 0; // result/ended 등은 타이머 없음
+  }
+
   private startRoundAsHost(): void {
     const players = this.game.players;
-    this.liarPeerId = players[Math.floor(Math.random() * players.length)]!.peerId;
+    this.liarPeerId = this.nextLiar();
     const picked = pickRound(this.usedKeywords);
     this.usedKeywords.add(picked.keyword);
     this.realKeyword = picked.keyword;
