@@ -59,6 +59,8 @@ class LiarGameModule implements GameModule {
   private fakeKeyword = '';
   private liarPeerId = '';
   private hostVotes: Record<string, string> = {};
+  /** 호스트: 이번 게임에서 이미 쓴 제시어 (반복 방지) */
+  private usedKeywords = new Set<string>();
   private resolved = false; // 이번 라운드 판정 완료 여부
   /** 이번 라운드 내 투표 완료 여부 (게스트/호스트 공통 — 버튼 재활성 방지) */
   private votedThisRound = false;
@@ -257,7 +259,8 @@ class LiarGameModule implements GameModule {
   private startRoundAsHost(): void {
     const players = this.game.players;
     this.liarPeerId = players[Math.floor(Math.random() * players.length)]!.peerId;
-    const picked = pickRound();
+    const picked = pickRound(this.usedKeywords);
+    this.usedKeywords.add(picked.keyword);
     this.realKeyword = picked.keyword;
     this.fakeKeyword = picked.fakeKeyword;
     this.hostVotes = {};

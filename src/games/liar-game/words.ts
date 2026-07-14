@@ -33,10 +33,17 @@ export const CATEGORIES: Category[] = [
  * 한 라운드용 뽑기. 호스트가 호출.
  * @returns 주제 + 시민 제시어 + (바보 모드용) 같은 주제 다른 단어(가짜)
  */
-export function pickRound(): { category: string; keyword: string; fakeKeyword: string } {
-  const cat = CATEGORIES[Math.floor(Math.random() * CATEGORIES.length)]!;
-  const i = Math.floor(Math.random() * cat.words.length);
-  let j = Math.floor(Math.random() * cat.words.length);
-  if (j === i) j = (j + 1) % cat.words.length; // 시민 단어와 겹치지 않게
-  return { category: cat.name, keyword: cat.words[i]!, fakeKeyword: cat.words[j]! };
+export function pickRound(exclude: Set<string> = new Set()): { category: string; keyword: string; fakeKeyword: string } {
+  // 아직 안 쓴 단어가 있는 카테고리 우선 (제시어 반복 방지)
+  const availCats = CATEGORIES.filter((c) => c.words.some((w) => !exclude.has(w)));
+  const pool = availCats.length > 0 ? availCats : CATEGORIES;
+  const cat = pool[Math.floor(Math.random() * pool.length)]!;
+  // 그 카테고리에서 안 쓴 단어 우선
+  const unused = cat.words.filter((w) => !exclude.has(w));
+  const words = unused.length > 0 ? unused : cat.words;
+  const keyword = words[Math.floor(Math.random() * words.length)]!;
+  // 가짜 — 같은 카테고리 다른 단어
+  const others = cat.words.filter((w) => w !== keyword);
+  const fakeKeyword = others[Math.floor(Math.random() * others.length)] ?? keyword;
+  return { category: cat.name, keyword, fakeKeyword };
 }
