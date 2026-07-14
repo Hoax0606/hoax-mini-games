@@ -1475,6 +1475,16 @@ input {
   gap: 8px;
   margin-top: 10px;
   min-height: 52px;
+  width: 100%;
+  max-width: 640px;
+  /* 투표 버튼이 많아 길어져도 화면 밖으로 안 밀리게 — 넘치면 내부 스크롤 */
+  max-height: 168px;
+  overflow-y: auto;
+  flex-shrink: 0;
+}
+/* 라이어 게임: 캔버스가 아래 입력/투표 패널 공간을 남기도록 높이 제한 (짤림 방지) */
+.game-canvas-wrap:has(.lg-panel) .game-canvas {
+  max-height: calc(100% - 180px);
 }
 .lg-msg {
   font-size: 13px;
