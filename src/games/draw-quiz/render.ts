@@ -110,6 +110,15 @@ export class DrawQuizRenderer {
   private canvas: HTMLCanvasElement;
   private ctx: CanvasRenderingContext2D;
   private ro: ResizeObserver;
+  // 마지막 render 의 논리→화면 변환 (입력 역변환용, CSS 픽셀 기준)
+  private scale = 1;
+  private offX = 0;
+  private offY = 0;
+
+  /** 화면(rect 내 CSS 픽셀) 좌표 → 그림 논리 좌표 (0~CANVAS_W, 0~CANVAS_H) */
+  screenToLogical(px: number, py: number): { x: number; y: number } {
+    return { x: (px - this.offX) / this.scale, y: (py - this.offY) / this.scale };
+  }
 
   constructor(args: DrawQuizRendererArgs) {
     this.canvas = args.canvas;
@@ -136,13 +145,20 @@ export class DrawQuizRenderer {
   render(state: RenderState): void {
     const ctx = this.ctx;
     const rect = this.canvas.getBoundingClientRect();
+    if (rect.width === 0 || rect.height === 0) return;
     const dpr = window.devicePixelRatio || 1;
 
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
-    const sx = (rect.width * dpr) / CANVAS_W;
-    const sy = (rect.height * dpr) / CANVAS_H;
-    ctx.setTransform(sx, 0, 0, sy, 0, 0);
+    // 균일 스케일 + 레터박스 — 캔버스 박스 비율이 2:1 이 아니어도 안 눌리게(찌부러짐 방지)
+    const scale = Math.min(rect.width / CANVAS_W, rect.height / CANVAS_H);
+    this.scale = scale;
+    this.offX = (rect.width - CANVAS_W * scale) / 2;
+    this.offY = (rect.height - CANVAS_H * scale) / 2;
+    // 레터박스 여백 배경
+    ctx.fillStyle = COLORS.bg;
+    ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+    ctx.setTransform(scale * dpr, 0, 0, scale * dpr, this.offX * dpr, this.offY * dpr);
 
     // 배경
     ctx.fillStyle = COLORS.bg;

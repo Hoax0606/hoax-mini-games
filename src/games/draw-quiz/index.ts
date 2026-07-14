@@ -36,7 +36,7 @@ import {
 } from './rules';
 import { pickCandidates, type QuizWord } from './words';
 import {
-  DrawQuizRenderer, canvasToDraw, isInDrawArea,
+  DrawQuizRenderer, isInDrawArea,
   PALETTE, WIDTHS,
   type RenderState,
 } from './render';
@@ -609,7 +609,7 @@ class DrawQuizGameModule implements GameModule {
   private onDrawDown = (e: MouseEvent): void => {
     if (this.paused || !this.amDrawer()) return;
     const rect = this.ctx.canvas.getBoundingClientRect();
-    const { x, y } = canvasToDraw(e.clientX - rect.left, e.clientY - rect.top, rect);
+    const { x, y } = this.renderer.screenToLogical(e.clientX - rect.left, e.clientY - rect.top);
     if (!isInDrawArea(x, y)) return;
     this.isDrawingStroke = true;
     this.liveStroke = {
@@ -625,7 +625,7 @@ class DrawQuizGameModule implements GameModule {
   private onDrawMove = (e: MouseEvent): void => {
     if (!this.isDrawingStroke || !this.liveStroke) return;
     const rect = this.ctx.canvas.getBoundingClientRect();
-    const { x, y } = canvasToDraw(e.clientX - rect.left, e.clientY - rect.top, rect);
+    const { x, y } = this.renderer.screenToLogical(e.clientX - rect.left, e.clientY - rect.top);
     const clamped = clampToDraw(x, y);
     if (this.liveStroke.shape && this.liveStroke.shape !== 'free') {
       // 도형: 시작점 + 현재점 2개만 유지 (드래그 중 실시간 미리보기)
