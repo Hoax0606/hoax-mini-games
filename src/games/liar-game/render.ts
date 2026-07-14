@@ -190,26 +190,39 @@ export class LiarRenderer {
   }
 
   private drawHintFeed(state: RenderState, x: number, y: number, w: number, h: number): void {
-    if (h < 30) return;
+    if (h < 24) return;
     const ctx = this.ctx;
     const g = state.game;
+    if (g.hints.length === 0) {
+      if (g.phase === 'hint') {
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillStyle = C.muted;
+        ctx.font = `500 13px ${FONT}`;
+        ctx.fillText('첫 설명을 기다리는 중…', x + w / 2, y + h / 2);
+      }
+      return;
+    }
     ctx.textBaseline = 'middle';
-    const rowH = 26;
-    const maxRows = Math.floor(h / rowH);
-    const shown = g.hints.slice(-maxRows);
+    const n = g.hints.length;
+    // 행 높이를 힌트 수에 맞춰 축소 → 낮은 해상도에서도 전부 보이게 (최소 15px)
+    const rowH = Math.max(15, Math.min(26, h / n));
+    const nameFs = Math.max(9, Math.min(12, Math.floor(rowH - 8)));
+    const textFs = Math.max(10, Math.min(13, Math.floor(rowH - 7)));
+    const maxRows = Math.max(1, Math.floor(h / rowH));
+    const shown = g.hints.slice(-maxRows); // rowH 가 n 에 맞춰지므로 보통 전부 표시됨
     let ry = y + rowH / 2;
     for (const hint of shown) {
       const isMe = hint.peerId === state.myPeerId;
       ctx.textAlign = 'left';
-      // 닉네임 (뒤에 콜론)
-      ctx.font = `700 12px ${FONT}`;
+      ctx.font = `700 ${nameFs}px ${FONT}`;
       ctx.fillStyle = isMe ? C.accent : C.hintName;
       const label = `${hint.nickname}:`;
       ctx.fillText(label, x + 8, ry);
       const tx = x + 8 + ctx.measureText(label).width + 6;
-      // 설명 — 남는 폭에 안 들어가면 글자 크기를 줄여 전부 보이게(짤림 방지)
+      // 설명 — 남는 폭에 안 들어가면 글자 크기를 더 줄여 전부 보이게
       const avail = x + w - 8 - tx;
-      let fs = 13;
+      let fs = textFs;
       ctx.font = `500 ${fs}px ${FONT}`;
       const tw = ctx.measureText(hint.text).width;
       if (tw > avail && avail > 20) {
@@ -219,12 +232,6 @@ export class LiarRenderer {
       ctx.fillStyle = C.hintText;
       ctx.fillText(hint.text, tx, ry);
       ry += rowH;
-    }
-    if (g.hints.length === 0 && g.phase === 'hint') {
-      ctx.textAlign = 'center';
-      ctx.fillStyle = C.muted;
-      ctx.font = `500 13px ${FONT}`;
-      ctx.fillText('첫 설명을 기다리는 중…', x + w / 2, y + h / 2);
     }
   }
 
