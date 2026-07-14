@@ -917,9 +917,9 @@ input {
   padding: 0;
   background: var(--bg-main);
   animation: none;
-  /* 창이 좁으면(가로/세로) 콘텐츠가 잘리는 대신 스크롤되게 — 잘림 방지.
-     넉넉한 창에선 min-width 미만이 아니므로 스크롤 안 생김. */
-  overflow: auto;
+  /* 자체 스크롤은 끄고(overflow:auto 는 캔버스 ResizeObserver 와 피드백 루프로 화면 진동 유발),
+     min-width 로 창이 좁으면 game-screen 이 뷰포트보다 넓어져 body 가 가로 스크롤 → 잘림 방지. */
+  overflow: hidden;
   min-width: 1000px;
 }
 
