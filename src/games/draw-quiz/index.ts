@@ -46,6 +46,7 @@ import {
   encodeRoundStart, decodeRoundStart,
   encodeWordChosen, decodeWordChosen,
   encodeRoundBegin, decodeRoundBegin,
+  encodeReveal, decodeReveal,
   encodeStroke, decodeStroke,
   encodeClear, isClear,
   encodeGuess, decodeGuess,
@@ -57,6 +58,8 @@ import {
 
 /** 라운드 결과 표시 시간 (ms) */
 const ROUND_RESULT_MS = 3500;
+/** 라운드 종료 이만큼 남았을 때 정답 한 글자 공개 (ms) */
+const REVEAL_BEFORE_MS = 20_000;
 
 class DrawQuizGameModule implements GameModule {
   private ctx!: GameContext;
@@ -82,6 +85,8 @@ class DrawQuizGameModule implements GameModule {
   private candidates: QuizWord[] = [];
   /** 라운드 결과 단계 공개 단어 */
   private revealedWord: string | null = null;
+  /** 이번 라운드 글자 힌트를 이미 공개했는지 (호스트) */
+  private hintRevealed = false;
 
   /** 현재 그리기 도구 상태 */
   private toolColor: string = PALETTE[0];
@@ -176,7 +181,19 @@ class DrawQuizGameModule implements GameModule {
 
     const rb = decodeRoundBegin(msg);
     if (rb) {
-      if (!this.isHost) this.applyRoundBegin(rb.wordLength, rb.turnStartedAt);
+      if (!this.isHost) this.applyRoundBegin(rb.wordLength, rb.turnStartedAt, rb.word);
+      return;
+    }
+
+    const rev = decodeReveal(msg);
+    if (rev) {
+      // 글자 힌트 — 비출제자의 마스킹 단어에 글자 하나 드러냄
+      if (!this.isHost && this.game.drawerPeerId !== this.myPeerId) {
+        const cw = this.game.currentWord;
+        if (rev.index >= 0 && rev.index < cw.length) {
+          this.game.currentWord = cw.slice(0, rev.index) + rev.char + cw.slice(rev.index + 1);
+        }
+      }
       return;
     }
 
@@ -260,6 +277,13 @@ class DrawQuizGameModule implements GameModule {
     if (this.isHost && !this.paused) {
       if (this.game.phase === 'drawing') {
         const elapsed = now - this.game.turnStartedAt;
+        // 시간 임박 시 정답 한 글자 공개 (호스트는 currentWord 에 실제 단어 보유)
+        if (!this.hintRevealed && this.game.currentWord.length > 0
+          && elapsed > ROUND_DURATION_MS - REVEAL_BEFORE_MS) {
+          this.hintRevealed = true;
+          const idx = Math.floor(Math.random() * this.game.currentWord.length);
+          this.ctx.sendToPeer(encodeReveal(idx, this.game.currentWord[idx]!));
+        }
         if (elapsed > ROUND_DURATION_MS + TIMEOUT_GRACE_MS) {
           this.endRoundAsHost();
         } else if (roundHasCorrect(this.game)) {
@@ -341,6 +365,9 @@ class DrawQuizGameModule implements GameModule {
     //    조용히 씹혀서 "둘째 출제자부터 선택 안 됨" 버그가 났었음.)
     //   화면 노출은 refreshUI 의 amDrawer 가드로 막으므로 비출제자 화면엔 안 뜬다.
     this.applyRoundStart(this.game.round, drawer.peerId, this.candidates.map((c) => c.word), now);
+    // 자동 단어 지급 — 선택 단계 없이 후보 중 랜덤 하나로 바로 그리기 시작
+    const auto = this.candidates[Math.floor(Math.random() * this.candidates.length)] ?? this.candidates[0];
+    if (auto) this.beginDrawingAsHost(auto.word);
     this.refreshUI();
   }
 
@@ -364,13 +391,20 @@ class DrawQuizGameModule implements GameModule {
     this.game.currentWord = word;
     this.game.usedWords.add(word);
     this.game.phase = 'drawing';
+    this.hintRevealed = false;
     const now = performance.now();
     this.game.turnStartedAt = now;
-    this.ctx.sendToPeer(encodeRoundBegin({
-      wordLength: word.length,
-      durationMs: ROUND_DURATION_MS,
-      turnStartedAt: now,
-    }));
+    // 출제자에겐 실제 단어, 비출제자에겐 글자수만 (자동 지급이라 출제자도 단어를 받아야 함)
+    for (const p of this.ctx.players) {
+      if (p.peerId === this.myPeerId) continue;
+      const isDrawer = p.peerId === this.game.drawerPeerId;
+      this.ctx.sendToPeer(encodeRoundBegin({
+        wordLength: word.length,
+        durationMs: ROUND_DURATION_MS,
+        turnStartedAt: now,
+        word: isDrawer ? word : undefined,
+      }), { target: p.peerId });
+    }
     this.refreshUI();
   }
 
@@ -393,11 +427,14 @@ class DrawQuizGameModule implements GameModule {
     this.refreshUI();
   }
 
-  private applyRoundBegin(wordLength: number, turnStartedAt: number): void {
+  private applyRoundBegin(wordLength: number, turnStartedAt: number, word?: string): void {
     this.game.phase = 'drawing';
     this.game.turnStartedAt = turnStartedAt;
-    // 비출제자는 글자수만 알도록 currentWord 를 자리표시 길이로 (렌더가 _ 로 그림)
-    if (this.game.drawerPeerId !== this.myPeerId) {
+    this.hintRevealed = false;
+    if (word) {
+      this.game.currentWord = word; // 출제자 — 실제 단어 수신
+    } else if (this.game.drawerPeerId !== this.myPeerId) {
+      // 비출제자는 글자수만 (렌더가 _ 로 그림). 글자 힌트로 일부가 채워질 수 있음
       this.game.currentWord = '*'.repeat(wordLength);
     }
     this.refreshUI();

@@ -361,9 +361,9 @@ export class DrawQuizRenderer {
     } else if (isDrawer && game.currentWord) {
       ctx.fillText(game.currentWord, ringCx, wordY + 26);
     } else if (game.phase === 'drawing') {
-      // 글자수만 _ _ _
-      const len = game.currentWord.length || 0;
-      ctx.fillText('_ '.repeat(len).trim(), ringCx, wordY + 26);
+      // 마스킹 단어 — '*' 는 _, 시간 임박에 공개된 글자는 그대로 표시
+      const masked = [...game.currentWord].map((c) => (c === '*' ? '_' : c)).join(' ');
+      ctx.fillText(masked, ringCx, wordY + 26);
     } else {
       ctx.fillText('···', ringCx, wordY + 26);
     }

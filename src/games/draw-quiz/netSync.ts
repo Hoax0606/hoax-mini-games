@@ -29,6 +29,7 @@ const T_SYNC = 'dq:sync';
 const T_ROUND_START = 'dq:round_start';
 const T_WORD_CHOSEN = 'dq:word_chosen';
 const T_ROUND_BEGIN = 'dq:round_begin';
+const T_REVEAL = 'dq:reveal';
 const T_STROKE = 'dq:stroke';
 const T_CLEAR = 'dq:clear';
 const T_GUESS = 'dq:guess';
@@ -104,11 +105,13 @@ export function decodeWordChosen(msg: GameMessage): { index: number } | null {
 // --- round_begin (호스트 → 전체): 그리기 시작 ---
 
 export interface RoundBeginPayload {
-  /** 제시어 글자 수 (비출제자 힌트용 — 단어 자체는 안 보냄) */
+  /** 제시어 글자 수 (비출제자 힌트용) */
   wordLength: number;
   /** 라운드 제한 시간 (ms) */
   durationMs: number;
   turnStartedAt: number;
+  /** 실제 제시어 — 출제자에게 보내는 메시지에만 담김(자동 지급). 비출제자용엔 없음. */
+  word?: string;
 }
 export function encodeRoundBegin(p: RoundBeginPayload): GameMessage {
   return { type: T_ROUND_BEGIN, payload: p };
@@ -121,7 +124,20 @@ export function decodeRoundBegin(msg: GameMessage): RoundBeginPayload | null {
     wordLength: typeof p.wordLength === 'number' ? p.wordLength : 0,
     durationMs: typeof p.durationMs === 'number' ? p.durationMs : 60000,
     turnStartedAt: typeof p.turnStartedAt === 'number' ? p.turnStartedAt : 0,
+    word: typeof p.word === 'string' ? p.word : undefined,
   };
+}
+
+// --- reveal (호스트 → 전체): 시간 임박 시 정답 한 글자 공개 ---
+
+export function encodeReveal(index: number, char: string): GameMessage {
+  return { type: T_REVEAL, payload: { index, char } };
+}
+export function decodeReveal(msg: GameMessage): { index: number; char: string } | null {
+  if (msg.type !== T_REVEAL) return null;
+  const p = msg.payload as { index?: unknown; char?: unknown } | null;
+  if (!p || typeof p.index !== 'number' || typeof p.char !== 'string') return null;
+  return { index: p.index, char: p.char };
 }
 
 // --- stroke (출제자 → 전체): 그림 한 획 ---
