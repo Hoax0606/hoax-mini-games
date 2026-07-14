@@ -51,6 +51,8 @@ export interface RolePayload {
   /** 내 제시어. 라이어(일반)는 빈 문자열 */
   word: string;
   category: string;
+  /** 이 역할이 발급된 라운드 — sync 의 round 와 어긋나면 stale 로 판단해 재요청 */
+  round: number;
 }
 export function encodeRole(p: RolePayload): GameMessage {
   return { type: T_ROLE, payload: p };
@@ -59,7 +61,12 @@ export function decodeRole(msg: GameMessage): RolePayload | null {
   if (msg.type !== T_ROLE) return null;
   const p = msg.payload as Partial<RolePayload> | null;
   if (!p || (p.role !== 'liar' && p.role !== 'citizen')) return null;
-  return { role: p.role, word: typeof p.word === 'string' ? p.word : '', category: typeof p.category === 'string' ? p.category : '' };
+  return {
+    role: p.role,
+    word: typeof p.word === 'string' ? p.word : '',
+    category: typeof p.category === 'string' ? p.category : '',
+    round: typeof p.round === 'number' ? p.round : 0,
+  };
 }
 
 // --- hint (플레이어 → 호스트) ---

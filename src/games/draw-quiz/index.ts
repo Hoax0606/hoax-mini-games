@@ -369,16 +369,16 @@ class DrawQuizGameModule implements GameModule {
     const now = performance.now();
     this.game.turnStartedAt = now;
 
-    // round_start broadcast — 출제자에게만 후보 단어 포함 (per-peer 다르게)
+    // round_start broadcast — 후보 버튼은 더 이상 안 씀(auto=자동지급, custom=직접입력)이라
+    //   candidates 는 빈 배열로. (게스트 출제자 화면에 후보버튼이 깜빡이던 것 제거)
     for (const p of this.ctx.players) {
       if (p.peerId === this.myPeerId) continue;
-      const isThisDrawer = p.peerId === drawer.peerId;
       this.ctx.sendToPeer(
         encodeRoundStart({
           round: this.game.round,
           drawerPeerId: drawer.peerId,
           drawerNickname: drawer.nickname,
-          candidates: isThisDrawer ? this.candidates.map((c) => c.word) : [],
+          candidates: [],
           turnStartedAt: now,
         }),
         { target: p.peerId },

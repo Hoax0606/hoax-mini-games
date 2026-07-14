@@ -50,6 +50,8 @@ class LiarGameModule implements GameModule {
   private revealVotes: Record<string, string> | null = null;
   /** 게스트: 마지막 hello 전송 시각. role/sync 받을 때까지 주기적 재전송 */
   private lastHelloAt = 0;
+  /** 게스트: 현재 myRole 이 발급된 라운드. sync 라운드와 어긋나면 stale */
+  private myRoleRound = -1;
 
   // 호스트 전용 비밀 상태
   private realKeyword = '';
@@ -119,6 +121,11 @@ class LiarGameModule implements GameModule {
     if (sync) {
       if (!this.isHost) {
         this.game = sync;
+        // 라운드가 바뀌었는데 그 라운드 역할을 아직 못 받았으면 stale → null 로 비워
+        // hello 재전송이 다시 role 을 받아오게 (targeted role 유실 복구).
+        if (!this.isSpectator && this.myRoleRound !== this.game.round) {
+          this.myRole = null;
+        }
         this.refreshUI();
       }
       return;
@@ -128,6 +135,7 @@ class LiarGameModule implements GameModule {
     if (role) {
       if (!this.isHost) {
         this.myRole = role;
+        this.myRoleRound = role.round;
         this.refreshUI();
       }
       return;
@@ -277,14 +285,15 @@ class LiarGameModule implements GameModule {
 
   /** 특정 peer 의 이번 라운드 역할 payload */
   private roleFor(peerId: string): RolePayload {
+    const round = this.game.round;
     const isLiar = peerId === this.liarPeerId;
-    if (!isLiar) return { role: 'citizen', word: this.realKeyword, category: this.game.category };
+    if (!isLiar) return { role: 'citizen', word: this.realKeyword, category: this.game.category, round };
     // 라이어
     if (this.mode === 'fool') {
       // 바보 모드 — 자기가 시민인 줄 알게 가짜 제시어 전달
-      return { role: 'citizen', word: this.fakeKeyword, category: this.game.category };
+      return { role: 'citizen', word: this.fakeKeyword, category: this.game.category, round };
     }
-    return { role: 'liar', word: '', category: this.game.category };
+    return { role: 'liar', word: '', category: this.game.category, round };
   }
 
   private sendRoleTo(peerId: string): void {
