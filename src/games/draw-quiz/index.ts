@@ -90,6 +90,8 @@ class DrawQuizGameModule implements GameModule {
   private candidates: QuizWord[] = [];
   /** 라운드 결과 단계 공개 단어 */
   private revealedWord: string | null = null;
+  /** 호스트 전용 — 이번 라운드 실제 제시어 (표시용 currentWord 는 마스킹될 수 있음) */
+  private realWord = '';
   /** 이번 라운드 글자 힌트를 이미 공개했는지 (호스트) */
   private hintRevealed = false;
 
@@ -289,12 +291,18 @@ class DrawQuizGameModule implements GameModule {
     if (this.isHost && !this.paused) {
       if (this.game.phase === 'drawing') {
         const elapsed = now - this.game.turnStartedAt;
-        // 시간 임박 시 정답 한 글자 공개 (호스트는 currentWord 에 실제 단어 보유)
-        if (!this.hintRevealed && this.game.currentWord.length > 0
+        // 시간 임박 시 정답 한 글자 공개 (호스트 전용 realWord 사용)
+        if (!this.hintRevealed && this.realWord.length > 0
           && elapsed > ROUND_DURATION_MS - REVEAL_BEFORE_MS) {
           this.hintRevealed = true;
-          const idx = Math.floor(Math.random() * this.game.currentWord.length);
-          this.ctx.sendToPeer(encodeReveal(idx, this.game.currentWord[idx]!));
+          const idx = Math.floor(Math.random() * this.realWord.length);
+          const ch = this.realWord[idx]!;
+          this.ctx.sendToPeer(encodeReveal(idx, ch));
+          // 호스트가 추측자면 자기 마스킹 화면에도 반영
+          if (this.game.drawerPeerId !== this.myPeerId) {
+            const cw = this.game.currentWord;
+            this.game.currentWord = cw.slice(0, idx) + ch + cw.slice(idx + 1);
+          }
         }
         if (elapsed > ROUND_DURATION_MS + TIMEOUT_GRACE_MS) {
           this.endRoundAsHost();
@@ -428,12 +436,14 @@ class DrawQuizGameModule implements GameModule {
   }
 
   private beginDrawingAsHost(word: string): void {
-    this.game.currentWord = word;
+    this.realWord = word; // 호스트 전용 실제 단어 (힌트/판정/정답공개용)
     this.game.usedWords.add(word);
     this.game.phase = 'drawing';
     this.hintRevealed = false;
     const now = performance.now();
     this.game.turnStartedAt = now;
+    // 표시용 currentWord — 호스트가 출제자면 실제 단어, 추측자면 마스킹(자기 화면에 정답 안 새게)
+    this.game.currentWord = this.game.drawerPeerId === this.myPeerId ? word : '*'.repeat(word.length);
     // 출제자에겐 실제 단어, 비출제자에겐 글자수만 (자동 지급이라 출제자도 단어를 받아야 함)
     for (const p of this.ctx.players) {
       if (p.peerId === this.myPeerId) continue;
@@ -504,11 +514,12 @@ class DrawQuizGameModule implements GameModule {
   private endRoundAsHost(): void {
     // 출제자는 점수 없음 (맞춘 사람만 +1). awardDrawer 제거됨.
     this.game.phase = 'round_result';
-    this.revealedWord = this.game.currentWord;
+    this.revealedWord = this.realWord;      // 실제 정답 공개
+    this.game.currentWord = this.realWord;  // 결과 화면용
     this.resultEndsAt = performance.now() + ROUND_RESULT_MS;
     const hasNext = this.game.round < this.game.totalRounds;
     this.ctx.sendToPeer(encodeRoundEnd({
-      word: this.game.currentWord,
+      word: this.realWord,
       scores: scoreMap(this.game),
       hasNext,
     }));
@@ -792,7 +803,7 @@ class DrawQuizGameModule implements GameModule {
     if (this.game.phase !== 'drawing') return;
     if (peerId === this.game.drawerPeerId) return;
     if (this.game.correctThisRound.includes(peerId)) return;
-    if (!isCorrectGuess(word, this.game.currentWord)) return; // 오답 — 무시
+    if (!isCorrectGuess(word, this.realWord)) return; // 오답 — 무시 (호스트 실제 단어로 판정)
 
     const ok = awardCorrect(this.game, peerId);
     if (ok) {
