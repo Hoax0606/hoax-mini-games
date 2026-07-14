@@ -13,6 +13,7 @@ import { sound } from '../../core/sound';
 import {
   createInitialGame, resetForRound, currentHinter, advanceHinter,
   validateHint, tallyVotes, scoreRound, finalRanking,
+  HINT_MAXLEN,
   type LiarGame,
 } from './rules';
 import { pickRound } from './words';
@@ -455,7 +456,7 @@ class LiarGameModule implements GameModule {
     el.innerHTML = `
       <div class="lg-msg" id="lg-msg"></div>
       <form class="lg-input-form" id="lg-hint-form" autocomplete="off" style="display:none">
-        <input type="text" class="lg-input" id="lg-hint-input" maxlength="20" placeholder="제시어를 설명하세요 (직접 언급 금지)" />
+        <input type="text" class="lg-input" id="lg-hint-input" maxlength="${HINT_MAXLEN}" placeholder="제시어를 설명하세요 (직접 언급 금지)" />
         <button type="submit" class="lg-submit">설명</button>
       </form>
       <div class="lg-vote" id="lg-vote" style="display:none"></div>

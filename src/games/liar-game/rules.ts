@@ -48,7 +48,7 @@ export interface LiarGame {
 }
 
 export const TOTAL_ROUNDS = 5;
-export const HINT_MAXLEN = 20;
+export const HINT_MAXLEN = 40;
 export const HINT_PASSES = 2;
 
 // ============================================
