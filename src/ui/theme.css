@@ -1908,18 +1908,22 @@ input {
 .chat-row-bubble {
   background: #fff;
   border: 1px solid var(--pink-100);
-  border-radius: 12px;
-  padding: 6px 10px;
+  /* 메신저식 꼬리 — 보내는 쪽 아래 모서리만 각지게. 상대(왼쪽 정렬)는 좌하단 각짐 */
+  border-radius: 14px 14px 14px 4px;
+  padding: 7px 11px;
   font-size: 13px;
   color: var(--text-main);
   line-height: 1.35;
   word-break: break-word;
   white-space: pre-wrap;
+  box-shadow: 0 1px 3px rgba(180, 150, 170, 0.18);
 }
 .chat-row.is-me .chat-row-bubble {
   background: #fff;
   border-color: var(--pink-100);
   color: var(--text-main);
+  /* 내 벌룬(오른쪽 정렬)은 우하단 모서리 각짐 */
+  border-radius: 14px 14px 4px 14px;
 }
 
 .chat-form {
