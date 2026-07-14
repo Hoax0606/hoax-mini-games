@@ -46,6 +46,8 @@ const MUZZLE_RISE = 13;
 const TURN_TIME_MS = 30_000;
 /** 게스트가 'firing' 상태로 이 시간 넘게 갇히면 재동기화 요청 (착탄 메시지 유실/중간합류 복구) */
 const FIRING_WATCHDOG_MS = 8_000;
+/** 호스트: 포탄이 이 시간 넘게 착탄 안 되면 강제 턴 종료 (게임 정지 방지 안전장치) */
+const FIRING_MAX_MS = 6_000;
 /** 분열탄 파편 각 벌림(라디안) */
 const SPLIT_SPREAD = 0.30;
 /** 수류탄 지형 반사 감쇠 계수 */
@@ -287,11 +289,26 @@ class FortressGameModule implements GameModule {
     if (!this.paused && this.shells.length && this.game.phase === 'firing') {
       const elapsed = Math.min(0.1, (now - this.lastFrameTime) / 1000);
       let remaining = elapsed;
-      while (remaining > 0 && this.shells.length && this.game.phase === 'firing') {
-        const dt = Math.min(SIM_DT, remaining);
-        this.stepShells(dt);
-        remaining -= dt;
+      try {
+        while (remaining > 0 && this.shells.length && this.game.phase === 'firing') {
+          const dt = Math.min(SIM_DT, remaining);
+          this.stepShells(dt);
+          remaining -= dt;
+        }
+      } catch (err) {
+        // 시뮬 중 예외 — 포탄을 정리하고 호스트가 턴을 확정해 게임이 얼지 않게.
+        console.error('[fortress] 포탄 시뮬 오류 — 강제 착탄 처리', err);
+        this.shells = [];
+        if (this.isHost) this.finalizeImpactAsHost();
       }
+    }
+
+    // 안전장치: 어떤 이유로든 포탄이 오래 착탄 안 되면 호스트가 강제로 턴 종료 (게임 정지 방지)
+    if (this.isHost && !this.paused && this.game.phase === 'firing'
+      && this.firingStartedAt > 0 && now - this.firingStartedAt > FIRING_MAX_MS) {
+      console.warn('[fortress] firing 안전 타임아웃 — 강제 종료');
+      this.shells = [];
+      this.finalizeImpactAsHost();
     }
 
     // 포대 이동 (◀▶ 홀드 중 + 내 차례 + 연료 남음)
@@ -332,7 +349,11 @@ class FortressGameModule implements GameModule {
       this.explosions = this.explosions.filter((e) => now - e.start < 480);
     }
 
-    this.renderer.render(this.buildRenderState(now));
+    try {
+      this.renderer.render(this.buildRenderState(now));
+    } catch (err) {
+      console.error('[fortress] render 오류 (프레임 건너뜀)', err);
+    }
   };
 
   /** 호스트: 시간 초과한 현재 턴을 발사 없이 넘긴다. 착탄 없는 impact(변화 0)로 전원 동기화. */
