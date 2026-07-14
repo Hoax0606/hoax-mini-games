@@ -222,18 +222,7 @@ export const games: GameEntry[] = [
       thumbnail: drawQuizThumbnail,
       minPlayers: 3,
       maxPlayers: 6,
-      roomOptions: [
-        {
-          key: 'wordMode',
-          label: '출제 방식',
-          type: 'select',
-          choices: [
-            { value: 'auto', label: '제시어 자동 지급' },
-            { value: 'custom', label: '출제자가 직접 입력' },
-          ],
-          defaultValue: 'auto',
-        },
-      ],
+      roomOptions: [],
     },
     load: async () => {
       const mod = await import('./draw-quiz');

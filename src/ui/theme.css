@@ -2155,7 +2155,20 @@ input {
   border-color: var(--accent);
   transform: translateY(-2px);
 }
-/* 직접입력 모드 — 출제 단어 입력 폼 */
+/* 매 턴 출제자 단어 선택 — 후보 버튼 + 직접입력 */
+.dq-choose-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  align-items: center;
+}
+.dq-choose-cands {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+/* 직접입력 — 출제 단어 입력 폼 */
 .dq-customword-form {
   display: flex;
   gap: 8px;

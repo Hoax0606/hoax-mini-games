@@ -84,8 +84,6 @@ class DrawQuizGameModule implements GameModule {
   private liveStroke: StrokeData | null = null;
   private isDrawingStroke = false;
 
-  /** 출제 방식 — auto(자동 지급) / custom(출제자 직접 입력) */
-  private wordMode: 'auto' | 'custom' = 'auto';
   /** 출제자 후보 단어 (choosing 단계) */
   private candidates: QuizWord[] = [];
   /** 라운드 결과 단계 공개 단어 */
@@ -119,7 +117,6 @@ class DrawQuizGameModule implements GameModule {
     this.myPeerId = ctx.myPlayerId;
     this.isHost = ctx.role === 'host';
     this.isSpectator = ctx.isSpectator === true;
-    this.wordMode = ctx.roomOptions['wordMode'] === 'custom' ? 'custom' : 'auto';
 
     const playerList = ctx.players.filter((p) => p.role === 'player');
     const ordered = orderPlayersHostFirst(playerList);
@@ -314,7 +311,7 @@ class DrawQuizGameModule implements GameModule {
         if (now >= this.resultEndsAt) {
           this.startNextRoundAsHost();
         }
-      } else if (this.game.phase === 'choosing' && this.wordMode === 'custom') {
+      } else if (this.game.phase === 'choosing') {
         // 출제자가 단어를 안 정하고 오래 끌면 후보 하나로 자동 시작 (무한 대기 방지)
         if (now - this.game.turnStartedAt > CHOOSE_TIMEOUT_MS) {
           const fallback = this.candidates[0];
@@ -369,16 +366,16 @@ class DrawQuizGameModule implements GameModule {
     const now = performance.now();
     this.game.turnStartedAt = now;
 
-    // round_start broadcast — 후보 버튼은 더 이상 안 씀(auto=자동지급, custom=직접입력)이라
-    //   candidates 는 빈 배열로. (게스트 출제자 화면에 후보버튼이 깜빡이던 것 제거)
+    // round_start broadcast — 출제자에게만 후보 3개 전송(매 턴 후보 택1 또는 직접입력 선택)
     for (const p of this.ctx.players) {
       if (p.peerId === this.myPeerId) continue;
+      const isThisDrawer = p.peerId === drawer.peerId;
       this.ctx.sendToPeer(
         encodeRoundStart({
           round: this.game.round,
           drawerPeerId: drawer.peerId,
           drawerNickname: drawer.nickname,
-          candidates: [],
+          candidates: isThisDrawer ? this.candidates.map((c) => c.word) : [],
           turnStartedAt: now,
         }),
         { target: p.peerId },
@@ -391,12 +388,7 @@ class DrawQuizGameModule implements GameModule {
     //    조용히 씹혀서 "둘째 출제자부터 선택 안 됨" 버그가 났었음.)
     //   화면 노출은 refreshUI 의 amDrawer 가드로 막으므로 비출제자 화면엔 안 뜬다.
     this.applyRoundStart(this.game.round, drawer.peerId, this.candidates.map((c) => c.word), now);
-    if (this.wordMode === 'auto') {
-      // 자동 지급 — 선택 단계 없이 후보 중 랜덤 하나로 바로 그리기 시작
-      const auto = this.candidates[Math.floor(Math.random() * this.candidates.length)] ?? this.candidates[0];
-      if (auto) this.beginDrawingAsHost(auto.word);
-    }
-    // custom 모드는 choosing 단계 유지 — 출제자가 단어를 직접 입력할 때까지 대기
+    // choosing 단계 유지 — 출제자가 후보 택1 또는 직접입력 중 고를 때까지 대기 (타임아웃 폴백은 loop)
     this.refreshUI();
   }
 
@@ -416,7 +408,19 @@ class DrawQuizGameModule implements GameModule {
     this.beginDrawingAsHost(chosen.word);
   }
 
-  /** 직접입력 모드: 출제자가 단어 제출 */
+  /** 출제자가 주어진 후보(index) 선택 */
+  private chooseGivenWord(index: number): void {
+    if (this.game.phase !== 'choosing') return;
+    if (this.isHost) {
+      this.handleOwnWordChoice(index);
+    } else {
+      const c = this.candidates[index];
+      if (c) this.game.currentWord = c.word; // 출제자 로컬 즉시 표시
+      this.ctx.sendToPeer(encodeWordChosen(index));
+    }
+  }
+
+  /** 출제자가 단어 직접 입력 제출 */
   private submitCustomWord(word: string): void {
     if (this.game.phase !== 'choosing') return;
     if (this.isHost) {
@@ -835,46 +839,44 @@ class DrawQuizGameModule implements GameModule {
     if (!this.uiRoot) return;
     const amDrawer = !this.isSpectator && this.game.drawerPeerId === this.myPeerId;
 
-    // 출제자 단어 결정 UI (choosing + 출제자)
+    // 출제자 단어 결정 UI (choosing + 출제자) — 매 턴 후보 3개 택1 또는 직접입력
     if (this.candidatesEl) {
       const choosing = this.game.phase === 'choosing' && amDrawer;
-      if (choosing && this.wordMode === 'custom') {
-        // 직접 입력 — 입력창(이미 떠 있으면 재생성 안 함: 타이핑 중 값 유지)
+      if (choosing) {
         this.candidatesEl.style.display = 'flex';
-        if (!this.candidatesEl.querySelector('.dq-customword-input')) {
-          this.candidatesEl.innerHTML = `
-            <form class="dq-customword-form" autocomplete="off">
-              <input type="text" class="dq-customword-input" maxlength="12" placeholder="출제할 단어 입력 후 Enter" />
-              <button type="submit" class="dq-candidate-btn">출제</button>
-            </form>`;
-          const form = this.candidatesEl.querySelector<HTMLFormElement>('.dq-customword-form');
-          form?.addEventListener('submit', (e) => {
+        // 이미 떠 있으면 재생성 안 함 (직접입력 타이핑 중 값 유지)
+        if (!this.candidatesEl.querySelector('.dq-choose-wrap')) {
+          const wrap = document.createElement('div');
+          wrap.className = 'dq-choose-wrap';
+          // 후보 버튼들
+          const cands = document.createElement('div');
+          cands.className = 'dq-choose-cands';
+          this.candidates.forEach((c, i) => {
+            const b = document.createElement('button');
+            b.type = 'button';
+            b.className = 'dq-candidate-btn';
+            b.textContent = c.word;
+            b.addEventListener('click', () => this.chooseGivenWord(i));
+            cands.appendChild(b);
+          });
+          // 직접 입력
+          const form = document.createElement('form');
+          form.className = 'dq-customword-form';
+          form.autocomplete = 'off';
+          form.innerHTML = `
+            <input type="text" class="dq-customword-input" maxlength="12" placeholder="또는 직접 입력…" />
+            <button type="submit" class="dq-candidate-btn">직접 출제</button>`;
+          form.addEventListener('submit', (e) => {
             e.preventDefault();
-            const input = this.candidatesEl!.querySelector<HTMLInputElement>('.dq-customword-input');
+            const input = form.querySelector<HTMLInputElement>('.dq-customword-input');
             const word = input?.value.trim();
             if (word) this.submitCustomWord(word);
           });
-          window.setTimeout(() => this.candidatesEl?.querySelector<HTMLInputElement>('.dq-customword-input')?.focus(), 10);
+          wrap.appendChild(cands);
+          wrap.appendChild(form);
+          this.candidatesEl.innerHTML = '';
+          this.candidatesEl.appendChild(wrap);
         }
-      } else if (choosing && this.candidates.length > 0) {
-        // (자동 모드는 choosing 을 건너뛰므로 보통 여기 안 옴 — 후보 버튼 폴백)
-        this.candidatesEl.style.display = 'flex';
-        this.candidatesEl.innerHTML = '';
-        this.candidates.forEach((c, i) => {
-          const b = document.createElement('button');
-          b.type = 'button';
-          b.className = 'dq-candidate-btn';
-          b.textContent = c.word;
-          b.addEventListener('click', () => {
-            if (this.isHost) {
-              this.handleOwnWordChoice(i);
-            } else {
-              this.game.currentWord = this.candidates[i]!.word;
-              this.ctx.sendToPeer(encodeWordChosen(i));
-            }
-          });
-          this.candidatesEl!.appendChild(b);
-        });
       } else {
         this.candidatesEl.style.display = 'none';
         this.candidatesEl.innerHTML = '';
