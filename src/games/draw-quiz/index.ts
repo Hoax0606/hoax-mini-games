@@ -871,17 +871,19 @@ class DrawQuizGameModule implements GameModule {
         if (!this.candidatesEl.querySelector('.dq-choose-wrap')) {
           const wrap = document.createElement('div');
           wrap.className = 'dq-choose-wrap';
-          // 후보 버튼들
+          // 주어진 단어 1개 (택1)
           const cands = document.createElement('div');
           cands.className = 'dq-choose-cands';
-          this.candidates.forEach((c, i) => {
+          const given = this.candidates[0];
+          if (given) {
             const b = document.createElement('button');
             b.type = 'button';
             b.className = 'dq-candidate-btn';
-            b.textContent = c.word;
-            b.addEventListener('click', () => this.chooseGivenWord(i));
+            b.textContent = `🎲 ${given.word}`;
+            b.title = '주어진 단어로 그리기';
+            b.addEventListener('click', () => this.chooseGivenWord(0));
             cands.appendChild(b);
-          });
+          }
           // 직접 입력
           const form = document.createElement('form');
           form.className = 'dq-customword-form';
