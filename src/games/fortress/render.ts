@@ -142,7 +142,8 @@ export class FortressRenderer {
     // 논리 좌표계로 전환 (물리픽셀 = CSS × dpr)
     ctx.setTransform(scale * dpr, 0, 0, scale * dpr, this.offXCss * dpr, this.offYCss * dpr);
 
-    this.drawSky(logicalW);
+    this.drawSky(logicalW, state.now);
+    this.drawWind(logicalW, state.game.wind, state.now);
     this.drawTerrain(state.hm);
     this.drawForts(state);
     this.drawShells(state.shells, state.flyingWeapon);
@@ -153,13 +154,58 @@ export class FortressRenderer {
     if (state.game.phase === 'ended') this.drawEndOverlay(state, logicalW);
   }
 
-  private drawSky(logicalW: number): void {
+  private drawSky(logicalW: number, now: number): void {
     const ctx = this.ctx;
     const g = ctx.createLinearGradient(0, 0, 0, TERRAIN_HEIGHT);
     g.addColorStop(0, COLORS.skyTop);
     g.addColorStop(1, COLORS.skyBot);
     ctx.fillStyle = g;
     ctx.fillRect(0, 0, logicalW, TERRAIN_HEIGHT);
+
+    // 천천히 흐르는 구름 (파스텔 흰 뭉게)
+    ctx.fillStyle = 'rgba(255,255,255,0.5)';
+    const clouds = [
+      { bx: 0.12, y: 44, r: 20 }, { bx: 0.42, y: 74, r: 16 },
+      { bx: 0.66, y: 36, r: 22 }, { bx: 0.9, y: 82, r: 15 },
+    ];
+    const span = logicalW + 160;
+    for (const c of clouds) {
+      const cx = ((c.bx * logicalW + now * 0.008) % span + span) % span - 80;
+      this.puff(cx, c.y, c.r);
+    }
+  }
+
+  private puff(cx: number, cy: number, r: number): void {
+    const ctx = this.ctx;
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, 0, Math.PI * 2);
+    ctx.arc(cx + r * 1.1, cy + 4, r * 0.8, 0, Math.PI * 2);
+    ctx.arc(cx - r, cy + 5, r * 0.75, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  /** 바람 파티클 — 바람 방향으로 흐르는 옅은 선. 세기 클수록 많고 빠름 */
+  private drawWind(logicalW: number, wind: number, now: number): void {
+    const strength = Math.min(1, Math.abs(wind) / MAX_WIND);
+    if (strength < 0.06) return;
+    const ctx = this.ctx;
+    const dir = wind >= 0 ? 1 : -1;
+    const count = Math.round(strength * 14);
+    const speed = 40 + strength * 130;
+    const len = 8 + strength * 16;
+    const span = logicalW + 60;
+    ctx.strokeStyle = `rgba(150,160,180,${0.12 + strength * 0.16})`;
+    ctx.lineWidth = 1.4;
+    ctx.lineCap = 'round';
+    for (let i = 0; i < count; i++) {
+      const x = (((i * 137 + now * speed * 0.001 * dir) % span) + span) % span - 30;
+      const y = 30 + ((i * 53) % 250);
+      ctx.beginPath();
+      ctx.moveTo(x, y);
+      ctx.lineTo(x - dir * len, y);
+      ctx.stroke();
+    }
+    ctx.lineCap = 'butt';
   }
 
   private drawTerrain(hm: number[]): void {
