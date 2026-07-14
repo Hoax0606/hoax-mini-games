@@ -449,9 +449,12 @@ class FortressGameModule implements GameModule {
         if (off) this.landShell(s, true);
         else if (s.fuseLeft <= 0) this.landShell(s, false);
         else if (hitGround) {
+          // 지형에 닿으면 낮게 튀며 경사 방향으로 굴러감 (경사 클수록 빨리 downhill)
           s.y = groundY - 1;
-          s.vy = -Math.abs(s.vy) * BOUNCE_DAMP;
-          s.vx *= BOUNCE_DAMP;
+          // 기울기: 오른쪽 지면이 더 낮으면(값 큼) 오른쪽으로 굴러야 → slope>0 → vx 증가
+          const slope = terrainTopAt(this.hm, s.x + 6) - terrainTopAt(this.hm, s.x - 6);
+          s.vx = s.vx * 0.6 + slope * 4; // 마찰 + 경사 가속
+          s.vy = -Math.abs(s.vy) * 0.3;  // 거의 안 튀고 구르는 느낌
           s.bounces++;
         }
       } else {

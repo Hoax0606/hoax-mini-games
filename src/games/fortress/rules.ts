@@ -80,13 +80,13 @@ export interface WeaponSpec {
 
 export const WEAPONS: Record<WeaponId, WeaponSpec> = {
   // 데미지는 HP 100 기준 "직격 ~3방에 처치" 밸런스. 반경/크레이터는 유지.
-  // 크레이터(지형 파임)는 폭격탄만 크게 — 나머지는 작게 해서 지형이 과하게 파이지 않게.
-  normal:  { id: 'normal',  name: '일반탄', icon: '💣', blastRadius: 62, maxDamage: 42, craterRadius: 22 },
-  big:     { id: 'big',     name: '대형탄', icon: '💥', blastRadius: 90, maxDamage: 54, craterRadius: 34 },
-  guided:  { id: 'guided',  name: '유도탄', icon: '🛰️', blastRadius: 62, maxDamage: 42, craterRadius: 22, ignoreWind: true },
-  bombard: { id: 'bombard', name: '폭격탄', icon: '☄️', blastRadius: 60, maxDamage: 34, craterRadius: 78 },
-  split:   { id: 'split',   name: '분열탄', icon: '✴️', blastRadius: 42, maxDamage: 27, craterRadius: 16, split: true },
-  grenade: { id: 'grenade', name: '수류탄', icon: '🧨', blastRadius: 58, maxDamage: 40, craterRadius: 24, fuseMs: 3000 },
+  // 데미지 상향 + 폭발반경≈크레이터 비례해서 "보이는 만큼 맞는" 타격범위. 폭격탄은 airstrike.
+  normal:  { id: 'normal',  name: '일반탄', icon: '💣', blastRadius: 54, maxDamage: 50, craterRadius: 30 },
+  big:     { id: 'big',     name: '대형탄', icon: '💥', blastRadius: 80, maxDamage: 68, craterRadius: 46 },
+  guided:  { id: 'guided',  name: '유도탄', icon: '🛰️', blastRadius: 54, maxDamage: 50, craterRadius: 30, ignoreWind: true },
+  bombard: { id: 'bombard', name: '폭격탄', icon: '☄️', blastRadius: 46, maxDamage: 40, craterRadius: 34 },
+  split:   { id: 'split',   name: '분열탄', icon: '✴️', blastRadius: 40, maxDamage: 34, craterRadius: 24, split: true },
+  grenade: { id: 'grenade', name: '수류탄', icon: '🧨', blastRadius: 54, maxDamage: 48, craterRadius: 30, fuseMs: 3000 },
 };
 
 /** 랜덤 배분 대상 특수 무기 풀 (5종 중 각 플레이어 2종). */
