@@ -48,6 +48,8 @@ class LiarGameModule implements GameModule {
 
   private myRole: RolePayload | null = null;
   private revealVotes: Record<string, string> | null = null;
+  /** 게스트: 마지막 hello 전송 시각. role/sync 받을 때까지 주기적 재전송 */
+  private lastHelloAt = 0;
 
   // 호스트 전용 비밀 상태
   private realKeyword = '';
@@ -91,6 +93,7 @@ class LiarGameModule implements GameModule {
       this.startRoundAsHost();
     } else {
       this.ctx.sendToPeer(encodeHello(this.myPeerId));
+      this.lastHelloAt = performance.now();
     }
 
     this.rafId = requestAnimationFrame(this.loop);
@@ -196,6 +199,14 @@ class LiarGameModule implements GameModule {
     if (this.isHost && !this.paused && !this.gameFinished && this.phaseDeadline > 0 && now > this.phaseDeadline) {
       this.phaseDeadline = 0;
       this.onPhaseTimeout();
+    }
+
+    // 게스트: 역할(제시어)을 아직 못 받았으면 hello 재전송 —
+    //   게임 전환/합류 시 hello 유실로 role·sync 를 영영 못 받아 "제시어 없음 + 남 차례"로
+    //   굳던 문제 방지. 관전자는 역할이 없으니 제외.
+    if (!this.isHost && !this.isSpectator && this.myRole === null && now - this.lastHelloAt > 2000) {
+      this.lastHelloAt = now;
+      this.ctx.sendToPeer(encodeHello(this.myPeerId));
     }
 
     const rs: RenderState = {
