@@ -483,9 +483,11 @@ class DrawQuizGameModule implements GameModule {
     this.refreshUI();
   }
 
-  private applyRoundBegin(wordLength: number, turnStartedAt: number, word?: string): void {
+  private applyRoundBegin(wordLength: number, _turnStartedAt: number, word?: string): void {
     this.game.phase = 'drawing';
-    this.game.turnStartedAt = turnStartedAt;
+    // 타이머는 각 클라 자기 시계 기준으로 — 호스트 performance.now() 값을 그대로 쓰면
+    //   시계 원점이 달라 시간이 어긋나(안 보이거나 멈춤). roundBegin 수신 시각을 시작으로.
+    this.game.turnStartedAt = performance.now();
     this.hintRevealed = false;
     if (word) {
       this.game.currentWord = word; // 출제자 — 실제 단어 수신
