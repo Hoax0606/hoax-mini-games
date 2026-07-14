@@ -917,7 +917,10 @@ input {
   padding: 0;
   background: var(--bg-main);
   animation: none;
-  overflow: hidden; /* 게임 화면만 viewport 고정. 다른 화면은 body가 스크롤 */
+  /* 창이 좁으면(가로/세로) 콘텐츠가 잘리는 대신 스크롤되게 — 잘림 방지.
+     넉넉한 창에선 min-width 미만이 아니므로 스크롤 안 생김. */
+  overflow: auto;
+  min-width: 1000px;
 }
 
 /* 채팅 패널이 펼쳐져 있으면 게임 화면의 헤더/캔버스 영역이 우측 패널을 침범하지 않도록 패딩 확보.
