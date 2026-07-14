@@ -45,6 +45,7 @@ import {
   encodeSync, decodeSync,
   encodeRoundStart, decodeRoundStart,
   encodeWordChosen, decodeWordChosen,
+  encodeCustomWord, decodeCustomWord,
   encodeRoundBegin, decodeRoundBegin,
   encodeReveal, decodeReveal,
   encodeStroke, decodeStroke,
@@ -60,6 +61,8 @@ import {
 const ROUND_RESULT_MS = 3500;
 /** 라운드 종료 이만큼 남았을 때 정답 한 글자 공개 (ms) */
 const REVEAL_BEFORE_MS = 20_000;
+/** 직접입력 모드에서 출제자가 단어 안 정하면 이 시간 뒤 자동 시작 (ms) */
+const CHOOSE_TIMEOUT_MS = 30_000;
 
 class DrawQuizGameModule implements GameModule {
   private ctx!: GameContext;
@@ -81,6 +84,8 @@ class DrawQuizGameModule implements GameModule {
   private liveStroke: StrokeData | null = null;
   private isDrawingStroke = false;
 
+  /** 출제 방식 — auto(자동 지급) / custom(출제자 직접 입력) */
+  private wordMode: 'auto' | 'custom' = 'auto';
   /** 출제자 후보 단어 (choosing 단계) */
   private candidates: QuizWord[] = [];
   /** 라운드 결과 단계 공개 단어 */
@@ -112,6 +117,7 @@ class DrawQuizGameModule implements GameModule {
     this.myPeerId = ctx.myPlayerId;
     this.isHost = ctx.role === 'host';
     this.isSpectator = ctx.isSpectator === true;
+    this.wordMode = ctx.roomOptions['wordMode'] === 'custom' ? 'custom' : 'auto';
 
     const playerList = ctx.players.filter((p) => p.role === 'player');
     const ordered = orderPlayersHostFirst(playerList);
@@ -176,6 +182,12 @@ class DrawQuizGameModule implements GameModule {
     const wc = decodeWordChosen(msg);
     if (wc) {
       if (this.isHost) this.handleWordChosen(wc.index);
+      return;
+    }
+
+    const cw = decodeCustomWord(msg);
+    if (cw) {
+      if (this.isHost) this.handleCustomWord(cw.word);
       return;
     }
 
@@ -294,6 +306,12 @@ class DrawQuizGameModule implements GameModule {
         if (now >= this.resultEndsAt) {
           this.startNextRoundAsHost();
         }
+      } else if (this.game.phase === 'choosing' && this.wordMode === 'custom') {
+        // 출제자가 단어를 안 정하고 오래 끌면 후보 하나로 자동 시작 (무한 대기 방지)
+        if (now - this.game.turnStartedAt > CHOOSE_TIMEOUT_MS) {
+          const fallback = this.candidates[0];
+          if (fallback) this.beginDrawingAsHost(fallback.word);
+        }
       }
     }
 
@@ -365,9 +383,12 @@ class DrawQuizGameModule implements GameModule {
     //    조용히 씹혀서 "둘째 출제자부터 선택 안 됨" 버그가 났었음.)
     //   화면 노출은 refreshUI 의 amDrawer 가드로 막으므로 비출제자 화면엔 안 뜬다.
     this.applyRoundStart(this.game.round, drawer.peerId, this.candidates.map((c) => c.word), now);
-    // 자동 단어 지급 — 선택 단계 없이 후보 중 랜덤 하나로 바로 그리기 시작
-    const auto = this.candidates[Math.floor(Math.random() * this.candidates.length)] ?? this.candidates[0];
-    if (auto) this.beginDrawingAsHost(auto.word);
+    if (this.wordMode === 'auto') {
+      // 자동 지급 — 선택 단계 없이 후보 중 랜덤 하나로 바로 그리기 시작
+      const auto = this.candidates[Math.floor(Math.random() * this.candidates.length)] ?? this.candidates[0];
+      if (auto) this.beginDrawingAsHost(auto.word);
+    }
+    // custom 모드는 choosing 단계 유지 — 출제자가 단어를 직접 입력할 때까지 대기
     this.refreshUI();
   }
 
@@ -385,6 +406,25 @@ class DrawQuizGameModule implements GameModule {
     const chosen = this.candidates[index];
     if (!chosen) return;
     this.beginDrawingAsHost(chosen.word);
+  }
+
+  /** 직접입력 모드: 출제자가 단어 제출 */
+  private submitCustomWord(word: string): void {
+    if (this.game.phase !== 'choosing') return;
+    if (this.isHost) {
+      this.handleCustomWord(word);
+    } else {
+      this.game.currentWord = word; // 출제자 로컬 즉시 표시
+      this.ctx.sendToPeer(encodeCustomWord(word));
+    }
+  }
+
+  /** 호스트: 직접입력 단어 수신 → 그리기 시작 */
+  private handleCustomWord(word: string): void {
+    if (this.game.phase !== 'choosing') return;
+    const w = word.trim();
+    if (!w) return;
+    this.beginDrawingAsHost(w);
   }
 
   private beginDrawingAsHost(word: string): void {
@@ -784,9 +824,29 @@ class DrawQuizGameModule implements GameModule {
     if (!this.uiRoot) return;
     const amDrawer = !this.isSpectator && this.game.drawerPeerId === this.myPeerId;
 
-    // 후보 단어 (choosing + 출제자)
+    // 출제자 단어 결정 UI (choosing + 출제자)
     if (this.candidatesEl) {
-      if (this.game.phase === 'choosing' && amDrawer && this.candidates.length > 0) {
+      const choosing = this.game.phase === 'choosing' && amDrawer;
+      if (choosing && this.wordMode === 'custom') {
+        // 직접 입력 — 입력창(이미 떠 있으면 재생성 안 함: 타이핑 중 값 유지)
+        this.candidatesEl.style.display = 'flex';
+        if (!this.candidatesEl.querySelector('.dq-customword-input')) {
+          this.candidatesEl.innerHTML = `
+            <form class="dq-customword-form" autocomplete="off">
+              <input type="text" class="dq-customword-input" maxlength="12" placeholder="출제할 단어 입력 후 Enter" />
+              <button type="submit" class="dq-candidate-btn">출제</button>
+            </form>`;
+          const form = this.candidatesEl.querySelector<HTMLFormElement>('.dq-customword-form');
+          form?.addEventListener('submit', (e) => {
+            e.preventDefault();
+            const input = this.candidatesEl!.querySelector<HTMLInputElement>('.dq-customword-input');
+            const word = input?.value.trim();
+            if (word) this.submitCustomWord(word);
+          });
+          window.setTimeout(() => this.candidatesEl?.querySelector<HTMLInputElement>('.dq-customword-input')?.focus(), 10);
+        }
+      } else if (choosing && this.candidates.length > 0) {
+        // (자동 모드는 choosing 을 건너뛰므로 보통 여기 안 옴 — 후보 버튼 폴백)
         this.candidatesEl.style.display = 'flex';
         this.candidatesEl.innerHTML = '';
         this.candidates.forEach((c, i) => {
@@ -798,8 +858,6 @@ class DrawQuizGameModule implements GameModule {
             if (this.isHost) {
               this.handleOwnWordChoice(i);
             } else {
-              // 게스트 출제자는 자기가 고른 단어를 로컬에 저장 — round_begin 에는 단어가
-              // 없으므로(추측자에게 노출 방지) 이렇게 안 하면 출제자 화면에 자기 단어가 안 보임.
               this.game.currentWord = this.candidates[i]!.word;
               this.ctx.sendToPeer(encodeWordChosen(i));
             }
@@ -808,6 +866,7 @@ class DrawQuizGameModule implements GameModule {
         });
       } else {
         this.candidatesEl.style.display = 'none';
+        this.candidatesEl.innerHTML = '';
       }
     }
 

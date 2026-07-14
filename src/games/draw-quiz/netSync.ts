@@ -28,6 +28,7 @@ const T_HELLO = 'dq:hello';
 const T_SYNC = 'dq:sync';
 const T_ROUND_START = 'dq:round_start';
 const T_WORD_CHOSEN = 'dq:word_chosen';
+const T_CUSTOM_WORD = 'dq:custom_word';
 const T_ROUND_BEGIN = 'dq:round_begin';
 const T_REVEAL = 'dq:reveal';
 const T_STROKE = 'dq:stroke';
@@ -100,6 +101,18 @@ export function decodeWordChosen(msg: GameMessage): { index: number } | null {
   const p = msg.payload as { index?: unknown } | null;
   if (!p || typeof p.index !== 'number') return null;
   return { index: p.index };
+}
+
+// --- custom_word (직접입력 모드: 출제자 → 호스트) ---
+
+export function encodeCustomWord(word: string): GameMessage {
+  return { type: T_CUSTOM_WORD, payload: { word } };
+}
+export function decodeCustomWord(msg: GameMessage): { word: string } | null {
+  if (msg.type !== T_CUSTOM_WORD) return null;
+  const p = msg.payload as { word?: unknown } | null;
+  if (!p || typeof p.word !== 'string') return null;
+  return { word: p.word };
 }
 
 // --- round_begin (호스트 → 전체): 그리기 시작 ---

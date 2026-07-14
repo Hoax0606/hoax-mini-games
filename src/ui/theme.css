@@ -2152,6 +2152,24 @@ input {
   border-color: var(--accent);
   transform: translateY(-2px);
 }
+/* 직접입력 모드 — 출제 단어 입력 폼 */
+.dq-customword-form {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.dq-customword-input {
+  padding: 11px 16px;
+  font-size: 16px;
+  font-weight: 700;
+  border: 2px solid var(--lavender-300);
+  border-radius: var(--radius-full);
+  background: var(--bg-card);
+  color: var(--text-main);
+  outline: none;
+  min-width: 220px;
+}
+.dq-customword-input:focus { border-color: var(--accent); }
 
 /* 그리기 도구 바 */
 .dq-toolbar {
