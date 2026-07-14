@@ -11,7 +11,6 @@ import { terrainTopAt, TERRAIN_HEIGHT } from './terrain';
 import { MAX_WIND } from './physics';
 import { FORT_HP, type FortressGame, type WeaponId } from './rules';
 
-const CANVAS_H = 400;
 
 const FONT = `'Pretendard', 'Apple SD Gothic Neo', 'Noto Sans KR', system-ui, sans-serif`;
 
@@ -150,8 +149,11 @@ export class FortressRenderer {
     this.drawExplosions(state.explosions, state.now);
     this.drawDamagePops(state.damagePops, state.now);
     if (state.aim) this.drawAim(state.aim);
-    this.drawHUD(state, logicalW);
-    if (state.game.phase === 'ended') this.drawEndOverlay(state, logicalW);
+
+    // HUD/종료 오버레이는 화면 좌표(캔버스 기준)로 — 레터박스에 밀려 잘리지 않게
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    this.drawHUD(state, rect.width);
+    if (state.game.phase === 'ended') this.drawEndOverlay(state, rect.width, rect.height);
   }
 
   private drawSky(logicalW: number, now: number): void {
@@ -563,10 +565,10 @@ export class FortressRenderer {
     }
   }
 
-  private drawEndOverlay(state: RenderState, logicalW: number): void {
+  private drawEndOverlay(state: RenderState, screenW: number, screenH: number): void {
     const ctx = this.ctx;
     ctx.fillStyle = COLORS.endOverlay;
-    ctx.fillRect(0, 0, logicalW, CANVAS_H);
+    ctx.fillRect(0, 0, screenW, screenH);
     const winners = state.game.winnerPeerIds;
     const iWon = winners.includes(state.myPeerId);
     const isDraw = winners.length === 0;
@@ -574,7 +576,7 @@ export class FortressRenderer {
     ctx.textBaseline = 'middle';
     ctx.font = `900 56px ${FONT}`;
     ctx.fillStyle = '#fff';
-    ctx.fillText(isDraw ? '⚖️' : '🏆', logicalW / 2, CANVAS_H / 2 - 26);
+    ctx.fillText(isDraw ? '⚖️' : '🏆', screenW / 2, screenH / 2 - 26);
     ctx.font = `900 26px ${FONT}`;
     ctx.fillStyle = iWon ? COLORS.accentPink : '#fff';
     const winNames = [...new Set(state.game.forts
@@ -582,7 +584,7 @@ export class FortressRenderer {
       .map((f) => f.ownerNickname))]
       .join(', ');
     const title = isDraw ? '무승부' : iWon ? (winners.length >= 2 ? '공동 우승!' : '승리!') : `${winNames} 승리`;
-    ctx.fillText(title, logicalW / 2, CANVAS_H / 2 + 26);
+    ctx.fillText(title, screenW / 2, screenH / 2 + 26);
   }
 
   private roundRect(x: number, y: number, w: number, h: number, r: number): void {

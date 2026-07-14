@@ -64,6 +64,8 @@ const FUEL_PER_TURN = 100;
 const MOVE_SPEED = 60;
 /** 이동 위치 broadcast 간격(ms) */
 const MOVE_BROADCAST_MS = 100;
+/** 이동 시 한 스텝 넘을 수 있는 최대 지형 높이차(px). 이보다 가파르면(크레이터 벽) 정지 — 순간이동 방지 */
+const MAX_CLIMB_PER_STEP = 3;
 
 /** 날아가는 포탄 하나. bounces/fuseLeft 는 수류탄, landed 는 착지 여부 */
 interface Shell extends Projectile {
@@ -325,14 +327,22 @@ class FortressGameModule implements GameModule {
         const frameDt = Math.min(0.05, (now - this.lastFrameTime) / 1000);
         let dx = this.moveDir * MOVE_SPEED * frameDt;
         if (Math.abs(dx) > this.fuelLeft) dx = this.moveDir * this.fuelLeft; // 연료 한도
-        this.fuelLeft = Math.max(0, this.fuelLeft - Math.abs(dx));
         const margin = 30;
-        cf.x = Math.max(margin, Math.min(this.game.terrainWidth - margin, cf.x + dx));
-        if (now - this.moveBroadcastAt > MOVE_BROADCAST_MS) {
-          this.ctx.sendToPeer(encodeMove({ fromFortId: cf.id, x: cf.x }));
-          this.moveBroadcastAt = now;
+        const nextX = Math.max(margin, Math.min(this.game.terrainWidth - margin, cf.x + dx));
+        // 가파른 지형(크레이터 벽)은 못 넘어감 — 넘으려 하면 정지(순간이동 방지)
+        const rise = Math.abs(terrainTopAt(this.hm, nextX) - terrainTopAt(this.hm, cf.x));
+        if (rise <= MAX_CLIMB_PER_STEP) {
+          this.fuelLeft = Math.max(0, this.fuelLeft - Math.abs(nextX - cf.x));
+          cf.x = nextX;
+          if (now - this.moveBroadcastAt > MOVE_BROADCAST_MS) {
+            this.ctx.sendToPeer(encodeMove({ fromFortId: cf.id, x: cf.x }));
+            this.moveBroadcastAt = now;
+          }
+          this.refreshMoveBar();
+        } else {
+          this.moveDir = 0; // 벽에 막힘 — 이동 중단
+          this.refreshMoveBar();
         }
-        this.refreshMoveBar();
       }
     }
 
