@@ -16,7 +16,7 @@ import { sound } from '../../core/sound';
 import {
   createInitialGame, applyBlast, advanceTurn, fortCenterY,
   WEAPONS, hasAmmo, spendAmmo,
-  type FortressGame, type Fort, type WeaponId,
+  type FortressGame, type Fort, type WeaponId, type WeaponSpec,
 } from './rules';
 import {
   generateTerrain, carveCrater, terrainTopAt,
@@ -495,26 +495,40 @@ class FortressGameModule implements GameModule {
     }));
   }
 
-  /** 포탄 착지 표시. 호스트는 즉시 폭발 적용 + 크레이터 누적 (miss 면 폭발 없음). */
+  /** 포탄 착지 표시. 호스트는 즉시 폭발 적용 (miss 면 폭발 없음). */
   private landShell(s: Shell, isMiss: boolean): void {
     s.landed = true;
     if (!this.isHost || isMiss) return;
     const spec = WEAPONS[this.flyingWeapon];
-    const cx = s.x;
-    const cy = Math.min(s.y, terrainTopAt(this.hm, s.x));
+    if (this.flyingWeapon === 'bombard') {
+      // 에어스트라이크 — 착탄점 중심으로 여러 발이 넓게 쏟아짐 (시차 연출)
+      const N = 6;
+      const spread = 80;
+      for (let i = 0; i < N; i++) {
+        const bx = Math.max(0, Math.min(this.game.terrainWidth, s.x + (Math.random() * 2 - 1) * spread));
+        this.blastAt(bx, terrainTopAt(this.hm, bx), spec, i * 70);
+      }
+    } else {
+      const cy = Math.min(s.y, terrainTopAt(this.hm, s.x));
+      this.blastAt(s.x, cy, spec, 0);
+    }
+  }
+
+  /** 한 지점 폭발 — 크레이터 + 데미지 + 이펙트. expDelay 로 폭발 연출 시차(에어스트라이크용). */
+  private blastAt(cx: number, cy: number, spec: WeaponSpec, expDelay: number): void {
     carveCrater(this.hm, cx, cy, spec.craterRadius);
     this.craters.push({ cx, cy, r: spec.craterRadius });
     this.pendingBlasts.push({ cx, cy, r: spec.craterRadius });
-    this.addExplosion(cx, cy, spec.blastRadius);
+    this.addExplosion(cx, cy, spec.blastRadius, expDelay);
     const before = new Map(this.game.forts.map((f) => [f.id, f.hp]));
     const res = applyBlast(this.game, this.hm, cx, cy, spec.blastRadius, spec.maxDamage);
     this.registerDamagePops(before);
     if (res.ended) this.pendingEnded = true;
   }
 
-  /** 폭발 이펙트 등록 (호스트/게스트 공통) */
-  private addExplosion(x: number, y: number, r: number): void {
-    this.explosions.push({ x, y, r, start: performance.now() });
+  /** 폭발 이펙트 등록 (호스트/게스트 공통). delay 로 연출 시차(에어스트라이크). */
+  private addExplosion(x: number, y: number, r: number, delay = 0): void {
+    this.explosions.push({ x, y, r, start: performance.now() + delay });
   }
 
   /** hp 변화(피격) 감지 → 데미지 숫자 팝업 + 탱크 플래시 등록. before = 적용 전 hp 스냅샷 */
@@ -788,11 +802,12 @@ class FortressGameModule implements GameModule {
   /** 게스트: 확정 impact 반영 */
   private applyImpactLocal(p: ReturnType<typeof decodeImpact>): void {
     if (!p) return;
-    for (const b of p.blasts) {
+    p.blasts.forEach((b, i) => {
       carveCrater(this.hm, b.cx, b.cy, b.r);
       this.craters.push({ cx: b.cx, cy: b.cy, r: b.r });
-      this.addExplosion(b.cx, b.cy, b.r * 1.7); // 크레이터보다 살짝 크게(폭발 반경 근사)
-    }
+      // 여러 발이면(에어스트라이크) 시차를 줘 "비" 처럼 순차 폭발
+      this.addExplosion(b.cx, b.cy, b.r * 1.7, p.blasts.length > 1 ? i * 70 : 0);
+    });
     const before = new Map(this.game.forts.map((f) => [f.id, f.hp]));
     for (const f of this.game.forts) {
       const hp = p.hp[f.id];

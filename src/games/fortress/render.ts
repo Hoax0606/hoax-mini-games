@@ -456,6 +456,7 @@ export class FortressRenderer {
   private drawExplosions(list: RenderState['explosions'], now: number): void {
     const ctx = this.ctx;
     for (const e of list) {
+      if (now < e.start) continue; // 아직 시작 안 한 시차 폭발(에어스트라이크)
       const t = Math.min(1, Math.max(0, (now - e.start) / 480));
       const rad = e.r * (0.35 + 0.85 * t);
       // 주황 글로우
