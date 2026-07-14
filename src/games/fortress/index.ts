@@ -127,6 +127,8 @@ class FortressGameModule implements GameModule {
   private turnStartedAt = 0;
   /** firing 진입 시각 (게스트 워치독용) */
   private firingStartedAt = 0;
+  /** 게스트: 마지막 hello 전송 시각. ready 될 때까지 주기적으로 재전송 */
+  private lastHelloAt = 0;
 
   // 드래그 조준
   private aiming = false;
@@ -173,6 +175,7 @@ class FortressGameModule implements GameModule {
 
     this.lastFrameTime = performance.now();
     this.turnStartedAt = performance.now();
+    this.lastHelloAt = performance.now();
     this.rafId = requestAnimationFrame(this.loop);
   }
 
@@ -333,6 +336,12 @@ class FortressGameModule implements GameModule {
       // 호스트: 현재 플레이어가 제한 시간 내 안 쏘면 턴 스킵 (무한 정지 방지)
       if (this.isHost && this.game.phase === 'aiming' && now - this.turnStartedAt > TURN_TIME_MS) {
         this.skipTurnAsHost();
+      }
+      // 게스트: 아직 sync(ready) 못 받았으면 hello 를 주기적으로 재전송 —
+      //   초기/재대결 시 hello 유실로 영영 ready 안 돼 조준·이동 전부 막히던 문제 방지.
+      if (!this.isHost && !this.ready && now - this.lastHelloAt > 2000) {
+        this.lastHelloAt = now;
+        this.ctx.sendToPeer(encodeHello(this.myPeerId));
       }
       // 게스트: firing 상태로 너무 오래 갇히면 (착탄 유실/중간합류) 재동기화 요청
       if (!this.isHost && this.ready && this.game.phase === 'firing'
