@@ -256,13 +256,20 @@ export function applySubmission(game: WordChainGame, word: string, byPeerId: str
 // 탈락 처리 / 턴 진행 / 승패
 // ============================================
 
-/** 현재 턴 다음으로 살아있는 플레이어 인덱스 */
+/**
+ * 다음 턴 — 현재 좌석 "다음 위치"부터 한 바퀴 돌며 처음 살아있는 사람.
+ * 현재 플레이어가 탈락(타임아웃)해도 좌석 순서를 유지한다.
+ * (과거 aliveIdx.indexOf(-1)→0 으로 최저 인덱스로 점프해 뒤 사람을 건너뛰던 버그 수정)
+ */
 export function getNextTurn(game: WordChainGame): PlayerIndex {
-  const aliveIdx = game.players.filter((p) => p.alive).map((p) => p.index);
-  if (aliveIdx.length === 0) return 0;
-  const curPos = aliveIdx.indexOf(game.currentTurn);
-  const nextPos = curPos === -1 ? 0 : (curPos + 1) % aliveIdx.length;
-  return aliveIdx[nextPos]!;
+  const n = game.players.length;
+  if (n === 0) return 0;
+  for (let step = 1; step <= n; step++) {
+    const cand = ((game.currentTurn + step) % n) as PlayerIndex;
+    const p = game.players.find((pp) => pp.index === cand);
+    if (p && p.alive) return cand;
+  }
+  return game.currentTurn;
 }
 
 /** 플레이어를 탈락 처리하고 다음 턴으로 넘어감. 한 명만 살아남으면 phase='ended' + winnerPeerId. */

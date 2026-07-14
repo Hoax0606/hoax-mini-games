@@ -251,6 +251,30 @@ function buildResultHTML(args: {
 }
 
 // ============================================
+// 스토리텔링 전용 결과 HTML (승패 없음)
+// ============================================
+
+/** story-draw 요약인지 (점수/랭킹 없음 — gameId 로만 식별) */
+function isStoryDrawSummary(summary: Record<string, unknown>): boolean {
+  return summary['gameId'] === 'story-draw';
+}
+
+/** 승패 없는 "감상 완료" 카드 — 2인 점수판(0:0) 대신 이걸 보여준다 */
+function buildStoryDrawResultHTML(isHost: boolean): string {
+  const actionsHTML = buildActionsHTML(isHost);
+  return `
+    <div class="result-card">
+      <div class="result-emoji">🎨</div>
+      <div class="result-title">이야기 완성!</div>
+      <p class="result-note">모두가 이어 그린 그림 이야기, 재밌었나요?<br>승패 없이 다 같이 감상하는 게임이에요.</p>
+      <div class="result-actions">
+        ${actionsHTML}
+      </div>
+    </div>
+  `;
+}
+
+// ============================================
 // 테트리스 전용 결과 HTML
 // ============================================
 
@@ -1421,6 +1445,8 @@ export function createResultScreenAsHostScreen(args: ResultScreenAsHostArgs): Sc
           isHost: true,
           isSpectator: false, // 호스트는 항상 플레이어
         });
+      } else if (isStoryDrawSummary(result.summary)) {
+        el.innerHTML = buildStoryDrawResultHTML(true);
       } else {
         const hostScore = Number(result.summary['hostScore']) || 0;
         const guestScore = Number(result.summary['guestScore']) || 0;
@@ -1674,6 +1700,8 @@ export function createResultScreenAsGuestScreen(args: ResultScreenAsGuestArgs): 
           isHost: false,
           isSpectator: isSpec,
         });
+      } else if (isStoryDrawSummary(result.summary)) {
+        el.innerHTML = buildStoryDrawResultHTML(false);
       } else {
         const hostScore = Number(result.summary['hostScore']) || 0;
         const guestScore = Number(result.summary['guestScore']) || 0;

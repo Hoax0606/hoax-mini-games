@@ -198,8 +198,18 @@ input {
   min-height: 48px;
 }
 
-.btn:active {
+.btn:not(:disabled):active {
   transform: translateY(1px);
+}
+
+/* 비활성 버튼 — 명확히 흐리게 + 상호작용 차단 (예전엔 disabled 여도 활성처럼 보이고 hover 로 떠올랐음) */
+.btn:disabled,
+.btn[disabled] {
+  opacity: 0.45;
+  cursor: not-allowed;
+  box-shadow: none;
+  transform: none;
+  filter: grayscale(0.25);
 }
 
 .btn-primary {
@@ -208,7 +218,7 @@ input {
   box-shadow: var(--shadow-sm);
 }
 
-.btn-primary:hover {
+.btn-primary:not(:disabled):hover {
   background: var(--accent-hover);
   box-shadow: var(--shadow-md);
   transform: translateY(-1px);
@@ -219,7 +229,7 @@ input {
   color: var(--text-main);
 }
 
-.btn-secondary:hover {
+.btn-secondary:not(:disabled):hover {
   background: var(--accent-soft);
 }
 
@@ -228,7 +238,7 @@ input {
   color: var(--text-muted);
 }
 
-.btn-ghost:hover {
+.btn-ghost:not(:disabled):hover {
   color: var(--text-main);
   background: var(--bg-subtle);
 }
@@ -564,6 +574,14 @@ input {
 .result-title-lose { color: var(--text-muted); }
 .result-title-draw { color: var(--lavender-300); }
 
+/* 승패 없는 게임(스토리텔링) 안내 문구 */
+.result-note {
+  margin: -12px 0 26px;
+  color: var(--text-muted);
+  font-size: 15px;
+  line-height: 1.6;
+}
+
 .result-score {
   display: flex;
   align-items: center;
@@ -668,7 +686,7 @@ input {
   line-height: 1.1;
 }
 .result-tetris-stat-unit {
-  font-family: var(--font-main);
+  font-family: var(--font-sans);
   font-size: 11px;
   color: var(--text-muted);
   font-weight: 500;
@@ -2271,6 +2289,51 @@ input {
   border-color: var(--accent);
   background: var(--pink-100);
 }
+
+/* 도형 그룹 — 펜/마커 아닐 때 흐리게(사용 불가 표시). 클릭은 되지만(펜 복귀) 시각 힌트만. */
+.dq-tool-group.is-disabled {
+  opacity: 0.4;
+}
+
+/* 컬러 피커(그라데이션 선택기) + 팔레트 스와치 묶음 */
+.dq-color-group {
+  gap: 8px;
+}
+.dq-color-picker {
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border: 2px solid #fff;
+  border-radius: 8px;
+  box-shadow: 0 0 0 1px var(--border-soft);
+  cursor: pointer;
+  background: none;
+}
+/* 브라우저 기본 컬러 스와치 여백 제거 — 색이 버튼 전체 채우게 */
+.dq-color-picker::-webkit-color-swatch-wrapper { padding: 2px; }
+.dq-color-picker::-webkit-color-swatch { border: none; border-radius: 5px; }
+.dq-color-picker::-moz-color-swatch { border: none; border-radius: 5px; }
+.dq-swatches {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+/* 스토리텔링 '완성' 제출 버튼 */
+.dq-submit-btn {
+  height: 32px;
+  padding: 0 16px;
+  font-size: 14px;
+  font-weight: 700;
+  color: #fff;
+  background: var(--accent, #ff5a92);
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: filter 0.15s;
+}
+.dq-submit-btn:hover { filter: brightness(1.06); }
 
 /* 정답 추측 입력 (비출제자) */
 .dq-guessbar {

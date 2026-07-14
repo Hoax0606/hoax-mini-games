@@ -115,6 +115,13 @@ export class DrawQuizRenderer {
   private offX = 0;
   private offY = 0;
 
+  // offscreen 누적 레이어 — 확정된 stroke 를 여기 그려두고 매 프레임 blit.
+  //   채우기(flood fill)가 픽셀 조작이라 매 프레임 벡터 재렌더로는 불가 → 레이어 필수.
+  private layer: HTMLCanvasElement | null = null;
+  private layerCtx: CanvasRenderingContext2D | null = null;
+  private committedCount = 0;
+  private lastStrokesRef: StrokeData[] | null = null;
+
   /** 화면(rect 내 CSS 픽셀) 좌표 → 그림 논리 좌표 (0~CANVAS_W, 0~CANVAS_H) */
   screenToLogical(px: number, py: number): { x: number; y: number } {
     return { x: (px - this.offX) / this.scale, y: (py - this.offY) / this.scale };
@@ -182,14 +189,19 @@ export class DrawQuizRenderer {
     ctx.fillStyle = COLORS.paper;
     ctx.fillRect(DRAW_X, DRAW_Y, DRAW_W, DRAW_H);
 
-    // stroke 그리기 — clip 으로 도화지 밖 넘침 방지
+    // 확정 stroke 는 누적 레이어에서 blit, 진행 중(live) stroke 만 실시간 미리보기.
+    //   clip 으로 도화지 밖 넘침 방지.
     ctx.save();
     ctx.beginPath();
     ctx.rect(DRAW_X, DRAW_Y, DRAW_W, DRAW_H);
     ctx.clip();
 
-    for (const s of state.strokes) this.drawStroke(s);
-    if (state.liveStroke) this.drawStroke(state.liveStroke);
+    this.syncLayer(state.strokes);
+    if (this.layer) ctx.drawImage(this.layer, DRAW_X, DRAW_Y);
+    // live stroke 는 아직 레이어에 없음 → 화면에만 임시로. 채우기는 미리보기 안 함(commit 시점에만).
+    if (state.liveStroke && state.liveStroke.tool !== 'fill') {
+      this.drawStrokeOn(ctx, state.liveStroke, false);
+    }
 
     ctx.restore();
 
@@ -206,27 +218,79 @@ export class DrawQuizRenderer {
     }
   }
 
-  private drawStroke(s: StrokeData): void {
-    if (s.points.length === 0) return;
-    const ctx = this.ctx;
-    const style = s.style ?? 'pen';
+  // ---- offscreen 누적 레이어 관리 ----
+
+  private ensureLayer(): void {
+    if (this.layer) return;
+    const c = document.createElement('canvas');
+    c.width = DRAW_W;
+    c.height = DRAW_H;
+    this.layer = c;
+    this.layerCtx = c.getContext('2d');
+  }
+
+  /**
+   * state.strokes 를 레이어에 반영.
+   *   - 배열 참조가 바뀌었거나(라운드 리셋/undo 로 새 배열) 길이가 줄었으면 전체 재구성.
+   *   - 길이만 늘었으면 새로 추가된 stroke 만 증분 commit (매 프레임 전체 재렌더 방지 = 성능).
+   */
+  private syncLayer(strokes: StrokeData[]): void {
+    this.ensureLayer();
+    const lc = this.layerCtx;
+    if (!lc) return;
+    if (strokes !== this.lastStrokesRef || strokes.length < this.committedCount) {
+      lc.clearRect(0, 0, DRAW_W, DRAW_H);
+      this.committedCount = 0;
+      for (const s of strokes) this.commitStroke(s);
+      this.committedCount = strokes.length;
+      this.lastStrokesRef = strokes;
+    } else if (strokes.length > this.committedCount) {
+      for (let i = this.committedCount; i < strokes.length; i++) this.commitStroke(strokes[i]!);
+      this.committedCount = strokes.length;
+    }
+  }
+
+  /** stroke 하나를 레이어에 확정 반영. 채우기는 flood fill, 나머지는 경로 렌더. */
+  private commitStroke(s: StrokeData): void {
+    const lc = this.layerCtx;
+    if (!lc) return;
+    if (s.tool === 'fill') {
+      const p = s.points[0];
+      if (p) this.floodFill(p.x, p.y, s.color);
+      return;
+    }
+    this.drawStrokeOn(lc, s, true);
+  }
+
+  /**
+   * stroke 를 임의 ctx 에 그린다.
+   * @param onLayer true면 레이어(투명 배경)에 그림 → 지우개는 destination-out 로 진짜 투명 구멍.
+   *                false면 화면(live 미리보기) → 지우개는 종이색으로 덧칠.
+   */
+  private drawStrokeOn(ctx: CanvasRenderingContext2D, s: StrokeData, onLayer: boolean): void {
+    if (s.points.length === 0 || s.tool === 'fill') return;
     const shape = s.shape ?? 'free';
     ctx.save();
 
-    // 색 — 지우개는 종이색으로 덧칠(투명 구멍 X). marker 는 반투명 형광.
-    if (s.erase) {
-      ctx.strokeStyle = COLORS.paper;
-      ctx.fillStyle = COLORS.paper;
+    if (s.tool === 'eraser') {
+      if (onLayer) {
+        ctx.globalCompositeOperation = 'destination-out'; // 레이어에서 실제로 뚫음
+        ctx.strokeStyle = 'rgba(0,0,0,1)';
+        ctx.fillStyle = 'rgba(0,0,0,1)';
+      } else {
+        ctx.strokeStyle = COLORS.paper; // 미리보기는 종이색
+        ctx.fillStyle = COLORS.paper;
+      }
     } else {
       ctx.strokeStyle = s.color;
       ctx.fillStyle = s.color;
-      if (style === 'marker') ctx.globalAlpha = 0.4;
+      if (s.tool === 'marker') ctx.globalAlpha = 0.4; // 형광펜 반투명
     }
     ctx.lineWidth = s.width;
-    if (style === 'pen') { ctx.lineCap = 'round'; ctx.lineJoin = 'round'; }
-    else { ctx.lineCap = 'square'; ctx.lineJoin = 'miter'; } // block/marker = 각진
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
 
-    // 도형 — 시작점~끝점 기준
+    // 도형 — 시작점~끝점 기준 (펜/마커만 도형 지원)
     if (shape !== 'free' && s.points.length >= 2) {
       const a = s.points[0]!;
       const b = s.points[s.points.length - 1]!;
@@ -257,6 +321,62 @@ export class DrawQuizRenderer {
     }
     ctx.stroke();
     ctx.restore();
+  }
+
+  /**
+   * 채우기(flood fill) — 레이어 픽셀을 BFS 로 칠한다.
+   * 시작 픽셀과 색이 비슷한(tolerance 이내) 인접 픽셀을 이어서 새 색으로.
+   * 안티에일리어싱 경계 때문에 약간의 tolerance 를 준다.
+   */
+  private floodFill(fx: number, fy: number, hex: string): void {
+    const lc = this.layerCtx;
+    if (!lc) return;
+    const W = DRAW_W, H = DRAW_H;
+    const sx = Math.round(fx), sy = Math.round(fy);
+    if (sx < 0 || sy < 0 || sx >= W || sy >= H) return;
+
+    const img = lc.getImageData(0, 0, W, H);
+    const d = img.data;
+    const si = (sy * W + sx) * 4;
+    const sr = d[si]!, sg = d[si + 1]!, sb = d[si + 2]!, sa = d[si + 3]!;
+    const [nr, ng, nb] = hexToRgb(hex);
+    // 이미 목표색이면 무한루프 방지 위해 종료
+    if (sa === 255 && Math.abs(sr - nr) < 4 && Math.abs(sg - ng) < 4 && Math.abs(sb - nb) < 4) return;
+
+    const tol = 48;
+    const seen = new Uint8Array(W * H);
+    const stack: number[] = [sy * W + sx];
+    while (stack.length) {
+      const p = stack.pop()!;
+      if (seen[p]) continue;
+      seen[p] = 1;
+      const i = p * 4;
+      if (
+        Math.abs(d[i]! - sr) > tol ||
+        Math.abs(d[i + 1]! - sg) > tol ||
+        Math.abs(d[i + 2]! - sb) > tol ||
+        Math.abs(d[i + 3]! - sa) > tol
+      ) continue;
+      d[i] = nr; d[i + 1] = ng; d[i + 2] = nb; d[i + 3] = 255;
+      const x = p % W, y = (p - x) / W;
+      if (x > 0) stack.push(p - 1);
+      if (x < W - 1) stack.push(p + 1);
+      if (y > 0) stack.push(p - W);
+      if (y < H - 1) stack.push(p + W);
+    }
+    lc.putImageData(img, 0, 0);
+  }
+
+  /** 스포이드 — 현재 레이어의 픽셀 색을 hex 로 반환. 투명(빈 도화지)이면 흰색. */
+  getPixelColor(x: number, y: number): string {
+    this.ensureLayer();
+    const lc = this.layerCtx;
+    if (!lc) return '#000000';
+    const sx = Math.round(x), sy = Math.round(y);
+    if (sx < 0 || sy < 0 || sx >= DRAW_W || sy >= DRAW_H) return '#ffffff';
+    const d = lc.getImageData(sx, sy, 1, 1).data;
+    if (d[3]! < 10) return '#ffffff'; // 투명 = 흰 도화지
+    return rgbToHex(d[0]!, d[1]!, d[2]!);
   }
 
   /** 출제자 단어 선택 중 — 그림 영역에 안내 */
@@ -464,4 +584,25 @@ export class DrawQuizRenderer {
     ctx.closePath();
     ctx.fill();
   }
+}
+
+// ============================================
+// 색 변환 헬퍼 (flood fill / 스포이드용)
+// ============================================
+
+/** '#rrggbb' → [r,g,b] (0~255). 잘못된 값은 검정으로. */
+function hexToRgb(hex: string): [number, number, number] {
+  const h = hex.replace('#', '');
+  if (h.length !== 6) return [0, 0, 0];
+  return [
+    parseInt(h.slice(0, 2), 16),
+    parseInt(h.slice(2, 4), 16),
+    parseInt(h.slice(4, 6), 16),
+  ];
+}
+
+/** [r,g,b] → '#rrggbb' */
+function rgbToHex(r: number, g: number, b: number): string {
+  const c = (n: number): string => n.toString(16).padStart(2, '0');
+  return `#${c(r)}${c(g)}${c(b)}`;
 }

@@ -3,7 +3,11 @@
 다른 머신(집)에서 이 프로젝트를 이어서 작업할 때 읽는 문서.
 **Claude Code 첫 프롬프트로 "HANDOFF.md 정독하고 이어서 진행해줘" 라고 시작하면 됨.**
 
-마지막 업데이트: **2026-07-13** (연결 안정화 + 포트리스 대개편 + 라이어 게임 추가)
+마지막 업데이트: **2026-07-15** (스토리텔링 게임 추가 + 그림도구 개편 + 포트리스 물리 재작업 + 대규모 버그 스윕)
+- **🆕 스토리텔링(이어그리기) 게임** — 3~6인, **갈틱폰 방식**. N명=N권의 책, 각자 제시어로 시작. 매 턴 **전원 동시에** 그리고(쉬는 사람 0명) 시간 끝나면 책이 옆으로 회전 → 넘겨받은 책의 **직전 컷만 옅게(유령)** 보며 이어 그림. 방옵션: 짧게(1바퀴)/길게(2바퀴, 상한 8턴) · 컷당 60/120초. 마지막에 책별 **슬라이드쇼 감상**, 승패 없음(결과화면 전용 "감상 완료" 카드). 제시어 ~150개(`story-draw/prompts.ts`). 그림엔진은 draw-quiz 개선판을 자체 복사(전체 캔버스 1패널). 그림은 실시간 공유 X(반전 재미) — 호스트에게만 target 전송. **미검증(P2P 3인+ 테스트 필요)**.
+- **🖌️ 그림 도구 대개편(draw-quiz)** — 도구를 **라디오 방식**으로(펜/형광펜/지우개/채우기/스포이드, 하나만 활성). **채우기(flood fill)** 실동작, **컬러 피커(그라데이션)**, **실행취소(Ctrl+Z)**, **스포이드**, 도형(자유/직선/사각/원) 유지. 렌더를 **오프스크린 누적 레이어**로 바꿈(채우기·지우개 투명처리 위해). story-draw 가 이 엔진 재사용.
+- **🏰 포트리스 물리 재작업(Plan B)** — 궤적을 **구간별 해석식(piecewise-analytic) + 고정 스텝 누적기**로 → 프레임레이트·렉 무관, 호스트·게스트 궤적 동일. **직격 판정 스침거리(swept)+최근접점 스냅**(반경 13→16), **폭발 데미지 수직 가중 0.6**(지형 높이차로 "옆인데 0뎀" 완화), 폭격탄 **5발 결정론적 대칭**, 크레이터 -30%, 폭발 이펙트 호/게 통일. sync 가 발사 중 포탄 덮어쓰던 것 + 일시정지 후 포탄 멈춤 수정.
+- **🐛 대규모 버그 스윕(전 게임+플랫폼 소스 리뷰)** — 고친 것: 이모지 XSS(reactions), 채팅 방 넘어 누수(lobby clear), 사과 destroy 후 finishGame, 다트 버스트 입력 미잠금, 알까기·끝말잇기 `getNextTurn` 턴 스킵(indexOf -1), 에어하키 물리∝주사율(고정스텝), 반응속도 무한대기(워치독), 초기 hello 유실→게스트 멈춤(gameScreen 버퍼링), 관전자 전원 일시정지, 동시 일시정지 desync(Set), 비활성 버튼이 활성처럼 보임(theme.css). **미해결(다음 작업)**: 디스커넥트 시 N인 방 유지(게임별 이탈 처리 필요, 규모 큼).
 - **🆕 라이어 게임** — 3~8인, 고정 5라운드 누적점수. 매 라운드 랜덤 라이어 1명. **2모드**: 일반(라이어는 제시어만 모름) / 바보(라이어도 자기가 라이어인 줄 모름, 같은 주제 가짜 단어 받음). 흐름: 역할배정(per-peer 비밀 `lg:role`) → 힌트 2바퀴 타이핑 → 비밀투표 → (라이어 지목 시)제시어 추측 → 결과. 동점=라이어 승. 점수: 라이어 승 +2 / 시민 승이면 라이어 지목한 시민 각 +1. 힌트 검증(제시어 직접언급 금지+20자), 힌트/투표/추측 타임아웃. 비밀정보는 sync 에 안 담고 host-only. 카테고리 풀 15주제(`liar-game/words.ts`). **미검증(P2P 3인+ 테스트 필요)**.
 - **🔧 연결 안정화** — PeerJS 무료 공용 서버 불안정 → 자체 PeerServer(`peerserver/`, Render 배포) + ICE(STUN/TURN) 설정(`src/core/netConfig.ts`). **배포 후 `DEFAULT_PEER_HOST` 채워야 활성**. 창 닫으면 방 나가기(peer.ts `pagehide`).
 - **🏰 포트리스 대개편** — 탱크 비주얼(궤도+포탑+회전포신+묘비) / 무기 6종(일반∞ + 특수5: 대형/유도/폭격/분열/수류탄, 랜덤 3종×3발) / 포대 이동(◀▶ 홀드+연료) / 턴 타이머 링 / 조준 파워 원뿔 / 폭발 이펙트 / 총구 클리어런스+히트박스 정확도 / 다수 동기화 버그 수정. 설계 스펙 `docs/superpowers/specs/`.
@@ -43,11 +47,11 @@ npm run dev       # http://localhost:5173
 | 5 | 결과 화면 다인용 | ✅ 게임별 전용 UI |
 
 **다음 작업** (우선순위):
-- 🅐 **그림 퀴즈 플레이테스트** — 최소 3인 필요(창 3개). 출제자 그림 broadcast / 추측 정답 판정 / 라운드 로테이션 실제 확인. 미검증 상태.
-  - 알려진 한계: stroke 는 한 획 완성(mouseup) 시 전송 → 긴 획 그리는 중엔 상대 화면에 손 뗄 때까지 안 보임. 실시간성 원하면 부분 flush 추가 여지.
-- 🅑 **새 게임 추가** — 후보: 타워 쌓기, 4인 퐁, 폭탄 돌리기, 카드 메모리, 사과게임 공격 시스템 등
-- (선택) 리팩토링 — `GameModule.renderResultCard` 범용화 (resultScreen 분기 9개 → 게임 자체에서 그리기) / gameScreen factory 호스트·게스트 공통화
-- (보류) **Phase 3 방장 이양** — 방장 나가면 남은 사람 중 하나가 새 방장. 미구현. Henry 당분간 안 함 — 다시 들어가면 peer.ts HostSession 소유권 이전 + peerId broadcast 재연결이 핵심.
+- 🅐 **디스커넥트 시 N인 방 유지** (이번 세션 미해결, 규모 큼) — 지금은 플레이어 1명 나가면 방 전체 종료(메뉴로). N인 게임(테트리스/라이어 등)에선 남은 사람으로 계속돼야 함. 필요: `GameModule.onPlayerLeft?(peerId)` 훅 추가 + gameScreen 이 이탈을 게임에 전달 + **게임별로** 턴/생존/대기 집합에서 드롭 처리 + 실제 3인+ 테스트. 타임아웃 있는 게임(끝말잇기/라이어/포트리스/반응속도/사과/스토리텔링)은 어느 정도 견디고, **취약: 배틀테트리스(마지막 2인)·다트·알까기(턴 대기)**. 관련: 결과화면 재대결도 1명 이탈 시 N인인데 막힘([resultScreen.ts](src/screens/resultScreen.ts) onGuestDisconnected).
+- 🅑 **스토리텔링 + 그림퀴즈 플레이테스트** — 최소 3인(창 3개). 스토리텔링: 컷 회전/슬라이드쇼/동시 그리기 렉 확인. 그림퀴즈: 개편된 도구(채우기/스포이드/Undo) 확인. 둘 다 미검증.
+- 🅒 **남은 저위험 UI**(UI 감사 발견) — 모달 스크롤락, N인 게임 헤더가 2명만 표시(games 는 canvas 에 자체 로스터), 결과화면 change-game keydown 리스너 누수, 다트 결과 랭크 여백.
+- (선택) 리팩토링 — `GameModule.renderResultCard` 범용화 (resultScreen 분기 10개 → 게임 자체에서 그리기) / gameScreen factory 호스트·게스트 공통화 / draw-quiz·story-draw 그림엔진 공용 모듈로 추출(현재 복사, 3번째 반복부터 추상화 원칙).
+- (보류) **Phase 3 방장 이양** — 방장 나가면 남은 사람 중 하나가 새 방장. 미구현. Henry 당분간 안 함.
 
 ---
 
@@ -56,7 +60,7 @@ npm run dev       # http://localhost:5173
 **한 줄**: 친구끼리 즐기는 웹 P2P 미니게임 모음집.
 - **스택**: Vite + TypeScript + Canvas + PeerJS (WebRTC, 서버리스 P2P) + GitHub Pages
 - **분위기**: 산리오풍 파스텔. 한국어 UI. PC 전용.
-- **현재 게임 (11종)**:
+- **현재 게임 (12종)**:
   - 에어하키 (2인, 호스트 authoritative 물리)
   - 배틀 테트리스 (2~4인, 로컬 시뮬레이션)
   - 사과 게임 (1~4인, 숫자 사과 합 10 터트리기, 2분)
@@ -68,6 +72,7 @@ npm run dev       # http://localhost:5173
   - 그림 퀴즈 (3~6인, 라운드제. 출제자 그림 broadcast + 추측 정답 자동 판정. 제시어 287개. `draw-quiz/`)
   - 포트리스 (2~6인, 턴제 포병. 탱크+무기 6종+포대이동+바람. 결정론적 궤적 재생 + 호스트 착탄 확정. `fortress/`)
   - 라이어 게임 (3~8인, 5라운드. 라이어 찾기 추리. 일반/바보 2모드. 호스트 authoritative. `liar-game/`)
+  - 스토리텔링 (3~6인, 갈틱폰식 이어그리기. 전원 동시 그리기 + 책 회전 + 직전컷 유령 + 슬라이드쇼 감상. 승패 없음. `story-draw/`)
 - **배포 URL**: https://hoax0606.github.io/hoax-mini-games/
 
 ---
@@ -90,7 +95,7 @@ src/
 │   └── roomDirectory.ts         # 🆕 publicRooms 노드 publish/update/subscribe + onDisconnect 자동 제거
 ├── games/
 │   ├── types.ts                 # GameContext, Player(role), NetworkMessage + ping/reaction/chat
-│   ├── registry.ts              # 등록된 게임 목록 (11종)
+│   ├── registry.ts              # 등록된 게임 목록 (12종)
 │   ├── air-hockey/              # 2인 호스트 authoritative
 │   ├── battle-tetris/           # 2-4인 로컬 시뮬레이션
 │   ├── apple-game/              # 1-4인 독립 보드 + 점수 경쟁 (17×10)
@@ -118,12 +123,18 @@ src/
 │   │   ├── render.ts            #   큰 단어 + 타이머 ring + 히스토리 + 플레이어 카드
 │   │   ├── index.ts             #   호스트 검증 + HTML input UI 마운트 + 30초 타이머
 │   │   └── netSync.ts           #   wc:hello/sync/submit/accepted/rejected/timeout/end
-│   └── draw-quiz/               # 🆕 3-6인 그림 퀴즈 (라운드제, 출제자 그림 broadcast)
-│       ├── words.ts             #   제시어 287개 (easy/normal/hard) + pickCandidates
-│       ├── rules.ts             #   라운드/점수/출제자 로테이션/정답 판정
-│       ├── render.ts            #   도화지 + stroke + 타이머 + 제시어(글자수 가림) + 점수판
-│       ├── index.ts             #   호스트 라운드 진행 + 그리기 입력 + 도구/추측 HTML UI
-│       └── netSync.ts           #   dq:hello/sync/round_start/word_chosen/round_begin/stroke/clear/guess/correct/round_end/end
+│   ├── draw-quiz/               # 3-6인 그림 퀴즈 (라운드제, 출제자 그림 broadcast)
+│   │   ├── words.ts             #   제시어 287개 (easy/normal/hard) + pickCandidates
+│   │   ├── rules.ts             #   라운드/점수/출제자 로테이션/정답 판정
+│   │   ├── render.ts            #   오프스크린 누적레이어 + flood fill + 스포이드 + stroke + 타이머 + 점수판
+│   │   ├── index.ts             #   호스트 라운드 진행 + 그리기 입력 + 도구(펜/형광펜/지우개/채우기/스포이드/도형/컬러피커/Undo) HTML UI
+│   │   └── netSync.ts           #   dq:hello/sync/round_start/word_chosen/round_begin/stroke/undo/clear/guess/correct/round_end/end
+│   └── story-draw/              # 🆕 3-6인 스토리텔링(갈틱폰식 이어그리기)
+│       ├── prompts.ts           #   제시어 풀 ~150개 (장면/상황 씨앗)
+│       ├── rules.ts             #   책/컷 데이터모델 + 책 회전 배정(bookForSeat) + stroke 타입 + 제시어 배정
+│       ├── render.ts            #   draw-quiz 그림엔진 복사(전체 캔버스) + 직전컷 유령 + 슬라이드쇼
+│       ├── index.ts             #   전원 동시 그리기 + 호스트 턴 관리 + 도구 UI + 슬라이드쇼
+│       └── netSync.ts           #   sd:hello/sync/turn/progress/done/reveal/end
 ├── screens/
 │   ├── menu.ts                  # 메인 메뉴 (🎮 시작 / 🌐 공개방 / 📊 통계 / ✏️ 닉 / ⚙️ 설정)
 │   ├── nickname.ts, settings.ts, gameList.ts, lobby.ts
@@ -132,7 +143,7 @@ src/
 │   ├── gameScreen.ts            # 관전자 수락 + ping 배지 + 리액션 + 채팅 패널
 │   ├── statsScreen.ts           # 게임별 누적 전적/최고기록 (localStorage)
 │   ├── publicRooms.ts           # 🆕 Firebase publicRooms 실시간 구독 → 카드 리스트 → 클릭 시 autoJoin
-│   └── resultScreen.ts          # 게임별 전용 결과 분기 (테트리스/사과/오목/반응속도/다트/알까기/끝말잇기/그림퀴즈)
+│   └── resultScreen.ts          # 게임별 전용 결과 분기 (테트리스/사과/오목/반응속도/다트/알까기/끝말잇기/그림퀴즈/포트리스/라이어/스토리텔링=감상완료)
 ├── ui/
 │   ├── theme.css                # 팔레트 + 컴포넌트 스타일 (chat-panel / public-room-card / wc-input)
 │   ├── reactions.ts             # 이모지 6종 버튼 + 하단 풍선 애니 (400ms throttle)
@@ -161,6 +172,7 @@ src/
 - 오목: `go:request_move` / `go:move` / `go:sync` / `go:hello` / `go:end`
 - 반응속도: `rx:round_done` / `rx:player_done` / `rx:end`
 - 다트: `dart:hello` / `dart:sync` (관전자 합류 시 현재 game state + stuckDarts 동기화) / `dart:throw` (투척자 초기 속도/위치 broadcast) / `dart:end` (호스트 per-peer 결과)
+- 스토리텔링: `sd:hello` / `sd:sync`(전체 상태) / `sd:turn`(새 턴, 좌석별 책/제시어/직전컷 유령 배정) / `sd:progress`·`sd:done`(그리는 사람→호스트, target=호스트로 relay 차단) / `sd:reveal`(전체 책) / `sd:end`(승패 없음)
 
 ### 역할 (GameContext.role + isSpectator)
 - `role: 'host'` — 방장. 승리 판정자.
@@ -199,6 +211,7 @@ src/
 - 알까기: A 마이너 펜타토닉 · 90 BPM · triangle · 한국 전통 놀이풍 + 살짝 긴장
 - 끝말잇기: D 마이너 펜타토닉 · 92 BPM · triangle · 사색적 + 한국 전통풍
 - 그림 퀴즈: 사과게임 BGM 재활용 (F 메이저 · 밝고 느긋). 전용 BGM 은 후속 여지
+- 스토리텔링: 사과게임 BGM 재활용 (밝고 느긋). 전용 BGM 은 후속 여지
 
 ---
 
@@ -389,6 +402,14 @@ setPaused?(paused: boolean): void;
 - "다른 게임 선택" 버튼 무반응 — 클릭은 핸들러 도달했지만 `buildChangeGameOverlayHTML` 안의 `escapeAttr` 가 정의 안 됨 → `ReferenceError` → 오버레이 빌드 실패. UI 상 :active 만 보이고 그 뒤 아무 일도 안 일어남.
 - **교훈**: 비슷한 "버튼 무반응" 신호 오면 콘솔 에러 우선 확인. `escapeHtml` / `escapeAttr` 같은 헬퍼가 파일마다 중복 정의되어 있어 누락하기 쉬움.
 
+### 대규모 버그 스윕 + 물리 재작업에서 얻은 교훈 (2026-07-15)
+- **`getNextTurn` 의 `indexOf(-1)` 패턴 = 턴 스킵 버그** — 현재 턴 플레이어가 죽으면 `alive.indexOf(currentTurn)` 이 -1 → `nextPos=0` 으로 최저 인덱스 점프, 뒤 사람 건너뜀. **좌석 위치 다음부터 스캔**으로 고침(알까기·끝말잇기 둘 다 있었음). 새 턴제 게임 짤 때 주의.
+- **프레임레이트 의존 물리 → 고정 스텝 누적기** — RAF 프레임당 1스텝 + 고정 dt 로 시뮬하면 고주사율(144Hz) 기기에서 게임이 몇 배 빨라짐. `accum += 실경과; while(accum>=STEP){ step(STEP); accum-=STEP }` + 상한(0.25s). 포트리스는 여기에 **구간별 해석식**까지(호/게 궤적 완전 동일). 에어하키도 같은 패턴 적용.
+- **`setPaused` 에서 `lastFrameTime` 이중보정 금지** — 루프가 정지 중에도 매 프레임 `lastFrameTime=now` 로 갱신하면, setPaused 에서 또 정지시간을 더하면 미래값 → 누적기 음수 → 재개 후 물리가 멈춤. "정지 중 갱신 안 되는 절대 기준시각"만 보정.
+- **원격 필드는 신뢰 X** — `reaction.emoji` 가 escape 없이 innerHTML 로 들어가 XSS. 화이트리스트 + escape. 게임 메시지의 자칭 `from`/좌표도 방어 대상(Tier-2 로 남김).
+- **호스트 relay 는 no-target 메시지를 다른 게스트에 뿌림** — 실시간 노출 원치 않는 데이터(스토리텔링 그림 진행)는 `sendToPeer(msg, { target: 호스트peerId })` 로 호스트에게만.
+- **모듈 start() 전 도착 메시지 유실** — gameScreen 이 onMessage 를 모듈 로드/시작 전에 배선 → 초기 hello 가 조용히 버려져 게스트 멈춤. **start 전 game_msg 버퍼링 후 flush**로 해결.
+
 ### 네트워크 모듈 분리 리팩토링 (2026-04-28 ~ 05-09)
 - 다트/반응속도 게임의 `encodeXxx`/`decodeXxx` 함수들을 별도 `netSync.ts` 파일로 추출.
   - `darts/netSync.ts`: hello/sync/throw/end 4종.
@@ -411,6 +432,7 @@ setPaused?(paused: boolean): void;
 
 ## 🐛 알려진 이슈 / 개선 여지
 
+- **디스커넥트 시 N인 방 종료 (미해결, 다음 작업 🅐)** — 플레이어 1명 나가면 방 전체가 메뉴로. N인 게임에선 남은 사람으로 계속돼야 함. 게임별 `onPlayerLeft` 처리 필요 — 규모 큼.
 - **Phase 3 (방장 이양) 미구현 — 보류** — 방장 나가면 방 종료 (+ Firebase entry 도 onDisconnect 로 자동 제거). Henry 당분간 진행 의향 없음.
 - **일시정지 키보드 입력 차단 안 됨** — pause overlay 가 canvas 위에 올라가서 마우스는 차단되지만, 게임 모듈이 `window` 레벨로 keydown 을 listen 하면 키 입력은 그대로 전달. 다만 각 게임 `setPaused(true)` 시 `performKey`/`onCanvasClick` 등에 paused 가드 추가돼서 실질 동작은 안 함.
 - **에어하키 관전자 비주얼** — 점수판 대신 "관전 중" 배지만. (테트리스는 v2 격자로 해결, 다른 게임은 그대로)

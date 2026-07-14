@@ -21,6 +21,7 @@ import wordChainThumbnail from './word-chain/thumbnail.svg';
 import drawQuizThumbnail from './draw-quiz/thumbnail.svg';
 import fortressThumbnail from './fortress/thumbnail.svg';
 import liarGameThumbnail from './liar-game/thumbnail.svg';
+import storyDrawThumbnail from './story-draw/thumbnail.svg';
 
 export const games: GameEntry[] = [
   {
@@ -290,6 +291,42 @@ export const games: GameEntry[] = [
     load: async () => {
       const mod = await import('./liar-game');
       return mod.createLiarGame();
+    },
+  },
+  {
+    meta: {
+      id: 'story-draw',
+      name: '스토리텔링',
+      description: '각자 제시어로 그림을 그리고, 직전 그림을 이어받아 계속 그린다! 모두가 동시에 그려서 쉬는 사람 없음. 마지막에 이야기가 어떻게 변했는지 슬라이드쇼로 감상 (승패 없음).',
+      thumbnail: storyDrawThumbnail,
+      minPlayers: 3,
+      maxPlayers: 6,
+      roomOptions: [
+        {
+          key: 'storyLength',
+          label: '이야기 길이',
+          type: 'select',
+          choices: [
+            { value: 'short', label: '짧게 (1바퀴)' },
+            { value: 'long', label: '길게 (2바퀴)' },
+          ],
+          defaultValue: 'short',
+        },
+        {
+          key: 'drawSeconds',
+          label: '컷당 시간',
+          type: 'select',
+          choices: [
+            { value: '60', label: '60초' },
+            { value: '120', label: '120초' },
+          ],
+          defaultValue: '60',
+        },
+      ],
+    },
+    load: async () => {
+      const mod = await import('./story-draw');
+      return mod.createStoryDrawGame();
     },
   },
 ];

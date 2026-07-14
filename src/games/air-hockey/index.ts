@@ -23,6 +23,7 @@ import type { GameModule, GameContext, GameMessage, GameResult } from '../types'
 import {
   FIELD,
   CENTER_X,
+  PHYSICS,
   createInitialState,
   stepPhysics,
   type GameState,
@@ -59,6 +60,9 @@ class AirHockeyGame implements GameModule {
   private lastInput: 'mouse' | 'keyboard' = 'mouse';
 
   private rafId: number | null = null;
+  /** 고정 스텝 물리 누적기 — 프레임레이트와 무관하게 60Hz 시뮬 유지 */
+  private physAccum = 0;
+  private lastPhysTime = 0;
   private pendingEvents: PhysicsEvent[] = [];
   private gameEnded = false;
   /** 일시정지 — gameScreen 의 setPaused 호출로 토글. true 면 물리/입력 송신 스킵, 렌더만 */
@@ -172,6 +176,7 @@ class AirHockeyGame implements GameModule {
     // 일시정지 — 물리/네트워크 송신 정지, 렌더만 유지(현재 state 그대로 멈춤).
     // 호스트가 stepPhysics 를 안 호출하면 puck 위치가 그대로라 게스트도 동일하게 정지된 화면.
     if (this.paused) {
+      this.lastPhysTime = 0; // 재개 시 누적기 재시작 (정지 시간이 한꺼번에 밀려들지 않게)
       this.renderer.render(this.state, []);
       this.publishStatus();
       return;
@@ -188,13 +193,26 @@ class AirHockeyGame implements GameModule {
   };
 
   private hostTick(): void {
-    // 1) 물리 한 프레임
-    const events = stepPhysics(this.state, {
-      hostTarget: this.myTarget,
-      guestTarget: this.opponentTarget,
-    });
+    // 1) 고정 스텝 물리 — 실제 경과시간을 FIXED_DT(1/60) 단위로만 소비.
+    //    호스트 모니터 주사율(60/120/144Hz)과 무관하게 항상 초당 ~60스텝 → 퍽 속도 일정.
+    //    (예전엔 RAF 프레임당 1스텝이라 고주사율 호스트에서 게임이 몇 배 빨라졌음)
+    const now = performance.now();
+    if (this.lastPhysTime === 0) this.lastPhysTime = now;
+    this.physAccum += (now - this.lastPhysTime) / 1000;
+    this.lastPhysTime = now;
+    if (this.physAccum > 0.25) this.physAccum = 0.25; // 렉 스파이크 상한
 
-    // 2) 상태 + 이벤트를 게스트에 송신
+    const events: PhysicsEvent[] = [];
+    while (this.physAccum >= PHYSICS.FIXED_DT) {
+      const e = stepPhysics(this.state, {
+        hostTarget: this.myTarget,
+        guestTarget: this.opponentTarget,
+      });
+      if (e.length) events.push(...e);
+      this.physAccum -= PHYSICS.FIXED_DT;
+    }
+
+    // 2) 상태 + 이벤트를 게스트에 송신 (프레임당 1회, 서브스텝 이벤트 합쳐서)
     this.ctx.sendToPeer(encodeState(this.state, events));
 
     // 3) 로컬 렌더

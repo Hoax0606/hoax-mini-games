@@ -4,6 +4,7 @@ import { getGameById } from '../games/registry';
 import { createCreateRoomScreen } from './createRoom';
 import { createJoinRoomScreen } from './joinRoom';
 import { escapeHtml } from '../ui/escape';
+import { clearChatHistory } from '../ui/chat';
 
 /**
  * 로비 화면
@@ -14,6 +15,9 @@ import { escapeHtml } from '../ui/escape';
 export function createLobbyScreen(gameId: string): Screen {
   return {
     render() {
+      // 방을 나오면(로비 복귀) 이전 방 채팅 기록 초기화 — 다음 방에 옛 대화가 새는 것 방지.
+      //   (메뉴 복귀 외에 로비 복귀 경로에선 안 지워지던 누수)
+      clearChatHistory();
       const game = getGameById(gameId);
       // 레지스트리에 없는 id가 들어오면(=정상 플로우에선 생길 일 없음) 선택 화면으로 복귀
       if (!game) {

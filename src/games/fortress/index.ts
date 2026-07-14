@@ -22,7 +22,8 @@ import {
   generateTerrain, carveCrater, terrainTopAt,
 } from './terrain';
 import {
-  launchVelocity, stepProjectile, MAX_WIND, type Projectile,
+  launchVelocity, segPos, segVel, MAX_WIND,
+  type Projectile, type FlightSeg,
 } from './physics';
 import {
   FortressRenderer, type RenderState,
@@ -37,7 +38,7 @@ import {
   type Crater,
 } from './netSync';
 
-const SIM_DT = 1 / 120;          // 궤적 sub-step (정확한 착탄)
+const SIM_DT = 1 / 120;          // 궤적 고정 스텝(초) — 모든 클라 동일 스텝수로 결정론적 궤적
 const END_GAME_DELAY_MS = 1800;
 const MAX_DRAG_PX = 200;         // 이 이상 당기면 파워 100%
 /** 포신 발사 시작점 — 포대 중심에서 위로 */
@@ -48,14 +49,20 @@ const TURN_TIME_MS = 30_000;
 const FIRING_WATCHDOG_MS = 8_000;
 /** 호스트: 포탄이 이 시간 넘게 착탄 안 되면 강제 턴 종료 (게임 정지 방지 안전장치) */
 const FIRING_MAX_MS = 6_000;
+/** 발사 직후 이 시간 동안은 "호스트가 아직 내 발사를 반영 못한 오래된 aiming sync" 를 무시.
+ *  RTT 지연으로 날아가던 포탄이 사라지는 것 방지. 이후엔 받아들여 fr:fire 유실도 복구. */
+const RESYNC_STALE_AIMING_MS = 1_500;
 /** 분열탄 파편 각 벌림(라디안) */
 const SPLIT_SPREAD = 0.30;
 /** 수류탄 지형 반사 감쇠 계수 */
 const BOUNCE_DAMP = 0.55;
 /** 발사 직후 이 거리(px)까진 지형/포대 충돌 무시 — 총구 앞 오조준 착탄 방지 */
 const LAUNCH_CLEARANCE = 20;
-/** 포대 피격 판정 반경 (탱크 몸통) */
-const FORT_HIT_RADIUS = 13;
+/** 폭발 이펙트 시각 반경 = 크레이터반경 × 이 배율. 호스트·게스트가 같은 값(크레이터반경)으로
+ *  계산하도록 통일 — 예전엔 호스트 blastRadius / 게스트 크레이터×1.7 로 폭발 크기가 달라 보였음 */
+const EXPLOSION_VIS_SCALE = 2.3;
+/** 포대 피격 판정 반경 (탱크 몸통). 차체 반폭(~14)보다 커야 "맞은 것 같은데 통과"가 안 남 */
+const FORT_HIT_RADIUS = 16;
 /** 포대 몸통 중심 y = 지형top - 이 값 (탱크 차체 높이) */
 const FORT_HIT_RISE = 11;
 /** 턴당 이동 연료(=이동 가능 px). 턴마다 재충전 */
@@ -76,6 +83,30 @@ interface Shell extends Projectile {
   /** 발사(생성) 지점 — 총구 클리어런스 계산용 */
   spawnX: number;
   spawnY: number;
+  /** 현재 비행 구간(해석식 원점). 분열/튕김 때 새로 시작 */
+  seg: FlightSeg;
+  /** 현재 구간에서 경과한 시간(초). 위치 = segPos(seg, st) */
+  st: number;
+}
+
+/** 포탄의 현재 (x,y,vx,vy) 를 원점으로 새 비행 구간 시작 (발사·분열·튕김 공통) */
+function startSeg(s: Shell, wind: number): void {
+  s.seg = { x0: s.x, y0: s.y, vx0: s.vx, vy0: s.vy, wind };
+  s.st = 0;
+}
+
+/**
+ * 점(px,py) 과 선분(a→b) 의 최근접점 + 거리.
+ * 고속 포탄의 스침/통과(터널링) 판정 + 직격 시 폭발 중심을 탱크에 가장 가까운
+ * 지점으로 스냅하는 데 쓴다(스텝 끝점이 탱크를 지나쳐 데미지가 줄던 문제 방지).
+ */
+function segClosest(ax: number, ay: number, bx: number, by: number, px: number, py: number): { x: number; y: number; d: number } {
+  const dx = bx - ax, dy = by - ay;
+  const l2 = dx * dx + dy * dy;
+  let t = l2 === 0 ? 0 : ((px - ax) * dx + (py - ay) * dy) / l2;
+  t = Math.max(0, Math.min(1, t));
+  const cx = ax + dx * t, cy = ay + dy * t;
+  return { x: cx, y: cy, d: Math.hypot(px - cx, py - cy) };
 }
 
 class FortressGameModule implements GameModule {
@@ -104,6 +135,8 @@ class FortressGameModule implements GameModule {
   // 궤적 — 여러 포탄(분열탄은 3개 동시)
   private shells: Shell[] = [];
   private fireWind = 0;
+  /** 고정 스텝 시뮬 누적기(초). 매 프레임 실경과를 더해 SIM_DT 단위로만 소비 → 결정론적 */
+  private simAccum = 0;
   /** 지금 날아가는 포탄의 무기 (착탄 폭발 파라미터 결정) */
   private flyingWeapon: WeaponId = 'normal';
   /** 분열탄이 이번 발사에서 이미 분열했는지 */
@@ -203,6 +236,15 @@ class FortressGameModule implements GameModule {
     const sync = decodeSync(msg);
     if (sync) {
       if (!this.isHost) {
+        // 내가 방금 쏴서 로컬은 firing 인데, 호스트가 아직 내 fr:fire 를 못 받아 보낸
+        //   오래된 aiming 스냅샷이면 무시 — 안 그러면 아래 this.game 덮어쓰기 + shells=[] 로
+        //   날아가던 포탄이 사라지고 재발사 창이 열린다. 착탄은 fr:impact 로 확정되니 안전.
+        //   grace 이후엔 받아들여 fr:fire 진짜 유실 시 복구.
+        if (this.game?.phase === 'firing' && sync.game.phase === 'aiming'
+          && this.shells.length > 0
+          && performance.now() - this.firingStartedAt < RESYNC_STALE_AIMING_MS) {
+          return;
+        }
         const wasReady = this.ready;
         const prevPhase = this.game?.phase;
         this.game = sync.game; // wind/currentTurn/phase/점수 등 최신 반영
@@ -245,8 +287,9 @@ class FortressGameModule implements GameModule {
 
     const mv = decodeMove(msg);
     if (mv) {
-      // 현재 턴 포대의 이동만 반영 (다른 포대 이동은 무시)
-      if (mv.fromFortId === this.game.currentTurn) {
+      // 현재 턴 포대의 이동만, 그리고 조준(aiming) 단계에서만 반영.
+      //   (발사 후 뒤늦게 도착한 이동 패킷이 포대 위치를 바꿔 착탄 판정에 영향 주는 것 방지)
+      if (mv.fromFortId === this.game.currentTurn && this.game.phase === 'aiming') {
         const f = this.game.forts.find((ff) => ff.id === mv.fromFortId);
         if (f) f.x = mv.x;
       }
@@ -286,10 +329,12 @@ class FortressGameModule implements GameModule {
       this.pauseStart = performance.now();
       this.aiming = false;
     } else if (this.pauseStart > 0) {
-      // 정지 동안 흐른 시간을 각 기준 시각에 더해 보정 —
+      // 정지 동안 흐른 시간을 각 "절대 기준시각"에 더해 보정 —
       //   안 그러면 턴 타이머/워치독이 정지 시간까지 세서 재개 즉시 턴 스킵됨.
+      //   ※ lastFrameTime 은 보정하지 않는다: 루프가 정지 중에도 매 프레임 now 로
+      //     갱신하므로(아래 loop 끝) 이미 최신이다. 여기서 delta 를 더하면 미래값이 되어
+      //     재개 직후 simAccum 이 음수가 되고 포탄이 정지시간만큼 얼어붙는다.
       const delta = performance.now() - this.pauseStart;
-      this.lastFrameTime += delta;
       this.turnStartedAt += delta;
       if (this.firingStartedAt > 0) this.firingStartedAt += delta;
       this.pauseStart = 0;
@@ -306,13 +351,17 @@ class FortressGameModule implements GameModule {
     const now = performance.now();
 
     if (!this.paused && this.shells.length && this.game.phase === 'firing') {
-      const elapsed = Math.min(0.1, (now - this.lastFrameTime) / 1000);
-      let remaining = elapsed;
+      // 고정 스텝 누적기 — 실경과를 더해 SIM_DT 단위로만 소비.
+      //   항상 정확히 SIM_DT 씩 밟으므로 프레임레이트·렉과 무관하게 모든 클라가 동일 궤적.
+      this.simAccum += (now - this.lastFrameTime) / 1000;
+      // 렉 스파이크로 스텝이 폭주하지 않게 상한(0.25초치). 넘친 시간은 버림.
+      if (this.simAccum > 0.25) this.simAccum = 0.25;
+      // 음수 방지 — 시계 되감김/보정 오류로 delta 가 음수여도 포탄이 멈추지 않게.
+      if (this.simAccum < 0) this.simAccum = 0;
       try {
-        while (remaining > 0 && this.shells.length && this.game.phase === 'firing') {
-          const dt = Math.min(SIM_DT, remaining);
-          this.stepShells(dt);
-          remaining -= dt;
+        while (this.simAccum >= SIM_DT && this.shells.length && this.game.phase === 'firing') {
+          this.stepShells(SIM_DT);
+          this.simAccum -= SIM_DT;
         }
       } catch (err) {
         // 시뮬 중 예외 — 포탄을 정리하고 호스트가 턴을 확정해 게임이 얼지 않게.
@@ -452,7 +501,12 @@ class FortressGameModule implements GameModule {
     for (const s of this.shells) {
       if (s.landed) continue;
       if (spec.fuseMs) s.fuseLeft -= dt * 1000;
-      stepProjectile(s, this.fireWind, dt);
+
+      // 해석식으로 한 스텝 전진 — 이전 위치는 스침(터널링) 판정에 사용
+      const prevX = s.x, prevY = s.y;
+      s.st += dt;
+      const p = segPos(s.seg, s.st); s.x = p.x; s.y = p.y;
+      const v = segVel(s.seg, s.st); s.vx = v.vx; s.vy = v.vy;
 
       const off = s.x < -60 || s.x > this.game.terrainWidth + 60 || s.y > 440;
       // 총구 클리어런스 — 발사 직후 일정 거리 전엔 지형/포대 충돌 무시(오조준 착탄 방지)
@@ -472,15 +526,23 @@ class FortressGameModule implements GameModule {
           s.vx = s.vx * 0.6 + slope * 4; // 마찰 + 경사 가속
           s.vy = -Math.abs(s.vy) * 0.3;  // 거의 안 튀고 구르는 느낌
           s.bounces++;
+          startSeg(s, this.fireWind); // 반사 후 새 속도로 새 구간 시작
         }
       } else {
         let hitFort = false;
         if (cleared) {
           for (const f of this.game.forts) {
             if (!f.alive) continue;
-            // 탱크 몸통 중심 기준 원형 히트박스 (지면 근처가 아니라 차체 높이)
+            // 탱크 몸통 중심 기준 원형 히트박스. 스텝 이동선분(prev→cur)과의 최근접거리로
+            //   판정해 고속 포탄이 탱크를 한 프레임에 통과(터널링)해도 잡는다.
             const fy = terrainTopAt(this.hm, f.x) - FORT_HIT_RISE;
-            if (Math.hypot(f.x - s.x, fy - s.y) < FORT_HIT_RADIUS) { hitFort = true; break; }
+            const c = segClosest(prevX, prevY, s.x, s.y, f.x, fy);
+            if (c.d < FORT_HIT_RADIUS) {
+              // 폭발 중심을 최근접점으로 스냅 → 정타는 풀 데미지
+              s.x = c.x; s.y = c.y;
+              hitFort = true;
+              break;
+            }
           }
         }
         if (off && !hitGround && !hitFort) this.landShell(s, true);
@@ -502,13 +564,17 @@ class FortressGameModule implements GameModule {
   private splitFragments(s: Shell): void {
     const speed = Math.hypot(s.vx, s.vy);
     const base = Math.atan2(s.vy, s.vx);
-    this.shells = [-SPLIT_SPREAD, 0, SPLIT_SPREAD].map((d) => ({
-      x: s.x, y: s.y,
-      vx: Math.cos(base + d) * speed,
-      vy: Math.sin(base + d) * speed,
-      bounces: 0, fuseLeft: Infinity, landed: false,
-      spawnX: s.x, spawnY: s.y,
-    }));
+    this.shells = [-SPLIT_SPREAD, 0, SPLIT_SPREAD].map((d) => {
+      const vx = Math.cos(base + d) * speed;
+      const vy = Math.sin(base + d) * speed;
+      return {
+        x: s.x, y: s.y, vx, vy,
+        bounces: 0, fuseLeft: Infinity, landed: false,
+        spawnX: s.x, spawnY: s.y,
+        seg: { x0: s.x, y0: s.y, vx0: vx, vy0: vy, wind: this.fireWind },
+        st: 0,
+      };
+    });
   }
 
   /** 포탄 착지 표시. 호스트는 즉시 폭발 적용 (miss 면 폭발 없음). */
@@ -517,16 +583,19 @@ class FortressGameModule implements GameModule {
     if (!this.isHost || isMiss) return;
     const spec = WEAPONS[this.flyingWeapon];
     if (this.flyingWeapon === 'bombard') {
-      // 에어스트라이크 — 착탄점 중심으로 여러 발이 넓게 쏟아짐 (시차 연출)
-      const N = 6;
-      const spread = 80;
+      // 에어스트라이크 — 착탄점을 중앙으로 5발이 균등 간격 좌우 대칭.
+      //   중앙(offset 0) 1발은 정확히 지정 착탄점에 명중. 랜덤 없음 → 모든 클라 동일.
+      const N = 5, spacing = 30;
       for (let i = 0; i < N; i++) {
-        const bx = Math.max(0, Math.min(this.game.terrainWidth, s.x + (Math.random() * 2 - 1) * spread));
-        this.blastAt(bx, terrainTopAt(this.hm, bx), spec, i * 70);
+        const off = (i - (N - 1) / 2) * spacing; // -60,-30,0,+30,+60
+        const bx = Math.max(0, Math.min(this.game.terrainWidth, s.x + off));
+        this.blastAt(bx, terrainTopAt(this.hm, bx), spec, i * 70); // 좌→우 시차 폭발
       }
     } else {
-      const cy = Math.min(s.y, terrainTopAt(this.hm, s.x));
-      this.blastAt(s.x, cy, spec, 0);
+      // 폭발 중심 = 포탄 실제 착탄 좌표. 땅속으로 파고들었으면 지표면으로 스냅.
+      //   (직격이면 s.y=탱크 높이 유지, 땅 착탄이면 지표면) → 판정 기준 일관.
+      const iy = Math.min(s.y, terrainTopAt(this.hm, s.x));
+      this.blastAt(s.x, iy, spec, 0);
     }
   }
 
@@ -535,7 +604,7 @@ class FortressGameModule implements GameModule {
     carveCrater(this.hm, cx, cy, spec.craterRadius);
     this.craters.push({ cx, cy, r: spec.craterRadius });
     this.pendingBlasts.push({ cx, cy, r: spec.craterRadius });
-    this.addExplosion(cx, cy, spec.blastRadius, expDelay);
+    this.addExplosion(cx, cy, spec.craterRadius * EXPLOSION_VIS_SCALE, expDelay);
     const before = new Map(this.game.forts.map((f) => [f.id, f.hp]));
     const res = applyBlast(this.game, this.hm, cx, cy, spec.blastRadius, spec.maxDamage);
     this.registerDamagePops(before);
@@ -799,7 +868,14 @@ class FortressGameModule implements GameModule {
   private beginProjectile(sx: number, sy: number, angleRad: number, power01: number, wind: number, weapon: WeaponId): void {
     const { vx, vy } = launchVelocity(angleRad, power01);
     const spec = WEAPONS[weapon];
-    this.shells = [{ x: sx, y: sy, vx, vy, bounces: 0, fuseLeft: spec.fuseMs ?? Infinity, landed: false, spawnX: sx, spawnY: sy }];
+    this.shells = [{
+      x: sx, y: sy, vx, vy,
+      bounces: 0, fuseLeft: spec.fuseMs ?? Infinity, landed: false,
+      spawnX: sx, spawnY: sy,
+      seg: { x0: sx, y0: sy, vx0: vx, vy0: vy, wind },
+      st: 0,
+    }];
+    this.simAccum = 0;
     this.splitDone = false;
     this.pendingBlasts = [];
     this.pendingEnded = false;
@@ -821,8 +897,9 @@ class FortressGameModule implements GameModule {
     p.blasts.forEach((b, i) => {
       carveCrater(this.hm, b.cx, b.cy, b.r);
       this.craters.push({ cx: b.cx, cy: b.cy, r: b.r });
-      // 여러 발이면(에어스트라이크) 시차를 줘 "비" 처럼 순차 폭발
-      this.addExplosion(b.cx, b.cy, b.r * 1.7, p.blasts.length > 1 ? i * 70 : 0);
+      // 여러 발이면(에어스트라이크) 시차를 줘 "비" 처럼 순차 폭발.
+      //   반경은 호스트와 동일한 공식(크레이터반경 × 배율)으로 → 폭발 크기 일치.
+      this.addExplosion(b.cx, b.cy, b.r * EXPLOSION_VIS_SCALE, p.blasts.length > 1 ? i * 70 : 0);
     });
     const before = new Map(this.game.forts.map((f) => [f.id, f.hp]));
     for (const f of this.game.forts) {

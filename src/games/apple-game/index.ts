@@ -112,6 +112,8 @@ class AppleGame implements GameModule {
   // 루프 제어
   private rafId: number | null = null;
   private destroyed = false;
+  /** 종료 집계 예약 타이머 — destroy 시 취소해야 torn-down 후 finishGame 방지 */
+  private finishTimer: number | null = null;
   private gameFinished = false;
 
   private startedAt = 0;
@@ -235,6 +237,10 @@ class AppleGame implements GameModule {
       cancelAnimationFrame(this.rafId);
       this.rafId = null;
     }
+    if (this.finishTimer !== null) {
+      clearTimeout(this.finishTimer);
+      this.finishTimer = null;
+    }
     this.detachInput();
     this.renderer?.destroy();
     sound.stopBgm();
@@ -295,7 +301,7 @@ class AppleGame implements GameModule {
         if (this.isHost) {
           // 네트워크 지연으로 게스트 점수가 도착할 시간(grace) 준 뒤 랭킹 집계.
           // 1초면 LAN/WAN 양쪽 다 여유 있음.
-          window.setTimeout(() => this.finishGame(), FINISH_GRACE_MS);
+          this.finishTimer = window.setTimeout(() => this.finishGame(), FINISH_GRACE_MS);
         }
         // 게스트는 호스트의 ag:end 수신까지 대기 (렌더만 계속).
       }
@@ -330,7 +336,8 @@ class AppleGame implements GameModule {
   // ============================================
 
   private finishGame(): void {
-    if (!this.isHost) return;
+    if (!this.isHost || this.destroyed) return;
+    this.finishTimer = null;
     this.gameFinished = true;
 
     // 모든 플레이어 레코드 수집 (나 + otherScores).

@@ -334,12 +334,17 @@ export function createGameScreenAsHostScreen(args: GameScreenAsHostArgs): Screen
   let disposed = false;
   // 결과 화면으로 이동할 땐 세션 소유권 넘기므로 close 하지 않음
   let closeOnDispose = true;
+  /** 모듈 start() 완료 여부 + 그 전에 도착한 game_msg 버퍼.
+   *  (게스트 hello 가 호스트 모듈 로드/시작 전에 도착하면 조용히 버려져 게스트가 멈추던 문제 방지) */
+  let gameStarted = false;
+  const pendingPayloads: Parameters<GameModule['onPeerMessage']>[0][] = [];
   /** 인게임 메뉴 모달 cleanup (window keydown 리스너 해제) */
   let cleanupMenu: (() => void) | null = null;
   /** 채팅 패널 cleanup */
   let cleanupChat: (() => void) | null = null;
-  /** 현재 일시정지를 건 사람의 peerId (없으면 null). 그 사람이 나갈 때만 강제 해제 */
-  let pausedByPeerId: string | null = null;
+  /** 현재 일시정지를 건 사람들의 peerId 집합. 전원이 해제해야(비어야) 게임 재개 —
+   *  여러 명이 동시에 메뉴를 열어도 한 명이 닫으면 게임이 재개되던 desync 방지. */
+  const pausedBy = new Set<string>();
 
   // 게임 시작 시점에 들어와 있던 플레이어들 (관전자와 구분).
   // 게임 도중에 들어오는 사람은 전부 spectators 로. role='spectator' 마킹.
@@ -457,16 +462,18 @@ export function createGameScreenAsHostScreen(args: GameScreenAsHostArgs): Screen
           for (const pid of host.listGuestPeerIds()) {
             if (pid !== fromPeerId) host.sendTo(pid, msg);
           }
-          pausedByPeerId = fromPeerId;
+          pausedBy.add(fromPeerId);
           showPauseOverlay(el, msg.byNickname);
           gameModule?.setPaused?.(true);
           return;
         }
         if (msg.type === 'resume') {
+          pausedBy.delete(fromPeerId);
+          // 아직 메뉴 연 사람이 남아있으면 계속 정지 — 전원 해제 시에만 재개 broadcast.
+          if (pausedBy.size > 0) return;
           for (const pid of host.listGuestPeerIds()) {
             if (pid !== fromPeerId) host.sendTo(pid, msg);
           }
-          pausedByPeerId = null;
           hidePauseOverlay(el);
           gameModule?.setPaused?.(false);
           return;
@@ -485,8 +492,9 @@ export function createGameScreenAsHostScreen(args: GameScreenAsHostArgs): Screen
           host.sendTo(msg.target, { ...msg, from: fromPeerId });
           return;
         }
-        // target이 없거나 나(호스트)를 향한 경우 → 로컬 소비
-        gameModule?.onPeerMessage(msg.payload);
+        // target이 없거나 나(호스트)를 향한 경우 → 로컬 소비 (start 전이면 버퍼링 후 flush)
+        if (gameStarted && gameModule) gameModule.onPeerMessage(msg.payload);
+        else pendingPayloads.push(msg.payload);
         // target 없으면 다른 게스트들에게도 broadcast (송신자 제외)
         if (!msg.target) {
           for (const pid of host.listGuestPeerIds()) {
@@ -546,11 +554,9 @@ export function createGameScreenAsHostScreen(args: GameScreenAsHostArgs): Screen
           if (removed) {
             host.send({ type: 'player_left', peerId, nickname: removed.nickname });
           }
-          // 나간 사람이 일시정지를 걸어둔 당사자였다면 resume 이 영영 안 와서
-          // 화면이 흐린 dim 오버레이로 굳는다 → 그 사람 이탈 시에만 강제 해제.
-          // (다른 사람이 건 일시정지는 건드리지 않음 — 안 그러면 메뉴 연 채 타임아웃 위험)
-          if (pausedByPeerId === peerId) {
-            pausedByPeerId = null;
+          // 나간 사람이 일시정지를 걸어둔 사람이면 resume 이 영영 안 와서 dim 이 굳는다 →
+          //   집합에서 빼고, 남은 pauser 가 없을 때만 강제 재개.
+          if (pausedBy.delete(peerId) && pausedBy.size === 0) {
             hidePauseOverlay(el);
             gameModule?.setPaused?.(false);
             host.send({ type: 'resume', byPeerId: peerId });
@@ -573,12 +579,13 @@ export function createGameScreenAsHostScreen(args: GameScreenAsHostArgs): Screen
       cleanupMenu = wireGameMenuModal(el, {
         onLeaveRequest: () => leaveBtn.click(),
         onOpen: () => {
-          pausedByPeerId = host.myPeerId;
+          pausedBy.add(host.myPeerId);
           host.send({ type: 'pause', byPeerId: host.myPeerId, byNickname: hostNickname });
           gameModule?.setPaused?.(true);
         },
         onClose: () => {
-          pausedByPeerId = null;
+          pausedBy.delete(host.myPeerId);
+          if (pausedBy.size > 0) return; // 아직 다른 사람이 멈춰둠 — 계속 정지
           host.send({ type: 'resume', byPeerId: host.myPeerId });
           gameModule?.setPaused?.(false);
         },
@@ -625,6 +632,10 @@ export function createGameScreenAsHostScreen(args: GameScreenAsHostArgs): Screen
             if (disposed) return;
           }
           await gameModule.start(ctx);
+          // start 전에 도착해 버퍼된 메시지(예: 게스트 hello) 순서대로 전달
+          gameStarted = true;
+          for (const p of pendingPayloads) gameModule.onPeerMessage(p);
+          pendingPayloads.length = 0;
         } catch (err) {
           console.error('[gameScreen/host] failed to start game', err);
           alert('게임을 시작할 수 없어요');
@@ -667,6 +678,9 @@ export function createGameScreenAsGuestScreen(args: GameScreenAsGuestArgs): Scre
   let gameModule: GameModule | null = null;
   let disposed = false;
   let closeOnDispose = true;
+  /** 모듈 start() 완료 여부 + 그 전 도착 game_msg 버퍼 (초기 sync/turn 유실로 멈춤 방지) */
+  let gameStarted = false;
+  const pendingPayloads: Parameters<GameModule['onPeerMessage']>[0][] = [];
   let cleanupMenu: (() => void) | null = null;
   let cleanupChat: (() => void) | null = null;
 
@@ -792,7 +806,8 @@ export function createGameScreenAsGuestScreen(args: GameScreenAsGuestArgs): Scre
         if (msg.type !== 'game_msg') return;
         // target이 나를 향하지 않으면 무시 (호스트가 relay 단계에서 거름)
         if (msg.target && msg.target !== myPlayerId) return;
-        gameModule?.onPeerMessage(msg.payload);
+        if (gameStarted && gameModule) gameModule.onPeerMessage(msg.payload);
+        else pendingPayloads.push(msg.payload); // start 전 도착분 버퍼
       };
 
       // 이모지 반응 버튼 (게임 중) — 게스트는 호스트에게만 송신
@@ -817,10 +832,14 @@ export function createGameScreenAsGuestScreen(args: GameScreenAsGuestArgs): Scre
       cleanupMenu = wireGameMenuModal(el, {
         onLeaveRequest: () => leaveBtn.click(),
         onOpen: () => {
+          // 관전자는 전체 일시정지를 걸 수 없음 — 관전자가 메뉴 열었다고 플레이어들 게임이
+          //   멈추면 안 됨(그리핑 방지). 관전자 메뉴는 나가기 용도로만.
+          if (isSpectator) return;
           guest.send({ type: 'pause', byPeerId: guest.myPeerId, byNickname: guestNickname });
           gameModule?.setPaused?.(true);
         },
         onClose: () => {
+          if (isSpectator) return;
           guest.send({ type: 'resume', byPeerId: guest.myPeerId });
           gameModule?.setPaused?.(false);
         },
@@ -860,6 +879,9 @@ export function createGameScreenAsGuestScreen(args: GameScreenAsGuestArgs): Scre
             if (disposed) return;
           }
           await gameModule.start(ctx);
+          gameStarted = true;
+          for (const p of pendingPayloads) gameModule.onPeerMessage(p);
+          pendingPayloads.length = 0;
         } catch (err) {
           console.error('[gameScreen/guest] failed to start game', err);
           alert('게임을 시작할 수 없어요');

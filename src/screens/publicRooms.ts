@@ -88,10 +88,13 @@ function renderList(listEl: HTMLDivElement, rooms: PublicRoomEntry[]): void {
       const statusBadge = inGame
         ? `<span class="public-room-badge is-playing">🎮 게임 중</span>`
         : `<span class="public-room-badge is-waiting">🪑 대기 중</span>`;
+      // is-full(흐림+not-allowed)은 "정말 못 들어가는" 대기 중 만원 방에만.
+      //   게임 중 방은 만원이어도 관전으로 입장 가능하니 정상 카드로 보이게(클릭 동작과 일치).
+      const blocked = isFull && !inGame;
       return `
-        <button class="public-room-card${isFull ? ' is-full' : ''}"
+        <button class="public-room-card${blocked ? ' is-full' : ''}"
                 data-room-id="${escapeAttr(r.roomId)}"
-                ${isFull && !inGame ? 'disabled' : ''}>
+                ${blocked ? 'disabled' : ''}>
           <div class="public-room-game-name">${escapeHtml(r.gameName)}</div>
           <div class="public-room-meta-row">
             <span class="public-room-host">${escapeHtml(r.hostNickname)}</span>

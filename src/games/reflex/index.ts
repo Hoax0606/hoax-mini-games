@@ -31,6 +31,9 @@ import {
 } from './netSync';
 
 const TOTAL_ROUNDS = 5;
+/** 호스트 안전장치 — 이 시간 안에 전원이 안 끝나면(누가 자리 비움 등) 강제 마감.
+ *  안 그러면 안 누르는 사람 하나 때문에 전원 영원히 대기. */
+const MAX_GAME_MS = 120_000;
 /** 빨강 대기 시간 범위 (ms) */
 const WAIT_MIN_MS = 1500;
 const WAIT_MAX_MS = 5000;
@@ -62,6 +65,8 @@ class ReflexGame implements GameModule {
   private foulCount = 0;
   private waitStartedAt = 0;   // GO 상태 된 시각 (반응시간 기준점)
   private waitTimerId: number | null = null;
+  /** 호스트 전원완료 안전장치 타이머 */
+  private finishWatchdog: number | null = null;
   /** result/foul 후 다음 라운드로 진행하는 setTimeout id (paused 시 clear) */
   private pendingAdvanceTimer: number | null = null;
 
@@ -102,6 +107,8 @@ class ReflexGame implements GameModule {
     if (this.isHost) {
       this.finals = new Map();
       this.expectedPlayerCount = ctx.players.filter(p => p.role === 'player').length;
+      // 안전장치 — 제한시간 내 전원 미완료 시 미완료자 실격 처리하고 강제 마감
+      this.finishWatchdog = window.setTimeout(() => this.forceFinishAsHost(), MAX_GAME_MS);
     }
 
     this.renderer = new ReflexRenderer({ canvas: ctx.canvas });
@@ -183,6 +190,7 @@ class ReflexGame implements GameModule {
     if (this.rafId !== null) { cancelAnimationFrame(this.rafId); this.rafId = null; }
     if (this.waitTimerId !== null) { window.clearTimeout(this.waitTimerId); this.waitTimerId = null; }
     if (this.pendingAdvanceTimer !== null) { window.clearTimeout(this.pendingAdvanceTimer); this.pendingAdvanceTimer = null; }
+    if (this.finishWatchdog !== null) { window.clearTimeout(this.finishWatchdog); this.finishWatchdog = null; }
     this.ctx?.canvas.removeEventListener('click', this.onCanvasClick);
     if (this.ctx?.canvas) this.ctx.canvas.style.cursor = '';
     this.renderer?.destroy();
@@ -376,11 +384,27 @@ class ReflexGame implements GameModule {
   // 호스트: 전원 완료 판정 + 결과 전송
   // ============================================
 
+  /** 안전장치 발동 — 아직 안 끝낸 플레이어를 실격(-1)으로 채우고 마감 */
+  private forceFinishAsHost(): void {
+    if (!this.isHost || !this.finals || this.gameFinished) return;
+    for (const p of this.ctx.players) {
+      if (p.role !== 'player' || this.finals.has(p.peerId)) continue;
+      this.finals.set(p.peerId, {
+        peerId: p.peerId,
+        nickname: p.nickname,
+        finalAvgMs: -1, // 실격(미완료) — 정렬 시 맨 뒤로
+        foulCount: 0,
+      });
+    }
+    this.tryFinishIfAllDone();
+  }
+
   private tryFinishIfAllDone(): void {
     if (!this.isHost || !this.finals || this.gameFinished) return;
     if (this.finals.size < this.expectedPlayerCount) return;
 
     this.gameFinished = true;
+    if (this.finishWatchdog !== null) { window.clearTimeout(this.finishWatchdog); this.finishWatchdog = null; }
 
     // 평균 ms 오름차순 정렬 (작을수록 빠름=좋음). 전부 실격(-1)은 맨 뒤로.
     const entries = [...this.finals.values()].sort((a, b) => {

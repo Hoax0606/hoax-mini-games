@@ -14,8 +14,12 @@
  *   정답이면 호스트가 dq:correct broadcast (단어 노출 X). 틀리면 무시(피드백 최소).
  *   ※ 단순화를 위해 별도 추측 input 사용 — 플랫폼 채팅과 분리.
  *
- * 그리기 도구 UI:
- *   canvas 외부 HTML — 펜/지우개/색6/굵기3/전체지우기. 출제자에게만 표시.
+ * 그리기 도구 UI (canvas 외부 HTML, 출제자에게만 표시):
+ *   도구(라디오): 펜 / 형광펜 / 지우개 / 채우기 / 스포이드
+ *   도형: 자유선 / 직선 / 사각형 / 원 (펜·형광펜만)
+ *   색: 팔레트 스와치 + 컬러 피커(그라데이션 선택)
+ *   굵기 5단, 실행취소(마지막 획), 전체지우기.
+ *   채우기·지우개·투명 처리는 offscreen 누적 레이어에서 (render.ts 참고).
  */
 
 import type { GameModule, GameContext, GameMessage, GameResult, Player } from '../types';
@@ -49,12 +53,15 @@ import {
   encodeRoundBegin, decodeRoundBegin,
   encodeReveal, decodeReveal,
   encodeStroke, decodeStroke,
+  encodeUndo, isUndo,
   encodeClear, isClear,
   encodeGuess, decodeGuess,
   encodeCorrect, decodeCorrect,
   encodeRoundEnd, decodeRoundEnd,
   encodeEnd, decodeEnd,
   type StrokeData,
+  type DrawTool,
+  type ShapeKind,
 } from './netSync';
 
 /** 라운드 결과 표시 시간 (ms) */
@@ -98,9 +105,9 @@ class DrawQuizGameModule implements GameModule {
   /** 현재 그리기 도구 상태 */
   private toolColor: string = PALETTE[0];
   private toolWidth: number = WIDTHS[1];
-  private toolErase = false;
-  private toolStyle: 'pen' | 'block' | 'marker' = 'pen';
-  private toolShape: 'free' | 'rect' | 'ellipse' | 'line' = 'free';
+  // 도구는 라디오 방식 — 하나만 활성. 'eyedropper' 는 stroke 를 만들지 않는 UI 전용 모드.
+  private tool: DrawTool | 'eyedropper' = 'pen';
+  private toolShape: ShapeKind = 'free';
 
   /** 호스트 타이머용 — round_result 끝나는 시각 */
   private resultEndsAt = 0;
@@ -216,6 +223,13 @@ class DrawQuizGameModule implements GameModule {
       if (this.game.drawerPeerId !== this.myPeerId) {
         this.strokes.push(stroke);
       }
+      return;
+    }
+
+    if (isUndo(msg)) {
+      // 출제자가 마지막 획 되돌림 — 비출제자도 동일하게 pop.
+      //   배열 참조는 유지하고 pop 만 하면 렌더러가 committedCount 축소를 감지해 레이어 재구성.
+      if (this.game.drawerPeerId !== this.myPeerId) this.strokes.pop();
       return;
     }
 
@@ -597,11 +611,31 @@ class DrawQuizGameModule implements GameModule {
     this.ctx.canvas.addEventListener('mousedown', this.onDrawDown);
     window.addEventListener('mousemove', this.onDrawMove);
     window.addEventListener('mouseup', this.onDrawUp);
+    window.addEventListener('keydown', this.onKeyDown);
   }
   private detachDrawInput(): void {
     if (this.ctx?.canvas) this.ctx.canvas.removeEventListener('mousedown', this.onDrawDown);
     window.removeEventListener('mousemove', this.onDrawMove);
     window.removeEventListener('mouseup', this.onDrawUp);
+    window.removeEventListener('keydown', this.onKeyDown);
+  }
+
+  /** Ctrl/⌘+Z → 실행 취소. 텍스트 입력 중이면 무시(그 자체 편집이 우선). */
+  private onKeyDown = (e: KeyboardEvent): void => {
+    if (!(e.key === 'z' || e.key === 'Z') || !(e.ctrlKey || e.metaKey) || e.shiftKey) return;
+    const t = e.target as HTMLElement | null;
+    if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA')) return;
+    if (!this.amDrawer()) return;
+    e.preventDefault();
+    this.undoLastStroke();
+  };
+
+  /** 마지막 획 되돌리기 — 로컬 pop + 전원 broadcast (출제자만). */
+  private undoLastStroke(): void {
+    if (!this.amDrawer()) return;
+    if (this.strokes.length === 0) return;
+    this.strokes.pop();
+    this.ctx.sendToPeer(encodeUndo());
   }
 
   private amDrawer(): boolean {
@@ -613,14 +647,39 @@ class DrawQuizGameModule implements GameModule {
     const rect = this.ctx.canvas.getBoundingClientRect();
     const { x, y } = this.renderer.screenToLogical(e.clientX - rect.left, e.clientY - rect.top);
     if (!isInDrawArea(x, y)) return;
+
+    // 스포이드 — 그 지점 색을 뽑아 펜 색으로 잡고 자동으로 펜으로 복귀 (한 번 쓰고 원위치)
+    if (this.tool === 'eyedropper') {
+      const picked = this.renderer.getPixelColor(x, y);
+      this.toolColor = picked;
+      this.selectTool('pen');
+      this.syncColorUI();
+      return;
+    }
+
+    // 채우기 — 드래그 없이 클릭 한 번으로 즉시 확정 + broadcast
+    if (this.tool === 'fill') {
+      const stroke: StrokeData = {
+        points: [clampToDraw(x, y)],
+        color: this.toolColor,
+        width: this.toolWidth,
+        tool: 'fill',
+        shape: 'free',
+      };
+      this.strokes.push(stroke);
+      this.ctx.sendToPeer(encodeStroke(stroke));
+      return;
+    }
+
+    // 펜/마커/지우개 — 드래그 스트로크 시작
     this.isDrawingStroke = true;
     this.liveStroke = {
-      points: [{ x, y }],
+      points: [clampToDraw(x, y)],
       color: this.toolColor,
-      width: this.toolErase ? ERASE_WIDTH : this.toolWidth,
-      erase: this.toolErase,
-      style: this.toolStyle,
-      shape: this.toolShape,
+      width: this.tool === 'eraser' ? ERASE_WIDTH : this.toolWidth,
+      tool: this.tool,
+      // 도형은 펜/마커에서만 의미. 지우개는 항상 자유선.
+      shape: this.tool === 'eraser' ? 'free' : this.toolShape,
     };
   };
 
@@ -661,11 +720,14 @@ class DrawQuizGameModule implements GameModule {
     container.innerHTML = `
       <div class="dq-candidates" id="dq-candidates" style="display:none"></div>
       <div class="dq-toolbar" id="dq-toolbar" style="display:none">
-        <div class="dq-tool-group" id="dq-colors"></div>
-        <div class="dq-tool-group" id="dq-widths"></div>
-        <div class="dq-tool-group" id="dq-styles"></div>
+        <div class="dq-tool-group" id="dq-tools"></div>
         <div class="dq-tool-group" id="dq-shapes"></div>
-        <button class="dq-tool-btn" id="dq-erase" type="button" title="지우개">🧽</button>
+        <div class="dq-tool-group" id="dq-widths"></div>
+        <div class="dq-tool-group dq-color-group">
+          <input type="color" id="dq-color-picker" class="dq-color-picker" title="색 선택" />
+          <div class="dq-swatches" id="dq-colors"></div>
+        </div>
+        <button class="dq-tool-btn" id="dq-undo" type="button" title="실행 취소 (Ctrl+Z)">↶</button>
         <button class="dq-tool-btn" id="dq-clear" type="button" title="전체 지우기">🗑️</button>
       </div>
       <div class="dq-guessbar" id="dq-guessbar" style="display:none">
@@ -681,13 +743,26 @@ class DrawQuizGameModule implements GameModule {
     this.guessBarEl = container.querySelector('#dq-guessbar');
     this.candidatesEl = container.querySelector('#dq-candidates');
 
-    this.buildColorButtons(container);
-    this.buildWidthButtons(container);
-    this.buildStyleButtons(container);
+    this.buildToolButtons(container);
     this.buildShapeButtons(container);
-    container.querySelector('#dq-erase')?.addEventListener('click', () => {
-      this.setErase(!this.toolErase);
-    });
+    this.buildWidthButtons(container);
+    this.buildColorButtons(container);
+
+    // 컬러 피커(그라데이션 선택기) — 팔레트에 없는 임의 색
+    const picker = container.querySelector<HTMLInputElement>('#dq-color-picker');
+    if (picker) {
+      picker.value = this.toolColor;
+      picker.addEventListener('input', () => {
+        this.toolColor = picker.value;
+        // 임의 색을 골랐으니 팔레트 스와치 활성 표시는 해제, 도구는 펜 계열로.
+        this.uiRoot?.querySelectorAll('.dq-color-btn').forEach((el) => el.classList.remove('is-active'));
+        if (this.tool === 'eraser' || this.tool === 'fill' || this.tool === 'eyedropper') this.selectTool('pen');
+      });
+    }
+
+    // 실행 취소 — 마지막 획 하나 되돌리기 (출제자만). Ctrl+Z 도 동일 동작.
+    container.querySelector('#dq-undo')?.addEventListener('click', () => this.undoLastStroke());
+
     container.querySelector('#dq-clear')?.addEventListener('click', () => {
       if (!this.amDrawer()) return;
       this.strokes = [];
@@ -704,24 +779,69 @@ class DrawQuizGameModule implements GameModule {
   }
   private uiRoot: HTMLDivElement | null = null;
 
-  /** 지우개 on/off — 버튼 표시 + 커서 갱신. 펜 계열 선택 시 setErase(false) 로 자동 해제. */
-  private setErase(on: boolean): void {
-    this.toolErase = on;
-    this.uiRoot?.querySelector('#dq-erase')?.classList.toggle('is-active', on);
+  /**
+   * 도구 선택 (라디오) — pen/marker/eraser/fill/eyedropper 중 하나만 활성.
+   * 이전 도구는 자동 해제되므로 "지우개 골랐다 펜 다시 고르면 지우개 해제" 문제 해결.
+   * 도형(shape)은 pen/marker 에서만 의미 → 그 외 도구면 도형 버튼 비활성 표시.
+   */
+  private selectTool(t: DrawTool | 'eyedropper'): void {
+    this.tool = t;
+    this.uiRoot?.querySelectorAll('#dq-tools .dq-tool-btn').forEach((el) => {
+      el.classList.toggle('is-active', (el as HTMLElement).dataset.tool === t);
+    });
+    // 도형은 펜/마커만 — 나머지 도구일 땐 흐리게
+    const shapesUsable = t === 'pen' || t === 'marker';
+    this.uiRoot?.querySelector('#dq-shapes')?.classList.toggle('is-disabled', !shapesUsable);
     this.setCanvasCursor();
   }
 
-  /** 캔버스 커서를 현재 브러시 크기의 동그라미로 (지우개면 크게/회색) */
+  /** 팔레트 스와치 활성 표시 + 컬러 피커 값을 현재 toolColor 로 동기화 (스포이드/스와치 선택 후) */
+  private syncColorUI(): void {
+    const picker = this.uiRoot?.querySelector<HTMLInputElement>('#dq-color-picker');
+    if (picker) picker.value = this.toolColor;
+    this.uiRoot?.querySelectorAll('.dq-color-btn').forEach((el) => {
+      el.classList.toggle('is-active', (el as HTMLElement).dataset.color === this.toolColor);
+    });
+  }
+
+  /** 캔버스 커서 — 펜/마커/지우개는 브러시 크기 동그라미, 채우기/스포이드는 십자. */
   private setCanvasCursor(): void {
     if (!this.ctx?.canvas) return;
-    const d = this.toolErase ? ERASE_WIDTH : Math.max(8, this.toolWidth);
+    if (this.tool === 'fill' || this.tool === 'eyedropper') {
+      this.ctx.canvas.style.cursor = 'crosshair';
+      return;
+    }
+    const erasing = this.tool === 'eraser';
+    const d = erasing ? ERASE_WIDTH : Math.max(8, this.toolWidth);
     const size = Math.min(60, d + 6);
     const c = size / 2;
     const r = Math.max(2, d / 2);
-    const stroke = this.toolErase ? '#999' : '#333';
+    const stroke = erasing ? '#999' : '#333';
     const svg = `<svg xmlns='http://www.w3.org/2000/svg' width='${size}' height='${size}'><circle cx='${c}' cy='${c}' r='${r}' fill='none' stroke='${stroke}' stroke-width='2'/></svg>`;
     const uri = `data:image/svg+xml,${encodeURIComponent(svg)}`;
     this.ctx.canvas.style.cursor = `url("${uri}") ${c} ${c}, crosshair`;
+  }
+
+  private buildToolButtons(root: HTMLElement): void {
+    const wrap = root.querySelector('#dq-tools');
+    if (!wrap) return;
+    const tools: Array<{ id: DrawTool | 'eyedropper'; icon: string; title: string }> = [
+      { id: 'pen', icon: '✏️', title: '펜' },
+      { id: 'marker', icon: '🖍️', title: '형광펜' },
+      { id: 'eraser', icon: '🧽', title: '지우개' },
+      { id: 'fill', icon: '🪣', title: '채우기' },
+      { id: 'eyedropper', icon: '💧', title: '스포이드 (색 추출)' },
+    ];
+    tools.forEach((t) => {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'dq-tool-btn' + (t.id === this.tool ? ' is-active' : '');
+      b.dataset.tool = t.id;
+      b.textContent = t.icon;
+      b.title = t.title;
+      b.addEventListener('click', () => this.selectTool(t.id));
+      wrap.appendChild(b);
+    });
   }
 
   private buildColorButtons(root: HTMLElement): void {
@@ -731,12 +851,13 @@ class DrawQuizGameModule implements GameModule {
       const b = document.createElement('button');
       b.type = 'button';
       b.className = 'dq-color-btn' + (i === 0 ? ' is-active' : '');
+      b.dataset.color = c;
       b.style.background = c;
       b.addEventListener('click', () => {
         this.toolColor = c;
-        wrap.querySelectorAll('.dq-color-btn').forEach((el) => el.classList.remove('is-active'));
-        b.classList.add('is-active');
-        this.setErase(false); // 색 선택 = 펜 → 지우개 해제
+        this.syncColorUI();
+        // 색 선택 = 그리기 의도 → 지우개/채우기/스포이드였으면 펜으로 복귀
+        if (this.tool === 'eraser' || this.tool === 'eyedropper') this.selectTool('pen');
       });
       wrap.appendChild(b);
     });
@@ -754,31 +875,7 @@ class DrawQuizGameModule implements GameModule {
         this.toolWidth = w;
         wrap.querySelectorAll('.dq-width-btn').forEach((el) => el.classList.remove('is-active'));
         b.classList.add('is-active');
-        this.setErase(false); // 굵기 선택 = 펜 → 지우개 해제 + 커서 크기 갱신
-      });
-      wrap.appendChild(b);
-    });
-  }
-
-  private buildStyleButtons(root: HTMLElement): void {
-    const wrap = root.querySelector('#dq-styles');
-    if (!wrap) return;
-    const styles: Array<{ id: 'pen' | 'block' | 'marker'; icon: string; title: string }> = [
-      { id: 'pen', icon: '✏️', title: '펜' },
-      { id: 'block', icon: '⬛', title: '블록(각진)' },
-      { id: 'marker', icon: '🖍️', title: '형광펜' },
-    ];
-    styles.forEach((st, i) => {
-      const b = document.createElement('button');
-      b.type = 'button';
-      b.className = 'dq-tool-btn' + (i === 0 ? ' is-active' : '');
-      b.textContent = st.icon;
-      b.title = st.title;
-      b.addEventListener('click', () => {
-        this.toolStyle = st.id;
-        wrap.querySelectorAll('.dq-tool-btn').forEach((el) => el.classList.remove('is-active'));
-        b.classList.add('is-active');
-        this.setErase(false); // 펜 스타일 선택 = 펜 → 지우개 해제
+        this.setCanvasCursor(); // 커서 크기 갱신
       });
       wrap.appendChild(b);
     });
@@ -787,7 +884,7 @@ class DrawQuizGameModule implements GameModule {
   private buildShapeButtons(root: HTMLElement): void {
     const wrap = root.querySelector('#dq-shapes');
     if (!wrap) return;
-    const shapes: Array<{ id: 'free' | 'rect' | 'ellipse' | 'line'; icon: string; title: string }> = [
+    const shapes: Array<{ id: ShapeKind; icon: string; title: string }> = [
       { id: 'free', icon: '〰️', title: '자유선' },
       { id: 'line', icon: '／', title: '직선' },
       { id: 'rect', icon: '▭', title: '사각형' },
@@ -803,6 +900,8 @@ class DrawQuizGameModule implements GameModule {
         this.toolShape = sh.id;
         wrap.querySelectorAll('.dq-tool-btn').forEach((el) => el.classList.remove('is-active'));
         b.classList.add('is-active');
+        // 도형 선택은 펜/마커에서만 의미 — 지우개/채우기/스포이드였으면 펜으로.
+        if (this.tool !== 'pen' && this.tool !== 'marker') this.selectTool('pen');
       });
       wrap.appendChild(b);
     });

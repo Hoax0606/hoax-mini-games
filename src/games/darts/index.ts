@@ -309,6 +309,10 @@ class DartsGameModule implements GameModule {
   private onMouseDown = (e: MouseEvent): void => {
     if (this.destroyed || this.isSpectator || this.game.finished || this.paused) return;
     if (this.flight || this.tracking) return;
+    // 턴 넘김 대기 중(버스트/3다트 결과 감상)엔 던지기 금지 —
+    //   안 그러면 버스트로 이미 끝난 턴에 추가 다트가 점수에 반영되고(승리 강탈)
+    //   advanceTurn 타이머가 중복 예약돼 턴이 두 번 넘어감.
+    if (this.turnAdvanceTimerId !== null) return;
     if (!this.isMyTurnNow()) return;
     const cur = this.game.players[this.game.currentIdx];
     if (!cur || cur.throwsThisTurn.length >= 3) return;
@@ -497,6 +501,7 @@ class DartsGameModule implements GameModule {
 
     if (result.turnEnded) {
       // 다음 턴 대기 (3다트 결과 감상) → advanceTurn
+      if (this.turnAdvanceTimerId !== null) window.clearTimeout(this.turnAdvanceTimerId);
       this.turnAdvanceTimerId = window.setTimeout(() => {
         this.turnAdvanceTimerId = null;
         advanceTurn(this.game);

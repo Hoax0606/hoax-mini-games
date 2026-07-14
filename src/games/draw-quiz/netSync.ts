@@ -32,6 +32,7 @@ const T_CUSTOM_WORD = 'dq:custom_word';
 const T_ROUND_BEGIN = 'dq:round_begin';
 const T_REVEAL = 'dq:reveal';
 const T_STROKE = 'dq:stroke';
+const T_UNDO = 'dq:undo';
 const T_CLEAR = 'dq:clear';
 const T_GUESS = 'dq:guess';
 const T_CORRECT = 'dq:correct';
@@ -155,20 +156,19 @@ export function decodeReveal(msg: GameMessage): { index: number; char: string } 
 
 // --- stroke (출제자 → 전체): 그림 한 획 ---
 
-/** 브러시 스타일 — pen(둥근) / block(각진 사각) / marker(반투명 형광) */
-export type BrushStyle = 'pen' | 'block' | 'marker';
-/** 도형 — free(자유선, 기본) / rect / ellipse / line. free 외엔 points[0]=시작, 마지막=끝 */
+/** 도구 — pen(둥근 펜) / marker(반투명 형광) / eraser(지우개) / fill(채우기) */
+export type DrawTool = 'pen' | 'marker' | 'eraser' | 'fill';
+/** 도형 — free(자유선, 기본) / rect / ellipse / line. free 외엔 points[0]=시작, 마지막=끝.
+ *  fill/eraser 는 항상 free. */
 export type ShapeKind = 'free' | 'rect' | 'ellipse' | 'line';
 
 export interface StrokeData {
+  /** fill 은 points[0] 만 사용(클릭 지점). 나머지는 경로. */
   points: StrokePoint[];
   color: string;
   width: number;
-  /** true 면 지우개 (종이색으로 덧칠) */
-  erase: boolean;
-  /** 브러시 스타일 (기본 pen) */
-  style?: BrushStyle;
-  /** 도형 (기본 free) */
+  tool: DrawTool;
+  /** 도형 (기본 free) — pen/marker 만 의미 */
   shape?: ShapeKind;
 }
 export function encodeStroke(s: StrokeData): GameMessage {
@@ -178,17 +178,25 @@ export function decodeStroke(msg: GameMessage): StrokeData | null {
   if (msg.type !== T_STROKE) return null;
   const p = msg.payload as Partial<StrokeData> | null;
   if (!p || !Array.isArray(p.points)) return null;
-  const style: BrushStyle = p.style === 'block' || p.style === 'marker' ? p.style : 'pen';
+  const tool: DrawTool =
+    p.tool === 'marker' || p.tool === 'eraser' || p.tool === 'fill' ? p.tool : 'pen';
   const shape: ShapeKind =
     p.shape === 'rect' || p.shape === 'ellipse' || p.shape === 'line' ? p.shape : 'free';
   return {
     points: p.points as StrokePoint[],
     color: typeof p.color === 'string' ? p.color : '#1c1820',
     width: typeof p.width === 'number' ? p.width : 4,
-    erase: p.erase === true,
-    style,
+    tool,
     shape,
   };
+}
+
+// --- undo (출제자 → 전체): 마지막 획 되돌리기 ---
+export function encodeUndo(): GameMessage {
+  return { type: T_UNDO, payload: {} };
+}
+export function isUndo(msg: GameMessage): boolean {
+  return msg.type === T_UNDO;
 }
 
 // --- clear (출제자 → 전체) ---

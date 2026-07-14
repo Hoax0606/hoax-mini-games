@@ -53,6 +53,12 @@ export const BLAST_RADIUS = 62;
 export const MAX_DAMAGE = 42;
 /** 지형 크레이터 반경 — 일반탄 기본값 */
 export const CRATER_RADIUS = 34;
+/**
+ * 폭발 데미지 거리 계산에서 수직 성분에 곱하는 가중치(<1).
+ * 수평 근접이 더 지배적이게 만들어, 울퉁불퉁한 지형(크레이터/경사)에서
+ * "탱크 바로 옆에 떨어졌는데 높이차 때문에 데미지 0" 되던 비일관성을 완화한다.
+ */
+export const BLAST_VERTICAL_WEIGHT = 0.6;
 
 // ============================================
 // 무기 정의
@@ -81,15 +87,15 @@ export interface WeaponSpec {
 export const WEAPONS: Record<WeaponId, WeaponSpec> = {
   // 데미지는 HP 100 기준 "직격 ~3방에 처치" 밸런스. 반경/크레이터는 유지.
   // 데미지 상향 + 폭발반경≈크레이터 비례해서 "보이는 만큼 맞는" 타격범위. 폭격탄은 airstrike.
-  normal:  { id: 'normal',  name: '일반탄', icon: '💣', blastRadius: 54, maxDamage: 50, craterRadius: 30 },
-  big:     { id: 'big',     name: '대형탄', icon: '💥', blastRadius: 80, maxDamage: 68, craterRadius: 46 },
-  guided:  { id: 'guided',  name: '유도탄', icon: '🛰️', blastRadius: 54, maxDamage: 50, craterRadius: 30, ignoreWind: true },
-  bombard: { id: 'bombard', name: '폭격탄', icon: '☄️', blastRadius: 46, maxDamage: 40, craterRadius: 34 },
-  split:   { id: 'split',   name: '분열탄', icon: '✴️', blastRadius: 40, maxDamage: 34, craterRadius: 24, split: true },
-  grenade: { id: 'grenade', name: '수류탄', icon: '🧨', blastRadius: 54, maxDamage: 48, craterRadius: 30, fuseMs: 3000 },
+  normal:  { id: 'normal',  name: '일반탄', icon: '💣', blastRadius: 54, maxDamage: 50, craterRadius: 21 },
+  big:     { id: 'big',     name: '대형탄', icon: '💥', blastRadius: 80, maxDamage: 68, craterRadius: 32 },
+  guided:  { id: 'guided',  name: '유도탄', icon: '🛰️', blastRadius: 54, maxDamage: 50, craterRadius: 21, ignoreWind: true },
+  bombard: { id: 'bombard', name: '폭격탄', icon: '☄️', blastRadius: 46, maxDamage: 40, craterRadius: 24 },
+  split:   { id: 'split',   name: '분열탄', icon: '✴️', blastRadius: 40, maxDamage: 34, craterRadius: 17, split: true },
+  grenade: { id: 'grenade', name: '수류탄', icon: '🧨', blastRadius: 54, maxDamage: 48, craterRadius: 21, fuseMs: 3000 },
 };
 
-/** 랜덤 배분 대상 특수 무기 풀 (5종 중 각 플레이어 2종). */
+/** 랜덤 배분 대상 특수 무기 풀 (5종 중 각 플레이어 SPECIALS_PER_PLAYER 종). */
 export const SPECIAL_POOL: WeaponId[] = ['big', 'guided', 'bombard', 'split', 'grenade'];
 
 /** 랜덤 모드: 무기당 배분 발수 */
@@ -113,8 +119,13 @@ export function assignLoadouts(peerIds: string[], mode: WeaponMode = 'random'): 
     if (mode === 'all') {
       for (const w of SPECIAL_POOL) inv[w] = AMMO_ALL_MODE;
     } else {
-      const shuffled = [...SPECIAL_POOL].sort(() => Math.random() - 0.5);
-      for (const w of shuffled.slice(0, SPECIALS_PER_PLAYER)) inv[w] = AMMO_PER_WEAPON;
+      // Fisher-Yates 셔플 — sort(()=>random-0.5) 은 분포가 치우쳐 특정 무기가 더 자주 뽑힘.
+      const pool = [...SPECIAL_POOL];
+      for (let i = pool.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [pool[i], pool[j]] = [pool[j]!, pool[i]!];
+      }
+      for (const w of pool.slice(0, SPECIALS_PER_PLAYER)) inv[w] = AMMO_PER_WEAPON;
     }
     ammo[pid] = inv;
   }
@@ -248,7 +259,11 @@ export function applyBlast(
   for (const f of game.forts) {
     if (!f.alive) continue;
     const fy = fortCenterY(hm, f);
-    const d = Math.hypot(f.x - cx, fy - cy);
+    // 수직 거리는 가중치를 낮춰(BLAST_VERTICAL_WEIGHT) 수평 근접이 지배적이게.
+    //   → 지형 높이차 때문에 "바로 옆인데 0뎀" 되던 비일관성 완화.
+    const dx = f.x - cx;
+    const dy = (fy - cy) * BLAST_VERTICAL_WEIGHT;
+    const d = Math.hypot(dx, dy);
     if (d < blastRadius) {
       const dmg = Math.round(maxDamage * (1 - d / blastRadius));
       f.hp = Math.max(0, f.hp - dmg);

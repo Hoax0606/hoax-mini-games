@@ -221,15 +221,20 @@ export function getAlivePlayerIndices(game: AlgagiGame): PlayerIndex[] {
     .map((p) => p.index);
 }
 
-/** 다음 턴 플레이어를 정한다. 현재 턴 다음으로 살아있는 플레이어. */
+/**
+ * 다음 턴 플레이어 — 현재 좌석 "다음 위치"부터 한 바퀴 돌며 처음 살아있는 사람.
+ * 현재 플레이어가 자기 마지막 알을 없애 사망해도(과거 alive.indexOf(-1)→0 으로
+ * 최저 인덱스로 점프해 뒤 사람을 건너뛰던 버그) 좌석 순서를 유지한다.
+ */
 export function getNextTurn(game: AlgagiGame): PlayerIndex {
-  const alive = getAlivePlayerIndices(game);
-  if (alive.length === 0) return 0; // 모두 사망 (이론상 무승부)
-  const curIdx = alive.indexOf(game.currentTurn);
-  // 현재 턴 플레이어가 이미 사망(curIdx === -1) 이면 alive[0] 부터,
-  // 살아있으면 다음 살아있는 사람.
-  const nextIdx = curIdx === -1 ? 0 : (curIdx + 1) % alive.length;
-  return alive[nextIdx]!;
+  const n = game.players.length;
+  if (n === 0) return 0;
+  for (let step = 1; step <= n; step++) {
+    const cand = ((game.currentTurn + step) % n) as PlayerIndex;
+    const p = game.players.find((pp) => pp.index === cand);
+    if (p && p.liveCount > 0) return cand;
+  }
+  return game.currentTurn; // 살아있는 사람 없음(이론상 무승부) — 호출부에서 종료 판정
 }
 
 /**

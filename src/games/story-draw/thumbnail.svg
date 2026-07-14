@@ -1,0 +1,78 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 200">
+  <defs>
+    <linearGradient id="sdBg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#ffe4ee"/>
+      <stop offset="100%" stop-color="#e0fff4"/>
+    </linearGradient>
+  </defs>
+
+  <!-- 배경 -->
+  <rect x="0" y="0" width="320" height="200" rx="22" fill="url(#sdBg)"/>
+
+  <!-- 모서리 점 데코 -->
+  <circle cx="24" cy="24" r="3" fill="#ff6b9e" opacity="0.55"/>
+  <circle cx="298" cy="28" r="3.5" fill="#86e8c4" opacity="0.6"/>
+  <circle cx="26" cy="176" r="2.5" fill="#b89aff" opacity="0.55"/>
+  <circle cx="296" cy="172" r="3" fill="#ffeec2" opacity="0.7"/>
+
+  <!-- 별 데코 -->
+  <path d="M 252 34 l 1.6 4 4.4 0.4 -3.4 2.8 1 4.3 -3.6 -2.4 -3.6 2.4 1 -4.3 -3.4 -2.8 4.4 -0.4 z"
+        fill="#ff82ac" opacity="0.7"/>
+  <path d="M 40 158 l 1.4 3.5 3.8 0.3 -3 2.5 0.9 3.7 -3.1 -2.1 -3.1 2.1 0.9 -3.7 -3 -2.5 3.8 -0.3 z"
+        fill="#86e8c4" opacity="0.7"/>
+
+  <!-- 컷 릴레이: 세 장면이 이어지는 만화 컷 (스토리가 자라남) -->
+
+  <!-- 컷 1 — 씨앗에서 새싹 -->
+  <g transform="translate(60, 100) rotate(-3)">
+    <rect x="-36" y="-42" width="72" height="84" rx="9" fill="#ffffff" stroke="#d9c7ff" stroke-width="2.5"/>
+    <!-- 흙 -->
+    <path d="M -30 26 q 30 -8 60 0" fill="none" stroke="#c49a1f" stroke-width="3" stroke-linecap="round"/>
+    <!-- 새싹 줄기 -->
+    <path d="M 0 26 L 0 2" fill="none" stroke="#1c1820" stroke-width="3" stroke-linecap="round"/>
+    <!-- 잎 두 장 -->
+    <path d="M 0 8 q -16 -6 -18 -18 q 14 2 18 12" fill="#86e8c4" stroke="#1c1820" stroke-width="2" stroke-linejoin="round"/>
+    <path d="M 0 4 q 16 -8 18 -20 q -14 2 -18 14" fill="#86e8c4" stroke="#1c1820" stroke-width="2" stroke-linejoin="round"/>
+  </g>
+
+  <!-- 화살표 1 -->
+  <path d="M 100 100 l 12 0 M 108 96 l 5 4 -5 4" fill="none" stroke="#ff6b9e" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" opacity="0.85"/>
+
+  <!-- 컷 2 — 자란 나무 -->
+  <g transform="translate(160, 94) rotate(2)">
+    <rect x="-36" y="-44" width="72" height="86" rx="9" fill="#ffffff" stroke="#d9c7ff" stroke-width="2.5"/>
+    <!-- 줄기 -->
+    <path d="M 0 28 L 0 -4" fill="none" stroke="#1c1820" stroke-width="3.5" stroke-linecap="round"/>
+    <!-- 잎 덤불 -->
+    <circle cx="0" cy="-12" r="18" fill="#86e8c4" stroke="#1c1820" stroke-width="2.5"/>
+    <circle cx="-12" cy="-4" r="11" fill="#86e8c4" stroke="#1c1820" stroke-width="2.5"/>
+    <circle cx="12" cy="-4" r="11" fill="#86e8c4" stroke="#1c1820" stroke-width="2.5"/>
+  </g>
+
+  <!-- 화살표 2 -->
+  <path d="M 200 100 l 12 0 M 208 96 l 5 4 -5 4" fill="none" stroke="#ff6b9e" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" opacity="0.85"/>
+
+  <!-- 컷 3 — 열매 핀 나무 (직전 컷이 옅게 비침) -->
+  <g transform="translate(260, 100) rotate(-2)">
+    <rect x="-36" y="-42" width="72" height="84" rx="9" fill="#ffffff" stroke="#d9c7ff" stroke-width="2.5"/>
+    <!-- 직전 컷 유령 (옅게) -->
+    <g opacity="0.18">
+      <path d="M 0 26 L 0 -6" fill="none" stroke="#1c1820" stroke-width="3.5" stroke-linecap="round"/>
+      <circle cx="0" cy="-14" r="17" fill="none" stroke="#1c1820" stroke-width="2.5"/>
+    </g>
+    <!-- 새로 그린 나무 + 열매 -->
+    <path d="M 0 28 L 0 -4" fill="none" stroke="#1c1820" stroke-width="3.5" stroke-linecap="round"/>
+    <circle cx="0" cy="-12" r="18" fill="#a8ecd0" stroke="#1c1820" stroke-width="2.5"/>
+    <circle cx="-7" cy="-16" r="4" fill="#ff5a92"/>
+    <circle cx="8" cy="-9" r="4" fill="#ff5a92"/>
+    <circle cx="2" cy="-2" r="4" fill="#ffb12e"/>
+  </g>
+
+  <!-- 연필 (우측 하단, 그리는 느낌) -->
+  <g transform="translate(278, 150) rotate(40)">
+    <rect x="-5" y="-34" width="10" height="46" rx="2" fill="#ffc94a" stroke="#c49a1f" stroke-width="1.5"/>
+    <path d="M -5 12 l 5 13 5 -13 z" fill="#fdf6ec" stroke="#c49a1f" stroke-width="1.5"/>
+    <path d="M -1.8 20 l 1.8 5 1.8 -5 z" fill="#1c1820"/>
+    <rect x="-5" y="-39" width="10" height="7" rx="2" fill="#ff82ac"/>
+  </g>
+</svg>

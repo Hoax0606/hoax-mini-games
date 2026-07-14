@@ -96,6 +96,10 @@ export function wireReactionBar(
  * body 에 싱글톤 container(#reaction-stream) 가 없으면 자동 생성.
  */
 export function showReactionBubble(emoji: string, nickname: string): void {
+  // 원격 피어가 보낸 emoji 는 신뢰 불가 — 허용 목록에 없으면 무시(XSS 방지).
+  //   (조작된 reaction 메시지로 innerHTML 에 스크립트가 주입되던 취약점 차단)
+  if (!(REACTION_EMOJIS as readonly string[]).includes(emoji)) return;
+
   let stream = document.getElementById('reaction-stream');
   if (!stream) {
     stream = document.createElement('div');
@@ -105,8 +109,9 @@ export function showReactionBubble(emoji: string, nickname: string): void {
   }
   const el = document.createElement('div');
   el.className = 'reaction-bubble';
+  // emoji 는 위에서 화이트리스트 통과분이지만, 이중 방어로 escape 까지 적용
   el.innerHTML = `
-    <span class="reaction-bubble-emoji">${emoji}</span>
+    <span class="reaction-bubble-emoji">${escapeHtml(emoji)}</span>
     <span class="reaction-bubble-name">${escapeHtml(nickname)}</span>
   `;
   stream.appendChild(el);
