@@ -1917,9 +1917,9 @@ input {
   white-space: pre-wrap;
 }
 .chat-row.is-me .chat-row-bubble {
-  background: var(--pink-100);
-  border-color: var(--pink-200);
-  color: var(--text-main);
+  background: var(--pink-400);
+  border-color: var(--pink-500);
+  color: #fff;
 }
 
 .chat-form {
