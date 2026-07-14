@@ -87,6 +87,8 @@ class DrawQuizGameModule implements GameModule {
   private toolColor: string = PALETTE[0];
   private toolWidth: number = WIDTHS[1];
   private toolErase = false;
+  private toolStyle: 'pen' | 'block' | 'marker' = 'pen';
+  private toolShape: 'free' | 'rect' | 'ellipse' | 'line' = 'free';
 
   /** 호스트 타이머용 — round_result 끝나는 시각 */
   private resultEndsAt = 0;
@@ -521,6 +523,8 @@ class DrawQuizGameModule implements GameModule {
       color: this.toolColor,
       width: this.toolWidth,
       erase: this.toolErase,
+      style: this.toolStyle,
+      shape: this.toolShape,
     };
   };
 
@@ -529,7 +533,12 @@ class DrawQuizGameModule implements GameModule {
     const rect = this.ctx.canvas.getBoundingClientRect();
     const { x, y } = canvasToDraw(e.clientX - rect.left, e.clientY - rect.top, rect);
     const clamped = clampToDraw(x, y);
-    this.liveStroke.points.push(clamped);
+    if (this.liveStroke.shape && this.liveStroke.shape !== 'free') {
+      // 도형: 시작점 + 현재점 2개만 유지 (드래그 중 실시간 미리보기)
+      this.liveStroke.points = [this.liveStroke.points[0]!, clamped];
+    } else {
+      this.liveStroke.points.push(clamped);
+    }
   };
 
   private onDrawUp = (): void => {
@@ -558,6 +567,8 @@ class DrawQuizGameModule implements GameModule {
       <div class="dq-toolbar" id="dq-toolbar" style="display:none">
         <div class="dq-tool-group" id="dq-colors"></div>
         <div class="dq-tool-group" id="dq-widths"></div>
+        <div class="dq-tool-group" id="dq-styles"></div>
+        <div class="dq-tool-group" id="dq-shapes"></div>
         <button class="dq-tool-btn" id="dq-erase" type="button" title="지우개">🧽</button>
         <button class="dq-tool-btn" id="dq-clear" type="button" title="전체 지우기">🗑️</button>
       </div>
@@ -576,6 +587,8 @@ class DrawQuizGameModule implements GameModule {
 
     this.buildColorButtons(container);
     this.buildWidthButtons(container);
+    this.buildStyleButtons(container);
+    this.buildShapeButtons(container);
     container.querySelector('#dq-erase')?.addEventListener('click', () => {
       this.toolErase = !this.toolErase;
       (container.querySelector('#dq-erase') as HTMLElement)?.classList.toggle('is-active', this.toolErase);
@@ -625,6 +638,53 @@ class DrawQuizGameModule implements GameModule {
       b.addEventListener('click', () => {
         this.toolWidth = w;
         wrap.querySelectorAll('.dq-width-btn').forEach((el) => el.classList.remove('is-active'));
+        b.classList.add('is-active');
+      });
+      wrap.appendChild(b);
+    });
+  }
+
+  private buildStyleButtons(root: HTMLElement): void {
+    const wrap = root.querySelector('#dq-styles');
+    if (!wrap) return;
+    const styles: Array<{ id: 'pen' | 'block' | 'marker'; icon: string; title: string }> = [
+      { id: 'pen', icon: '✏️', title: '펜' },
+      { id: 'block', icon: '⬛', title: '블록(각진)' },
+      { id: 'marker', icon: '🖍️', title: '형광펜' },
+    ];
+    styles.forEach((st, i) => {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'dq-tool-btn' + (i === 0 ? ' is-active' : '');
+      b.textContent = st.icon;
+      b.title = st.title;
+      b.addEventListener('click', () => {
+        this.toolStyle = st.id;
+        wrap.querySelectorAll('.dq-tool-btn').forEach((el) => el.classList.remove('is-active'));
+        b.classList.add('is-active');
+      });
+      wrap.appendChild(b);
+    });
+  }
+
+  private buildShapeButtons(root: HTMLElement): void {
+    const wrap = root.querySelector('#dq-shapes');
+    if (!wrap) return;
+    const shapes: Array<{ id: 'free' | 'rect' | 'ellipse' | 'line'; icon: string; title: string }> = [
+      { id: 'free', icon: '〰️', title: '자유선' },
+      { id: 'line', icon: '／', title: '직선' },
+      { id: 'rect', icon: '▭', title: '사각형' },
+      { id: 'ellipse', icon: '◯', title: '원' },
+    ];
+    shapes.forEach((sh, i) => {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'dq-tool-btn' + (i === 0 ? ' is-active' : '');
+      b.textContent = sh.icon;
+      b.title = sh.title;
+      b.addEventListener('click', () => {
+        this.toolShape = sh.id;
+        wrap.querySelectorAll('.dq-tool-btn').forEach((el) => el.classList.remove('is-active'));
         b.classList.add('is-active');
       });
       wrap.appendChild(b);

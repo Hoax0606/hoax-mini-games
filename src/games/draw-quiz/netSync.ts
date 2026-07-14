@@ -126,12 +126,21 @@ export function decodeRoundBegin(msg: GameMessage): RoundBeginPayload | null {
 
 // --- stroke (출제자 → 전체): 그림 한 획 ---
 
+/** 브러시 스타일 — pen(둥근) / block(각진 사각) / marker(반투명 형광) */
+export type BrushStyle = 'pen' | 'block' | 'marker';
+/** 도형 — free(자유선, 기본) / rect / ellipse / line. free 외엔 points[0]=시작, 마지막=끝 */
+export type ShapeKind = 'free' | 'rect' | 'ellipse' | 'line';
+
 export interface StrokeData {
   points: StrokePoint[];
   color: string;
   width: number;
-  /** true 면 지우개 (destination-out) */
+  /** true 면 지우개 (종이색으로 덧칠) */
   erase: boolean;
+  /** 브러시 스타일 (기본 pen) */
+  style?: BrushStyle;
+  /** 도형 (기본 free) */
+  shape?: ShapeKind;
 }
 export function encodeStroke(s: StrokeData): GameMessage {
   return { type: T_STROKE, payload: s };
@@ -140,11 +149,16 @@ export function decodeStroke(msg: GameMessage): StrokeData | null {
   if (msg.type !== T_STROKE) return null;
   const p = msg.payload as Partial<StrokeData> | null;
   if (!p || !Array.isArray(p.points)) return null;
+  const style: BrushStyle = p.style === 'block' || p.style === 'marker' ? p.style : 'pen';
+  const shape: ShapeKind =
+    p.shape === 'rect' || p.shape === 'ellipse' || p.shape === 'line' ? p.shape : 'free';
   return {
     points: p.points as StrokePoint[],
     color: typeof p.color === 'string' ? p.color : '#1c1820',
     width: typeof p.width === 'number' ? p.width : 4,
     erase: p.erase === true,
+    style,
+    shape,
   };
 }
 

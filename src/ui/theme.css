@@ -2157,18 +2157,26 @@ input {
 .dq-toolbar {
   display: flex;
   align-items: center;
-  gap: 12px;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 8px 12px;
   padding: 8px 14px;
   background: var(--bg-card);
   border: 1.5px solid var(--pink-200);
-  border-radius: var(--radius-full);
+  border-radius: var(--radius-lg);
   box-shadow: var(--shadow-sm);
+  max-width: 620px;
 }
 .dq-tool-group {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 6px;
+  /* 그룹 사이 얇은 구분선 */
+  padding-right: 10px;
+  border-right: 1px solid var(--pink-100);
 }
+.dq-tool-group:last-of-type { border-right: none; padding-right: 0; }
 .dq-color-btn {
   width: 24px;
   height: 24px;

@@ -56,10 +56,18 @@ const COLORS = {
 
 const FONT = `'Pretendard', 'Apple SD Gothic Neo', 'Noto Sans KR', system-ui, sans-serif`;
 
-/** 그림판 6색 팔레트 (도구 UI 와 공유) */
-export const PALETTE = ['#1c1820', '#ff5a92', '#ffb12e', '#6ed9b3', '#5b9cff', '#b89aff'] as const;
-/** 굵기 3단계 */
-export const WIDTHS = [3, 6, 12] as const;
+/** 그림판 팔레트 (도구 UI 와 공유). 흰색은 지우개라 넣지 않음 */
+export const PALETTE = [
+  '#1c1820', '#8a8a8a', '#c9c2cf', // 검정/회색/연회색
+  '#ff5a92', '#e2245e', '#ff9ec4', // 핑크/빨강/연핑크
+  '#ff8a3c', '#ffb12e', '#ffe45c', // 주황/노랑/연노랑
+  '#2eb872', '#6ed9b3',            // 초록/민트
+  '#2e6fd9', '#5b9cff', '#86c9ff', // 파랑/하늘/연하늘
+  '#7a5fc7', '#b89aff',            // 보라/라벤더
+  '#8b5a2b',                        // 갈색
+] as const;
+/** 굵기 5단계 */
+export const WIDTHS = [2, 4, 7, 12, 20] as const;
 
 // ============================================
 // 좌표 변환 — 마우스 픽셀 → 그림 논리 좌표 (0~DRAW_W, 0~DRAW_H)
@@ -185,26 +193,51 @@ export class DrawQuizRenderer {
   private drawStroke(s: StrokeData): void {
     if (s.points.length === 0) return;
     const ctx = this.ctx;
+    const style = s.style ?? 'pen';
+    const shape = s.shape ?? 'free';
     ctx.save();
+
+    // 색 — 지우개는 종이색으로 덧칠(투명 구멍 X). marker 는 반투명 형광.
     if (s.erase) {
-      ctx.globalCompositeOperation = 'destination-out';
-      ctx.strokeStyle = 'rgba(0,0,0,1)';
+      ctx.strokeStyle = COLORS.paper;
+      ctx.fillStyle = COLORS.paper;
     } else {
       ctx.strokeStyle = s.color;
+      ctx.fillStyle = s.color;
+      if (style === 'marker') ctx.globalAlpha = 0.4;
     }
     ctx.lineWidth = s.width;
-    ctx.lineCap = 'round';
-    ctx.lineJoin = 'round';
+    if (style === 'pen') { ctx.lineCap = 'round'; ctx.lineJoin = 'round'; }
+    else { ctx.lineCap = 'square'; ctx.lineJoin = 'miter'; } // block/marker = 각진
+
+    // 도형 — 시작점~끝점 기준
+    if (shape !== 'free' && s.points.length >= 2) {
+      const a = s.points[0]!;
+      const b = s.points[s.points.length - 1]!;
+      ctx.beginPath();
+      if (shape === 'line') {
+        ctx.moveTo(a.x, a.y);
+        ctx.lineTo(b.x, b.y);
+        ctx.stroke();
+      } else if (shape === 'rect') {
+        ctx.strokeRect(Math.min(a.x, b.x), Math.min(a.y, b.y), Math.abs(b.x - a.x), Math.abs(b.y - a.y));
+      } else if (shape === 'ellipse') {
+        const cx = (a.x + b.x) / 2, cy = (a.y + b.y) / 2;
+        ctx.ellipse(cx, cy, Math.max(1, Math.abs(b.x - a.x) / 2), Math.max(1, Math.abs(b.y - a.y) / 2), 0, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+      ctx.restore();
+      return;
+    }
+
+    // 자유선
     ctx.beginPath();
     const p0 = s.points[0]!;
     ctx.moveTo(p0.x, p0.y);
     if (s.points.length === 1) {
-      // 점 하나 — 작은 원
-      ctx.lineTo(p0.x + 0.1, p0.y + 0.1);
+      ctx.lineTo(p0.x + 0.1, p0.y + 0.1); // 점 하나
     } else {
-      for (let i = 1; i < s.points.length; i++) {
-        ctx.lineTo(s.points[i]!.x, s.points[i]!.y);
-      }
+      for (let i = 1; i < s.points.length; i++) ctx.lineTo(s.points[i]!.x, s.points[i]!.y);
     }
     ctx.stroke();
     ctx.restore();
