@@ -59,6 +59,8 @@ import {
 
 /** 라운드 결과 표시 시간 (ms) */
 const ROUND_RESULT_MS = 3500;
+/** 지우개 전용 굵기 (펜보다 크게) */
+const ERASE_WIDTH = 26;
 /** 라운드 종료 이만큼 남았을 때 정답 한 글자 공개 (ms) */
 const REVEAL_BEFORE_MS = 20_000;
 /** 직접입력 모드에서 출제자가 단어 안 정하면 이 시간 뒤 자동 시작 (ms) */
@@ -613,7 +615,7 @@ class DrawQuizGameModule implements GameModule {
     this.liveStroke = {
       points: [{ x, y }],
       color: this.toolColor,
-      width: this.toolWidth,
+      width: this.toolErase ? ERASE_WIDTH : this.toolWidth,
       erase: this.toolErase,
       style: this.toolStyle,
       shape: this.toolShape,
@@ -682,8 +684,7 @@ class DrawQuizGameModule implements GameModule {
     this.buildStyleButtons(container);
     this.buildShapeButtons(container);
     container.querySelector('#dq-erase')?.addEventListener('click', () => {
-      this.toolErase = !this.toolErase;
-      (container.querySelector('#dq-erase') as HTMLElement)?.classList.toggle('is-active', this.toolErase);
+      this.setErase(!this.toolErase);
     });
     container.querySelector('#dq-clear')?.addEventListener('click', () => {
       if (!this.amDrawer()) return;
@@ -696,9 +697,30 @@ class DrawQuizGameModule implements GameModule {
     guessForm?.addEventListener('submit', this.onGuessSubmit);
 
     this.uiRoot = container;
+    this.setCanvasCursor(); // 동그라미 커서 초기화
     this.refreshUI();
   }
   private uiRoot: HTMLDivElement | null = null;
+
+  /** 지우개 on/off — 버튼 표시 + 커서 갱신. 펜 계열 선택 시 setErase(false) 로 자동 해제. */
+  private setErase(on: boolean): void {
+    this.toolErase = on;
+    this.uiRoot?.querySelector('#dq-erase')?.classList.toggle('is-active', on);
+    this.setCanvasCursor();
+  }
+
+  /** 캔버스 커서를 현재 브러시 크기의 동그라미로 (지우개면 크게/회색) */
+  private setCanvasCursor(): void {
+    if (!this.ctx?.canvas) return;
+    const d = this.toolErase ? ERASE_WIDTH : Math.max(8, this.toolWidth);
+    const size = Math.min(60, d + 6);
+    const c = size / 2;
+    const r = Math.max(2, d / 2);
+    const stroke = this.toolErase ? '#999' : '#333';
+    const svg = `<svg xmlns='http://www.w3.org/2000/svg' width='${size}' height='${size}'><circle cx='${c}' cy='${c}' r='${r}' fill='none' stroke='${stroke}' stroke-width='2'/></svg>`;
+    const uri = `data:image/svg+xml,${encodeURIComponent(svg)}`;
+    this.ctx.canvas.style.cursor = `url("${uri}") ${c} ${c}, crosshair`;
+  }
 
   private buildColorButtons(root: HTMLElement): void {
     const wrap = root.querySelector('#dq-colors');
@@ -710,10 +732,9 @@ class DrawQuizGameModule implements GameModule {
       b.style.background = c;
       b.addEventListener('click', () => {
         this.toolColor = c;
-        this.toolErase = false;
         wrap.querySelectorAll('.dq-color-btn').forEach((el) => el.classList.remove('is-active'));
         b.classList.add('is-active');
-        (root.querySelector('#dq-erase') as HTMLElement)?.classList.remove('is-active');
+        this.setErase(false); // 색 선택 = 펜 → 지우개 해제
       });
       wrap.appendChild(b);
     });
@@ -731,6 +752,7 @@ class DrawQuizGameModule implements GameModule {
         this.toolWidth = w;
         wrap.querySelectorAll('.dq-width-btn').forEach((el) => el.classList.remove('is-active'));
         b.classList.add('is-active');
+        this.setErase(false); // 굵기 선택 = 펜 → 지우개 해제 + 커서 크기 갱신
       });
       wrap.appendChild(b);
     });
@@ -754,6 +776,7 @@ class DrawQuizGameModule implements GameModule {
         this.toolStyle = st.id;
         wrap.querySelectorAll('.dq-tool-btn').forEach((el) => el.classList.remove('is-active'));
         b.classList.add('is-active');
+        this.setErase(false); // 펜 스타일 선택 = 펜 → 지우개 해제
       });
       wrap.appendChild(b);
     });
