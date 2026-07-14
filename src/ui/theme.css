@@ -917,9 +917,13 @@ input {
   padding: 0;
   background: var(--bg-main);
   animation: none;
-  /* 자체 스크롤은 끄고(overflow:auto 는 캔버스 ResizeObserver 와 피드백 루프로 화면 진동 유발),
-     min-width 로 창이 좁으면 game-screen 이 뷰포트보다 넓어져 body 가 가로 스크롤 → 잘림 방지. */
-  overflow: hidden;
+  /* 가로: overflow hidden + min-width 로 좁으면 body 가 가로 스크롤(잘림 방지).
+     세로: overflow-y auto 로 낮은 해상도에서 입력창까지 스크롤 가능.
+     scrollbar-gutter:stable 로 스크롤바 자리를 항상 확보 → 스크롤바 껐다켰다로 인한
+     캔버스 리사이즈 피드백(화면 진동) 방지. */
+  overflow-x: hidden;
+  overflow-y: auto;
+  scrollbar-gutter: stable;
   min-width: 1000px;
 }
 
@@ -1488,6 +1492,10 @@ input {
 /* 라이어 게임: 캔버스가 아래 입력/투표 패널 공간을 남기도록 높이 제한 (짤림 방지) */
 .game-canvas-wrap:has(.lg-panel) .game-canvas {
   max-height: calc(100% - 180px);
+}
+/* 그림 퀴즈: 캔버스가 아래 도구/추측 입력 공간을 남기도록 (낮은 해상도 입력창 잘림 방지) */
+.game-canvas-wrap:has(.dq-ui) .game-canvas {
+  max-height: calc(100% - 150px);
 }
 .lg-msg {
   font-size: 13px;
@@ -2131,6 +2139,7 @@ input {
   gap: 8px;
   width: 100%;
   max-width: 640px;
+  flex-shrink: 0; /* 캔버스에 밀려 사라지지 않게 — 입력창 항상 자리 확보 */
 }
 
 /* 후보 단어 선택 (출제자) */
