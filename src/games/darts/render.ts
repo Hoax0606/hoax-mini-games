@@ -19,6 +19,7 @@
  *   - Bull: 민트 테두리 + 핑크 중심
  */
 
+import { fitContain, fitScreenToLogical, type FitView } from '../_shared/canvasFit';
 import {
   hitScore,
   BOARD_RATIOS,
@@ -227,6 +228,7 @@ export class DartsRenderer {
   private canvas: HTMLCanvasElement;
   private ctx: CanvasRenderingContext2D;
   private ro: ResizeObserver;
+  private view: FitView = { scale: 1, offX: 0, offY: 0 };
 
   constructor(args: DartsRendererArgs) {
     this.canvas = args.canvas;
@@ -252,12 +254,7 @@ export class DartsRenderer {
 
   /** 캔버스 이벤트 픽셀 좌표 → 논리 좌표 (800x400 기준) */
   canvasToLogical(canvasPx: number, canvasPy: number): { x: number; y: number } {
-    const rect = this.canvas.getBoundingClientRect();
-    if (rect.width === 0 || rect.height === 0) return { x: 0, y: 0 };
-    return {
-      x: (canvasPx / rect.width) * CANVAS_W,
-      y: (canvasPy / rect.height) * CANVAS_H,
-    };
+    return fitScreenToLogical(this.view, canvasPx, canvasPy);
   }
 
   // ============================================
@@ -266,20 +263,8 @@ export class DartsRenderer {
 
   render(state: DartsRenderState): void {
     const ctx = this.ctx;
-    const rect = this.canvas.getBoundingClientRect();
-    const dpr = window.devicePixelRatio || 1;
-
-    ctx.setTransform(1, 0, 0, 1, 0, 0);
-    ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
-
-    // 논리 좌표 800×400 → 실제 픽셀 변환
-    const sx = (rect.width * dpr) / CANVAS_W;
-    const sy = (rect.height * dpr) / CANVAS_H;
-    ctx.setTransform(sx, 0, 0, sy, 0, 0);
-
-    // 배경
-    ctx.fillStyle = COLORS.bg;
-    ctx.fillRect(0, 0, CANVAS_W, CANVAS_H);
+    // 균일 스케일+레터박스 (비율 유지 → 안 찌부러짐)
+    this.view = fitContain(ctx, this.canvas, CANVAS_W, CANVAS_H, COLORS.bg);
 
     // 다트보드
     this.drawBoard(state.mode);

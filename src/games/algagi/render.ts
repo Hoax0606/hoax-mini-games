@@ -16,6 +16,7 @@
  * 드래그 중: 발사 방향 화살표 (드래그 반대) + 세기 시각화
  */
 
+import { fitContain, fitScreenToLogical, fitView } from '../_shared/canvasFit';
 import {
   BOARD_HALF,
   STONE_RADIUS,
@@ -78,9 +79,9 @@ export function canvasToBoard(
   px: number, py: number,
   rect: DOMRect,
 ): { x: number; y: number } {
-  // canvas 의 화면 너비/높이 → 논리 좌표 800×400 으로 환산
-  const sx = px * (CANVAS_W / rect.width);
-  const sy = py * (CANVAS_H / rect.height);
+  // canvas 픽셀 → 논리 좌표 800×400 (레터박스 역변환 — render 와 동일 계산)
+  const v = fitView(rect.width, rect.height, CANVAS_W, CANVAS_H);
+  const { x: sx, y: sy } = fitScreenToLogical(v, px, py);
   return { x: sx - BOARD_CX, y: sy - BOARD_CY };
 }
 
@@ -164,21 +165,11 @@ export class AlgagiRenderer {
     const ctx = this.ctx;
     const rect = this.canvas.getBoundingClientRect();
     // 캔버스가 아직 레이아웃 안 됐으면(폭/높이 0) 아무것도 안 그림 —
-    //   안 그러면 clearRect 로 지운 뒤 scale 0 으로 아무것도 못 그려 흰 페이지가 비쳐 보임.
+    //   안 그러면 clearRect 로 지운 뒤 아무것도 못 그려 흰 페이지가 비쳐 보임.
     if (rect.width === 0 || rect.height === 0) return;
-    const dpr = window.devicePixelRatio || 1;
 
-    ctx.setTransform(1, 0, 0, 1, 0, 0);
-    ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
-
-    // 논리 좌표 800×400 → 실제 픽셀
-    const sx = (rect.width * dpr) / CANVAS_W;
-    const sy = (rect.height * dpr) / CANVAS_H;
-    ctx.setTransform(sx, 0, 0, sy, 0, 0);
-
-    // 1) 배경
-    ctx.fillStyle = COLORS.bg;
-    ctx.fillRect(0, 0, CANVAS_W, CANVAS_H);
+    // 균일 스케일+레터박스 (비율 유지 → 안 찌부러짐)
+    fitContain(ctx, this.canvas, CANVAS_W, CANVAS_H, COLORS.bg);
 
     // 2) 보드
     this.drawBoard();

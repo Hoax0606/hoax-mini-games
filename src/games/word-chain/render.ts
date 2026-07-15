@@ -19,6 +19,7 @@ import {
   allowedStartLetters,
   getTurnTimeMs,
 } from './rules';
+import { fitContain } from '../_shared/canvasFit';
 
 const CANVAS_W = 800;
 const CANVAS_H = 400;
@@ -96,18 +97,9 @@ export class WordChainRenderer {
 
   render(state: RenderState): void {
     const ctx = this.ctx;
-    const rect = this.canvas.getBoundingClientRect();
-    const dpr = window.devicePixelRatio || 1;
 
-    ctx.setTransform(1, 0, 0, 1, 0, 0);
-    ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
-    const sx = (rect.width * dpr) / CANVAS_W;
-    const sy = (rect.height * dpr) / CANVAS_H;
-    ctx.setTransform(sx, 0, 0, sy, 0, 0);
-
-    // 배경
-    ctx.fillStyle = COLORS.bg;
-    ctx.fillRect(0, 0, CANVAS_W, CANVAS_H);
+    // 균일 스케일+레터박스 (비율 유지 → 캔버스 비율 달라도 안 찌부러짐)
+    fitContain(ctx, this.canvas, CANVAS_W, CANVAS_H, COLORS.bg);
 
     // 좌측: 마지막 단어 + 다음 시작 글자 (큰 글씨)
     this.drawWordCenter(state);

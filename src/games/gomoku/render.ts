@@ -17,6 +17,7 @@
  */
 
 import type { Board, BoardSize, Stone, WinInfo } from './board';
+import { fitContain, fitScreenToLogical, type FitView } from '../_shared/canvasFit';
 
 // ============================================
 // 레이아웃 상수
@@ -152,6 +153,7 @@ export class GomokuRenderer {
   private canvas: HTMLCanvasElement;
   private ctx: CanvasRenderingContext2D;
   private ro: ResizeObserver;
+  private view: FitView = { scale: 1, offX: 0, offY: 0 };
 
   constructor(args: GomokuRendererArgs) {
     this.canvas = args.canvas;
@@ -184,11 +186,8 @@ export class GomokuRenderer {
     canvasPy: number,
     boardSize: BoardSize,
   ): { x: number; y: number } | null {
-    const rect = this.canvas.getBoundingClientRect();
-    if (rect.width === 0 || rect.height === 0) return null;
-    // 캔버스 → 논리 800×400
-    const lx = (canvasPx / rect.width) * CANVAS_W;
-    const ly = (canvasPy / rect.height) * CANVAS_H;
+    // 캔버스 → 논리 800×400 (레터박스 역변환)
+    const { x: lx, y: ly } = fitScreenToLogical(this.view, canvasPx, canvasPy);
 
     const layout = getLayout(boardSize);
     const rawX = (lx - layout.offsetX) / layout.cell;
@@ -205,19 +204,8 @@ export class GomokuRenderer {
 
   render(state: RenderState): void {
     const ctx = this.ctx;
-    const rect = this.canvas.getBoundingClientRect();
-    const dpr = window.devicePixelRatio || 1;
-
-    ctx.setTransform(1, 0, 0, 1, 0, 0);
-    ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
-
-    const sx = (rect.width * dpr) / CANVAS_W;
-    const sy = (rect.height * dpr) / CANVAS_H;
-    ctx.setTransform(sx, 0, 0, sy, 0, 0);
-
-    // 1) 배경
-    ctx.fillStyle = COLORS.bg;
-    ctx.fillRect(0, 0, CANVAS_W, CANVAS_H);
+    // 균일 스케일+레터박스 (비율 유지 → 안 찌부러짐)
+    this.view = fitContain(ctx, this.canvas, CANVAS_W, CANVAS_H, COLORS.bg);
 
     // 2) 플레이어 카드 (좌=흑, 우=백) — hostSide 기반으로 닉네임/내 카드 매핑
     const isGameOver = state.gameOver !== null;

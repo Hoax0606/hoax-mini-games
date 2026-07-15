@@ -16,6 +16,7 @@
  *   - render()가 매 프레임 transform으로 매핑
  */
 
+import { fitView, fitScreenToLogical } from '../_shared/canvasFit';
 import {
   FIELD,
   CENTER_X,
@@ -125,10 +126,8 @@ export class Renderer {
   canvasToLogical(canvasX: number, canvasY: number): Vec2 {
     const rect = this.canvas.getBoundingClientRect();
     if (rect.width === 0 || rect.height === 0) return { x: 0, y: 0 };
-    return {
-      x: (canvasX / rect.width) * FIELD.WIDTH,
-      y: (canvasY / rect.height) * FIELD.HEIGHT,
-    };
+    const v = fitView(rect.width, rect.height, FIELD.WIDTH, FIELD.HEIGHT);
+    return fitScreenToLogical(v, canvasX, canvasY);
   }
 
   /** 매 프레임 호출 */
@@ -144,18 +143,17 @@ export class Renderer {
     const ctx = this.ctx;
     const rect = this.canvas.getBoundingClientRect();
     const dpr = window.devicePixelRatio || 1;
-    const pxW = rect.width * dpr;
-    const pxH = rect.height * dpr;
 
-    // 화면 클리어
+    // 화면 클리어 + 레터박스 여백 채움
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+    ctx.fillStyle = COLORS.tableBg;
+    ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
 
-    // 논리 좌표계(800x400)로 transform + 화면 흔들림 오프셋 (픽셀 단위)
-    const scaleX = pxW / FIELD.WIDTH;
-    const scaleY = pxH / FIELD.HEIGHT;
+    // 균일 스케일(비율 유지 → 안 찌부러짐) + 레터박스 오프셋 + 화면 흔들림
+    const { scale, offX, offY } = fitView(rect.width, rect.height, FIELD.WIDTH, FIELD.HEIGHT);
     const { shakeX, shakeY } = this.nextShakeOffset();
-    ctx.setTransform(scaleX, 0, 0, scaleY, shakeX, shakeY);
+    ctx.setTransform(scale * dpr, 0, 0, scale * dpr, offX * dpr + shakeX, offY * dpr + shakeY);
 
     this.drawField(ctx);
     this.drawMallet(ctx, state.mallets.host, 'host');

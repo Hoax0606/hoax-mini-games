@@ -19,6 +19,7 @@
 import { PIECES, forEachMino, type PieceId, type PieceState } from './pieces';
 import { FIELD_WIDTH, FIELD_HEIGHT, dropDistance, type Cell, type Field } from './field';
 import type { EngineState } from './engine';
+import { fitContain } from '../_shared/canvasFit';
 
 // ============================================
 // 레이아웃 상수
@@ -147,20 +148,9 @@ export class TetrisRenderer {
     opts: { spectator?: boolean } = {},
   ): void {
     const ctx = this.ctx;
-    const rect = this.canvas.getBoundingClientRect();
-    const dpr = window.devicePixelRatio || 1;
 
-    ctx.setTransform(1, 0, 0, 1, 0, 0);
-    ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
-
-    // 논리 좌표 800×400 → 실제 픽셀
-    const sx = (rect.width * dpr) / CANVAS_W;
-    const sy = (rect.height * dpr) / CANVAS_H;
-    ctx.setTransform(sx, 0, 0, sy, 0, 0);
-
-    // 전체 배경
-    ctx.fillStyle = COLORS.bg;
-    ctx.fillRect(0, 0, CANVAS_W, CANVAS_H);
+    // 균일 스케일+레터박스 (비율 유지 → 안 찌부러짐)
+    fitContain(ctx, this.canvas, CANVAS_W, CANVAS_H, COLORS.bg);
 
     if (opts.spectator) {
       // 관전자 모드: 캔버스 전체를 2×2 격자로 4명 표시 (미니뷰 대신)

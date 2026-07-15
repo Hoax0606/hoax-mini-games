@@ -18,6 +18,7 @@
  */
 
 import { BOARD_COLS, BOARD_ROWS, type Board, type Rect } from './board';
+import { fitContain, fitScreenToLogical, type FitView } from '../_shared/canvasFit';
 
 // ============================================
 // 레이아웃 상수
@@ -96,6 +97,8 @@ export class AppleRenderer {
   private canvas: HTMLCanvasElement;
   private ctx: CanvasRenderingContext2D;
   private ro: ResizeObserver;
+  /** 최근 레터박스 변환 (입력 좌표 역변환용) */
+  private view: FitView = { scale: 1, offX: 0, offY: 0 };
 
   constructor(args: AppleRendererArgs) {
     this.canvas = args.canvas;
@@ -124,12 +127,7 @@ export class AppleRenderer {
    * 마우스 이벤트 hit-test 용. index.ts 가 getBoundingClientRect 뺀 로컬 좌표를 넘긴다.
    */
   canvasToLogical(localX: number, localY: number): { x: number; y: number } {
-    const rect = this.canvas.getBoundingClientRect();
-    if (rect.width === 0 || rect.height === 0) return { x: 0, y: 0 };
-    return {
-      x: (localX / rect.width) * CANVAS_W,
-      y: (localY / rect.height) * CANVAS_H,
-    };
+    return fitScreenToLogical(this.view, localX, localY);
   }
 
   /** 논리 좌표(x,y) → 격자 좌표(col,row). 보드 밖이면 null. */
@@ -162,20 +160,8 @@ export class AppleRenderer {
   /** 매 프레임 호출 */
   render(state: RenderState): void {
     const ctx = this.ctx;
-    const rect = this.canvas.getBoundingClientRect();
-    const dpr = window.devicePixelRatio || 1;
-
-    ctx.setTransform(1, 0, 0, 1, 0, 0);
-    ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
-
-    // 논리 좌표 → 실제 픽셀
-    const sx = (rect.width * dpr) / CANVAS_W;
-    const sy = (rect.height * dpr) / CANVAS_H;
-    ctx.setTransform(sx, 0, 0, sy, 0, 0);
-
-    // 전체 배경
-    ctx.fillStyle = COLORS.bg;
-    ctx.fillRect(0, 0, CANVAS_W, CANVAS_H);
+    // 균일 스케일+레터박스 (비율 유지 → 안 찌부러짐). view 는 입력 역변환에 재사용.
+    this.view = fitContain(ctx, this.canvas, CANVAS_W, CANVAS_H, COLORS.bg);
 
     // 보드
     this.drawBoardBackground();
