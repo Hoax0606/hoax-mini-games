@@ -247,6 +247,13 @@ class FortressGameModule implements GameModule {
         }
         const wasReady = this.ready;
         const prevPhase = this.game?.phase;
+        // 내가 지금 ◀▶ 로 움직이는 내 포대의 x 는 로컬이 최신(100ms 마다 호스트로 broadcast) —
+        //   주기 sync 가 RTT 만큼 옛 x 로 덮으면 1.5초마다 되튀는 러버밴딩. 내 포대 x 만 보존.
+        let holdX: { id: number; x: number } | null = null;
+        if (this.game?.phase === 'aiming') {
+          const cur = this.game.forts.find((f) => f.id === this.game.currentTurn);
+          if (cur && cur.ownerPeerId === this.myPeerId) holdX = { id: cur.id, x: cur.x };
+        }
         this.game = sync.game; // wind/currentTurn/phase/점수 등 최신 반영
         // 지형은 seed 또는 크레이터 수가 바뀌었을 때만 재생성 (주기 sync 마다 재생성 방지)
         if (this.terrainSeed !== sync.game.seed || this.craters.length !== sync.craters.length) {
@@ -254,6 +261,12 @@ class FortressGameModule implements GameModule {
           this.craters = sync.craters;
           this.hm = generateTerrain(sync.game.seed, sync.game.terrainWidth);
           for (const c of this.craters) carveCrater(this.hm, c.cx, c.cy, c.r);
+        }
+        // 내가 조종 중이던 포대가 여전히 내 차례(aiming)면 로컬 x 유지 (러버밴딩 방지).
+        //   턴이 넘어갔거나 다른 포대면 호스트 값 그대로 수용.
+        if (holdX && this.game.phase === 'aiming' && this.game.currentTurn === holdX.id) {
+          const f = this.game.forts.find((ff) => ff.id === holdX!.id);
+          if (f && f.ownerPeerId === this.myPeerId) f.x = holdX.x;
         }
         // 발사 중이 아니면 잔여 shell 정리(착탄 유실 복구). 발사 중이면 진행 애니 유지.
         if (this.game.phase !== 'firing') this.shells = [];
