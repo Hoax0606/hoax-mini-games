@@ -32,6 +32,13 @@ jobs:
 
       - name: Build
         run: npm run build
+        env:
+          # TURN 무료 키를 저장소 Secrets 에 넣으면 빌드 시 주입됨(없으면 빈 값 → STUN 만 사용).
+          #   Settings → Secrets and variables → Actions 에 아래 3개 추가:
+          #   VITE_TURN_URL / VITE_TURN_USER / VITE_TURN_CRED
+          VITE_TURN_URL: ${{ secrets.VITE_TURN_URL }}
+          VITE_TURN_USER: ${{ secrets.VITE_TURN_USER }}
+          VITE_TURN_CRED: ${{ secrets.VITE_TURN_CRED }}
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
