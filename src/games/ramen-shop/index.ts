@@ -22,10 +22,12 @@ import {
   type Pot, type Upgrades, type UpgradeKind,
 } from './rules';
 import { RamenRenderer, potLayout, type MoneyPopup } from './render';
-import { decodeEnd, decodeScore, encodeEnd, encodeScore } from './netSync';
+import { decodeEnd, decodeScore, decodeClock, encodeEnd, encodeScore, encodeClock } from './netSync';
 
 /** 타이머 만료 후 호스트가 게스트 최종 매출 받기까지 기다리는 grace(ms) */
 const FINISH_GRACE_MS = 1000;
+/** 호스트 시계 broadcast 간격(ms) */
+const CLOCK_INTERVAL_MS = 1000;
 
 interface PlayerRecord {
   peerId: string;
@@ -55,6 +57,8 @@ class RamenShopGame implements GameModule {
 
   private durationMs = 180_000;
   private startedAt = 0;
+  /** 호스트: 마지막 시계 broadcast 시각 */
+  private lastClockAt = 0;
 
   private rafId: number | null = null;
   private destroyed = false;
@@ -105,6 +109,25 @@ class RamenShopGame implements GameModule {
 
   onPeerMessage(msg: GameMessage): void {
     if (this.destroyed) return;
+
+    const clk = decodeClock(msg);
+    if (clk) {
+      // 게스트: 자기 startedAt 을 호스트 남은시간에 맞춤 → 로드/카운트다운 편차 보정(공정).
+      if (!this.isHost && !this.paused && !this.gameFinished) {
+        const newStart = performance.now() - (this.durationMs - clk.remainMs);
+        // 냄비 타이머는 gameTime(=now-startedAt) 기준이라 startedAt 이 바뀌면 같이 밀어줘야
+        //   진행 중 냄비가 튀지 않는다. (보통 첫 정렬은 냄비 비었을 때라 영향 미미, 방어적 보정)
+        const d = this.startedAt - newStart;
+        if (d !== 0) {
+          for (const pot of this.pots) {
+            if (pot.cookStartGt > 0) pot.cookStartGt += d;
+            if (pot.readyGt > 0) pot.readyGt += d;
+          }
+        }
+        this.startedAt = newStart;
+      }
+      return;
+    }
 
     const scoreMsg = decodeScore(msg);
     if (scoreMsg) {
@@ -171,6 +194,12 @@ class RamenShopGame implements GameModule {
           pot.state = 'overcooked';
         }
       }
+    }
+
+    // 호스트: authoritative 남은시간 주기 broadcast (게스트 시계 정렬 — 시작/종료 공정)
+    if (this.isHost && !this.paused && !this.gameFinished && now - this.lastClockAt > CLOCK_INTERVAL_MS) {
+      this.lastClockAt = now;
+      this.ctx.sendToPeer(encodeClock(remainingMs));
     }
 
     if (!this.gameFinished && remainingMs <= 0) {

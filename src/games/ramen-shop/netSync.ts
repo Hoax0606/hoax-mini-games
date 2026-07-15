@@ -11,8 +11,24 @@
 
 import type { GameMessage, GameResult } from '../types';
 
+const T_CLOCK = 'rs:clock';
 const T_SCORE = 'rs:score';
 const T_END = 'rs:end';
+
+// ============================================
+// 시계 동기 (호스트 → 전체, 주기적)
+// ============================================
+// 각 클라가 자기 로컬 시작시각으로만 재면 로드·카운트다운 편차로 시작/종료가 어긋나 불공평.
+// 호스트가 authoritative 남은시간을 주기 broadcast → 게스트가 자기 startedAt 을 거기 맞춘다.
+export function encodeClock(remainMs: number): GameMessage {
+  return { type: T_CLOCK, payload: { remainMs } };
+}
+export function decodeClock(msg: GameMessage): { remainMs: number } | null {
+  if (msg.type !== T_CLOCK) return null;
+  const p = msg.payload as { remainMs?: unknown } | null;
+  if (!p || typeof p.remainMs !== 'number') return null;
+  return { remainMs: Math.max(0, p.remainMs) };
+}
 
 // ============================================
 // 최종 매출 (각 클라 → 전체, 영업 종료 시 1회)
