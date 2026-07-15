@@ -1,32 +1,34 @@
 /**
  * 라면가게 GameModule — 조립 파일.
  *
- * 아키텍처(사과게임 미러링, 단 seed 없음):
- *   손님·주문·랜덤이 없어 모두 동일한 빈 가게에서 시작 → 초기 동기화 불필요.
- *   각자 로컬에서 냄비를 돌려 라면을 만들어 팔고(매출 로컬 권위), 영업 종료 시점에만
- *   자기 최종 매출을 1회 broadcast → 호스트가 랭킹 집계(rs:end).
+ * 아키텍처(사과게임 미러링):
+ *   손님·주문 흐름은 각 가게 로컬 랜덤(seed 동기화 없음). 매출은 로컬 권위.
+ *   게임 중 트래픽은 호스트 시계 broadcast(rs:clock)뿐. 종료 시 각자 최종 매출(rs:score) →
+ *   호스트가 랭킹 집계(rs:end).
  *
- * 시간 기준: gameTime = now - startedAt(단일 기준). 냄비 끓기/불음 판정 모두 gameTime 상대값이라
- *   일시정지는 startedAt 한 곳만 보정하면 된다.
+ * 플레이:
+ *   손님이 와서 특정 토핑 조합의 라면을 주문. 빈 냄비→물→면(끓기)→ready→주문 토핑 올리기→
+ *   완성 냄비 클릭 시 "주문이 맞는" 손님에게 자동 배달(매출+팁). ready 방치 시 불음→클릭 폐기.
+ *   손님 인내심(숨김 아님, 링)이 0 되면 화내며 떠남(매출 0). 빨리 줄수록 팁↑.
  *
- * 조리 루프(클릭): 빈 냄비→물→면(끓기 시작)→ready→클릭 판매. ready 방치 시 불음→클릭 폐기.
- *   토핑: 하단 타일 클릭해 "장전" → 다음 ready 냄비 클릭 시 토핑 추가(매출↑).
+ * 시간 기준: gameTime = now - startedAt. 냄비 끓기·손님 인내심 모두 gameTime 상대값이라
+ *   일시정지/시계정렬은 startedAt 한 곳(+진행 냄비 보정)만 다루면 된다.
  */
 
 import type { GameContext, GameMessage, GameModule, GameResult } from '../types';
 import { sound } from '../../core/sound';
-import { TOPPING_BY_ID, type ToppingId } from './defs';
+import { type ToppingId } from './defs';
 import {
-  boilTimeMs, bowlPrice, initialPots, initialUpgrades, nextUpgradeCost,
-  MAX_POTS, OVERCOOK_MS, FIREPOWER_MULT,
-  type Pot, type Upgrades, type UpgradeKind,
+  boilTimeMs, bowlMatchesOrder, servePayment,
+  randomOrder, randomPatienceMs, randomSpawnGapMs,
+  initialPots, initialUpgrades, nextUpgradeCost,
+  MAX_POTS, MAX_SEATS, OVERCOOK_MS, FIREPOWER_MULT,
+  type Pot, type Customer, type Upgrades, type UpgradeKind,
 } from './rules';
-import { RamenRenderer, potLayout, type MoneyPopup } from './render';
+import { RamenRenderer, potLayout, seatLayout, type MoneyPopup } from './render';
 import { decodeEnd, decodeScore, decodeClock, encodeEnd, encodeScore, encodeClock } from './netSync';
 
-/** 타이머 만료 후 호스트가 게스트 최종 매출 받기까지 기다리는 grace(ms) */
 const FINISH_GRACE_MS = 1000;
-/** 호스트 시계 broadcast 간격(ms) */
 const CLOCK_INTERVAL_MS = 1000;
 
 interface PlayerRecord {
@@ -52,12 +54,17 @@ class RamenShopGame implements GameModule {
   private armedTopping: ToppingId | null = null;
   private popups: MoneyPopup[] = [];
 
+  // 손님 (로컬 랜덤)
+  private customers: Customer[] = [];
+  private nextCustomerId = 1;
+  /** 다음 손님 입장 예정 gameTime */
+  private nextSpawnGt = 800;
+
   /** 나 제외 플레이어 최종 매출 (호스트 집계용) */
   private otherScores = new Map<string, PlayerRecord>();
 
   private durationMs = 180_000;
   private startedAt = 0;
-  /** 호스트: 마지막 시계 broadcast 시각 */
   private lastClockAt = 0;
 
   private rafId: number | null = null;
@@ -81,14 +88,12 @@ class RamenShopGame implements GameModule {
     this.isHost = ctx.role === 'host';
     this.isSpectator = ctx.isSpectator === true;
 
-    // 영업시간 옵션 (초 단위 문자열). 기본 3분.
     const dur = Number(ctx.roomOptions['duration']);
     this.durationMs = (Number.isFinite(dur) && dur > 0 ? dur : 180) * 1000;
 
     this.upgrades = initialUpgrades();
     this.pots = initialPots(this.upgrades.pots);
 
-    // 나 제외 플레이어(role='player')만 랭킹 대상으로 초기화. 관전자 제외.
     for (const p of ctx.players) {
       if (p.peerId === this.myPeerId || p.role !== 'player') continue;
       this.otherScores.set(p.peerId, { peerId: p.peerId, nickname: p.nickname, score: 0 });
@@ -101,7 +106,7 @@ class RamenShopGame implements GameModule {
       this.mountUpgradeBar();
     }
 
-    sound.startBgm('apple-game'); // 밝고 느긋한 BGM 재활용
+    sound.startBgm('apple-game');
 
     this.startedAt = performance.now();
     this.rafId = requestAnimationFrame(this.loop);
@@ -112,17 +117,15 @@ class RamenShopGame implements GameModule {
 
     const clk = decodeClock(msg);
     if (clk) {
-      // 게스트: 자기 startedAt 을 호스트 남은시간에 맞춤 → 로드/카운트다운 편차 보정(공정).
       if (!this.isHost && !this.paused && !this.gameFinished) {
         const newStart = performance.now() - (this.durationMs - clk.remainMs);
-        // 냄비 타이머는 gameTime(=now-startedAt) 기준이라 startedAt 이 바뀌면 같이 밀어줘야
-        //   진행 중 냄비가 튀지 않는다. (보통 첫 정렬은 냄비 비었을 때라 영향 미미, 방어적 보정)
         const d = this.startedAt - newStart;
         if (d !== 0) {
           for (const pot of this.pots) {
             if (pot.cookStartGt > 0) pot.cookStartGt += d;
             if (pot.readyGt > 0) pot.readyGt += d;
           }
+          for (const c of this.customers) c.seatedGt += d;
         }
         this.startedAt = newStart;
       }
@@ -133,13 +136,13 @@ class RamenShopGame implements GameModule {
     if (scoreMsg) {
       if (scoreMsg.peerId === this.myPeerId) return;
       const rec = this.otherScores.get(scoreMsg.peerId);
-      if (rec) rec.score = scoreMsg.score; // 관전자 peerId 는 map 에 없어 자동 무시
+      if (rec) rec.score = scoreMsg.score;
       return;
     }
 
     const end = decodeEnd(msg);
     if (end) {
-      if (this.isSpectator) return; // 관전자는 플랫폼 game_end 경로로 이동
+      if (this.isSpectator) return;
       this.gameFinished = true;
       this.ctx.endGame(end);
       return;
@@ -166,7 +169,6 @@ class RamenShopGame implements GameModule {
     if (paused) {
       this.pauseStart = performance.now();
     } else if (this.pauseStart > 0) {
-      // 정지 동안 흐른 만큼 startedAt 을 밀어 gameTime(냄비 타이머 포함)을 멈춘 것처럼.
       this.startedAt += performance.now() - this.pauseStart;
       this.pauseStart = 0;
     }
@@ -184,19 +186,10 @@ class RamenShopGame implements GameModule {
     const remainingMs = Math.max(0, this.durationMs - gameTime);
 
     if (!this.gameFinished && !this.paused && !this.isSpectator) {
-      // 냄비 진행 — cooking→ready, ready 방치→overcooked
-      const boil = boilTimeMs(this.upgrades);
-      for (const pot of this.pots) {
-        if (pot.state === 'cooking' && gameTime - pot.cookStartGt >= boil) {
-          pot.state = 'ready';
-          pot.readyGt = gameTime;
-        } else if (pot.state === 'ready' && gameTime - pot.readyGt >= OVERCOOK_MS) {
-          pot.state = 'overcooked';
-        }
-      }
+      this.stepPots(gameTime);
+      this.stepCustomers(gameTime);
     }
 
-    // 호스트: authoritative 남은시간 주기 broadcast (게스트 시계 정렬 — 시작/종료 공정)
     if (this.isHost && !this.paused && !this.gameFinished && now - this.lastClockAt > CLOCK_INTERVAL_MS) {
       this.lastClockAt = now;
       this.ctx.sendToPeer(encodeClock(remainingMs));
@@ -209,11 +202,12 @@ class RamenShopGame implements GameModule {
       if (this.isHost) this.finishTimer = window.setTimeout(() => this.finishGame(), FINISH_GRACE_MS);
     }
 
-    // 팝업 만료 정리
     if (this.popups.length) this.popups = this.popups.filter((p) => now - p.start < 900);
 
     this.renderer.render({
       pots: this.pots,
+      customers: this.customers,
+      seats: this.upgrades.seats,
       earnings: this.earnings,
       remainMs: remainingMs,
       totalMs: this.durationMs,
@@ -227,6 +221,53 @@ class RamenShopGame implements GameModule {
     });
   };
 
+  /** 냄비 진행 — cooking→ready, ready 방치→overcooked */
+  private stepPots(gameTime: number): void {
+    const boil = boilTimeMs(this.upgrades);
+    for (const pot of this.pots) {
+      if (pot.state === 'cooking' && gameTime - pot.cookStartGt >= boil) {
+        pot.state = 'ready';
+        pot.readyGt = gameTime;
+      } else if (pot.state === 'ready' && gameTime - pot.readyGt >= OVERCOOK_MS) {
+        pot.state = 'overcooked';
+      }
+    }
+  }
+
+  /** 손님 입장(빈 좌석 채움) + 인내심 만료 처리 */
+  private stepCustomers(gameTime: number): void {
+    // 인내심 만료 → 떠남 (매출 0)
+    for (const c of this.customers) {
+      if (c.state === 'waiting' && gameTime - c.seatedGt >= c.patienceMs) {
+        c.state = 'left';
+        this.missedCount++;
+        const s = seatLayout(this.upgrades.seats)[c.seatIndex];
+        if (s) this.popups.push({ x: s.x, y: s.y, text: '떠남 😡', good: false, start: performance.now() });
+        sound.play('button_click');
+      }
+    }
+    // 떠났거나 서빙 완료한 손님 제거 (좌석 즉시 반납)
+    this.customers = this.customers.filter((c) => c.state === 'waiting');
+
+    // 빈 좌석 있고 스폰 시각 지났으면 새 손님 착석
+    if (this.customers.length < this.upgrades.seats && gameTime >= this.nextSpawnGt) {
+      const used = new Set(this.customers.map((c) => c.seatIndex));
+      let seat = -1;
+      for (let s = 0; s < this.upgrades.seats; s++) { if (!used.has(s)) { seat = s; break; } }
+      if (seat >= 0) {
+        this.customers.push({
+          id: this.nextCustomerId++,
+          order: randomOrder(),
+          patienceMs: randomPatienceMs(),
+          seatIndex: seat,
+          seatedGt: gameTime,
+          state: 'waiting',
+        });
+        this.nextSpawnGt = gameTime + randomSpawnGapMs();
+      }
+    }
+  }
+
   // ============================================
   // 입력
   // ============================================
@@ -238,7 +279,6 @@ class RamenShopGame implements GameModule {
     const hit = this.renderer.hitTest(x, y, this.pots.length);
     if (!hit) return;
     if (hit.kind === 'topping') {
-      // 토글: 같은 토핑 다시 누르면 장전 해제
       this.armedTopping = this.armedTopping === hit.id ? null : hit.id;
       sound.play('button_click');
       return;
@@ -259,20 +299,18 @@ class RamenShopGame implements GameModule {
         sound.play('button_click');
         break;
       case 'cooking':
-        break; // 끓는 중 — 무시
+        break;
       case 'ready':
         if (this.armedTopping) {
-          // 토핑 추가 (중복 방지). 장전은 1회용.
           if (!pot.toppings.includes(this.armedTopping)) pot.toppings.push(this.armedTopping);
           this.armedTopping = null;
           sound.play('pop');
         } else {
-          this.serve(pot);
+          this.serve(pot, gameTime);
         }
         break;
       case 'overcooked':
-        // 폐기 (매출 0)
-        this.pushPopup(pot, '불음!', false);
+        this.pushPotPopup(pot, '불음!', false);
         this.missedCount++;
         this.resetPot(pot);
         sound.play('button_click');
@@ -280,14 +318,30 @@ class RamenShopGame implements GameModule {
     }
   }
 
-  private serve(pot: Pot): void {
-    const price = bowlPrice(pot);
+  /** 완성 냄비 → 주문이 맞는 대기 손님에게 배달. 없으면 거절 안내. */
+  private serve(pot: Pot, gameTime: number): void {
+    // 주문 일치 손님 중 인내심 가장 급한(적게 남은) 사람 우선
+    let target: Customer | null = null;
+    let bestRemain = Infinity;
+    for (const c of this.customers) {
+      if (c.state !== 'waiting' || !bowlMatchesOrder(pot, c.order)) continue;
+      const remain = c.patienceMs - (gameTime - c.seatedGt);
+      if (remain < bestRemain) { bestRemain = remain; target = c; }
+    }
+    if (!target) {
+      this.pushPotPopup(pot, '주문 안 맞아요', false);
+      sound.play('button_click');
+      return;
+    }
+    const remainRatio = bestRemain / target.patienceMs;
+    const price = servePayment(target.order, remainRatio);
     this.earnings += price;
     this.servedCount++;
-    this.pushPopup(pot, `+${price.toLocaleString()}`, true);
+    target.state = 'served';
+    this.pushPotPopup(pot, `+${price.toLocaleString()}`, true);
     this.resetPot(pot);
     sound.play('goal');
-    this.refreshUpgradeBar(); // 매출 변동 → 구매 가능 여부 갱신
+    this.refreshUpgradeBar();
   }
 
   private resetPot(pot: Pot): void {
@@ -297,15 +351,14 @@ class RamenShopGame implements GameModule {
     pot.readyGt = 0;
   }
 
-  private pushPopup(pot: Pot, text: string, good: boolean): void {
-    // 냄비 논리 위치에 팝업 (render 의 potLayout 과 동일 좌표계)
+  private pushPotPopup(pot: Pot, text: string, good: boolean): void {
     const idx = this.pots.indexOf(pot);
     const p = potLayout(this.pots.length)[idx];
     if (p) this.popups.push({ x: p.x, y: p.y - 40, text, good, start: performance.now() });
   }
 
   // ============================================
-  // 업그레이드 바 (HTML 오버레이)
+  // 업그레이드 바
   // ============================================
 
   private mountUpgradeBar(): void {
@@ -326,8 +379,9 @@ class RamenShopGame implements GameModule {
   private buildUpgradeButtons(): void {
     if (!this.upgradeBar) return;
     this.upgradeBar.innerHTML =
-      this.upgradeBtnHTML('pots', '🍲 냄비 추가') +
-      this.upgradeBtnHTML('firepower', '🔥 화력 강화');
+      this.upgradeBtnHTML('pots', '🍲 냄비') +
+      this.upgradeBtnHTML('firepower', '🔥 화력') +
+      this.upgradeBtnHTML('seats', '🪑 좌석');
     this.refreshUpgradeBar();
   }
 
@@ -340,7 +394,7 @@ class RamenShopGame implements GameModule {
 
   private refreshUpgradeBar(): void {
     if (!this.upgradeBar) return;
-    const kinds: UpgradeKind[] = ['pots', 'firepower'];
+    const kinds: UpgradeKind[] = ['pots', 'firepower', 'seats'];
     for (const kind of kinds) {
       const btn = this.upgradeBar.querySelector<HTMLButtonElement>(`.ramen-up-btn[data-kind="${kind}"]`);
       if (!btn) continue;
@@ -365,6 +419,8 @@ class RamenShopGame implements GameModule {
     if (kind === 'pots') {
       this.upgrades.pots = Math.min(MAX_POTS, this.upgrades.pots + 1);
       this.pots.push({ id: this.pots.length, state: 'empty', toppings: [], cookStartGt: 0, readyGt: 0 });
+    } else if (kind === 'seats') {
+      this.upgrades.seats = Math.min(MAX_SEATS, this.upgrades.seats + 1);
     } else {
       this.upgrades.firepower = Math.min(FIREPOWER_MULT.length - 1, this.upgrades.firepower + 1);
     }

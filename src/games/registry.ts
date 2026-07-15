@@ -335,7 +335,7 @@ export const games: GameEntry[] = [
     meta: {
       id: 'ramen-shop',
       name: '라면가게',
-      description: '물 붓고 면 넣어 라면을 끓여 파는 스피드 장사! 손 빠른 만큼 많이 만들어 올릴수록 매출↑. 영업 종료 시 매출 1등이 승리.',
+      description: '손님이 주문한 토핑 라면을 물 붓고 끓여 서빙! 인내심 다 되기 전에 빨리 정확히 내주면 팁↑. 영업 종료 시 매출 1등이 승리.',
       thumbnail: ramenShopThumbnail,
       minPlayers: 1,
       maxPlayers: 6,
