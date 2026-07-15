@@ -1,0 +1,21 @@
+# PeerServer(Render 무료) 잠듦 방지 — 10분마다 핑을 쏴 계속 깨워둔다.
+#   Render 무료 웹서비스는 15분 유휴 시 잠들고, 다시 깨는 데 30~60초가 걸려
+#   "그동안 아무도 안 들어온 방"의 첫 입장자가 타임아웃으로 실패하던 문제 방지.
+#   비용 0 (GitHub Actions 무료 분 사용, 요청 1개).
+name: keep-peerserver-warm
+
+on:
+  schedule:
+    # 10분마다 (UTC). GitHub 부하 상황에 따라 몇 분 지연될 수 있으나 잠듦 방지엔 충분.
+    - cron: '*/10 * * * *'
+  workflow_dispatch: {} # 수동 실행도 허용
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping PeerServer
+        run: |
+          # PeerServer 경로(/hoaxmg)로 요청 → 200 이면 깨어있음. 실패해도 워크플로는 성공 처리(깨우기 시도 자체가 목적).
+          curl -sS -m 60 -o /dev/null -w "status=%{http_code} time=%{time_total}s\n" \
+            "https://hoax-mini-games.onrender.com/hoaxmg" || echo "ping failed (server waking or down)"

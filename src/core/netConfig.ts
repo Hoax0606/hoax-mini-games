@@ -37,29 +37,29 @@ const PEER_PATH = '/hoaxmg';
 
 /**
  * ICE 서버 목록.
- *   - STUN 은 Google 공개 서버 (안정적, 무료, 인증 불필요)
- *   - TURN 은 Open Relay Project 무료 서버. 인증 크레덴셜이 바뀔 수 있으니
- *     연결이 여전히 안 되면 https://www.metered.ca/tools/openrelay 에서 최신 값 확인.
+ *   - STUN: 공개 서버 여러 개 (무료, 인증 불필요). 대부분의 가정용 NAT 는 STUN 만으로 뚫린다.
+ *   - TURN: 무가입 무료 TURN(openrelay 등)은 남용으로 다 죽어서 제거했다.
+ *     엄격한 NAT(모바일·회사망·대칭형 공유기) 뒤 사용자를 커버하려면 진짜 TURN 이 필요하며,
+ *     metered.ca / Cloudflare 무료 키를 발급받아 아래 빌드 환경변수로 주입한다:
+ *       VITE_TURN_URL   예) turn:standard.relay.metered.ca:443
+ *       VITE_TURN_USER  발급받은 username
+ *       VITE_TURN_CRED  발급받은 credential
+ *     (GitHub 저장소 Secrets 에 넣고 deploy 워크플로에서 env 로 전달하면 코드 수정 불필요)
  */
 const ICE_SERVERS: RTCIceServer[] = [
   { urls: 'stun:stun.l.google.com:19302' },
   { urls: 'stun:stun1.l.google.com:19302' },
-  {
-    urls: 'turn:openrelay.metered.ca:80',
-    username: 'openrelayproject',
-    credential: 'openrelayproject',
-  },
-  {
-    urls: 'turn:openrelay.metered.ca:443',
-    username: 'openrelayproject',
-    credential: 'openrelayproject',
-  },
-  {
-    urls: 'turn:openrelay.metered.ca:443?transport=tcp',
-    username: 'openrelayproject',
-    credential: 'openrelayproject',
-  },
+  { urls: 'stun:stun.cloudflare.com:3478' },
+  { urls: 'stun:stun.relay.metered.ca:80' },
 ];
+
+// 진짜 TURN 은 환경변수로 주입될 때만 추가 (무료 키 발급 후). 없으면 STUN 만으로 동작.
+const TURN_URL = (import.meta.env.VITE_TURN_URL as string | undefined)?.trim();
+const TURN_USER = (import.meta.env.VITE_TURN_USER as string | undefined)?.trim();
+const TURN_CRED = (import.meta.env.VITE_TURN_CRED as string | undefined)?.trim();
+if (TURN_URL && TURN_USER && TURN_CRED) {
+  ICE_SERVERS.push({ urls: TURN_URL, username: TURN_USER, credential: TURN_CRED });
+}
 
 /**
  * PeerJS 생성 옵션.
