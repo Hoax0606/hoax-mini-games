@@ -198,29 +198,30 @@ export class WordChainRenderer {
       ctx.lineWidth = isMyTurn ? 2.5 : 1.5;
       this.strokeRoundRect(x, y, cardW, cardH, 12);
 
-      // 닉네임 — 카드 폭에 맞춰 글자 잘림 길이 / 폰트 크기 조정
-      const isNarrow = cardW < 95;
-      const maxNick = isNarrow ? 4 : 6;
+      // 닉네임 — 카드 폭에 맞춰 3단계(일반/좁음/아주좁음)로 축약. 10인이면 tiny.
+      const tiny = cardW < 62;      // 8~10인
+      const isNarrow = cardW < 95;  // 6~7인
+      const maxNick = tiny ? 3 : isNarrow ? 4 : 6;
       ctx.fillStyle = p.alive ? COLORS.textMain : COLORS.textMuted;
-      ctx.font = `700 ${isNarrow ? 12 : 14}px ${FONT}`;
+      ctx.font = `700 ${tiny ? 11 : isNarrow ? 12 : 14}px ${FONT}`;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       const nick = p.nickname.length > maxNick ? p.nickname.slice(0, maxNick - 1) + '…' : p.nickname;
-      ctx.fillText(nick + (isMe ? ' (나)' : ''), x + cardW / 2, y + 22);
+      ctx.fillText(nick + (isMe && !tiny ? ' (나)' : ''), x + cardW / 2, y + 22);
 
-      // 상태
+      // 상태 — 좁으면 이모지만(글자 넘침 방지)
       if (!p.alive) {
         ctx.fillStyle = COLORS.textMuted;
         ctx.font = `800 13px ${FONT}`;
-        ctx.fillText('💀 탈락', x + cardW / 2, y + 42);
+        ctx.fillText(tiny ? '💀' : '💀 탈락', x + cardW / 2, y + 42);
       } else if (isMyTurn) {
         ctx.fillStyle = COLORS.accentPink;
         ctx.font = `800 13px ${FONT}`;
-        ctx.fillText('🎯 차례', x + cardW / 2, y + 42);
+        ctx.fillText(tiny ? '🎯' : '🎯 차례', x + cardW / 2, y + 42);
       } else {
         ctx.fillStyle = COLORS.textMuted;
         ctx.font = `500 12px ${FONT}`;
-        ctx.fillText('대기', x + cardW / 2, y + 42);
+        ctx.fillText(tiny ? '·' : '대기', x + cardW / 2, y + 42);
       }
     }
   }

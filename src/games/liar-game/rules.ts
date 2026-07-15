@@ -28,8 +28,10 @@ export interface LiarGame {
   category: string;
   /** 힌트 순서 (peerId) */
   order: string[];
-  /** 몇 바퀴째 (1..HINT_PASSES) */
+  /** 몇 바퀴째 (1..totalPasses) */
   hintPass: number;
+  /** 이 게임의 힌트 바퀴 수 — 인원 많으면(7+) 1바퀴로 줄여 길이/피드 과다 방지 */
+  totalPasses: number;
   /** order 내 현재 차례 인덱스 */
   hintIndex: number;
   hints: Hint[];
@@ -50,14 +52,18 @@ export interface LiarGame {
 export const TOTAL_ROUNDS = 5;
 export const HINT_MAXLEN = 40;
 export const HINT_PASSES = 2;
+/** 힌트 바퀴 수 — 7인 이상은 1바퀴(설명 20개→10개, 게임 길이·피드 과다 방지) */
+export function hintPassesFor(n: number): number {
+  return n >= 7 ? 1 : HINT_PASSES;
+}
 
 // ============================================
 // 초기화 / 라운드 리셋
 // ============================================
 
 export function createInitialGame(players: PlayerMeta[]): LiarGame {
-  if (players.length < 3 || players.length > 8) {
-    throw new Error(`라이어 게임은 3~8인만 지원해요 (현재 ${players.length}인)`);
+  if (players.length < 3 || players.length > 10) {
+    throw new Error(`라이어 게임은 3~10인만 지원해요 (현재 ${players.length}인)`);
   }
   const scores: Record<string, number> = {};
   for (const p of players) scores[p.peerId] = 0;
@@ -68,6 +74,7 @@ export function createInitialGame(players: PlayerMeta[]): LiarGame {
     category: '',
     order: players.map((p) => p.peerId),
     hintPass: 1,
+    totalPasses: hintPassesFor(players.length),
     hintIndex: 0,
     hints: [],
     accusedPeerId: null,
@@ -111,7 +118,7 @@ export function advanceHinter(game: LiarGame): { done: boolean } {
     game.hintIndex = 0;
     game.hintPass += 1;
   }
-  return { done: game.hintPass > HINT_PASSES };
+  return { done: game.hintPass > game.totalPasses };
 }
 
 export type HintCheck = { ok: true } | { ok: false; message: string };

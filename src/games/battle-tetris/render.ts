@@ -58,16 +58,7 @@ const OPP_X0 = 510;
 const OPP_Y0 = 235;
 const OPP_GAP = 8;
 
-/** 관전자 2×2 격자 슬롯
- *  Canvas 800×400 → 4분할(400×200). 슬롯당 닉네임 헤더 + 필드 가운데.
- *  FIELD_HEIGHT 24 라 SPEC_CELL 7 → 필드 높이 168, 헤더 오프셋 26 = 194 < 슬롯 200. */
-const SPEC_CELL = 7;
-const SPEC_FIELD_W = SPEC_CELL * FIELD_WIDTH;   // 70
-const SPEC_FIELD_H = SPEC_CELL * FIELD_HEIGHT;  // 168
-const SPEC_SLOT_W = CANVAS_W / 2;               // 400
-const SPEC_SLOT_H = CANVAS_H / 2;               // 200
-const SPEC_NICK_Y = 15;
-const SPEC_FIELD_OFFSET_Y = 26;
+// 관전자 격자는 인원(최대 10)에 맞춰 drawSpectatorGrid 에서 cols×rows·셀 크기를 동적 계산.
 
 const COLORS = {
   bg: '#fff9fd',
@@ -200,69 +191,82 @@ export class TetrisRenderer {
   /** 관전자 2×2 격자 — 캔버스 전체를 4분할해 최대 4명 풀사이즈 미니 필드 표시.
    *  빈 슬롯은 점선 placeholder. */
   private drawSpectatorGrid(opponents: OpponentSnapshot[]): void {
-    for (let i = 0; i < 4; i++) {
-      const col = i % 2;
-      const row = Math.floor(i / 2);
-      const slotX = col * SPEC_SLOT_W;
-      const slotY = row * SPEC_SLOT_H;
+    // 인원(최대 10)에 맞춰 격자 크기 자동 — 예: 4명 2×2, 6명 3×2, 9명 3×3, 10명 4×3
+    const count = Math.max(1, Math.min(opponents.length, 10));
+    const cols = Math.ceil(Math.sqrt(count));
+    const rows = Math.ceil(count / cols);
+    const slotW = CANVAS_W / cols;
+    const slotH = CANVAS_H / rows;
+    const headerH = 20;
+    // 슬롯 안에 필드가 들어가는 최대 셀 크기 (닉 헤더 공간 남김)
+    const cell = Math.max(2, Math.floor(Math.min(
+      (slotW - 16) / FIELD_WIDTH,
+      (slotH - headerH - 10) / FIELD_HEIGHT,
+    )));
+    for (let i = 0; i < cols * rows; i++) {
+      const slotX = (i % cols) * slotW;
+      const slotY = Math.floor(i / cols) * slotH;
       const opp = opponents[i];
-      if (!opp) {
-        this.drawSpecEmptySlot(slotX, slotY);
-      } else {
-        this.drawSpecPlayerSlot(opp, slotX, slotY);
-      }
+      if (!opp) this.drawSpecEmptySlot(slotX, slotY, slotW, slotH);
+      else this.drawSpecPlayerSlot(opp, slotX, slotY, slotW, slotH, cell, headerH);
     }
   }
 
-  private drawSpecEmptySlot(slotX: number, slotY: number): void {
+  private drawSpecEmptySlot(slotX: number, slotY: number, slotW: number, slotH: number): void {
     const ctx = this.ctx;
     ctx.strokeStyle = COLORS.boxBorder;
     ctx.lineWidth = 1.5;
     ctx.setLineDash([6, 4]);
-    ctx.strokeRect(slotX + 10, slotY + 10, SPEC_SLOT_W - 20, SPEC_SLOT_H - 20);
+    ctx.strokeRect(slotX + 8, slotY + 8, slotW - 16, slotH - 16);
     ctx.setLineDash([]);
     ctx.fillStyle = COLORS.textMuted;
-    ctx.font = `600 13px ${FONT}`;
+    ctx.font = `600 12px ${FONT}`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillText('빈 자리', slotX + SPEC_SLOT_W / 2, slotY + SPEC_SLOT_H / 2);
+    ctx.fillText('빈 자리', slotX + slotW / 2, slotY + slotH / 2);
   }
 
-  private drawSpecPlayerSlot(opp: OpponentSnapshot, slotX: number, slotY: number): void {
+  private drawSpecPlayerSlot(
+    opp: OpponentSnapshot,
+    slotX: number, slotY: number, slotW: number, slotH: number,
+    cell: number, headerH: number,
+  ): void {
     const ctx = this.ctx;
-    const fieldX = slotX + (SPEC_SLOT_W - SPEC_FIELD_W) / 2;
-    const fieldY = slotY + SPEC_FIELD_OFFSET_Y;
+    const fieldW = cell * FIELD_WIDTH;
+    const fieldH = cell * FIELD_HEIGHT;
+    const fieldX = slotX + (slotW - fieldW) / 2;
+    const fieldY = slotY + headerH;
+    const small = slotW < 250;
 
-    // 닉네임 (필드 위 헤더). 너무 길면 잘림
+    // 닉네임 (필드 위 헤더)
     ctx.fillStyle = COLORS.textMain;
-    ctx.font = `700 14px ${FONT}`;
+    ctx.font = `700 ${small ? 11 : 14}px ${FONT}`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    const nickShown = opp.nickname.length > 14 ? opp.nickname.slice(0, 13) + '…' : opp.nickname;
-    ctx.fillText(nickShown, slotX + SPEC_SLOT_W / 2, slotY + SPEC_NICK_Y);
+    const maxNick = small ? 8 : 14;
+    const nickShown = opp.nickname.length > maxNick ? opp.nickname.slice(0, maxNick - 1) + '…' : opp.nickname;
+    ctx.fillText(nickShown, slotX + slotW / 2, slotY + headerH / 2 + 2);
 
-    // 필드 (clip 안에서 그려서 stroke 가 보드 밖으로 새지 않게)
+    // 필드 (clip)
     ctx.save();
     ctx.beginPath();
-    ctx.rect(fieldX, fieldY, SPEC_FIELD_W, SPEC_FIELD_H);
+    ctx.rect(fieldX, fieldY, fieldW, fieldH);
     ctx.clip();
-    this.drawField(opp.field, fieldX, fieldY, SPEC_CELL);
+    this.drawField(opp.field, fieldX, fieldY, cell);
     ctx.restore();
 
-    // 필드 테두리
     ctx.strokeStyle = COLORS.fieldBorder;
     ctx.lineWidth = 1.5;
-    ctx.strokeRect(fieldX - 1, fieldY - 1, SPEC_FIELD_W + 2, SPEC_FIELD_H + 2);
+    ctx.strokeRect(fieldX - 1, fieldY - 1, fieldW + 2, fieldH + 2);
 
-    // 탑아웃 오버레이
     if (opp.toppedOut) {
       ctx.fillStyle = COLORS.toppedOverlay;
-      ctx.fillRect(fieldX, fieldY, SPEC_FIELD_W, SPEC_FIELD_H);
+      ctx.fillRect(fieldX, fieldY, fieldW, fieldH);
       ctx.fillStyle = COLORS.gaugeGarbage;
-      ctx.font = `900 22px ${FONT}`;
+      ctx.font = `900 ${small ? 15 : 22}px ${FONT}`;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      ctx.fillText('OUT', fieldX + SPEC_FIELD_W / 2, fieldY + SPEC_FIELD_H / 2);
+      ctx.fillText('OUT', fieldX + fieldW / 2, fieldY + fieldH / 2);
     }
   }
 
@@ -477,55 +481,64 @@ export class TetrisRenderer {
     ctx.textAlign = 'left';
     ctx.fillText(spectator ? 'PLAYERS' : 'VS', OPP_X0, OPP_Y0 - 8);
 
-    // 6인 게임 기준: 플레이어는 나 제외 최대 5명, 관전자는 전체 최대 6명
-    const maxShow = spectator ? 6 : 5;
-    const count = Math.min(opponents.length, maxShow);
+    // 최대 9명(10인) 모두 표시. 6명↑이면 셀 축소 + 2행 그리드로 우측 영역에 다 담는다.
+    const count = Math.min(opponents.length, 9);
+    const many = count > 5;
+    const cell = many ? 3 : OPP_CELL;      // 3px or 4px
+    const w = cell * FIELD_WIDTH;          // 30 or 40
+    const h = cell * FIELD_HEIGHT;         // 60 or 80
+    const gap = many ? 6 : OPP_GAP;
+    const labelH = 16;
+    const perRow = many ? Math.ceil(count / 2) : count; // 6명↑ 2행 분할
+
     for (let i = 0; i < count; i++) {
       const opp = opponents[i]!;
-      const x = OPP_X0 + i * (OPP_W + OPP_GAP);
-      const y = OPP_Y0;
+      const col = i % perRow;
+      const row = Math.floor(i / perRow);
+      const x = OPP_X0 + col * (w + gap);
+      const y = OPP_Y0 + row * (h + labelH + gap);
 
       // 배경
       ctx.fillStyle = COLORS.boxBg;
-      ctx.fillRect(x, y, OPP_W, OPP_H);
+      ctx.fillRect(x, y, w, h);
 
-      // 블록들 (테두리 없이 fill만 — 5px 수준이라 가독성 위해)
+      // 블록들 (테두리 없이 fill만)
       for (let r = 0; r < FIELD_HEIGHT; r++) {
-        const row = opp.field[r];
-        if (!row) continue;
+        const frow = opp.field[r];
+        if (!frow) continue;
         for (let c = 0; c < FIELD_WIDTH; c++) {
-          const cell = row[c];
-          if (cell === null || cell === undefined) continue;
+          const cval = frow[c];
+          if (cval === null || cval === undefined) continue;
           const fill =
-            cell === 'G' ? COLORS.garbage :
-            cell === 'U' ? COLORS.unbreakable :
-            PIECES[cell].color;
+            cval === 'G' ? COLORS.garbage :
+            cval === 'U' ? COLORS.unbreakable :
+            PIECES[cval].color;
           ctx.fillStyle = fill;
-          ctx.fillRect(x + c * OPP_CELL, y + r * OPP_CELL, OPP_CELL, OPP_CELL);
+          ctx.fillRect(x + c * cell, y + r * cell, cell, cell);
         }
       }
 
       // 테두리
       ctx.strokeStyle = COLORS.boxBorder;
       ctx.lineWidth = 1;
-      ctx.strokeRect(x, y, OPP_W, OPP_H);
+      ctx.strokeRect(x, y, w, h);
 
       // 닉네임
       ctx.fillStyle = COLORS.textMain;
-      ctx.font = `700 10px ${FONT}`;
+      ctx.font = `700 ${many ? 9 : 10}px ${FONT}`;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'alphabetic';
-      ctx.fillText(truncate(opp.nickname, 7), x + OPP_W / 2, y + OPP_H + 14);
+      ctx.fillText(truncate(opp.nickname, many ? 5 : 7), x + w / 2, y + h + 12);
 
       // 탑아웃 오버레이
       if (opp.toppedOut) {
         ctx.fillStyle = COLORS.toppedOverlay;
-        ctx.fillRect(x, y, OPP_W, OPP_H);
+        ctx.fillRect(x, y, w, h);
         ctx.fillStyle = COLORS.gaugeGarbage;
-        ctx.font = `900 14px ${FONT}`;
+        ctx.font = `900 ${many ? 11 : 14}px ${FONT}`;
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
-        ctx.fillText('OUT', x + OPP_W / 2, y + OPP_H / 2);
+        ctx.fillText('OUT', x + w / 2, y + h / 2);
       }
     }
   }

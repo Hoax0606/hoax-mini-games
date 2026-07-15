@@ -60,7 +60,7 @@ export const games: GameEntry[] = [
       description: '떨어지는 블록으로 라인을 지우고 공격을 보내 상대를 밀어내라! 마지막까지 살아남으면 승리.',
       thumbnail: battleTetrisThumbnail,
       minPlayers: 2,
-      maxPlayers: 6,
+      maxPlayers: 10,
       roomOptions: [
         {
           key: 'garbageStrength',
@@ -98,7 +98,7 @@ export const games: GameEntry[] = [
       description: '숫자 사과를 드래그로 묶어 합이 10이 되면 터트려! 2분 안에 최대한 많이 터트리면 승리.',
       thumbnail: appleGameThumbnail,
       minPlayers: 1,
-      maxPlayers: 6,
+      maxPlayers: 10,
       roomOptions: [],
     },
     load: async () => {
@@ -139,7 +139,7 @@ export const games: GameEntry[] = [
       description: '드래그로 조준하고 놓는 순간 날아간다! 101/201/301, Count-up, Low Count-up, Cricket.',
       thumbnail: dartsThumbnail,
       minPlayers: 1,
-      maxPlayers: 6,
+      maxPlayers: 10,
       roomOptions: [
         {
           key: 'mode',
@@ -179,7 +179,7 @@ export const games: GameEntry[] = [
       description: '빨강이 초록으로 바뀌는 순간을 가장 빨리 잡아라! 5라운드 평균으로 승부.',
       thumbnail: reflexThumbnail,
       minPlayers: 1,
-      maxPlayers: 6,
+      maxPlayers: 10,
       roomOptions: [],
     },
     load: async () => {
@@ -209,7 +209,7 @@ export const games: GameEntry[] = [
       description: '이전 단어의 마지막 글자로 시작하는 단어를 입력! 30초 안에 못 내면 탈락. 최후 1인 승.',
       thumbnail: wordChainThumbnail,
       minPlayers: 2,
-      maxPlayers: 6,
+      maxPlayers: 10,
       roomOptions: [],
     },
     load: async () => {
@@ -224,7 +224,7 @@ export const games: GameEntry[] = [
       description: '돌아가며 제시어를 그리고, 나머지는 채팅으로 맞혀라! 빨리 맞힐수록 높은 점수.',
       thumbnail: drawQuizThumbnail,
       minPlayers: 3,
-      maxPlayers: 6,
+      maxPlayers: 10,
       roomOptions: [],
     },
     load: async () => {
@@ -239,7 +239,7 @@ export const games: GameEntry[] = [
       description: '각도와 세기를 조준해 포탄 발사! 바람을 읽고 지형을 무너뜨려 상대 포대를 맞혀라. 최후 생존 승리.',
       thumbnail: fortressThumbnail,
       minPlayers: 2,
-      maxPlayers: 6,
+      maxPlayers: 10,
       roomOptions: [
         {
           key: 'fortsPerPlayer',
@@ -276,7 +276,7 @@ export const games: GameEntry[] = [
       description: '한 명은 제시어를 모르는 라이어! 돌아가며 제시어를 설명하고, 누가 라이어인지 투표로 찾아라. 5라운드 누적 점수 승부.',
       thumbnail: liarGameThumbnail,
       minPlayers: 3,
-      maxPlayers: 8,
+      maxPlayers: 10,
       roomOptions: [
         {
           key: 'mode',
@@ -302,7 +302,7 @@ export const games: GameEntry[] = [
       description: '각자 제시어로 그림을 그리고, 직전 그림을 이어받아 계속 그린다! 모두가 동시에 그려서 쉬는 사람 없음. 마지막에 이야기가 어떻게 변했는지 슬라이드쇼로 감상 (승패 없음).',
       thumbnail: storyDrawThumbnail,
       minPlayers: 3,
-      maxPlayers: 6,
+      maxPlayers: 10,
       roomOptions: [
         {
           key: 'storyLength',
@@ -338,7 +338,7 @@ export const games: GameEntry[] = [
       description: '손님이 주문한 토핑 라면을 물 붓고 끓여 서빙! 인내심 다 되기 전에 빨리 정확히 내주면 팁↑. 영업 종료 시 매출 1등이 승리.',
       thumbnail: ramenShopThumbnail,
       minPlayers: 1,
-      maxPlayers: 6,
+      maxPlayers: 10,
       roomOptions: [
         {
           key: 'duration',
@@ -365,7 +365,7 @@ export const games: GameEntry[] = [
       description: '숨겨진 폭탄이 30초~3분 사이 언제 터질지 몰라요! 랜덤으로 시작해 끝말잇기로 폭탄을 넘기고, 터질 때 들고 있는 사람이 패배.',
       thumbnail: bombWordChainThumbnail,
       minPlayers: 2,
-      maxPlayers: 6,
+      maxPlayers: 10,
       roomOptions: [],
     },
     load: async () => {

@@ -60,8 +60,9 @@ export interface StoryDrawGame {
 
 /** 이야기 길이 모드 → 총 턴 수. 짧게=1바퀴(N), 길게=2바퀴(2N)이되 8턴 상한(다인원 폭주 방지). */
 export function decideTotalTurns(n: number, mode: 'short' | 'long'): number {
+  // 다인원에서 그리기 단계가 너무 길어지지 않게 상한. 짧게=최대 6턴 / 길게=최대 8턴.
   if (mode === 'long') return Math.min(2 * n, 8);
-  return Math.max(1, n);
+  return Math.min(Math.max(1, n), 6);
 }
 
 /**

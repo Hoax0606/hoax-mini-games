@@ -675,14 +675,52 @@ export class DartsRenderer {
       ctx.fillText('👥 다른 플레이어', innerX, y);
       y += 14;
 
+      const others: { p: PlayerDisplay; i: number }[] = [];
       for (let i = 0; i < state.players.length; i++) {
         if (i === myIdx) continue;
-        const p = state.players[i]!;
-        const isActive = i === state.currentPlayerIdx;
-        const rowH = this.drawOtherPlayerRow(p, innerX, y, innerW, isActive, state.mode);
-        y += rowH + 4;
+        others.push({ p: state.players[i]!, i });
+      }
+      // 5명 이상이면 세로로 다 못 담아 → 2열 간단 행(닉+점수). 그 이하는 기존 상세 행.
+      if (others.length > 4) {
+        const colGap = 8;
+        const colW = (innerW - colGap) / 2;
+        const rowH = 22;
+        others.forEach((o, k) => {
+          const col = k % 2;
+          const row = Math.floor(k / 2);
+          const cx = innerX + col * (colW + colGap);
+          const cy = y + row * (rowH + 4);
+          this.drawOtherCompactRow(o.p, cx, cy, colW, rowH, o.i === state.currentPlayerIdx);
+        });
+      } else {
+        for (const o of others) {
+          const rowH = this.drawOtherPlayerRow(o.p, innerX, y, innerW, o.i === state.currentPlayerIdx, state.mode);
+          y += rowH + 4;
+        }
       }
     }
+  }
+
+  /** 다인원용 간단 행 — 닉 + 대표 점수만 (2열 그리드). 크리켓 마크는 생략. */
+  private drawOtherCompactRow(
+    p: PlayerDisplay, x: number, y: number, w: number, h: number, isActive: boolean,
+  ): void {
+    const ctx = this.ctx;
+    ctx.fillStyle = isActive ? '#f0e8ff' : COLORS.otherRowBg;
+    ctx.strokeStyle = isActive ? '#b89aff' : COLORS.otherRowBorder;
+    ctx.lineWidth = isActive ? 1.5 : 1;
+    ctx.fillRect(x, y, w, h);
+    ctx.strokeRect(x, y, w, h);
+    const midY = y + h / 2;
+    ctx.fillStyle = COLORS.textMain;
+    ctx.font = `700 11px ${FONT}`;
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'middle';
+    ctx.fillText((isActive ? '▶ ' : '') + truncate(p.nickname, 5), x + 6, midY);
+    ctx.fillStyle = p.finished ? COLORS.textWin : COLORS.textAccent;
+    ctx.font = `800 12px ${FONT}`;
+    ctx.textAlign = 'right';
+    ctx.fillText(String(p.primaryValue), x + w - 6, midY);
   }
 
   /**

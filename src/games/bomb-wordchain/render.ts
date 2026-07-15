@@ -145,27 +145,28 @@ export class BombRenderer {
       ctx.lineWidth = holdsBomb ? 2.5 : 1.5;
       this.strokeRoundRect(x, y, cardW, cardH, 12);
 
-      const isNarrow = cardW < 95;
-      const maxNick = isNarrow ? 4 : 6;
+      const tiny = cardW < 62;      // 8~10인
+      const isNarrow = cardW < 95;  // 6~7인
+      const maxNick = tiny ? 3 : isNarrow ? 4 : 6;
       ctx.fillStyle = COLORS.textMain;
-      ctx.font = `700 ${isNarrow ? 12 : 14}px ${FONT}`;
+      ctx.font = `700 ${tiny ? 11 : isNarrow ? 12 : 14}px ${FONT}`;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       const nick = p.nickname.length > maxNick ? p.nickname.slice(0, maxNick - 1) + '…' : p.nickname;
-      ctx.fillText(nick + (isMe ? ' (나)' : ''), x + cardW / 2, y + 22);
+      ctx.fillText(nick + (isMe && !tiny ? ' (나)' : ''), x + cardW / 2, y + 22);
 
       if (isLoser) {
         ctx.fillStyle = COLORS.accentPink;
         ctx.font = `800 13px ${FONT}`;
-        ctx.fillText('💥 폭발', x + cardW / 2, y + 42);
+        ctx.fillText(tiny ? '💥' : '💥 폭발', x + cardW / 2, y + 42);
       } else if (holdsBomb) {
         ctx.fillStyle = COLORS.accentPink;
         ctx.font = `800 13px ${FONT}`;
-        ctx.fillText('💣 들고있음', x + cardW / 2, y + 42);
+        ctx.fillText(tiny ? '💣' : '💣 들고있음', x + cardW / 2, y + 42);
       } else {
         ctx.fillStyle = COLORS.textMuted;
         ctx.font = `500 12px ${FONT}`;
-        ctx.fillText('대기', x + cardW / 2, y + 42);
+        ctx.fillText(tiny ? '·' : '대기', x + cardW / 2, y + 42);
       }
     }
   }

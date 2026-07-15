@@ -133,7 +133,8 @@ class DrawQuizGameModule implements GameModule {
     // 전체 라운드 = 1인당 그리는 횟수 × 인원. 1인당 횟수는 인원 반비례(적으면 많이).
     //   pickNextDrawer 가 한 바퀴 다 돌면 hasDrawn 리셋해 다음 바퀴로 넘어가므로,
     //   totalRounds 만 늘리면 전원이 여러 번 돌아가며 출제하게 된다.
-    const rounds = roundsPerPlayer(ordered.length) * ordered.length;
+    //   단 총 15라운드 상한 — 다인원(예: 10인)에서 30라운드(~40분) 되던 것 방지.
+    const rounds = Math.min(15, roundsPerPlayer(ordered.length) * ordered.length);
     this.game = createInitialGame(
       ordered.map((p) => ({ peerId: p.peerId, nickname: p.nickname })),
       rounds,

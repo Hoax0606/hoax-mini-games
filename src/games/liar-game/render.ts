@@ -7,7 +7,6 @@
  */
 
 import type { LiarGame } from './rules';
-import { HINT_PASSES } from './rules';
 import type { RolePayload } from './netSync';
 
 const FONT = `'Pretendard', 'Apple SD Gothic Neo', 'Noto Sans KR', system-ui, sans-serif`;
@@ -179,7 +178,7 @@ export class LiarRenderer {
         const cur = g.order[g.hintIndex];
         const mine = cur === state.myPeerId && !state.isSpectator;
         const who = mine ? '내 차례!' : `${nick(cur ?? '')} 차례`;
-        return `💬 설명 ${g.hintPass}/${HINT_PASSES}바퀴 · ${who}`;
+        return `💬 설명 ${g.hintPass}/${g.totalPasses}바퀴 · ${who}`;
       }
       case 'vote':
         return '🗳️ 라이어를 지목하세요';
@@ -263,9 +262,13 @@ export class LiarRenderer {
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       ctx.fillStyle = C.cardText;
-      ctx.font = `700 12px ${FONT}`;
-      ctx.fillText((isLiar ? '🤥 ' : '') + p.nickname + (isMe ? ' (나)' : ''), cx + chipW / 2, y + 15);
-      ctx.font = `800 15px ${FONT}`;
+      // 칩이 좁으면(다인원) 닉 축약 + "(나)" 생략 → 옆 칩 침범 방지
+      const narrow = chipW < 84;
+      const maxNick = narrow ? 4 : 8;
+      const nm = p.nickname.length > maxNick ? p.nickname.slice(0, maxNick - 1) + '…' : p.nickname;
+      ctx.font = `700 ${narrow ? 10 : 12}px ${FONT}`;
+      ctx.fillText((isLiar ? '🤥 ' : '') + nm + (isMe && !narrow ? ' (나)' : ''), cx + chipW / 2, y + 15);
+      ctx.font = `800 ${narrow ? 13 : 15}px ${FONT}`;
       ctx.fillStyle = C.accent;
       ctx.fillText(`${g.scores[p.peerId] ?? 0}점`, cx + chipW / 2, y + 33);
     }

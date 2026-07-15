@@ -14,9 +14,15 @@ import { FORT_HP, type FortressGame, type WeaponId } from './rules';
 
 const FONT = `'Pretendard', 'Apple SD Gothic Neo', 'Noto Sans KR', system-ui, sans-serif`;
 
-/** 포대 색 — 플레이어별 (algagi 와 같은 팔레트 계열) */
-const FILL = ['#6ed9b3', '#ff6b9e', '#b89aff', '#ffd454', '#5b9cff', '#ffb12e'] as const;
-const STROKE = ['#2e8a70', '#c93d73', '#7a5fc7', '#c49a1f', '#3f78c9', '#c47f1a'] as const;
+/** 포대 색 — 플레이어별 (최대 10인). 서로 구분되는 10색 */
+const FILL = [
+  '#6ed9b3', '#ff6b9e', '#b89aff', '#ffd454', '#5b9cff',
+  '#ffb12e', '#ff8a5b', '#7ed957', '#e07aff', '#4fd0d9',
+] as const;
+const STROKE = [
+  '#2e8a70', '#c93d73', '#7a5fc7', '#c49a1f', '#3f78c9',
+  '#c47f1a', '#c95f34', '#4e9e33', '#9a3fc4', '#2f9aa1',
+] as const;
 
 const COLORS = {
   skyTop: '#ffe9f2',

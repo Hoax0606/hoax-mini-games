@@ -528,7 +528,11 @@ export class DrawQuizRenderer {
 
     // 점수 내림차순
     const sorted = [...game.players].sort((a, b) => b.score - a.score);
-    const rowH = 26;
+    // 행 높이 동적 — 인원 많으면(최대 10) 캔버스(400) 안에 다 들어오게 축소
+    const bottomLimit = CANVAS_H - 22; // 하단 "관전 중" 표시 공간 남김
+    const avail = bottomLimit - (y0 + 16);
+    const rowH = Math.max(15, Math.min(26, Math.floor(avail / Math.max(1, sorted.length))));
+    const fontPx = rowH >= 22 ? 13 : 11;
     const rowX = PANEL_X + 10;
     const rowW = PANEL_W - 20;
 
@@ -549,13 +553,13 @@ export class DrawQuizRenderer {
       else if (isCorrect) marker = '✅';
 
       ctx.fillStyle = isMe ? COLORS.scoreMe : COLORS.textMain;
-      ctx.font = `${isMe ? 700 : 500} 13px ${FONT}`;
+      ctx.font = `${isMe ? 700 : 500} ${fontPx}px ${FONT}`;
       ctx.textAlign = 'left';
       const nick = p.nickname.length > 7 ? p.nickname.slice(0, 6) + '…' : p.nickname;
       ctx.fillText(`${marker}${nick}`, rowX + 8, y);
 
       ctx.fillStyle = COLORS.accentLavender;
-      ctx.font = `800 13px ${FONT}`;
+      ctx.font = `800 ${fontPx}px ${FONT}`;
       ctx.textAlign = 'right';
       ctx.fillText(String(p.score), rowX + rowW - 8, y);
     }

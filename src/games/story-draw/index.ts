@@ -37,9 +37,9 @@ import {
 
 /** 호스트: 컷당 시간 + 이 유예 지나면 강제 마감 */
 const FINALIZE_GRACE_MS = 1500;
-/** 슬라이드쇼 한 컷 노출 시간 */
-const SLIDE_COVER_MS = 1900;
-const SLIDE_CUT_MS = 2600;
+/** 슬라이드쇼 한 컷 노출 시간 (다인원이면 슬라이드가 많아 살짝 빠르게) */
+const SLIDE_COVER_MS = 1500;
+const SLIDE_CUT_MS = 1900;
 /** 게스트: 미초기화/대기 상태로 이만큼 지나면 재동기 요청 */
 const RESYNC_MS = 2500;
 /** 호스트: 주기적 상태 재broadcast 간격 (드롭 복구) */

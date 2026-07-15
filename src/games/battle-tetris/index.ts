@@ -106,6 +106,8 @@ class BattleTetrisGame implements GameModule {
   private rafId: number | null = null;
   private lastFrameTime = 0;
   private lastStateBroadcast = 0;
+  /** state broadcast 주기(ms). 다인원이면 호스트 relay 폭주를 막으려 느슨하게 */
+  private broadcastMs = STATE_BROADCAST_MS;
   private gameFinished = false;
   private destroyed = false;
 
@@ -137,6 +139,11 @@ class BattleTetrisGame implements GameModule {
     const gravityMs = parseGravityMs(ctx.roomOptions['speed']);
     const attackMultiplier = parseAttackMultiplier(ctx.roomOptions['garbageStrength']);
     this.engine = new TetrisEngine({ gravityMs, attackMultiplier });
+
+    // 다인원이면 state broadcast 주기를 느슨하게 — 호스트가 각 스냅샷을 N-1명에게 relay 하므로
+    //   인원² 로 늘어나는 트래픽 완화 (7인 이상 180ms≈5.5Hz, 그 이하 100ms=10Hz).
+    const playerCount = ctx.players.filter((p) => p.role === 'player').length;
+    this.broadcastMs = playerCount > 6 ? 180 : STATE_BROADCAST_MS;
 
     // 렌더러
     this.renderer = new TetrisRenderer({ canvas: ctx.canvas });
@@ -296,7 +303,7 @@ class BattleTetrisGame implements GameModule {
       if (events.length > 0) this.handleEngineEvents(events);
 
       // 10Hz state broadcast (탑아웃 후에도 한 번은 더 보냄 → 상대 미니뷰 갱신)
-      if (now - this.lastStateBroadcast >= STATE_BROADCAST_MS) {
+      if (now - this.lastStateBroadcast >= this.broadcastMs) {
         this.broadcastState();
         this.lastStateBroadcast = now;
       }

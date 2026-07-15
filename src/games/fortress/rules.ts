@@ -7,7 +7,7 @@
 
 import { terrainTopAt, mapWidthForPlayers } from './terrain';
 
-export type FortIndex = 0 | 1 | 2 | 3 | 4 | 5;
+export type FortIndex = number; // 소유자(플레이어) 인덱스 0..N-1 (최대 10인)
 
 export interface Fort {
   /** 포대 고유 id (턴/HP 식별). 한 플레이어가 여러 포대를 가질 수 있음 */
@@ -166,8 +166,8 @@ export function createInitialGame(
   fortsPerPlayer = 1,
   weaponMode: WeaponMode = 'random',
 ): FortressGame {
-  if (players.length < 2 || players.length > 6) {
-    throw new Error(`포트리스는 2~6인만 지원해요 (현재 ${players.length}인)`);
+  if (players.length < 2 || players.length > 10) {
+    throw new Error(`포트리스는 2~10인만 지원해요 (현재 ${players.length}인)`);
   }
   const perPlayer = Math.max(1, Math.min(3, fortsPerPlayer));
   const total = players.length * perPlayer;

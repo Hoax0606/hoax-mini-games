@@ -103,7 +103,7 @@ export function allowedStartLetters(lastChar: string): Set<string> {
 // 게임 상태
 // ============================================
 
-export type PlayerIndex = 0 | 1 | 2 | 3 | 4 | 5;
+export type PlayerIndex = number; // 좌석(플레이어) 인덱스 0..N-1 (최대 10인)
 
 export interface PlayerMeta {
   peerId: string;
@@ -180,8 +180,8 @@ export function createInitialGame(
   players: Array<{ peerId: string; nickname: string }>,
   rngSeed?: number,
 ): WordChainGame {
-  if (players.length < 2 || players.length > 6) {
-    throw new Error(`끝말잇기는 2~6인만 지원해요 (현재 ${players.length}인)`);
+  if (players.length < 2 || players.length > 10) {
+    throw new Error(`끝말잇기는 2~10인만 지원해요 (현재 ${players.length}인)`);
   }
   const seedWord = getRandomSeedWord(rngSeed);
   const playerMetas: PlayerMeta[] = players.map((p, idx) => ({

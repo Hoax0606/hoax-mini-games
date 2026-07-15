@@ -268,10 +268,14 @@ export class ReflexRenderer {
     const ctx = this.ctx;
     if (opponents.length === 0) return;
 
-    const cardW = 150;
+    const n = opponents.length;
+    const margin = 16;
+    const gap = n > 5 ? 6 : 14;
+    // 10인(최대 상대 9명)까지 한 줄에 들어가게 카드 폭을 화면 폭에 맞춰 축소
+    const cardW = Math.min(150, (CANVAS_W - margin * 2 - gap * (n - 1)) / n);
     const cardH = 54;
-    const gap = 14;
-    const totalW = opponents.length * cardW + (opponents.length - 1) * gap;
+    const compact = cardW < 110; // 좁으면 닉/라벨 축약
+    const totalW = n * cardW + (n - 1) * gap;
     const startX = (CANVAS_W - totalW) / 2;
     const y = 330;
 
@@ -304,15 +308,15 @@ export class ReflexRenderer {
 
       // 닉네임 (점 옆에)
       ctx.fillStyle = COLORS.textMain;
-      ctx.font = `700 13px ${FONT}`;
+      ctx.font = `700 ${compact ? 11 : 13}px ${FONT}`;
       ctx.textAlign = 'left';
       ctx.textBaseline = 'alphabetic';
-      ctx.fillText(truncate(opp.nickname, 9), x + 24, y + 18);
+      ctx.fillText(truncate(opp.nickname, compact ? 4 : 9), x + 24, y + 18);
 
       // 진행도
       ctx.fillStyle = COLORS.textMuted;
-      ctx.font = `600 11px ${FONT}`;
-      ctx.fillText(`${opp.roundsDone}/5 라운드`, x + 10, y + 33);
+      ctx.font = `600 ${compact ? 9 : 11}px ${FONT}`;
+      ctx.fillText(compact ? `${opp.roundsDone}/5` : `${opp.roundsDone}/5 라운드`, x + 10, y + 33);
 
       // 우측 — 평균 (또는 result 시 직전 ms 강조)
       ctx.textAlign = 'right';
