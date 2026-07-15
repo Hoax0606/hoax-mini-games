@@ -53,12 +53,29 @@ const ICE_SERVERS: RTCIceServer[] = [
   { urls: 'stun:stun.relay.metered.ca:80' },
 ];
 
-// 진짜 TURN 은 환경변수로 주입될 때만 추가 (무료 키 발급 후). 없으면 STUN 만으로 동작.
-const TURN_URL = (import.meta.env.VITE_TURN_URL as string | undefined)?.trim();
-const TURN_USER = (import.meta.env.VITE_TURN_USER as string | undefined)?.trim();
-const TURN_CRED = (import.meta.env.VITE_TURN_CRED as string | undefined)?.trim();
-if (TURN_URL && TURN_USER && TURN_CRED) {
-  ICE_SERVERS.push({ urls: TURN_URL, username: TURN_USER, credential: TURN_CRED });
+/**
+ * metered.ca 무료 TURN (500MB/월).
+ *   - username/credential 은 metered 이 "클라이언트용"으로 발급한 공개 가능 값이라
+ *     프론트에 노출돼도 됨(진짜 비밀인 Secret Key 는 여기 없음). 남용 시 metered 에서 Regenerate.
+ *   - URL 은 metered 공용 릴레이(global.relay.metered.ca) — 4개 다 넣어 성공률↑
+ *     (UDP 80/443 → 저지연, TCP/TLS 443 → 회사망·방화벽 뚫기 최후수단).
+ *   - 나중에 교체/로테이션은 빌드 env VITE_TURN_USER/CRED 로 덮어쓰면 코드 수정 불필요.
+ */
+const TURN_USER =
+  (import.meta.env.VITE_TURN_USER as string | undefined)?.trim() || '9f06a9dc4abbdb8f08d47512';
+const TURN_CRED =
+  (import.meta.env.VITE_TURN_CRED as string | undefined)?.trim() || 'thSCbXRuZK5P6Rn+';
+if (TURN_USER && TURN_CRED) {
+  ICE_SERVERS.push({
+    urls: [
+      'turn:global.relay.metered.ca:80',
+      'turn:global.relay.metered.ca:80?transport=tcp',
+      'turn:global.relay.metered.ca:443',
+      'turns:global.relay.metered.ca:443?transport=tcp',
+    ],
+    username: TURN_USER,
+    credential: TURN_CRED,
+  });
 }
 
 /**

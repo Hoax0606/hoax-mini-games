@@ -191,11 +191,16 @@ export class HostSession {
         lastError = err;
         peer.destroy();
         const type = (err as { type?: string })?.type;
-        if (type !== 'unavailable-id') {
-          // 네트워크 등 다른 에러 — 즉시 포기
-          throw mapPeerError(err);
+        if (type === 'unavailable-id') {
+          continue; // 코드 충돌 → 다음 코드로 즉시 재시도
         }
-        // ID 충돌이면 다음 코드로 재시도
+        if (isTransient(err) && i < maxRetries - 1) {
+          // 서버 콜드스타트/순간 끊김 등 일시적 오류 — backoff 후 재시도
+          await delay(600 * (i + 1));
+          continue;
+        }
+        // 그 외/최종 실패 — 포기
+        throw mapPeerError(err);
       }
     }
 
@@ -402,29 +407,30 @@ export class GuestSession {
    */
   static async connect(roomCode: string, timeoutMs = 30_000): Promise<GuestSession> {
     const hostPeerId = codeToPeerId(roomCode);
-    // 게스트는 랜덤 id — 옵션만 넘긴다 (자체 PeerServer + ICE). netConfig.ts 참고
-    const peer = new Peer(PEER_OPTIONS);
+    const maxAttempts = 3;
+    let lastErr: unknown = null;
 
-    // 1) 내 peer 자체가 브로커에 붙을 때까지 대기
-    try {
-      await waitForPeerOpen(peer, timeoutMs);
-    } catch (err) {
-      peer.destroy();
-      throw mapPeerError(err);
+    // 일시적 실패(서버 콜드스타트/순간 끊김/ICE 실패)면 backoff 후 재시도 →
+    //   "가끔 안 들어와짐" 완화. 방 없음(room_not_found)은 재시도해도 소용없어 즉시 포기.
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
+      // 게스트는 랜덤 id — 옵션만 넘긴다 (자체 PeerServer + ICE). netConfig.ts 참고
+      const peer = new Peer(PEER_OPTIONS);
+      try {
+        // 1) 내 peer 가 브로커에 붙고 → 2) 호스트에 데이터 연결(reliable) → 3) 열릴 때까지 대기
+        await waitForPeerOpen(peer, timeoutMs);
+        const conn = peer.connect(hostPeerId, { reliable: true });
+        await waitForConnOpen(peer, conn, timeoutMs);
+        return new GuestSession(peer, conn);
+      } catch (err) {
+        peer.destroy();
+        lastErr = err;
+        const mapped = mapPeerError(err);
+        if (mapped.kind === 'room_not_found') throw mapped; // 영구 실패 — 즉시 포기
+        if (!isTransient(err) || attempt === maxAttempts - 1) throw mapped;
+        await delay(600 * (attempt + 1)); // 0.6s → 1.2s backoff 후 재시도
+      }
     }
-
-    // 2) 호스트에 데이터 연결 생성 (reliable=true: 순서보장+재전송)
-    const conn = peer.connect(hostPeerId, { reliable: true });
-
-    // 3) 연결이 열릴 때까지 대기. 방이 없으면 peer 'error'로 peer-unavailable 이벤트가 옴.
-    try {
-      await waitForConnOpen(peer, conn, timeoutMs);
-    } catch (err) {
-      peer.destroy();
-      throw mapPeerError(err);
-    }
-
-    return new GuestSession(peer, conn);
+    throw mapPeerError(lastErr);
   }
 
   send(msg: NetworkMessage): void {
@@ -504,6 +510,22 @@ function safeSend(conn: DataConnection, msg: NetworkMessage): void {
   } catch (err) {
     console.warn('[peer] send failed', err);
   }
+}
+
+/** ms 만큼 쉬기 (재시도 backoff 용) */
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/**
+ * "다시 시도하면 될 수도 있는" 일시적 오류인지.
+ *   - 타임아웃/네트워크/소켓/서버오류 = 서버 콜드스타트·순간 끊김 등 → 재시도 가치 있음
+ *   - peer-unavailable(방 없음)·unavailable-id(코드 충돌) 등은 재시도 대상 아님(호출부가 따로 처리)
+ */
+function isTransient(err: unknown): boolean {
+  const type = (err as { type?: string })?.type ?? '';
+  return type === 'timeout' || type === 'network' || type === 'disconnected'
+    || type === 'socket-error' || type === 'socket-closed' || type === 'server-error';
 }
 
 /** PeerJS의 에러 객체를 우리 앱용 타입으로 매핑 */
