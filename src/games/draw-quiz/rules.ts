@@ -41,7 +41,7 @@ export interface DrawQuizGame {
   phase: GamePhase;
   /** 현재 라운드 (1부터) */
   round: number;
-  /** 전체 라운드 수 (= 플레이어 수 × 바퀴) */
+  /** 전체 라운드 수 (플레이어 수 × 바퀴, 단 최대 15 상한) */
   totalRounds: number;
   /** 현재 출제자 peerId */
   drawerPeerId: string;

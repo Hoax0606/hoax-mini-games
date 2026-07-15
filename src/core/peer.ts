@@ -178,6 +178,7 @@ export class HostSession {
    */
   static async create(maxRetries = 6): Promise<HostSession> {
     let lastError: unknown = null;
+    let transientTries = 0; // 일시적 오류 재시도 횟수 (코드충돌 재시도와 분리)
 
     for (let i = 0; i < maxRetries; i++) {
       const roomCode = generateRoomCode();
@@ -185,21 +186,21 @@ export class HostSession {
       const peer = new Peer(codeToPeerId(roomCode), PEER_OPTIONS);
 
       try {
-        await waitForPeerOpen(peer);
+        await waitForPeerOpen(peer, CONNECT_TIMEOUT_MS);
         return new HostSession(peer, roomCode);
       } catch (err) {
         lastError = err;
         peer.destroy();
         const type = (err as { type?: string })?.type;
         if (type === 'unavailable-id') {
-          continue; // 코드 충돌 → 다음 코드로 즉시 재시도
+          continue; // 코드 충돌 → 다음 코드로 즉시 재시도 (서버 응답 빠름)
         }
-        if (isTransient(err) && i < maxRetries - 1) {
-          // 서버 콜드스타트/순간 끊김 등 일시적 오류 — backoff 후 재시도
-          await delay(600 * (i + 1));
+        // 서버 다운 등 일시적 오류는 최대 2회만 재시도 → 최악 대기 ~40초 (전엔 ~3분)
+        if (isTransient(err) && transientTries < 2) {
+          transientTries += 1;
+          await delay(600 * transientTries);
           continue;
         }
-        // 그 외/최종 실패 — 포기
         throw mapPeerError(err);
       }
     }
@@ -405,7 +406,7 @@ export class GuestSession {
    * 방 코드로 호스트에 연결.
    * 실패 시 PeerConnectError를 throw.
    */
-  static async connect(roomCode: string, timeoutMs = 30_000): Promise<GuestSession> {
+  static async connect(roomCode: string, timeoutMs = CONNECT_TIMEOUT_MS): Promise<GuestSession> {
     const hostPeerId = codeToPeerId(roomCode);
     const maxAttempts = 3;
     let lastErr: unknown = null;
@@ -513,6 +514,10 @@ function safeSend(conn: DataConnection, msg: NetworkMessage): void {
 }
 
 /** ms 만큼 쉬기 (재시도 backoff 용) */
+/** 연결 시도 1회당 대기 상한(ms). 짧게 잡고 재시도해서 "연결 중" 무한 대기 방지.
+ *  (서버는 keep-warm 핑으로 깨어있으므로 보통 1~2초 내 열림) */
+const CONNECT_TIMEOUT_MS = 18_000;
+
 function delay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
