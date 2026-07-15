@@ -922,6 +922,87 @@ function buildRamenResultHTML(args: {
 }
 
 // ============================================
+// 폭탄 끝말잇기 전용 결과 HTML
+// ============================================
+
+interface BombPlayerEntry {
+  peerId: string;
+  nickname: string;
+  survived: boolean;
+}
+
+function parseBombSummary(summary: Record<string, unknown>): {
+  myPeerId: string;
+  loserPeerId: string | null;
+  loserNickname: string;
+  wordCount: number;
+  players: BombPlayerEntry[];
+} | null {
+  if (summary['gameId'] !== 'bomb-wordchain') return null;
+  const myPeerId = typeof summary['myPeerId'] === 'string' ? (summary['myPeerId'] as string) : null;
+  if (!myPeerId) return null;
+  const loserPeerId = typeof summary['loserPeerId'] === 'string' ? (summary['loserPeerId'] as string) : null;
+  const loserNickname = typeof summary['loserNickname'] === 'string' ? (summary['loserNickname'] as string) : '?';
+  const wordCount = typeof summary['wordCount'] === 'number' ? (summary['wordCount'] as number) : 0;
+  const rawPlayers = summary['players'] as unknown;
+  const players: BombPlayerEntry[] = Array.isArray(rawPlayers)
+    ? (rawPlayers as Partial<BombPlayerEntry>[])
+        .filter((p) => typeof p.peerId === 'string' && typeof p.nickname === 'string')
+        .map((p) => ({ peerId: p.peerId!, nickname: p.nickname!, survived: !!p.survived }))
+    : [];
+  return { myPeerId, loserPeerId, loserNickname, wordCount, players };
+}
+
+function buildBombResultHTML(args: {
+  summary: ReturnType<typeof parseBombSummary>;
+  isHost: boolean;
+  isSpectator: boolean;
+}): string {
+  const s = args.summary!;
+  const { isHost, isSpectator } = args;
+  const iLost = !isSpectator && s.loserPeerId === s.myPeerId;
+  const emoji = isSpectator ? '💣' : iLost ? '💥' : '😌';
+  const title = isSpectator ? '폭탄 터짐!' : iLost ? '펑! 내가 폭탄을…' : '살았다!';
+  const titleClass = iLost ? 'result-title-lose' : 'result-title-win';
+  const actionsHTML = buildActionsHTML(isHost);
+
+  // 폭발한 사람 먼저(강조), 나머지 생존자.
+  const sorted = [...s.players].sort((a, b) => Number(a.survived) - Number(b.survived));
+
+  const rankingsHTML = `
+    <div class="result-tetris-rankings">
+      <div class="result-tetris-rankings-title">🏅 결과</div>
+      ${sorted.map((p) => {
+        const isMe = p.peerId === s.myPeerId;
+        const badgeClass = p.survived ? '' : 'rank-1';
+        return `
+          <div class="result-tetris-rank-row ${isMe ? 'is-me' : ''}">
+            <span class="result-tetris-rank-badge ${badgeClass}">${p.survived ? '😌' : '💥'}</span>
+            <span class="result-tetris-rank-name">${escapeHtml(p.nickname)}</span>
+            <span class="result-apple-rank-score">${p.survived ? '생존' : '폭발'}</span>
+            ${isMe ? '<span class="result-tetris-rank-me-tag">나</span>' : ''}
+          </div>
+        `;
+      }).join('')}
+    </div>
+  `;
+
+  const reasonBadge = `<div class="result-gomoku-reason">💣 ${escapeHtml(s.loserNickname)} 폭발 · ${s.wordCount}단어 이어감</div>`;
+
+  return `
+    <div class="result-card result-card-tetris">
+      <div class="result-emoji">${emoji}</div>
+      <div class="result-title ${titleClass}">${title}</div>
+      ${reasonBadge}
+      ${rankingsHTML}
+      <div class="result-actions">
+        ${actionsHTML}
+      </div>
+    </div>
+  `;
+}
+
+// ============================================
 // 다트 전용 결과 HTML
 // ============================================
 
@@ -1465,6 +1546,7 @@ export function createResultScreenAsHostScreen(args: ResultScreenAsHostArgs): Sc
       const fortress = parseFortressSummary(result.summary);
       const liar = parseLiarSummary(result.summary);
       const ramen = parseRamenSummary(result.summary);
+      const bomb = parseBombSummary(result.summary);
       if (tetris) {
         el.innerHTML = buildTetrisResultHTML({
           myWinner: result.winner,
@@ -1541,6 +1623,8 @@ export function createResultScreenAsHostScreen(args: ResultScreenAsHostArgs): Sc
           isHost: true,
           isSpectator: false,
         });
+      } else if (bomb) {
+        el.innerHTML = buildBombResultHTML({ summary: bomb, isHost: true, isSpectator: false });
       } else if (apple) {
         el.innerHTML = buildAppleResultHTML({
           myWinner: result.winner,
@@ -1720,6 +1804,7 @@ export function createResultScreenAsGuestScreen(args: ResultScreenAsGuestArgs): 
       const fortress = parseFortressSummary(result.summary);
       const liar = parseLiarSummary(result.summary);
       const ramen = parseRamenSummary(result.summary);
+      const bomb = parseBombSummary(result.summary);
       // 관전자는 summary.myPeerId 가 자기가 아닐 수 있음 — 자기 peerId 는 guest.myPeerId.
       // rankings 에 "나" 가 없으면 관전자로 간주.
       const myPeerIdForResult = guest.myPeerId;
@@ -1804,6 +1889,13 @@ export function createResultScreenAsGuestScreen(args: ResultScreenAsGuestArgs): 
           myScore: ramen.myScore,
           rankings: ramen.rankings,
           myPeerId: isSpec ? myPeerIdForResult : ramen.myPeerId,
+          isHost: false,
+          isSpectator: isSpec,
+        });
+      } else if (bomb) {
+        const isSpec = !bomb.players.some((p) => p.peerId === myPeerIdForResult);
+        el.innerHTML = buildBombResultHTML({
+          summary: isSpec ? { ...bomb, myPeerId: myPeerIdForResult } : bomb,
           isHost: false,
           isSpectator: isSpec,
         });

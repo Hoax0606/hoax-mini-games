@@ -22,6 +22,7 @@ import drawQuizThumbnail from './draw-quiz/thumbnail.svg';
 import fortressThumbnail from './fortress/thumbnail.svg';
 import liarGameThumbnail from './liar-game/thumbnail.svg';
 import ramenShopThumbnail from './ramen-shop/thumbnail.svg';
+import bombWordChainThumbnail from './bomb-wordchain/thumbnail.svg';
 import storyDrawThumbnail from './story-draw/thumbnail.svg';
 
 export const games: GameEntry[] = [
@@ -355,6 +356,21 @@ export const games: GameEntry[] = [
     load: async () => {
       const mod = await import('./ramen-shop');
       return mod.createRamenShopGame();
+    },
+  },
+  {
+    meta: {
+      id: 'bomb-wordchain',
+      name: '폭탄 끝말잇기',
+      description: '숨겨진 폭탄이 30초~3분 사이 언제 터질지 몰라요! 랜덤으로 시작해 끝말잇기로 폭탄을 넘기고, 터질 때 들고 있는 사람이 패배.',
+      thumbnail: bombWordChainThumbnail,
+      minPlayers: 2,
+      maxPlayers: 6,
+      roomOptions: [],
+    },
+    load: async () => {
+      const mod = await import('./bomb-wordchain');
+      return mod.createBombWordChainGame();
     },
   },
 ];
