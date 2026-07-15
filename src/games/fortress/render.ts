@@ -526,8 +526,10 @@ export class FortressRenderer {
     const ctx = this.ctx;
     const g = state.game;
 
-    // 상단 중앙 HUD 박스 — 불투명 + 테두리 + 그림자로 밝은 하늘에 묻히지 않게
-    const boxW = 260;
+    // 상단 중앙 HUD 박스 — 불투명 + 테두리 + 그림자로 밝은 하늘에 묻히지 않게.
+    //   폭을 캔버스에 맞게 적응(고정 260px 이면 채팅 열거나 낮은 해상도로 캔버스가 좁을 때
+    //   박스 오른쪽=바람 표시가 화면 밖으로 잘리던 문제 방지). 좌우 12px 여백 확보.
+    const boxW = Math.min(260, logicalW - 24);
     const boxX = (logicalW - boxW) / 2;
     ctx.save();
     ctx.shadowColor = 'rgba(150,110,140,0.28)';
