@@ -15,10 +15,11 @@
  */
 
 import type { GameMessage, GameResult } from '../types';
-import type { StoryDrawGame, StoryBook, StrokeData } from './rules';
+import type { StoryDrawGame, StoryBook, StoryPhase, StrokeData } from './rules';
 
 const T_HELLO = 'sd:hello';
 const T_SYNC = 'sd:sync';
+const T_TICK = 'sd:tick';
 const T_TURN = 'sd:turn';
 const T_PROGRESS = 'sd:progress';
 const T_DONE = 'sd:done';
@@ -45,6 +46,19 @@ export function decodeSync(msg: GameMessage): { game: StoryDrawGame } | null {
   const p = msg.payload as { game?: unknown } | null;
   if (!p || !p.game || !Array.isArray((p.game as StoryDrawGame).books)) return null;
   return { game: p.game as StoryDrawGame };
+}
+
+// ── tick (경량 주기 broadcast) ──
+// 무거운 sync(책/컷 stroke 전체)를 2.5초마다 broadcast 하면 호스트 업링크가 폭주해 핑이 튄다.
+// 주기 broadcast 는 turn/phase 만 담은 tick 으로 하고, 뒤처진 클라만 hello 로 전체 sync 를 target 요청.
+export function encodeTick(turn: number, phase: StoryPhase): GameMessage {
+  return { type: T_TICK, payload: { turn, phase } };
+}
+export function decodeTick(msg: GameMessage): { turn: number; phase: StoryPhase } | null {
+  if (msg.type !== T_TICK) return null;
+  const p = msg.payload as { turn?: unknown; phase?: unknown } | null;
+  if (!p || typeof p.turn !== 'number' || typeof p.phase !== 'string') return null;
+  return { turn: p.turn, phase: p.phase as StoryPhase };
 }
 
 // ── turn (새 턴 배정) ──

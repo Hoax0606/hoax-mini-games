@@ -27,6 +27,7 @@ import {
 import {
   encodeHello, decodeHello,
   encodeSync, decodeSync,
+  encodeTick, decodeTick,
   encodeTurn, decodeTurn,
   encodeProgress, decodeProgress,
   encodeDone, decodeDone,
@@ -170,9 +171,28 @@ class StoryDrawGameModule implements GameModule {
       return;
     }
 
+    // 경량 tick — 상태를 직접 적용하지 않고, 내가 뒤처졌으면 hello 로 전체 sync 를 요청만.
+    const tick = decodeTick(msg);
+    if (tick) {
+      if (!this.isHost) {
+        const now = performance.now();
+        const behind = !this.inited
+          || tick.phase !== this.game?.phase
+          || (tick.phase === 'drawing' && tick.turn > this.localTurn);
+        if (behind && now - this.lastHelloAt > 700) {
+          this.lastHelloAt = now;
+          this.ctx.sendToPeer(encodeHello(this.myPeerId));
+        }
+      }
+      return;
+    }
+
     const turn = decodeTurn(msg);
     if (turn) {
-      if (!this.isHost) this.applyTurnPayload(turn.turn, turn.durationMs, turn.turnStartedAt, turn.assignments);
+      // 재정렬/중복으로 도착한 낡은(이미 지난) 턴은 무시 — 되감기 시 stroke 유실/빈 컷 방지.
+      if (!this.isHost && !(this.inited && this.game?.phase === 'drawing' && turn.turn <= this.localTurn)) {
+        this.applyTurnPayload(turn.turn, turn.durationMs, turn.turnStartedAt, turn.assignments);
+      }
       return;
     }
 
@@ -237,8 +257,10 @@ class StoryDrawGameModule implements GameModule {
 
     if (!this.paused && this.game) {
       if (this.game.phase === 'drawing') {
-        // 로컬 카운트다운 만료 → 자동 제출
-        if (this.amDrawer()) {
+        // 로컬 카운트다운 만료 → 자동 제출.
+        //   turnLocalStart>0 가드 — 아직 이번 턴 셋업(applyTurnPayload/applySync)이 안 됐으면
+        //   기본값 0 으로 left 가 음수가 되어 "받자마자 즉시 제출"되던 문제 방지.
+        if (this.amDrawer() && this.turnLocalStart > 0) {
           const left = this.game.durationMs - (now - this.turnLocalStart);
           if (left <= 0) this.submitLocalCut();
         }
@@ -246,10 +268,11 @@ class StoryDrawGameModule implements GameModule {
         if (this.isHost && now - this.turnStartedAtHost > this.game.durationMs + FINALIZE_GRACE_MS) {
           this.finalizeTurnAsHost();
         }
-        // 호스트: 주기 sync (드롭 복구)
+        // 호스트: 주기 broadcast 는 경량 tick 만 (turn/phase). 무거운 전체 sync 는 hello 응답으로만
+        //   target 전송 → 호스트 업링크 폭주(핑 급상승) 방지.
         if (this.isHost && now - this.lastSyncAt > SYNC_INTERVAL_MS) {
           this.lastSyncAt = now;
-          this.ctx.sendToPeer(encodeSync(this.game));
+          this.ctx.sendToPeer(encodeTick(this.game.turn, this.game.phase));
         }
         // 게스트: 미초기화/대기 지속 시 재동기 요청
         if (!this.isHost && this.needsResync(now)) {
@@ -258,6 +281,11 @@ class StoryDrawGameModule implements GameModule {
         }
       } else if (this.game.phase === 'reveal') {
         this.advanceSlideshow(now);
+        // reveal 전환을 놓친 게스트가 감지하도록 경량 tick 유지
+        if (this.isHost && now - this.lastSyncAt > SYNC_INTERVAL_MS) {
+          this.lastSyncAt = now;
+          this.ctx.sendToPeer(encodeTick(this.game.turn, this.game.phase));
+        }
       }
     }
 
@@ -429,6 +457,8 @@ class StoryDrawGameModule implements GameModule {
 
   private applySync(game: StoryDrawGame): void {
     const prevPhase = this.game?.phase;
+    // 되감기 방지 — 재정렬로 도착한 낡은 전체 sync(이미 지난 턴)는 무시. 현재 그림/타이머 유지.
+    if (this.inited && game.phase === 'drawing' && this.game && game.turn < this.localTurn) return;
     // 구조 채택
     this.game = game;
     if (this.mySeat < 0 || !this.inited) {
