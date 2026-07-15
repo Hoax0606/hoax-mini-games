@@ -21,6 +21,7 @@ import wordChainThumbnail from './word-chain/thumbnail.svg';
 import drawQuizThumbnail from './draw-quiz/thumbnail.svg';
 import fortressThumbnail from './fortress/thumbnail.svg';
 import liarGameThumbnail from './liar-game/thumbnail.svg';
+import ramenShopThumbnail from './ramen-shop/thumbnail.svg';
 import storyDrawThumbnail from './story-draw/thumbnail.svg';
 
 export const games: GameEntry[] = [
@@ -327,6 +328,33 @@ export const games: GameEntry[] = [
     load: async () => {
       const mod = await import('./story-draw');
       return mod.createStoryDrawGame();
+    },
+  },
+  {
+    meta: {
+      id: 'ramen-shop',
+      name: '라면가게',
+      description: '물 붓고 면 넣어 라면을 끓여 파는 스피드 장사! 손 빠른 만큼 많이 만들어 올릴수록 매출↑. 영업 종료 시 매출 1등이 승리.',
+      thumbnail: ramenShopThumbnail,
+      minPlayers: 1,
+      maxPlayers: 6,
+      roomOptions: [
+        {
+          key: 'duration',
+          label: '영업시간',
+          type: 'select',
+          choices: [
+            { value: '120', label: '짧게 · 2분' },
+            { value: '180', label: '보통 · 3분' },
+            { value: '240', label: '길게 · 4분' },
+          ],
+          defaultValue: '180',
+        },
+      ],
+    },
+    load: async () => {
+      const mod = await import('./ramen-shop');
+      return mod.createRamenShopGame();
     },
   },
 ];

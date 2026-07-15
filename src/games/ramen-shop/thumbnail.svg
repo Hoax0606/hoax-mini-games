@@ -1,0 +1,77 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 200">
+  <!-- 배경 그라데이션 — 썸네일 공통 규약 -->
+  <defs>
+    <linearGradient id="rsBg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#ffe4ee"/>
+      <stop offset="1" stop-color="#e0fff4"/>
+    </linearGradient>
+    <radialGradient id="rsBroth" cx="0.4" cy="0.35" r="0.9">
+      <stop offset="0" stop-color="#ffdf9e"/>
+      <stop offset="1" stop-color="#e8b96a"/>
+    </radialGradient>
+  </defs>
+
+  <rect width="320" height="200" rx="22" fill="url(#rsBg)"/>
+
+  <!-- 배경 데코 4개 점 (썸네일 공통) -->
+  <circle cx="30" cy="30" r="3" fill="#ffc9dd"/>
+  <circle cx="290" cy="40" r="2.5" fill="#b8f5e0"/>
+  <circle cx="290" cy="170" r="3" fill="#d9c7ff"/>
+  <circle cx="30" cy="170" r="2.2" fill="#ffeec2"/>
+
+  <!-- 별 데코 2개 -->
+  <path d="M 52 64 L 54 70 L 60 70 L 55.2 73.8 L 57 79.6 L 52 76 L 47 79.6 L 48.8 73.8 L 44 70 L 50 70 Z"
+        fill="#ffd0dc" opacity="0.85"/>
+  <path d="M 270 126 L 272 131 L 277 131 L 273 134.2 L 274.5 139 L 270 136 L 265.5 139 L 267 134.2 L 263 131 L 268 131 Z"
+        fill="#c5e8d8" opacity="0.85"/>
+
+  <!-- 김 (모락모락) -->
+  <g stroke="#ffffff" stroke-width="4" fill="none" opacity="0.75" stroke-linecap="round">
+    <path d="M 140 66 q -8 -10 0 -20 q 8 -10 0 -20"/>
+    <path d="M 165 60 q -8 -10 0 -20 q 8 -10 0 -20"/>
+    <path d="M 190 66 q -8 -10 0 -20 q 8 -10 0 -20"/>
+  </g>
+
+  <!-- 젓가락 (그릇에 비스듬히 꽂힘) -->
+  <g transform="rotate(18 205 110)">
+    <rect x="196" y="60" width="4" height="70" rx="2" fill="#c98a5a"/>
+    <rect x="206" y="60" width="4" height="70" rx="2" fill="#c98a5a"/>
+  </g>
+
+  <!-- 중앙 라면 그릇 -->
+  <g transform="translate(160 118)">
+    <!-- 그릇 몸통 -->
+    <path d="M -60 -6 A 60 60 0 0 0 60 -6 L 52 34 A 52 40 0 0 1 -52 34 Z"
+          fill="#ffffff" stroke="#e3b9c8" stroke-width="2.5"/>
+    <!-- 국물 -->
+    <ellipse cx="0" cy="-6" rx="58" ry="20" fill="url(#rsBroth)" stroke="#d59a4a" stroke-width="2"/>
+    <!-- 면발 -->
+    <g stroke="#f6e6b8" stroke-width="3" fill="none" stroke-linecap="round" opacity="0.95">
+      <path d="M -34 -10 q 6 -12 14 0 q 6 12 14 0"/>
+      <path d="M 2 -12 q 6 -12 14 0 q 6 12 14 0"/>
+    </g>
+    <!-- 토핑: 계란 반쪽 -->
+    <circle cx="-24" cy="-6" r="9" fill="#fff6e0" stroke="#e8c98a" stroke-width="1.5"/>
+    <circle cx="-24" cy="-6" r="4.5" fill="#ffcf5a"/>
+    <!-- 토핑: 파 -->
+    <circle cx="16" cy="-2" r="3" fill="#86e8c4"/>
+    <circle cx="26" cy="-10" r="3" fill="#86e8c4"/>
+    <circle cx="6" cy="-14" r="3" fill="#86e8c4"/>
+  </g>
+
+  <!-- 왼쪽 작은 냄비 (조리 중 암시) -->
+  <g transform="translate(58 132)">
+    <rect x="-30" y="-4" width="10" height="6" rx="2" fill="#6b7079"/>
+    <rect x="20" y="-4" width="10" height="6" rx="2" fill="#6b7079"/>
+    <circle r="22" fill="#8a8f99" stroke="#6b7079" stroke-width="2.5"/>
+    <ellipse cx="0" cy="0" rx="15" ry="13" fill="#e8b96a"/>
+  </g>
+
+  <!-- 매출 풍선 -->
+  <g transform="translate(256 60)">
+    <rect x="-30" y="-13" width="60" height="26" rx="13"
+          fill="#2e9e6b" stroke="#1f6a4a" stroke-width="1.4"/>
+    <text x="0" y="5" text-anchor="middle" font-family="Pretendard, system-ui, sans-serif"
+          font-size="13" font-weight="900" fill="#fff">💰＋</text>
+  </g>
+</svg>

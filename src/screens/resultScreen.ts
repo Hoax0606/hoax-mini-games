@@ -826,6 +826,102 @@ function buildLiarResultHTML(args: {
 }
 
 // ============================================
+// 라면가게 전용 결과 HTML
+// ============================================
+
+interface RamenRankEntry {
+  peerId: string;
+  nickname: string;
+  rank: number;
+  score: number;
+}
+
+function parseRamenSummary(summary: Record<string, unknown>): {
+  myPeerId: string;
+  rank: number;
+  totalPlayers: number;
+  myScore: number;
+  rankings: RamenRankEntry[];
+} | null {
+  if (summary['gameId'] !== 'ramen-shop') return null;
+  const myPeerId = typeof summary['myPeerId'] === 'string' ? (summary['myPeerId'] as string) : null;
+  const rank = typeof summary['rank'] === 'number' ? (summary['rank'] as number) : null;
+  const totalPlayers = typeof summary['totalPlayers'] === 'number' ? (summary['totalPlayers'] as number) : null;
+  const myScore = typeof summary['myScore'] === 'number' ? (summary['myScore'] as number) : 0;
+  const rawRankings = summary['rankings'] as unknown;
+  if (!myPeerId || rank === null || totalPlayers === null) return null;
+
+  const rankings: RamenRankEntry[] = Array.isArray(rawRankings)
+    ? (rawRankings as Partial<RamenRankEntry>[])
+        .filter((r) =>
+          typeof r.peerId === 'string' &&
+          typeof r.nickname === 'string' &&
+          typeof r.rank === 'number' &&
+          typeof r.score === 'number')
+        .map((r) => ({ peerId: r.peerId!, nickname: r.nickname!, rank: r.rank!, score: r.score! }))
+    : [];
+
+  return { myPeerId, rank, totalPlayers, myScore, rankings };
+}
+
+function buildRamenResultHTML(args: {
+  myWinner: 'me' | 'opponent' | null;
+  rank: number;
+  totalPlayers: number;
+  myScore: number;
+  rankings: RamenRankEntry[];
+  myPeerId: string;
+  isHost: boolean;
+  isSpectator: boolean;
+}): string {
+  const { myWinner, rank, totalPlayers, myScore, rankings, myPeerId, isHost, isSpectator } = args;
+  const { emoji, title, titleClass } = isSpectator
+    ? { emoji: '🍜', title: '라면가게 영업 종료', titleClass: 'result-title-draw' }
+    : winnerVisuals(myWinner);
+  const actionsHTML = buildActionsHTML(isHost);
+
+  const myBlock = isSpectator ? '' : `
+    <div class="result-tetris-rank">
+      <span class="result-tetris-rank-num">${rank}</span> / ${totalPlayers}위
+    </div>
+    <div class="result-apple-myscore">
+      <div class="result-apple-myscore-label">💰 내 매출</div>
+      <div class="result-apple-myscore-value">${myScore.toLocaleString()}원</div>
+    </div>
+  `;
+
+  const rankingsHTML = rankings.length >= 1 ? `
+    <div class="result-tetris-rankings">
+      <div class="result-tetris-rankings-title">🏅 매출 순위</div>
+      ${rankings.map((r) => {
+        const isMe = r.peerId === myPeerId;
+        const badgeClass = r.rank <= 3 ? `rank-${r.rank}` : '';
+        return `
+          <div class="result-tetris-rank-row ${isMe ? 'is-me' : ''}">
+            <span class="result-tetris-rank-badge ${badgeClass}">${r.rank}</span>
+            <span class="result-tetris-rank-name">${escapeHtml(r.nickname)}</span>
+            <span class="result-apple-rank-score">${r.score.toLocaleString()}원</span>
+            ${isMe ? '<span class="result-tetris-rank-me-tag">나</span>' : ''}
+          </div>
+        `;
+      }).join('')}
+    </div>
+  ` : '';
+
+  return `
+    <div class="result-card result-card-tetris">
+      <div class="result-emoji">${emoji}</div>
+      <div class="result-title ${titleClass}">${title}</div>
+      ${myBlock}
+      ${rankingsHTML}
+      <div class="result-actions">
+        ${actionsHTML}
+      </div>
+    </div>
+  `;
+}
+
+// ============================================
 // 다트 전용 결과 HTML
 // ============================================
 
@@ -1368,6 +1464,7 @@ export function createResultScreenAsHostScreen(args: ResultScreenAsHostArgs): Sc
       const drawQuiz = parseDrawQuizSummary(result.summary);
       const fortress = parseFortressSummary(result.summary);
       const liar = parseLiarSummary(result.summary);
+      const ramen = parseRamenSummary(result.summary);
       if (tetris) {
         el.innerHTML = buildTetrisResultHTML({
           myWinner: result.winner,
@@ -1430,6 +1527,17 @@ export function createResultScreenAsHostScreen(args: ResultScreenAsHostArgs): Sc
           totalPlayers: liar.totalPlayers,
           rankings: liar.rankings,
           myPeerId: liar.myPeerId,
+          isHost: true,
+          isSpectator: false,
+        });
+      } else if (ramen) {
+        el.innerHTML = buildRamenResultHTML({
+          myWinner: result.winner,
+          rank: ramen.rank,
+          totalPlayers: ramen.totalPlayers,
+          myScore: ramen.myScore,
+          rankings: ramen.rankings,
+          myPeerId: ramen.myPeerId,
           isHost: true,
           isSpectator: false,
         });
@@ -1611,6 +1719,7 @@ export function createResultScreenAsGuestScreen(args: ResultScreenAsGuestArgs): 
       const drawQuiz = parseDrawQuizSummary(result.summary);
       const fortress = parseFortressSummary(result.summary);
       const liar = parseLiarSummary(result.summary);
+      const ramen = parseRamenSummary(result.summary);
       // 관전자는 summary.myPeerId 가 자기가 아닐 수 있음 — 자기 peerId 는 guest.myPeerId.
       // rankings 에 "나" 가 없으면 관전자로 간주.
       const myPeerIdForResult = guest.myPeerId;
@@ -1683,6 +1792,18 @@ export function createResultScreenAsGuestScreen(args: ResultScreenAsGuestArgs): 
           totalPlayers: liar.totalPlayers,
           rankings: liar.rankings,
           myPeerId: isSpec ? myPeerIdForResult : liar.myPeerId,
+          isHost: false,
+          isSpectator: isSpec,
+        });
+      } else if (ramen) {
+        const isSpec = !ramen.rankings.some((r) => r.peerId === myPeerIdForResult);
+        el.innerHTML = buildRamenResultHTML({
+          myWinner: result.winner,
+          rank: ramen.rank,
+          totalPlayers: ramen.totalPlayers,
+          myScore: ramen.myScore,
+          rankings: ramen.rankings,
+          myPeerId: isSpec ? myPeerIdForResult : ramen.myPeerId,
           isHost: false,
           isSpectator: isSpec,
         });
@@ -1822,6 +1943,9 @@ export function recordResultToStats(
   } else if (id === 'apple-game') {
     const ms = Number(summary['myScore']);
     if (Number.isFinite(ms)) bestEntries.push({ key: 'score', value: ms, higherIsBetter: true });
+  } else if (id === 'ramen-shop') {
+    const ms = Number(summary['myScore']);
+    if (Number.isFinite(ms)) bestEntries.push({ key: 'bestEarnings', value: ms, higherIsBetter: true });
   } else if (id === 'reflex') {
     const rankings = summary['rankings'] as Array<{ peerId: string; avgMs: number }> | undefined;
     const myPeerId = summary['myPeerId'] as string | undefined;

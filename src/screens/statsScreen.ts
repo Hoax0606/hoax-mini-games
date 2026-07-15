@@ -118,6 +118,9 @@ function renderBestRecords(gameId: string, best?: Record<string, number>): strin
     case 'apple-game':
       if (best['score'] != null) items.push({ label: '최고 점수', formatted: `${best['score']}점` });
       break;
+    case 'ramen-shop':
+      if (best['bestEarnings'] != null) items.push({ label: '최고 매출', formatted: `${best['bestEarnings'].toLocaleString()}원` });
+      break;
     case 'reflex':
       if (best['bestMs'] != null) items.push({ label: '최고 기록', formatted: `${best['bestMs']}ms` });
       break;

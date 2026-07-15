@@ -1515,6 +1515,40 @@ input {
 .game-canvas-wrap:has(.dq-ui) .game-canvas {
   max-height: calc(100% - 150px);
 }
+
+/* ============================================
+   라면가게 업그레이드 바 (canvas 아래)
+   ============================================ */
+.ramen-bar {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+  flex-wrap: wrap;
+  padding: 10px;
+  margin-top: 8px;
+}
+.ramen-up-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  min-width: 120px;
+  padding: 8px 14px;
+  border-radius: 12px;
+  background: var(--bg-card);
+  border: 2px solid var(--border-soft);
+  cursor: pointer;
+  transition: transform 0.1s, border-color 0.15s, opacity 0.15s;
+}
+.ramen-up-btn:hover:not(:disabled) { transform: translateY(-2px); border-color: var(--accent-soft); }
+.ramen-up-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+.ramen-up-btn.maxed { opacity: 0.55; }
+.ramen-up-name { font-size: 13px; font-weight: 800; color: var(--text-main); }
+.ramen-up-cost { font-size: 12px; font-weight: 700; color: var(--pink-500); }
+/* 라면가게: 캔버스가 아래 업그레이드 바 공간을 남기도록 */
+.game-canvas-wrap:has(.ramen-bar) .game-canvas {
+  max-height: calc(100% - 120px);
+}
 .lg-msg {
   font-size: 13px;
   font-weight: 600;
