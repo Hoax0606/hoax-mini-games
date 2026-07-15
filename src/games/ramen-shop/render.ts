@@ -44,11 +44,12 @@ const C = {
   hudBorder: '#f0c9a8',
 } as const;
 
-/** 손님 좌석 레이아웃 — 상단 가로 정렬. render/index(팝업) 공용. */
+/** 손님 좌석 레이아웃 — 상단 가로 정렬(HUD 아래). render/index(팝업) 공용. */
 export function seatLayout(seats: number): { x: number; y: number; r: number }[] {
-  const r = 30;
-  const y = 92;
-  const gap = 150;
+  const r = 28;
+  const y = 116;
+  // 인원 많으면 간격 좁혀 화면 안에 (양끝 여백 60)
+  const gap = Math.min(150, (LOGICAL_W - 120) / Math.max(1, seats));
   const out: { x: number; y: number; r: number }[] = [];
   for (let i = 0; i < seats; i++) {
     const x = LOGICAL_W / 2 + (i - (seats - 1) / 2) * gap;
@@ -59,9 +60,9 @@ export function seatLayout(seats: number): { x: number; y: number; r: number }[]
 
 /** 냄비 레이아웃 — 중앙 가로 정렬. render/hitTest 공용. */
 export function potLayout(count: number): { x: number; y: number; r: number }[] {
-  const r = 46;
-  const gap = 150;
-  const y = 210;
+  const r = 44;
+  const gap = Math.min(150, (LOGICAL_W - 120) / Math.max(1, count));
+  const y = 226;
   const out: { x: number; y: number; r: number }[] = [];
   for (let i = 0; i < count; i++) {
     const x = LOGICAL_W / 2 + (i - (count - 1) / 2) * gap;
@@ -73,13 +74,12 @@ export function potLayout(count: number): { x: number; y: number; r: number }[] 
 /** 토핑 타일 레이아웃 (하단 7개). render/hitTest 공용. */
 export function toppingLayout(): { id: ToppingId; x: number; y: number; w: number; h: number }[] {
   const ids: ToppingId[] = ['egg', 'green', 'dumpling', 'cheese', 'kimchi', 'sprout', 'shrimp'];
-  const w = 96;
-  const h = 60;
   const gap = 8;
-  const total = ids.length * w + (ids.length - 1) * gap;
-  const startX = (LOGICAL_W - total) / 2;
-  const y = 316;
-  return ids.map((id, i) => ({ id, x: startX + i * (w + gap), y, w, h }));
+  const margin = 24;
+  const w = (LOGICAL_W - margin * 2 - gap * (ids.length - 1)) / ids.length;
+  const h = 58;
+  const y = 328;
+  return ids.map((id, i) => ({ id, x: margin + i * (w + gap), y, w, h }));
 }
 
 export interface MoneyPopup {
@@ -182,26 +182,26 @@ export class RamenRenderer {
       ctx.font = `800 20px ${FONT}`;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      ctx.fillText('👀 관전 중 — 각자 자기 가게를 운영해요', LOGICAL_W / 2, 260);
+      ctx.fillText('👀 관전 중 — 각자 자기 가게를 운영해요', LOGICAL_W / 2, 268);
     }
     this.drawPopups(ctx, state);
-
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    this.drawHUD(ctx, state, rect.width);
+    // HUD 도 논리 좌표에 그린다(모든 요소가 함께 스케일 → 해상도 달라도 안 겹침/안 잘림).
+    // 좌측 상단 매출 / 우측 상단 타이머 → 중앙 상단(손님 주문 말풍선)과 안 겹침.
+    this.drawHUD(ctx, state);
   }
 
   // ── 배경 ──
   private drawBackground(ctx: CanvasRenderingContext2D): void {
-    // 손님 카운터(윗 띠)
+    // 손님 카운터(좌석 아래 띠)
     ctx.fillStyle = C.counter;
-    ctx.fillRect(0, 118, LOGICAL_W, 14);
+    ctx.fillRect(0, 150, LOGICAL_W, 12);
     ctx.fillStyle = C.counterEdge;
-    ctx.fillRect(0, 118, LOGICAL_W, 4);
-    // 조리대(냄비 띠)
+    ctx.fillRect(0, 150, LOGICAL_W, 4);
+    // 조리대(냄비 아래 띠)
     ctx.fillStyle = C.counter;
-    ctx.fillRect(0, 244, LOGICAL_W, 40);
+    ctx.fillRect(0, 268, LOGICAL_W, 34);
     ctx.fillStyle = C.counterEdge;
-    ctx.fillRect(0, 244, LOGICAL_W, 5);
+    ctx.fillRect(0, 268, LOGICAL_W, 5);
   }
 
   // ── 손님 좌석 ──
@@ -382,25 +382,27 @@ export class RamenRenderer {
     }
   }
 
-  // ── HUD (스크린 좌표) ──
-  private drawHUD(ctx: CanvasRenderingContext2D, state: RenderState, w: number): void {
-    const cardW = 190;
-    const cardH = 42;
-    this.roundRect(ctx, w / 2 - cardW / 2, 8, cardW, cardH, 13);
+  // ── HUD (논리 좌표, 좌상단 매출 / 우상단 타이머 — 중앙 상단 말풍선과 안 겹침) ──
+  private drawHUD(ctx: CanvasRenderingContext2D, state: RenderState): void {
+    // 매출 카드 (좌상단)
+    const cardW = 176;
+    const cardH = 34;
+    this.roundRect(ctx, 12, 8, cardW, cardH, 12);
     ctx.fillStyle = C.hudCard;
     ctx.fill();
     ctx.lineWidth = 2;
     ctx.strokeStyle = C.hudBorder;
     ctx.stroke();
-    ctx.textAlign = 'center';
+    ctx.textAlign = 'left';
     ctx.textBaseline = 'middle';
     ctx.fillStyle = C.money;
-    ctx.font = `900 22px ${FONT}`;
-    ctx.fillText(`💰 ${state.earnings.toLocaleString()}원`, w / 2, 8 + cardH / 2);
+    ctx.font = `900 20px ${FONT}`;
+    ctx.fillText(`💰 ${state.earnings.toLocaleString()}원`, 24, 8 + cardH / 2);
 
-    const rcx = 40;
-    const rcy = 40;
-    const rr = 26;
+    // 타이머 링 (우상단)
+    const rcx = LOGICAL_W - 40;
+    const rcy = 32;
+    const rr = 22;
     const ratio = state.totalMs > 0 ? Math.max(0, state.remainMs / state.totalMs) : 0;
     const remainSec = Math.ceil(state.remainMs / 1000);
     ctx.strokeStyle = C.ringBg;
@@ -416,7 +418,7 @@ export class RamenRenderer {
     ctx.stroke();
     ctx.lineCap = 'butt';
     ctx.fillStyle = remainSec <= 10 ? C.ringWarn : C.text;
-    ctx.font = `900 16px ${FONT}`;
+    ctx.font = `900 15px ${FONT}`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.fillText(String(Math.max(0, remainSec)), rcx, rcy);

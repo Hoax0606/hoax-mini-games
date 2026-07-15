@@ -66,6 +66,9 @@ class RamenShopGame implements GameModule {
   private durationMs = 180_000;
   private startedAt = 0;
   private lastClockAt = 0;
+  /** 게스트: 호스트의 첫 시계(rs:clock)를 받아 영업 개시했는지. 그 전엔 손님·타이머 정지
+   *  → 카운트다운 편차와 무관하게 호스트 시작에 맞춰 공정하게 개시. 호스트는 항상 true. */
+  private clockSynced = false;
 
   private rafId: number | null = null;
   private destroyed = false;
@@ -91,6 +94,7 @@ class RamenShopGame implements GameModule {
     const dur = Number(ctx.roomOptions['duration']);
     this.durationMs = (Number.isFinite(dur) && dur > 0 ? dur : 180) * 1000;
 
+    this.clockSynced = this.isHost; // 호스트는 시계 기준이라 즉시 개시. 게스트는 첫 clock 대기.
     this.upgrades = initialUpgrades();
     this.pots = initialPots(this.upgrades.pots);
 
@@ -128,6 +132,7 @@ class RamenShopGame implements GameModule {
           for (const c of this.customers) c.seatedGt += d;
         }
         this.startedAt = newStart;
+        this.clockSynced = true; // 호스트 첫 신호 도착 → 영업 개시
       }
       return;
     }
@@ -183,9 +188,10 @@ class RamenShopGame implements GameModule {
     if (this.destroyed) return;
     const now = performance.now();
     const gameTime = now - this.startedAt;
-    const remainingMs = Math.max(0, this.durationMs - gameTime);
+    // 아직 개시 전(게스트가 호스트 clock 대기)이면 타이머는 full 로 표시(카운트 안 함)
+    const remainingMs = this.clockSynced ? Math.max(0, this.durationMs - gameTime) : this.durationMs;
 
-    if (!this.gameFinished && !this.paused && !this.isSpectator) {
+    if (!this.gameFinished && !this.paused && !this.isSpectator && this.clockSynced) {
       this.stepPots(gameTime);
       this.stepCustomers(gameTime);
     }
@@ -195,7 +201,7 @@ class RamenShopGame implements GameModule {
       this.ctx.sendToPeer(encodeClock(remainingMs));
     }
 
-    if (!this.gameFinished && remainingMs <= 0) {
+    if (!this.gameFinished && this.clockSynced && remainingMs <= 0) {
       this.gameFinished = true;
       sound.play('tetris_topout');
       if (!this.isSpectator) this.ctx.sendToPeer(encodeScore(this.myPeerId, this.earnings));
