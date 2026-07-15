@@ -135,9 +135,9 @@ function openChangeGameOverlay(
     roomState: RoomState;
     onStart: (gameId: string, options: Record<string, string>) => void;
   },
-): void {
-  // 이미 열려있으면 무시
-  if (parent.querySelector('#change-game-overlay')) return;
+): () => void {
+  // 이미 열려있으면 무시 (정리할 것 없음)
+  if (parent.querySelector('#change-game-overlay')) return () => {};
 
   const overlayHTML = buildChangeGameOverlayHTML(
     args.roomState.players.length,
@@ -209,6 +209,10 @@ function openChangeGameOverlay(
     document.removeEventListener('keydown', onKeyDown);
     args.onStart(selectedGameId, selectedOptions);
   });
+
+  // 결과 화면이 (취소/시작/ESC 없이) 다른 경로로 dispose 될 때 document keydown 리스너가
+  // 남지 않도록 정리 함수를 돌려준다. closeOverlay 는 중복 호출해도 안전.
+  return closeOverlay;
 }
 
 function buildResultHTML(args: {
@@ -1342,6 +1346,8 @@ export function createResultScreenAsHostScreen(args: ResultScreenAsHostArgs): Sc
   const { host, roomState, result, isPrivate, password } = args;
   let closeOnDispose = true;
   let cleanupChat: (() => void) | null = null;
+  /** "다른 게임 선택" 오버레이 정리 함수 (열려있으면 document keydown 리스너 제거) */
+  let cleanupChangeGame: (() => void) | null = null;
 
   // 전적 기록 (호스트는 관전자 될 일 없음 → isSpectator=false 고정)
   recordResultToStats(roomState.gameId, result.winner, result.summary, false);
@@ -1510,7 +1516,7 @@ export function createResultScreenAsHostScreen(args: ResultScreenAsHostArgs): Sc
 
       // 다른 게임 선택 — 결과 카드 위에 오버레이로 게임/옵션 선택 모달 띄움
       changeGameBtn.addEventListener('click', () => {
-        openChangeGameOverlay(el, {
+        cleanupChangeGame = openChangeGameOverlay(el, {
           roomState,
           onStart: (newGameId, newOptions) => {
             const newRoomState: RoomState = {
@@ -1560,6 +1566,8 @@ export function createResultScreenAsHostScreen(args: ResultScreenAsHostArgs): Sc
       host.onMessage = null;
       cleanupChat?.();
       cleanupChat = null;
+      cleanupChangeGame?.();
+      cleanupChangeGame = null;
       if (closeOnDispose) host.close();
     },
   };

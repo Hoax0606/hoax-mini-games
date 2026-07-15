@@ -1683,6 +1683,8 @@ input {
   justify-content: center;
   z-index: 200;
   animation: fadeIn 0.18s ease-out;
+  /* 모달 스크롤 체이닝 차단 (뒤 페이지 스크롤 방지) */
+  overscroll-behavior: contain;
 }
 .game-menu-overlay[hidden] { display: none; }
 
@@ -2393,6 +2395,8 @@ input {
   z-index: 600;
   padding: 24px;
   overflow-y: auto;
+  /* 모달 스크롤이 끝에 닿아도 뒤 페이지로 번지지 않게 (스크롤 체이닝 차단) */
+  overscroll-behavior: contain;
 }
 
 .change-game-card-wrap {
