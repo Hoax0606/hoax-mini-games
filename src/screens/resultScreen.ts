@@ -1507,6 +1507,95 @@ function buildFortressResultHTML(args: {
 }
 
 // ============================================
+// 똥 피하기 전용 결과 HTML
+// ============================================
+
+interface DodgeRankEntry {
+  peerId: string;
+  nickname: string;
+  rank: number;
+  survivalMs: number;
+}
+
+interface DodgeSummary {
+  myPeerId: string;
+  totalPlayers: number;
+  rankings: DodgeRankEntry[];
+}
+
+function parseDodgeSummary(summary: Record<string, unknown>): DodgeSummary | null {
+  if (summary['gameId'] !== 'dodge') return null;
+  const myPeerId = typeof summary['myPeerId'] === 'string' ? (summary['myPeerId'] as string) : null;
+  const totalPlayers = typeof summary['totalPlayers'] === 'number' ? (summary['totalPlayers'] as number) : null;
+  if (!myPeerId || totalPlayers === null) return null;
+  const rawRankings = summary['rankings'] as unknown;
+  const rankings: DodgeRankEntry[] = Array.isArray(rawRankings)
+    ? (rawRankings as Array<Partial<DodgeRankEntry>>)
+        .filter((r) =>
+          typeof r.peerId === 'string' &&
+          typeof r.nickname === 'string' &&
+          typeof r.rank === 'number' &&
+          typeof r.survivalMs === 'number')
+        .map((r) => ({ peerId: r.peerId!, nickname: r.nickname!, rank: r.rank!, survivalMs: r.survivalMs! }))
+    : [];
+  return { myPeerId, totalPlayers, rankings };
+}
+
+function buildDodgeResultHTML(args: {
+  myWinner: 'me' | 'opponent' | null;
+  summary: DodgeSummary;
+  isHost: boolean;
+  isSpectator: boolean;
+}): string {
+  const { myWinner, summary, isHost, isSpectator } = args;
+  const { emoji, title, titleClass } = isSpectator
+    ? { emoji: '💩', title: '똥 피하기 종료', titleClass: 'result-title-draw' }
+    : winnerVisuals(myWinner);
+  const actionsHTML = buildActionsHTML(isHost);
+
+  const myEntry = summary.rankings.find((r) => r.peerId === summary.myPeerId);
+  const myBlock = isSpectator || !myEntry ? '' : `
+    <div class="result-tetris-rank">
+      <span class="result-tetris-rank-num">${myEntry.rank}</span> / ${summary.totalPlayers}위
+    </div>
+    <div class="result-apple-myscore">
+      <div class="result-apple-myscore-label">⏱ 내 생존시간</div>
+      <div class="result-apple-myscore-value">${(myEntry.survivalMs / 1000).toFixed(1)}초</div>
+    </div>
+  `;
+
+  const rankingsHTML = summary.rankings.length >= 1 ? `
+    <div class="result-tetris-rankings">
+      <div class="result-tetris-rankings-title">🏅 생존 순위</div>
+      ${summary.rankings.map((r) => {
+        const isMe = r.peerId === summary.myPeerId;
+        const badgeClass = r.rank <= 3 ? `rank-${r.rank}` : '';
+        return `
+          <div class="result-tetris-rank-row ${isMe ? 'is-me' : ''}">
+            <span class="result-tetris-rank-badge ${badgeClass}">${r.rank}</span>
+            <span class="result-tetris-rank-name">${escapeHtml(r.nickname)}</span>
+            <span class="result-apple-rank-score">${(r.survivalMs / 1000).toFixed(1)}초</span>
+            ${isMe ? '<span class="result-tetris-rank-me-tag">나</span>' : ''}
+          </div>
+        `;
+      }).join('')}
+    </div>
+  ` : '';
+
+  return `
+    <div class="result-card result-card-tetris">
+      <div class="result-emoji">${emoji}</div>
+      <div class="result-title ${titleClass}">${title}</div>
+      ${myBlock}
+      ${rankingsHTML}
+      <div class="result-actions">
+        ${actionsHTML}
+      </div>
+    </div>
+  `;
+}
+
+// ============================================
 // 호스트 결과 화면
 // ============================================
 
@@ -1547,6 +1636,7 @@ export function createResultScreenAsHostScreen(args: ResultScreenAsHostArgs): Sc
       const liar = parseLiarSummary(result.summary);
       const ramen = parseRamenSummary(result.summary);
       const bomb = parseBombSummary(result.summary);
+      const dodge = parseDodgeSummary(result.summary);
       if (tetris) {
         el.innerHTML = buildTetrisResultHTML({
           myWinner: result.winner,
@@ -1556,6 +1646,10 @@ export function createResultScreenAsHostScreen(args: ResultScreenAsHostArgs): Sc
           rankings: tetris.rankings,
           myPeerId: tetris.myPeerId,
           isHost: true,
+        });
+      } else if (dodge) {
+        el.innerHTML = buildDodgeResultHTML({
+          myWinner: result.winner, summary: dodge, isHost: true, isSpectator: false,
         });
       } else if (reflex) {
         el.innerHTML = buildReflexResultHTML({
@@ -1805,6 +1899,7 @@ export function createResultScreenAsGuestScreen(args: ResultScreenAsGuestArgs): 
       const liar = parseLiarSummary(result.summary);
       const ramen = parseRamenSummary(result.summary);
       const bomb = parseBombSummary(result.summary);
+      const dodge = parseDodgeSummary(result.summary);
       // 관전자는 summary.myPeerId 가 자기가 아닐 수 있음 — 자기 peerId 는 guest.myPeerId.
       // rankings 에 "나" 가 없으면 관전자로 간주.
       const myPeerIdForResult = guest.myPeerId;
@@ -1817,6 +1912,14 @@ export function createResultScreenAsGuestScreen(args: ResultScreenAsGuestArgs): 
           rankings: tetris.rankings,
           myPeerId: tetris.myPeerId,
           isHost: false,
+        });
+      } else if (dodge) {
+        const isSpec = !dodge.rankings.some((r) => r.peerId === myPeerIdForResult);
+        el.innerHTML = buildDodgeResultHTML({
+          myWinner: result.winner,
+          summary: isSpec ? { ...dodge, myPeerId: myPeerIdForResult } : dodge,
+          isHost: false,
+          isSpectator: isSpec,
         });
       } else if (reflex) {
         const isSpec = !reflex.rankings.some((r) => r.peerId === myPeerIdForResult);
@@ -2096,6 +2199,14 @@ export function recordResultToStats(
     const mine = rankings?.find((r) => r.peerId === myPeerId);
     if (mine && Number.isFinite(mine.score)) {
       bestEntries.push({ key: 'bestScore', value: mine.score, higherIsBetter: true });
+    }
+  } else if (id === 'dodge') {
+    // 똥 피하기: 내 최고 생존시간(초, 높을수록 좋음)
+    const rankings = summary['rankings'] as Array<{ peerId: string; survivalMs: number }> | undefined;
+    const myPeerId = summary['myPeerId'] as string | undefined;
+    const mine = rankings?.find((r) => r.peerId === myPeerId);
+    if (mine && Number.isFinite(mine.survivalMs) && mine.survivalMs > 0) {
+      bestEntries.push({ key: 'bestSurvivalSec', value: Math.round(mine.survivalMs / 100) / 10, higherIsBetter: true });
     }
   }
   // 에어하키/오목은 승/패만 기록

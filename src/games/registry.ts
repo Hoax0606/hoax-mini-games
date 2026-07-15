@@ -24,6 +24,7 @@ import liarGameThumbnail from './liar-game/thumbnail.svg';
 import ramenShopThumbnail from './ramen-shop/thumbnail.svg';
 import bombWordChainThumbnail from './bomb-wordchain/thumbnail.svg';
 import storyDrawThumbnail from './story-draw/thumbnail.svg';
+import dodgeThumbnail from './dodge/thumbnail.svg';
 
 export const games: GameEntry[] = [
   {
@@ -371,6 +372,32 @@ export const games: GameEntry[] = [
     load: async () => {
       const mod = await import('./bomb-wordchain');
       return mod.createBombWordChainGame();
+    },
+  },
+  {
+    meta: {
+      id: 'dodge',
+      name: '똥 피하기',
+      description: '위에서 쏟아지는 💩를 피해라! 좌우로 움직이고 Space로 짧게 대시(쿨다운). 오래 버틸수록 고순위, 마지막 생존자 승. 낙하 패턴은 전원 동일(공정) 또는 각자 랜덤 선택.',
+      thumbnail: dodgeThumbnail,
+      minPlayers: 1,
+      maxPlayers: 10,
+      roomOptions: [
+        {
+          key: 'pattern',
+          label: '낙하 패턴',
+          type: 'select',
+          choices: [
+            { value: 'same', label: '동일 (전원 같은 패턴·공정)' },
+            { value: 'random', label: '랜덤 (각자 다른 패턴)' },
+          ],
+          defaultValue: 'same',
+        },
+      ],
+    },
+    load: async () => {
+      const mod = await import('./dodge');
+      return mod.createDodgeGame();
     },
   },
 ];
