@@ -3,7 +3,24 @@
 다른 머신(집)에서 이 프로젝트를 이어서 작업할 때 읽는 문서.
 **Claude Code 첫 프롬프트로 "HANDOFF.md 정독하고 이어서 진행해줘" 라고 시작하면 됨.**
 
-마지막 업데이트: **2026-07-15** (똥 피하기 신규 + 다인 10인 확대 + 서버 안정성 + 스토리텔링 + 그림도구 개편 + 포트리스 물리 + 대규모 버그 스윕)
+마지막 업데이트: **2026-07-17** (UI 대개편: 컬러 아이콘 + 재연결 유예 + 준비 시스템 + 대기실 개편 + 포트리스 카메라·유도탄 + 결과화면 대기실복귀 + 테트리스 폴리시)
+
+### 🗓️ 2026-07-17 세션 — UI 리디자인 + P2P 안정성 + 포트리스 확장
+- **🎨 UI 전면 리디자인(Solar 컬러 아이콘 + apple-design 톤)** — 이모지를 **Solar Bold Duotone 아이콘**으로 통일. `src/ui/icons.ts` 신규(약 28종 SVG 정적 인라인, MIT, 의존성/네트워크 X. `icon(name,{size,hue})`, 색은 `--hue` 커스텀 속성→hover 로 덮어쓰기 가능). theme.css 공용: `.ic`, 눌림 스프링(`.btn:active scale .97`), 등장 모션(`.pop-in`/`.stagger-in`, prefers-reduced-motion 대응), 메뉴 프로스티드 카드(`.menu-card`, hover 시 핑크). **적용 범위**: 메뉴·방만들기·방찾기·게임목록·통계·닉네임·설정·대기실(호스트/게스트)·결과·게임 chrome(인게임 메뉴 모달)·채팅·상태배지. **일부러 유지**: 감정/반응 이모지(😊🎉💥 리액션·결과 대표 🏆💫⚖️), 🎀 대기실 리본은 sofa 아이콘으로 교체. **게임 속 캔버스 HUD 이모지 = 나중에(게임별 개선 때 함께) / 게임 썸네일 = 그대로 유지** (Henry 결정).
+- **🔌 재연결 유예(reconnect grace)** — 순간 끊김(WiFi/ICE/백그라운드)에 바로 "방장이 나갔어요"로 튕기던 것 완화. 게스트: 끊기면 GUEST_RECONNECT_WINDOW_MS(9s) 재시도 + "재연결 중" 오버레이(`src/ui/reconnectOverlay.ts`), 성공 시 복구/실패 시 기존 안내. 호스트: HOST_GRACE_MS(12s) 동안 방에 남겨두고 같은 peerId 재연결 시 conn 만 교체(플레이어 목록 유지)+room_state 재전송. 게스트 창(9s)<호스트 유예(12s)라 유예 만료 후 좀비 강등 없음. 자발적 퇴장은 `LeaveMsg`로 즉시 제거(close 시 150ms flush). `onGuestReconnected` 콜백. **적대적 리뷰 6건 반영**(leave flush, 재연결 conn 교체 순서, room_state 미처리 등). *디스커넥트 N인 방 유지(아래 🅐)를 일부 완화 — 짧은 끊김은 이제 자동 복구.*
+- **✅ 준비(Ready) 시스템** — 게스트 대기실 버튼을 '준비 ↔ 준비 취소' 토글로. **전원 준비돼야 방장 시작 가능**(미준비 N명 표시). 참가자 목록에 준비 배지(준비완료=초록). 게임/설정 바뀌면 준비 리셋. `Player.ready` + `ReadyMsg`.
+- **🏠 대기실 개편** — 설정 UI를 우측 타일 그리드 아래 **고정 바**(옵션 유무 무관 동일 크기, 한 줄). '공개/비공개' 배지 제거. **게스트도 방장과 동일한 2-pane UI**(참가자 | 게임 타일+설정) 읽기 전용으로 현재 선택 게임 확인.
+- **🔄 결과 화면 '대기실로 이동'** — 즉석 게임선택 오버레이 제거 → 방장/게스트 모두 **방 대기실로 복귀**(연결 유지, `ReturnToLobbyMsg`, `WaitingRoomAsHostArgs.initialPlayers`로 연결된 게스트 seed·준비 리셋)해 거기서 게임 고르고 전원 준비 후 시작. '다시 하기'는 유지.
+- **🏰 포트리스 카메라 + 맵 확대** — 세로 화면 채우는 스케일(포대 크기 일정) + **가로 카메라 스크롤**(자동: 현재 포대/포탄 따라감, 수동: 마우스 휠 / ← →). 맵 폭을 **포대 개수 비례**(포대당 ~190px, 최소 900, `mapWidthForForts`)로 넓혀 6인 2포대(12개)도 안 붙음. 지형 복잡도↑(사인 진폭+4번째 레이어). `MAX_VIEW_W`(820) 캡으로 넓은 화면에서도 포대 크게+스크롤 여지. rect.height=0 시 카메라 NaN 영구 멈춤 버그 수정.
+- **🎯 포트리스 진짜 유도탄** — '바람 무시 포탄'에서 실제 유도 미사일로. 유도탄 선택 시 드래그 대신 **적 포대 클릭→타겟 락(레티클+조준선), 재클릭→발사**. 발사 후 타겟 향해 제한 선회 호밍(등속, 중력/바람 무시, 고정 SIM_DT라 결정론), 기존 스윕 충돌 재사용 → **중간 지형/포대에 막히면 거기서 폭발**. `fr:fire`에 targetX/Y. **결정론 리뷰 통과**(브로드캐스트 파라미터+고정스텝으로만 궤적 계산).
+- **🧱 배틀 테트리스 폴리시** — 블록 각진 사각형→모서리 둥글리기(roundRect), ARR 45→30ms·DAS 160→150ms(좌우 이동 가볍게).
+- **✂️ 말줄임표 제거** — 모든 UI 텍스트에서 `…`/`...` 제거(로딩/상태 문구). 닉네임 잘림 표시(`slice()+'…'`)는 기능 표시라 유지.
+- **⏱ 스토리텔링 컷 시간** — 60/120 → **120/180초**(기본 120).
+- **⚠️ 미검증(런타임 테스트 필요)**: 포트리스 카메라·유도탄(2인+), 재연결 유예(끊김 시나리오), 결과화면 대기실복귀 흐름. **커밋 다수 쌓임 → push 필요.**
+
+---
+
+### 🗓️ 2026-07-15 세션
 - **🆕 똥 피하기(dodge) 게임** — 1~10인 배틀로얄. 위에서 떨어지는 💩를 ← → 이동 + Space 대시(쿨다운 1.5초)로 피함. 마지막 생존자 승, 순위=생존시간. **독립 시뮬 + 결정론적 낙하물**(위치=시드+경과시간 순수함수, mulberry32) — 방옵션 `낙하 패턴` 동일(전원 같은 패턴·공정)/랜덤(각자). capped simT 통일로 렉 시 터널링·정지중낙하 방지. 호스트가 dg:hb 집계→dg:standings broadcast, 마지막 생존자+3분 워치독. `dodge/`. **미검증(런타임 테스트 필요)**. (공격변형 ⭐먹으면 상대에 똥폭탄 = 후속 아이디어)
 - **👥 다인 게임 10인 확대** — 2인 전용(에어하키·오목)·알까기(판 구조상 4인 유지) 빼고 **전부 최대 10인**. 크래시 유발 제거(fortress/liar/word-chain throw 상한↑, FortIndex/PlayerIndex→number, 포트리스 색 6→10). 레이아웃 적응화(테트리스 미니뷰 2행+관전 동적격자, 반응속도/끝말잇기/폭탄/다트/그림퀴즈/라이어 패널 축소·2열·행높이 자동). 길이/성능 상한(그림퀴즈 15라운드, 스토리텔링 짧게≤6턴, 라이어 7인+ 힌트1바퀴, 테트리스 7인+ 전송 5.5Hz). **알까기는 다른 형식으로 재설계 예정(이번 제외).**
 - **🌐 서버 안정성 완료** — 콜드스타트(Render 무료 티어 슬립, 접속 한참 걸림)를 **cron-job.org 5분 핑 keep-warm**으로 제거(외부 설정, 코드 아님). **metered.ca 무료 TURN**(대칭 NAT/회사망 커버, `netConfig.ts`에 클라이언트용 자격증명 하드코딩·env 덮어쓰기 가능). peer.ts **연결 재시도**(일시적 실패 backoff, create ~40초/connect ~56초 상한). *진단: 트래픽 아니고 시그널링 서버 콜드스타트였음. C안(Firebase 시그널링 전환)은 peer.ts 재작성 리스크 커서 보류.*
@@ -50,13 +67,16 @@ npm run dev       # http://localhost:5173
 | 5 | 결과 화면 다인용 | ✅ 게임별 전용 UI |
 
 **다음 작업** (우선순위):
-- 🅐 **디스커넥트 시 N인 방 유지** (이번 세션 미해결, 규모 큼) — 지금은 플레이어 1명 나가면 방 전체 종료(메뉴로). N인 게임(테트리스/라이어 등)에선 남은 사람으로 계속돼야 함. 필요: `GameModule.onPlayerLeft?(peerId)` 훅 추가 + gameScreen 이 이탈을 게임에 전달 + **게임별로** 턴/생존/대기 집합에서 드롭 처리 + 실제 3인+ 테스트. 타임아웃 있는 게임(끝말잇기/라이어/포트리스/반응속도/사과/스토리텔링)은 어느 정도 견디고, **취약: 배틀테트리스(마지막 2인)·다트·알까기(턴 대기)**. 관련: 결과화면 재대결도 1명 이탈 시 N인인데 막힘([resultScreen.ts](src/screens/resultScreen.ts) onGuestDisconnected).
-- 🅑 **플레이테스트(미검증 다수)** — 창 3~10개로: 똥피하기(동일 모드 낙하물 전원 일치/대시/순위·10인 패널), 스토리텔링(컷 회전/슬라이드쇼), 그림퀴즈(채우기/스포이드/Undo), 라이어, 그리고 **10인 확대 게임들 레이아웃**(테트리스 미니뷰·다트 2열·그림퀴즈 점수판 등). 소스+빌드까진 됐고 런타임은 안 봄.
-- 🅒 **알까기 재설계** — 판 4변 배치라 5인+ 불가. "먼저 치면 유리" 밸런스 문제도 있어 **다른 형식의 게임으로 갈아엎기로** 함(Henry). 4인 그대로 두거나 신규 기획.
-- 🅓 **똥 피하기 공격변형(후속)** — ⭐ 아이템 먹으면 랜덤 상대에게 똥폭탄 투하(테트리스 쓰레기줄식). 방옵션이나 후속.
-- 🅔 **남은 저위험 UI** — 모달 스크롤락, N인 게임 헤더 2명만 표시, 결과화면 change-game keydown 누수, 다트 결과 랭크 여백.
-- (선택) 리팩토링 — `renderResultCard` 범용화(resultScreen 분기 11개 → 게임 자체 그리기) / gameScreen factory 공통화 / draw-quiz·story-draw 그림엔진 공용 모듈 추출.
-- (보류) **Phase 3 방장 이양** — Henry 당분간 안 함.
+- 🅟 **PUSH 먼저** — 2026-07-17 세션 커밋 다수 미푸시. `git push` → GitHub Actions 자동 배포. (Henry 가 직접 push)
+- 🅐 **플레이테스트(미검증 신규)** — 창 2~10개 실제 브라우저로: **포트리스 카메라·유도탄**(휠/화살표 스크롤, 적 포대 클릭→재클릭 발사, 호밍이 지형에 막히는지, 호/게 궤적 동일), **재연결 유예**(한쪽 WiFi 껐다 켜기 → 튕기지 말고 복구), **결과화면 '대기실로 이동'**(전원 대기실 복귀+재준비), **준비 시스템**(전원 준비 게이팅). 그리고 이전 미검증분(똥피하기/스토리텔링/그림퀴즈/라이어 + 10인 레이아웃).
+- 🅑 **게임 속 캔버스 HUD 아이콘화** (이번에 **나중으로 미룸** — Henry 결정) — 플랫폼 HTML UI 는 이번에 Solar 컬러 아이콘으로 통일 완료. 게임 캔버스 내부 HUD(점수/시간/상태 라벨 이모지)는 HTML 이 아니라 SVG 를 이미지로 캔버스에 그려넣는 헬퍼가 필요 → **각 게임 개선할 때 그 게임에서 함께** 처리. 감정/반응·게임 오브젝트 이모지는 유지. **게임 썸네일 일러스트는 그대로 유지**(아이콘 아닌 삽화, 이미 파스텔 톤 통일).
+- 🅒 **디스커넥트 시 N인 방 유지** (규모 큼, 일부 완화됨) — 짧은 끊김은 이제 재연결 유예로 자동 복구되지만, **진짜 이탈(장시간/탭 닫음)** 시 N인 게임에서 남은 사람으로 계속되는 건 여전히 미구현(플레이어 1명 나가면 방 종료). 필요: `GameModule.onPlayerLeft?(peerId)` 훅 + gameScreen 전달 + **게임별** 턴/생존/대기 드롭 처리 + 3인+ 테스트. **취약: 배틀테트리스(마지막 2인)·다트·알까기(턴 대기)**.
+- 🅓 **알까기 재설계** — 판 4변 배치라 5인+ 불가. "먼저 치면 유리" 밸런스 문제도 있어 **다른 형식의 게임으로 갈아엎기로** 함(Henry). 4인 그대로 두거나 신규 기획.
+- 🅔 **똥 피하기 공격변형(후속)** — ⭐ 아이템 먹으면 랜덤 상대에게 똥폭탄 투하(테트리스 쓰레기줄식). 방옵션이나 후속.
+- 🅕 **남은 저위험 UI** — 모달 스크롤락, N인 게임 헤더 2명만 표시, 다트 결과 랭크 여백. (결과화면 change-game keydown 누수는 오버레이 제거로 해소됨.)
+- **포트리스 유도탄 튜닝 여지** — 필요 시 `GUIDED_SPEED`(340)·`GUIDED_TURN_RATE`(3.4)·`GUIDED_LOFT`(150) / 카메라 `MAX_VIEW_W`(820)·스크롤 감도 조정.
+- (선택) 리팩토링 — `renderResultCard` 범용화(resultScreen 분기 → 게임 자체 그리기) / gameScreen factory 공통화 / draw-quiz·story-draw 그림엔진 공용 모듈 추출.
+- (보류) **Phase 3 방장 이양** — Henry 당분간 안 함. (재연결 유예로 순간 끊김은 완화됨.)
 
 ---
 
@@ -149,7 +169,7 @@ src/
 │       ├── index.ts             #   입력(←→+Space대시 쿨다운) + capped simT 시뮬 + 호스트 순위/종료
 │       └── netSync.ts           #   dg:hello/start/hb/standings/end
 ├── screens/
-│   ├── menu.ts                  # 메인 메뉴 (🎮 시작 / 🌐 공개방 / 📊 통계 / ✏️ 닉 / ⚙️ 설정)
+│   ├── menu.ts                  # 메인 메뉴 (방 만들기/방 찾기/게임 목록/통계/닉네임/설정 — Solar 컬러 아이콘 + 프로스티드 카드)
 │   ├── nickname.ts, settings.ts, gameList.ts, lobby.ts
 │   ├── createRoom.ts, joinRoom.ts    # joinRoom: initialCode/autoJoin 지원 (URL 공유 입장)
 │   ├── waitingRoom.ts           # 호스트/게스트 factory + "🔗 링크" + 리액션 + 채팅 패널 + Firebase publish
@@ -158,10 +178,13 @@ src/
 │   ├── publicRooms.ts           # 🆕 Firebase publicRooms 실시간 구독 → 카드 리스트 → 클릭 시 autoJoin
 │   └── resultScreen.ts          # 게임별 전용 결과 분기 (테트리스/사과/오목/반응속도/다트/알까기/끝말잇기/그림퀴즈/포트리스/라이어/스토리텔링=감상완료)
 ├── ui/
-│   ├── theme.css                # 팔레트 + 컴포넌트 스타일 (chat-panel / public-room-card / wc-input)
-│   ├── reactions.ts             # 이모지 6종 버튼 + 하단 풍선 애니 (400ms throttle)
-│   ├── chat.ts                  # 채팅 사이드패널 build/wire/append + 방 내부 history 유지
-│   ├── escape.ts                # 🆕 escapeHtml / escapeAttr 단일 출처 (12곳 중복 통합)
+│   ├── theme.css                # 팔레트 + 컴포넌트 스타일 (chat-panel / public-room-card / wc-input / .ic / .menu-card / 모션유틸)
+│   ├── icons.ts                 # 🆕 Solar Bold Duotone 아이콘 세트(SVG 정적 인라인, MIT) + icon(name,{size,hue}) 헬퍼
+│   ├── reactions.ts             # 이모지 6종 버튼 + 하단 풍선 애니 (400ms throttle) — 감정 이모지라 유지
+│   ├── chat.ts                  # 채팅 사이드패널 build/wire/append + 방 내부 history 유지 (chat 아이콘)
+│   ├── reconnectOverlay.ts      # 🆕 재연결 중 오버레이 show/hide (게스트 순간 끊김 시)
+│   ├── gamePicker.ts            # 게임 타일 그리드/옵션 HTML (대기실 인라인). openGamePickerOverlay 는 이제 미사용
+│   ├── escape.ts                # escapeHtml / escapeAttr 단일 출처
 │   └── logo.png                 # 메인 로고 이미지
 └── .github/workflows/deploy.yml # GitHub Pages 자동 배포
 ```
@@ -177,6 +200,10 @@ src/
 - `reaction` — 이모지 반응 broadcast. 대기실/게임 화면에 풍선 뜸.
 - `pause` / `resume` — 인게임 메뉴 모달 열림/닫힘 시 broadcast. 호스트가 다른 게스트에 relay. 모든 클라이언트가 dim overlay + `gameModule.setPaused` 호출.
 - `chat` — 채팅 메시지. 게스트가 보내면 호스트가 받아 다른 게스트들에 relay. 본문 trim + maxLen 200, 250ms throttle, history 100개 cap.
+- `ready` — 🆕 게스트 대기실 준비 토글(게스트→호스트). 호스트가 `Player.ready` 갱신 후 room_state broadcast. 전원 준비돼야 시작.
+- `leave` — 🆕 게스트 자발적 퇴장 알림(방 나가기/탭 닫기 직전). 호스트가 재연결 유예 없이 즉시 제거(일시 끊김과 구분). GuestSession.close 가 150ms flush 후 destroy.
+- `return_to_lobby` — 🆕 결과 화면 '대기실로 이동'(호스트→게스트). 게스트도 대기실로 복귀(연결 유지). roomState 동봉(준비 리셋).
+- **재연결(전송계층, peer.ts 자동)** — conn 끊김 시 게스트가 재연결 시도, 호스트는 유예 후 제거. `HostSession.onGuestReconnected(peerId)→RoomState` 로 복구 시 상태 재전송. GuestSession `onReconnecting`/`onReconnected` 콜백(오버레이).
 
 **GameMessage** (게임 내부):
 - 에어하키: `ah:state` / `ah:input` / `ah:end`
@@ -187,6 +214,7 @@ src/
 - 다트: `dart:hello` / `dart:sync` (관전자 합류 시 현재 game state + stuckDarts 동기화) / `dart:throw` (투척자 초기 속도/위치 broadcast) / `dart:end` (호스트 per-peer 결과)
 - 스토리텔링: `sd:hello` / `sd:sync`(전체 상태) / `sd:turn`(새 턴, 좌석별 책/제시어/직전컷 유령 배정) / `sd:progress`·`sd:done`(그리는 사람→호스트, target=호스트로 relay 차단) / `sd:reveal`(전체 책) / `sd:end`(승패 없음)
 - 똥 피하기: `dg:hello` / `dg:start`(모드+시드) / `dg:hb`(생존시간/사망, 클라→호스트 target) / `dg:standings`(호스트→전체 생존현황) / `dg:end`(per-peer 순위)
+- 포트리스: `fr:hello` / `fr:sync`(지형 seed+크레이터+게임상태) / `fr:fire`(발사 — 각도/파워/시작좌표/바람/무기, **유도탄이면 targetX/Y** → 호밍 목표) / `fr:impact`(호스트 착탄 확정: 크레이터+HP+다음턴/바람) / `fr:move`(포대 이동) / `fr:end`. 궤적은 고정 SIM_DT(1/120) 결정론 재생, 유도탄도 동일(호밍은 브로드캐스트 파라미터로만 계산). 카메라(스크롤/줌)·타겟 레티클은 로컬 시각 전용(비결정론 무관).
 
 ### 역할 (GameContext.role + isSpectator)
 - `role: 'host'` — 방장. 승리 판정자.
@@ -446,8 +474,9 @@ setPaused?(paused: boolean): void;
 
 ## 🐛 알려진 이슈 / 개선 여지
 
-- **디스커넥트 시 N인 방 종료 (미해결, 다음 작업 🅐)** — 플레이어 1명 나가면 방 전체가 메뉴로. N인 게임에선 남은 사람으로 계속돼야 함. 게임별 `onPlayerLeft` 처리 필요 — 규모 큼.
-- **Phase 3 (방장 이양) 미구현 — 보류** — 방장 나가면 방 종료 (+ Firebase entry 도 onDisconnect 로 자동 제거). Henry 당분간 진행 의향 없음.
+- **재연결 유예 있음(2026-07-17)** — 순간 끊김(≤ 게스트 9s/호스트 12s)은 자동 복구(오버레이 표시). 그보다 긴 끊김·탭 닫음은 여전히 방 이탈로 처리.
+- **디스커넥트 시 N인 방 종료 (미해결, 다음 작업 🅒)** — 진짜 이탈 시 플레이어 1명 나가면 방 전체가 종료. N인 게임에선 남은 사람으로 계속돼야 함. 게임별 `onPlayerLeft` 처리 필요 — 규모 큼.
+- **Phase 3 (방장 이양) 미구현 — 보류** — 방장 나가면 방 종료 (+ Firebase entry 도 onDisconnect 로 자동 제거). 순간 끊김은 재연결 유예로 완화됨. Henry 당분간 진행 의향 없음.
 - **일시정지 키보드 입력 차단 안 됨** — pause overlay 가 canvas 위에 올라가서 마우스는 차단되지만, 게임 모듈이 `window` 레벨로 keydown 을 listen 하면 키 입력은 그대로 전달. 다만 각 게임 `setPaused(true)` 시 `performKey`/`onCanvasClick` 등에 paused 가드 추가돼서 실질 동작은 안 함.
 - **에어하키 관전자 비주얼** — 점수판 대신 "관전 중" 배지만. (테트리스는 v2 격자로 해결, 다른 게임은 그대로)
 - **사과 게임 솔버블 보장 X** — 단순 랜덤이라 운 나쁘면 덜 풀림.
