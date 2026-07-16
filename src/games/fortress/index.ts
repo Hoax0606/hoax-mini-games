@@ -184,6 +184,11 @@ class FortressGameModule implements GameModule {
   private mouseX: number | null = null;
   private mouseY: number | null = null;
 
+  // 카메라 수동 스크롤 — 휠/좌우 화살표로 맵을 둘러봄. null 이면 자동 따라가기.
+  private camUserX: number | null = null;
+  /** 자동 카메라가 마지막으로 중심 잡은 턴 — 턴 바뀌면 수동 스크롤 해제하고 재중심 */
+  private lastFocusTurn = -1;
+
   private paused = false;
   private pauseStart = 0;
 
@@ -485,13 +490,20 @@ class FortressGameModule implements GameModule {
       const power01 = Math.min(1, Math.hypot(dx, dy) / MAX_DRAG_PX);
       aim = { fromX: this.aimFromX, fromY: this.aimFromY, mx: this.mouseX, my: this.mouseY, power01 };
     }
-    // 카메라 포커스: 포탄이 날면 포탄(첫 번째)을, 아니면 현재 차례 포대를 따라간다.
+    // 턴이 바뀌면 수동 스크롤 해제하고 현재 포대로 재중심
+    if (this.game.currentTurn !== this.lastFocusTurn) {
+      this.lastFocusTurn = this.game.currentTurn;
+      this.camUserX = null;
+    }
+    // 카메라 포커스: 포탄이 날면 포탄을 따라가고(수동 해제), 아니면 수동 스크롤 위치 > 현재 포대.
     let focusX: number | undefined;
     if (this.shells.length > 0) {
       focusX = this.shells[0]!.x;
+      this.camUserX = null;
+    } else if (this.camUserX !== null) {
+      focusX = this.camUserX;
     } else {
-      const cur = this.game.forts.find((f) => f.id === this.game.currentTurn && f.alive);
-      focusX = cur?.x;
+      focusX = this.game.forts.find((f) => f.id === this.game.currentTurn && f.alive)?.x;
     }
     return {
       game: this.game,
@@ -705,14 +717,44 @@ class FortressGameModule implements GameModule {
 
   private attachInput(): void {
     this.ctx.canvas.addEventListener('mousedown', this.onDown);
+    this.ctx.canvas.addEventListener('wheel', this.onWheel, { passive: false });
     window.addEventListener('mousemove', this.onMove);
     window.addEventListener('mouseup', this.onUp);
+    window.addEventListener('keydown', this.onKeyPan);
   }
   private detachInput(): void {
-    if (this.ctx?.canvas) this.ctx.canvas.removeEventListener('mousedown', this.onDown);
+    if (this.ctx?.canvas) {
+      this.ctx.canvas.removeEventListener('mousedown', this.onDown);
+      this.ctx.canvas.removeEventListener('wheel', this.onWheel);
+    }
     window.removeEventListener('mousemove', this.onMove);
     window.removeEventListener('mouseup', this.onUp);
+    window.removeEventListener('keydown', this.onKeyPan);
   }
+
+  /** 카메라가 자동으로 따라갈 월드 x (날아가는 포탄 > 현재 포대) */
+  private autoFocusX(): number | undefined {
+    if (this.shells.length > 0) return this.shells[0]!.x;
+    return this.game.forts.find((f) => f.id === this.game.currentTurn && f.alive)?.x;
+  }
+
+  /** 마우스 휠 → 카메라 가로 스크롤 (수동). 발사되면 자동으로 포탄 따라감. */
+  private onWheel = (e: WheelEvent): void => {
+    e.preventDefault();
+    const w = this.game.terrainWidth;
+    const base = this.camUserX ?? this.autoFocusX() ?? w / 2;
+    const delta = e.deltaX !== 0 ? e.deltaX : e.deltaY;
+    this.camUserX = Math.max(0, Math.min(w, base + delta * 1.2));
+  };
+
+  /** ← / → 화살표로도 카메라 스크롤 */
+  private onKeyPan = (e: KeyboardEvent): void => {
+    if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+    e.preventDefault();
+    const w = this.game.terrainWidth;
+    const base = this.camUserX ?? this.autoFocusX() ?? w / 2;
+    this.camUserX = Math.max(0, Math.min(w, base + (e.key === 'ArrowLeft' ? -80 : 80)));
+  };
 
   /** 현재 차례 포대 (내 소유일 때만 조준 가능) */
   private currentFort(): Fort | undefined {
