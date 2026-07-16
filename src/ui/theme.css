@@ -491,6 +491,16 @@ input {
   border-color: var(--accent-soft);
 }
 
+/* 도감(게임 목록) 카드 — 클릭 없는 정보 표시용 */
+.game-card.is-static {
+  cursor: default;
+}
+.game-card.is-static:hover {
+  transform: none;
+  box-shadow: var(--shadow-sm);
+  border-color: var(--border-soft);
+}
+
 .game-card-thumb {
   width: 100%;
   height: 160px;

@@ -2,13 +2,14 @@ import type { Screen } from '../core/screen';
 import { router } from '../core/screen';
 import { storage } from '../core/storage';
 import type { HostSession, GuestSession, JoinRequest, JoinDecision } from '../core/peer';
-import { getGameById } from '../games/registry';
+import { getGameById, GLOBAL_MAX_PLAYERS } from '../games/registry';
 import type { Player, RoomState } from '../games/types';
 import { createGameScreenAsHostScreen, createGameScreenAsGuestScreen } from './gameScreen';
 import { buildReactionBarHTML, wireReactionBar, showReactionBubble } from '../ui/reactions';
 import { buildChatPanelHTML, wireChatPanel, appendChatMessage } from '../ui/chat';
 import type { ChatMsg } from '../games/types';
 import { publishRoom, updatePublicRoom, unpublishRoom } from '../core/roomDirectory';
+import { openGamePickerOverlay } from '../ui/gamePicker';
 import { escapeHtml } from '../ui/escape';
 
 /**
@@ -97,7 +98,10 @@ export interface WaitingRoomAsHostArgs {
 }
 
 export function createWaitingRoomAsHostScreen(args: WaitingRoomAsHostArgs): Screen {
-  const { host, gameId, isPrivate, password, roomOptions } = args;
+  const { host, isPrivate, password } = args;
+  // gameId/roomOptions 는 방 안에서 방장이 게임을 고르면 바뀐다 → let.
+  let gameId = args.gameId;
+  let roomOptions: Record<string, string> = { ...args.roomOptions };
 
   let closeOnDispose = true;
   let cleanupChatHost: (() => void) | null = null;
@@ -106,9 +110,11 @@ export function createWaitingRoomAsHostScreen(args: WaitingRoomAsHostArgs): Scre
   // 방 내부 상태 — guestPlayers는 방장 제외한 참가자들
   let guestPlayers: Player[] = [];
 
-  const game = getGameById(gameId);
-  const maxPlayers = game?.meta.maxPlayers ?? 2;
-  const minPlayers = game?.meta.minPlayers ?? 2;
+  // 게임이 아직 안 정해졌을 수 있음(gameId='') → 그때 정원은 전체 상한.
+  const currentGame = () => getGameById(gameId);
+  const maxPlayers = (): number => currentGame()?.meta.maxPlayers ?? GLOBAL_MAX_PLAYERS;
+  const minPlayers = (): number => currentGame()?.meta.minPlayers ?? 2;
+  const gameName = (): string => currentGame()?.meta.name ?? '게임 고르는 중';
 
   const hostPlayer: Player = {
     peerId: host.myPeerId,
@@ -135,13 +141,6 @@ export function createWaitingRoomAsHostScreen(args: WaitingRoomAsHostArgs): Scre
 
   return {
     render() {
-      if (!game) {
-        queueMicrotask(() => router.back());
-        return document.createElement('div');
-      }
-
-      const optionSummary = buildOptionSummary(snapshotRoomState(), gameId);
-
       const el = document.createElement('div');
       el.className = 'screen';
       el.innerHTML = `
@@ -149,7 +148,7 @@ export function createWaitingRoomAsHostScreen(args: WaitingRoomAsHostArgs): Scre
 
         <div class="card" style="min-width: 460px;">
           <div class="card-title">🎀 대기실</div>
-          <div class="card-subtitle">${escapeHtml(game.meta.name)}</div>
+          <div class="card-subtitle" id="game-name">${escapeHtml(gameName())}</div>
 
           <div class="room-code-box">
             <div class="room-code-label">방 코드</div>
@@ -161,12 +160,16 @@ export function createWaitingRoomAsHostScreen(args: WaitingRoomAsHostArgs): Scre
             <div class="room-code-hint">코드 또는 링크를 친구에게 공유하세요</div>
           </div>
 
+          <button class="btn btn-secondary btn-block" id="pick-game-btn" style="margin-bottom: 10px;">
+            🎲 게임 선택
+          </button>
+
           <div class="participants" id="participants"></div>
 
           <div class="room-info">
-            <span class="room-info-item">${escapeHtml(optionSummary)}</span>
+            <span class="room-info-item" id="option-summary"></span>
             <span class="room-info-item">${isPrivate ? '🔒 비공개' : '🌐 공개'}</span>
-            <span class="room-info-item" id="player-count">1 / ${maxPlayers}</span>
+            <span class="room-info-item" id="player-count">1 / ${maxPlayers()}</span>
           </div>
 
           <button class="btn btn-primary btn-lg btn-block" id="start-btn" disabled>
@@ -183,11 +186,14 @@ export function createWaitingRoomAsHostScreen(args: WaitingRoomAsHostArgs): Scre
 
       const participantsEl = el.querySelector<HTMLDivElement>('#participants')!;
       const startBtn = el.querySelector<HTMLButtonElement>('#start-btn')!;
+      const pickGameBtn = el.querySelector<HTMLButtonElement>('#pick-game-btn')!;
       const copyBtn = el.querySelector<HTMLButtonElement>('#copy-btn')!;
       const shareBtn = el.querySelector<HTMLButtonElement>('#share-btn')!;
       const leaveBtn = el.querySelector<HTMLButtonElement>('#leave-btn')!;
       const toastEl = el.querySelector<HTMLDivElement>('#toast')!;
       const playerCountEl = el.querySelector<HTMLSpanElement>('#player-count')!;
+      const gameNameEl = el.querySelector<HTMLDivElement>('#game-name')!;
+      const optionSummaryEl = el.querySelector<HTMLSpanElement>('#option-summary')!;
 
       // 공개/비공개 모두 디렉토리(Firebase)에 등록. 비공개방은 isPrivate=true 로 목록에 🔒 표시되고,
       // 입장하려면 비번을 입력해야 함(호스트 onJoinRequest 에서 검증). 게스트 입장/퇴장 때 인원 갱신.
@@ -196,34 +202,77 @@ export function createWaitingRoomAsHostScreen(args: WaitingRoomAsHostArgs): Scre
         roomId: host.roomId,
         hostNickname,
         gameId,
-        gameName: game.meta.name,
+        gameName: gameName(),
         playerCount: 1,
-        maxPlayers,
+        maxPlayers: maxPlayers(),
         status: 'waiting',
         isPrivate,
         createdAt: Date.now(),
       }).catch((err) => console.error('[waitingRoom] publishRoom failed', err));
 
-      /** 참가자 리스트 / 카운터 / 시작 버튼 상태 동기화 */
+      /** 참가자 리스트 / 카운터 / 게임이름 / 옵션 / 시작·게임선택 버튼 상태 동기화 */
       const refreshUI = (): void => {
         const players = [hostPlayer, ...guestPlayers];
-        participantsEl.innerHTML = renderParticipantsHTML(players, maxPlayers, hostPlayer.peerId);
-        playerCountEl.textContent = `${players.length} / ${maxPlayers}`;
+        const max = maxPlayers();
+        gameNameEl.textContent = gameName();
+        optionSummaryEl.textContent = buildOptionSummary(snapshotRoomState(), gameId);
+        participantsEl.innerHTML = renderParticipantsHTML(players, max, hostPlayer.peerId);
+        playerCountEl.textContent = `${players.length} / ${max}`;
+        pickGameBtn.textContent = gameId ? '🎲 게임 변경' : '🎲 게임 선택';
 
-        if (players.length >= minPlayers) {
+        if (!gameId) {
+          startBtn.disabled = true;
+          startBtn.textContent = '게임을 먼저 골라주세요';
+        } else if (players.length >= minPlayers()) {
           startBtn.disabled = false;
           startBtn.textContent = '게임 시작';
         } else {
           startBtn.disabled = true;
-          const need = minPlayers - players.length;
-          startBtn.textContent = `${need}명 더 필요해요`;
+          startBtn.textContent = `${minPlayers() - players.length}명 더 필요해요`;
         }
       };
       refreshUI();
 
+      /** 방장이 게임을 고르거나 바꿈 — gameId/옵션/정원/디렉토리 갱신 후 전원 동기화 */
+      const selectGame = (newGameId: string, newOptions: Record<string, string>): void => {
+        const g = getGameById(newGameId);
+        if (!g) return;
+        const playerCount = 1 + guestPlayers.length;
+        // 현재 인원이 그 게임 최대 인원을 넘으면 못 고름 (picker 에서 이미 비활성이지만 방어)
+        if (playerCount > g.meta.maxPlayers) {
+          showToast(`${g.meta.name}은(는) ${g.meta.maxPlayers}명까지예요 (현재 ${playerCount}명)`);
+          return;
+        }
+        gameId = newGameId;
+        roomOptions = { ...newOptions };
+        // 정원 좁힘 — 이후 입장은 이 게임 기준으로 막힘
+        host.maxAccepted = Math.max(1, g.meta.maxPlayers - 1);
+        // 전원에게 새 방 상태 통지 + 공개목록 갱신(게임이름/정원)
+        host.send({ type: 'room_state', roomState: snapshotRoomState() });
+        updatePublicRoom(host.roomId, {
+          gameId,
+          gameName: g.meta.name,
+          maxPlayers: g.meta.maxPlayers,
+          playerCount,
+        }).catch(() => {});
+        refreshUI();
+      };
+
+      pickGameBtn.addEventListener('click', () => {
+        openGamePickerOverlay(el, {
+          playerCount: 1 + guestPlayers.length,
+          currentGameId: gameId,
+          title: '🎲 게임 선택',
+          subtitle: `현재 방 인원 ${1 + guestPlayers.length}명 · 인원 초과하는 게임만 잠겨요`,
+          confirmLabel: '이 게임으로',
+          enforceMin: false, // 시작 전이니 인원 모자라도 미리 골라둘 수 있게(min 은 시작 버튼에서 강제)
+          onConfirm: selectGame,
+        });
+      });
+
       // ---- 방 로직 콜백 ----
       host.onJoinRequest = (req: JoinRequest, fromPeerId: string): JoinDecision => {
-        if (guestPlayers.length >= maxPlayers - 1) {
+        if (guestPlayers.length >= maxPlayers() - 1) {
           return { accept: false, reason: 'room_full' };
         }
         if (isPrivate && req.password !== password) {
@@ -338,7 +387,7 @@ export function createWaitingRoomAsHostScreen(args: WaitingRoomAsHostArgs): Scre
       // ---- 시작 버튼 ----
       startBtn.addEventListener('click', () => {
         const players = [hostPlayer, ...guestPlayers];
-        if (players.length < minPlayers) return;
+        if (!gameId || players.length < minPlayers()) return;
 
         host.send({ type: 'game_start' });
 
@@ -409,17 +458,12 @@ export function createWaitingRoomAsGuestScreen(args: WaitingRoomAsGuestArgs): Sc
   let roomState: RoomState = initialRoomState;
   const myPeerId = guest.myPeerId;
 
+  // 게임은 방장이 방 안에서 고름 → gameId 가 '' 일 수 있고, 도중에 바뀔 수도 있음(room_state 로 반영).
+  const guestMaxPlayers = (): number => getGameById(roomState.gameId)?.meta.maxPlayers ?? GLOBAL_MAX_PLAYERS;
+  const guestGameName = (): string => getGameById(roomState.gameId)?.meta.name ?? '게임 고르는 중';
+
   return {
     render() {
-      const game = getGameById(roomState.gameId);
-      if (!game) {
-        queueMicrotask(() => router.back());
-        return document.createElement('div');
-      }
-
-      const maxPlayers = game.meta.maxPlayers;
-      const optionSummary = buildOptionSummary(roomState, roomState.gameId);
-
       const el = document.createElement('div');
       el.className = 'screen';
       el.innerHTML = `
@@ -427,7 +471,7 @@ export function createWaitingRoomAsGuestScreen(args: WaitingRoomAsGuestArgs): Sc
 
         <div class="card" style="min-width: 460px;">
           <div class="card-title">🎀 대기실</div>
-          <div class="card-subtitle">${escapeHtml(game.meta.name)}</div>
+          <div class="card-subtitle" id="game-name">${escapeHtml(guestGameName())}</div>
 
           <div class="room-code-box">
             <div class="room-code-label">방 코드</div>
@@ -439,13 +483,13 @@ export function createWaitingRoomAsGuestScreen(args: WaitingRoomAsGuestArgs): Sc
           <div class="participants" id="participants"></div>
 
           <div class="room-info">
-            <span class="room-info-item">${escapeHtml(optionSummary)}</span>
+            <span class="room-info-item" id="option-summary"></span>
             <span class="room-info-item">${roomState.isPrivate ? '🔒 비공개' : '🌐 공개'}</span>
-            <span class="room-info-item" id="player-count">${roomState.players.length} / ${maxPlayers}</span>
+            <span class="room-info-item" id="player-count">${roomState.players.length} / ${guestMaxPlayers()}</span>
           </div>
 
           <button class="btn btn-secondary btn-lg btn-block" id="waiting-label" disabled>
-            방장이 시작하기를 기다리는 중...
+            방장이 게임을 고르고 있어요...
           </button>
 
           <div style="margin-top: 14px;">${buildReactionBarHTML()}</div>
@@ -457,10 +501,19 @@ export function createWaitingRoomAsGuestScreen(args: WaitingRoomAsGuestArgs): Sc
       const participantsEl = el.querySelector<HTMLDivElement>('#participants')!;
       const playerCountEl = el.querySelector<HTMLSpanElement>('#player-count')!;
       const leaveBtn = el.querySelector<HTMLButtonElement>('#leave-btn')!;
+      const gameNameEl = el.querySelector<HTMLDivElement>('#game-name')!;
+      const optionSummaryEl = el.querySelector<HTMLSpanElement>('#option-summary')!;
+      const waitingLabel = el.querySelector<HTMLButtonElement>('#waiting-label')!;
 
       const refreshUI = (): void => {
-        participantsEl.innerHTML = renderParticipantsHTML(roomState.players, maxPlayers, myPeerId);
-        playerCountEl.textContent = `${roomState.players.length} / ${maxPlayers}`;
+        const max = guestMaxPlayers();
+        gameNameEl.textContent = guestGameName();
+        optionSummaryEl.textContent = buildOptionSummary(roomState, roomState.gameId);
+        participantsEl.innerHTML = renderParticipantsHTML(roomState.players, max, myPeerId);
+        playerCountEl.textContent = `${roomState.players.length} / ${max}`;
+        waitingLabel.textContent = roomState.gameId
+          ? '방장이 시작하기를 기다리는 중...'
+          : '방장이 게임을 고르고 있어요...';
       };
       refreshUI();
 

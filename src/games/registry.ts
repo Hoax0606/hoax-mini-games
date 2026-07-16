@@ -422,3 +422,10 @@ export const games: GameEntry[] = [
 export function getGameById(id: string): GameEntry | undefined {
   return games.find((g) => g.meta.id === id);
 }
+
+/**
+ * 전체 게임 중 가장 큰 최대 인원.
+ * 방을 만들 때는 아직 게임이 안 정해져 있어서(방 안에서 고름), 이 상한까지 사람을 받아둔다.
+ * 이후 방장이 고른 게임의 maxPlayers 로 실제 정원이 좁혀진다.
+ */
+export const GLOBAL_MAX_PLAYERS = Math.max(...games.map((g) => g.meta.maxPlayers));

@@ -1,13 +1,12 @@
 import type { Screen } from '../core/screen';
 import { router } from '../core/screen';
 import { games } from '../games/registry';
-import { createLobbyScreen } from './lobby';
 import { escapeHtml, escapeAttr } from '../ui/escape';
 
 /**
- * 게임 선택 화면
- * 레지스트리의 모든 게임을 카드 그리드로 표시.
- * 카드 클릭 → 로비로 이동 (선택한 gameId 전달)
+ * 게임 목록(도감) 화면 — 구경 전용.
+ * 레지스트리의 모든 게임을 카드 그리드로 표시. 방 생성은 여기서 안 함(방은 '방 만들기'로,
+ * 게임은 방 안에서 방장이 고른다). 카드는 정보 표시용이라 클릭 동작 없음.
  */
 export function createGameListScreen(): Screen {
   return {
@@ -18,33 +17,25 @@ export function createGameListScreen(): Screen {
         <button class="back-btn" id="back-btn" title="뒤로">←</button>
 
         <div style="text-align: center; width: 100%; max-width: 960px;">
-          <div class="screen-title">🎮 게임 선택</div>
-          <div class="screen-subtitle">어떤 게임을 할까요?</div>
+          <div class="screen-title">📖 게임 목록</div>
+          <div class="screen-subtitle">방을 만든 뒤 안에서 골라요</div>
 
           <div class="game-grid">
             ${games.map(g => `
-              <button class="game-card" data-game-id="${escapeAttr(g.meta.id)}">
+              <div class="game-card is-static">
                 <img class="game-card-thumb" src="${escapeAttr(g.meta.thumbnail)}" alt="${escapeAttr(g.meta.name)}" />
                 <div class="game-card-name">
                   ${escapeHtml(g.meta.name)}
                   <span class="game-card-players">${playersBadge(g.meta.minPlayers, g.meta.maxPlayers)}</span>
                 </div>
                 <div class="game-card-desc">${escapeHtml(g.meta.description)}</div>
-              </button>
+              </div>
             `).join('')}
           </div>
         </div>
       `;
 
       el.querySelector('#back-btn')!.addEventListener('click', () => router.back());
-
-      el.querySelectorAll<HTMLButtonElement>('.game-card').forEach((card) => {
-        card.addEventListener('click', () => {
-          const gameId = card.dataset.gameId;
-          if (!gameId) return;
-          router.push(() => createLobbyScreen(gameId));
-        });
-      });
 
       return el;
     },

@@ -1,14 +1,15 @@
 import type { Screen } from '../core/screen';
 import { router } from '../core/screen';
 import type { HostSession, GuestSession } from '../core/peer';
-import type { RoomState, GameResult, GameRoomOption, ChatMsg } from '../games/types';
+import type { RoomState, GameResult, ChatMsg } from '../games/types';
 import { createMenuScreen } from './menu';
 import { createGameScreenAsHostScreen, createGameScreenAsGuestScreen } from './gameScreen';
 import { storage } from '../core/storage';
-import { games, getGameById } from '../games/registry';
+import { getGameById } from '../games/registry';
 import { buildChatPanelHTML, wireChatPanel, appendChatMessage } from '../ui/chat';
 import { escapeHtml, escapeAttr } from '../ui/escape';
 import { unpublishRoom } from '../core/roomDirectory';
+import { openGamePickerOverlay } from '../ui/gamePicker';
 
 /**
  * 결과 화면 (호스트/게스트 factory 2종)
@@ -57,164 +58,6 @@ function buildActionsHTML(isHost: boolean): string {
       `;
 }
 
-// ============================================
-// "다른 게임 선택" 오버레이 — 호스트가 같은 방 멤버로 다른 게임 시작
-// ============================================
-
-/**
- * 결과 화면 위에 띄우는 게임 선택 + 옵션 모달.
- * 작동 방식:
- *   1. 좌측 게임 카드 그리드 — 현재 인원에 안 맞는 게임은 비활성화 (회색)
- *   2. 카드 클릭 → 우측에 그 게임의 옵션 폼 자동 표시
- *   3. "시작" → host.send(room_state with new gameId/options) + game_start → 양쪽 gameScreen 진입
- *   4. "취소" → 오버레이만 제거, 결과 화면으로 복귀
- */
-function buildChangeGameOverlayHTML(currentPlayerCount: number, currentGameId: string): string {
-  const cards = games.map((g) => {
-    const fits = currentPlayerCount >= g.meta.minPlayers && currentPlayerCount <= g.meta.maxPlayers;
-    const playerLabel = g.meta.minPlayers === g.meta.maxPlayers
-      ? `${g.meta.minPlayers}인 전용`
-      : `${g.meta.minPlayers}~${g.meta.maxPlayers}인`;
-    const reason = fits
-      ? playerLabel
-      : `${playerLabel} (현재 ${currentPlayerCount}명)`;
-    const isCurrent = g.meta.id === currentGameId;
-    return `
-      <button class="change-game-card${fits ? '' : ' is-disabled'}${isCurrent ? ' is-current' : ''}"
-              data-game-id="${escapeAttr(g.meta.id)}" ${fits ? '' : 'disabled'}>
-        <img class="change-game-card-thumb" src="${escapeAttr(g.meta.thumbnail)}" alt="" />
-        <div class="change-game-card-name">${escapeHtml(g.meta.name)}</div>
-        <div class="change-game-card-meta">${escapeHtml(reason)}${isCurrent ? ' · 방금 한 게임' : ''}</div>
-      </button>
-    `;
-  }).join('');
-
-  return `
-    <div class="change-game-overlay" id="change-game-overlay">
-      <div class="change-game-card-wrap">
-        <div class="change-game-title">🎲 다른 게임 선택</div>
-        <div class="change-game-subtitle">현재 방 멤버 ${currentPlayerCount}명 그대로 시작해요</div>
-
-        <div class="change-game-grid">${cards}</div>
-
-        <div class="change-game-options" id="change-game-options"></div>
-
-        <div class="change-game-actions">
-          <button class="btn btn-ghost" id="change-game-cancel-btn">취소</button>
-          <button class="btn btn-primary" id="change-game-start-btn" disabled>시작</button>
-        </div>
-      </div>
-    </div>
-  `;
-}
-
-/** createRoom 의 renderOption 과 동일 — 결과 화면 모달용 옵션 select 렌더 */
-function renderOptionForOverlay(opt: GameRoomOption): string {
-  return `
-    <div class="form-group">
-      <label class="input-label">${escapeHtml(opt.label)}</label>
-      <select class="select" id="opt-${escapeAttr(opt.key)}">
-        ${opt.choices.map((c) => `
-          <option value="${escapeAttr(c.value)}"${c.value === opt.defaultValue ? ' selected' : ''}>
-            ${escapeHtml(c.label)}
-          </option>
-        `).join('')}
-      </select>
-    </div>
-  `;
-}
-
-/**
- * 결과 화면 위에 "다른 게임 선택" 오버레이 띄움 + 동작 연결.
- *  - 게임 카드 클릭 시 우측에 옵션 폼 자동 갱신
- *  - "시작" 누르면 onStart(gameId, options) 호출
- *  - "취소" 누르면 오버레이 제거 (결과 화면 그대로)
- */
-function openChangeGameOverlay(
-  parent: HTMLElement,
-  args: {
-    roomState: RoomState;
-    onStart: (gameId: string, options: Record<string, string>) => void;
-  },
-): () => void {
-  // 이미 열려있으면 무시 (정리할 것 없음)
-  if (parent.querySelector('#change-game-overlay')) return () => {};
-
-  const overlayHTML = buildChangeGameOverlayHTML(
-    args.roomState.players.length,
-    args.roomState.gameId,
-  );
-  parent.insertAdjacentHTML('beforeend', overlayHTML);
-  const overlay = parent.querySelector<HTMLDivElement>('#change-game-overlay')!;
-  const optsContainer = overlay.querySelector<HTMLDivElement>('#change-game-options')!;
-  const startBtn = overlay.querySelector<HTMLButtonElement>('#change-game-start-btn')!;
-  const cancelBtn = overlay.querySelector<HTMLButtonElement>('#change-game-cancel-btn')!;
-
-  let selectedGameId: string | null = null;
-  let selectedOptions: Record<string, string> = {};
-
-  const enabledCards = overlay.querySelectorAll<HTMLButtonElement>('.change-game-card:not(.is-disabled)');
-
-  // 게임 카드 클릭 → 옵션 폼 + 시작 버튼 활성
-  enabledCards.forEach((card) => {
-    card.addEventListener('click', () => {
-      const gid = card.dataset.gameId;
-      if (!gid) return;
-      const game = getGameById(gid);
-      if (!game) return;
-
-      selectedGameId = gid;
-      selectedOptions = {};
-      for (const opt of game.meta.roomOptions) {
-        selectedOptions[opt.key] = opt.defaultValue;
-      }
-
-      // 카드 active 시각 처리
-      overlay.querySelectorAll('.change-game-card').forEach((c) => c.classList.remove('is-selected'));
-      card.classList.add('is-selected');
-
-      // 옵션 폼 갱신 — 옵션 없는 게임은 안내만
-      if (game.meta.roomOptions.length > 0) {
-        optsContainer.innerHTML = `
-          <div class="change-game-options-title">⚙️ 게임 설정</div>
-          ${game.meta.roomOptions.map(renderOptionForOverlay).join('')}
-        `;
-        for (const opt of game.meta.roomOptions) {
-          const sel = optsContainer.querySelector<HTMLSelectElement>(`#opt-${opt.key}`);
-          sel?.addEventListener('change', () => {
-            selectedOptions[opt.key] = sel.value;
-          });
-        }
-      } else {
-        optsContainer.innerHTML = `<div class="change-game-no-options">설정 없이 바로 시작할 수 있어요</div>`;
-      }
-
-      startBtn.disabled = false;
-    });
-  });
-
-  const closeOverlay = (): void => {
-    overlay.remove();
-    document.removeEventListener('keydown', onKeyDown);
-  };
-  const onKeyDown = (e: KeyboardEvent): void => {
-    if (e.key === 'Escape') closeOverlay();
-  };
-  document.addEventListener('keydown', onKeyDown);
-
-  cancelBtn.addEventListener('click', closeOverlay);
-  // 배경 클릭 닫기는 의도치 않은 닫힘 유발 — 닫으려면 취소 버튼 또는 ESC.
-
-  startBtn.addEventListener('click', () => {
-    if (!selectedGameId) return;
-    document.removeEventListener('keydown', onKeyDown);
-    args.onStart(selectedGameId, selectedOptions);
-  });
-
-  // 결과 화면이 (취소/시작/ESC 없이) 다른 경로로 dispose 될 때 document keydown 리스너가
-  // 남지 않도록 정리 함수를 돌려준다. closeOverlay 는 중복 호출해도 안전.
-  return closeOverlay;
-}
 
 function buildResultHTML(args: {
   hostNickname: string;
@@ -1881,11 +1724,16 @@ export function createResultScreenAsHostScreen(args: ResultScreenAsHostArgs): Sc
         router.reset(() => createMenuScreen());
       });
 
-      // 다른 게임 선택 — 결과 카드 위에 오버레이로 게임/옵션 선택 모달 띄움
+      // 다른 게임 선택 — 결과 카드 위에 공용 게임 선택 오버레이(대기실과 동일) 띄움
       changeGameBtn.addEventListener('click', () => {
-        cleanupChangeGame = openChangeGameOverlay(el, {
-          roomState,
-          onStart: (newGameId, newOptions) => {
+        cleanupChangeGame = openGamePickerOverlay(el, {
+          playerCount: roomState.players.length,
+          currentGameId: roomState.gameId,
+          title: '🎲 다른 게임 선택',
+          subtitle: `현재 방 멤버 ${roomState.players.length}명 그대로 시작해요`,
+          confirmLabel: '시작',
+          currentSuffix: '방금 한 게임',
+          onConfirm: (newGameId, newOptions) => {
             const newRoomState: RoomState = {
               ...roomState,
               players: roomState.players.map((p) => ({ ...p, role: 'player' as const })), // 관전자 승격
