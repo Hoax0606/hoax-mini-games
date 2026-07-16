@@ -381,8 +381,10 @@ class DodgeGameModule implements GameModule {
   private onKeyDown = (e: KeyboardEvent): void => {
     if (this.isSpectator) return;
     const k = e.key;
-    if (k === 'ArrowLeft' || k === 'a' || k === 'A') { this.leftHeld = true; e.preventDefault(); }
-    else if (k === 'ArrowRight' || k === 'd' || k === 'D') { this.rightHeld = true; e.preventDefault(); }
+    // 방향키 누른 즉시 facing 갱신 — 왼쪽+스페이스를 거의 동시에 눌러도(스페이스 이벤트가 먼저 와도)
+    // 대시 방향이 왼쪽으로 나가게. (예전엔 facing 을 프레임 루프에서만 갱신 → leftHeld 반영 전 대시 시 오른쪽으로 튐)
+    if (k === 'ArrowLeft' || k === 'a' || k === 'A') { this.leftHeld = true; this.facing = -1; e.preventDefault(); }
+    else if (k === 'ArrowRight' || k === 'd' || k === 'D') { this.rightHeld = true; this.facing = 1; e.preventDefault(); }
     else if (k === ' ' || k === 'Spacebar') { this.tryDash(performance.now()); e.preventDefault(); }
   };
   private onKeyUp = (e: KeyboardEvent): void => {

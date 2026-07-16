@@ -28,15 +28,18 @@ export const FALLER_SIZE = 30;
 /** 충돌 판정 여유(px) — 히트박스를 살짝 줄여 "닿을락 말락"은 안 죽게(재미) */
 export const HIT_PADDING = 6;
 /** 낙하 속도: base + 경과초 × accel + 지터 (시간 지날수록 빨라짐 — 가속 상향) */
-const FALL_BASE = 230;
-const FALL_ACCEL = 7.0;
+// 낙하속도: 시작을 올리고 가속을 낮춰 40초 지점(≈515)은 예전(≈510)과 거의 동일 → "시작만" 어렵게.
+const FALL_BASE = 275;   // t=0: 230→275 (시작 빠름)
+const FALL_ACCEL = 6.0;  // t=40: 275+240=515 ≈ 예전 510 (후반 유지)
 const FALL_JITTER = 90;
 /** 스폰 간격(초): start 에서 시작해 시간 지날수록 min 까지 촘촘 (더 빨리·더 촘촘하게) */
-const SPAWN_START = 0.60;
+// start 낮추고(0.60→0.42) ramp 완화(0.011→0.0065) → t=40 에서 0.42-0.26=0.16 으로 예전과 같음.
+// 즉 초반이 훨씬 촘촘, 40초 이후는 예전과 동일하게 수렴.
+const SPAWN_START = 0.42;
 const SPAWN_MIN = 0.14;
-const SPAWN_RAMP = 0.011;
-/** 첫 스폰까지 딜레이(초) — 시작하자마자 안 맞게 */
-const FIRST_SPAWN_T = 0.6;
+const SPAWN_RAMP = 0.0065;
+/** 첫 스폰까지 딜레이(초) — 시작하자마자 안 맞게 (조금 앞당김) */
+const FIRST_SPAWN_T = 0.35;
 /** 동시 낙하 개수(버스트): 시간 지날수록 한 번에 여러 개 떨어짐. BURST_EVERY 초마다 +1, 상한 MAX_BURST */
 const BURST_EVERY = 20;
 const MAX_BURST = 4;
