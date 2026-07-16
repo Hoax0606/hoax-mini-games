@@ -277,14 +277,9 @@ function wireGameMenuModal(el: HTMLElement, callbacks: GameMenuCallbacks): () =>
     if (on) sound.play('pop');
   });
 
-  // Esc = "보스키" — 가짜 윈도우 업데이트 화면을 전체화면으로 덮고 게임도 정지(숨기기).
-  //   설정 모달은 ⚙️ 버튼으로만 연다(Esc 로는 안 뜸).
-  //   show/hide 시 메뉴와 동일한 pause/resume 콜백을 태워 게임이 실제로 멈췄다 재개되게 한다.
-  const cleanupBoss = mountBossKey(callbacks.onOpen, callbacks.onClose);
-
-  return (): void => {
-    cleanupBoss();
-  };
+  // 보스키(Esc)는 gameScreen render 에서 직접 mount 한다(네트워크 동기화 콜백 필요) → 여기선 안 다룸.
+  //   설정 모달은 ⚙️ 버튼으로만 연다.
+  return (): void => {};
 }
 
 /**
@@ -293,7 +288,13 @@ function wireGameMenuModal(el: HTMLElement, callbacks: GameMenuCallbacks): () =>
  * @param onShow 보스키 뜰 때(게임 정지) / @param onHide 닫을 때(재개)
  * @returns cleanup
  */
-function mountBossKey(onShow?: () => void, onHide?: () => void): () => void {
+interface BossKeyHandle {
+  cleanup: () => void;
+  /** 다른 사람이 보스키를 켜서 원격으로 오버레이만 표시(콜백 재브로드캐스트 없이) */
+  showRemote: () => void;
+  hideRemote: () => void;
+}
+function mountBossKey(onShow?: () => void, onHide?: () => void): BossKeyHandle {
   const el = document.createElement('div');
   el.className = 'boss-update';
   el.innerHTML = `
@@ -306,18 +307,13 @@ function mountBossKey(onShow?: () => void, onHide?: () => void): () => void {
   document.body.appendChild(el);
 
   let on = false;
-  const show = (): void => {
-    if (on) return;
-    on = true;
-    el.classList.add('is-on');
-    onShow?.(); // 게임 정지
+  const setOverlay = (v: boolean): void => {
+    on = v;
+    el.classList.toggle('is-on', v);
   };
-  const hide = (): void => {
-    if (!on) return;
-    on = false;
-    el.classList.remove('is-on');
-    onHide?.(); // 게임 재개
-  };
+  // 내가 직접 켬/끔 — 콜백을 태워 전원에게 broadcast(동기화)
+  const show = (): void => { if (!on) { setOverlay(true); onShow?.(); } };
+  const hide = (): void => { if (on) { setOverlay(false); onHide?.(); } };
 
   const onKey = (e: KeyboardEvent): void => {
     if (e.key !== 'Escape') return;
@@ -327,9 +323,14 @@ function mountBossKey(onShow?: () => void, onHide?: () => void): () => void {
   el.addEventListener('mousedown', (e) => { e.preventDefault(); hide(); }); // 클릭으로도 복귀
   window.addEventListener('keydown', onKey);
 
-  return (): void => {
-    window.removeEventListener('keydown', onKey);
-    el.remove();
+  return {
+    cleanup: (): void => {
+      window.removeEventListener('keydown', onKey);
+      el.remove();
+    },
+    // 원격 동기화: 오버레이만 토글(재브로드캐스트 방지 위해 콜백 안 태움)
+    showRemote: (): void => setOverlay(true),
+    hideRemote: (): void => setOverlay(false),
   };
 }
 
@@ -387,6 +388,12 @@ export function createGameScreenAsHostScreen(args: GameScreenAsHostArgs): Screen
   /** 현재 일시정지를 건 사람들의 peerId 집합. 전원이 해제해야(비어야) 게임 재개 —
    *  여러 명이 동시에 메뉴를 열어도 한 명이 닫으면 게임이 재개되던 desync 방지. */
   const pausedBy = new Set<string>();
+  /** 보스키(가짜 윈도우 업데이트) 켜짐 여부 — 전원 공유 래치. 누가 켜든 켜지고, 누가 끄든 전원 해제. */
+  let bossOn = false;
+  /** 보스키 오버레이 핸들 (render 에서 mount) */
+  let bossHandle: BossKeyHandle | null = null;
+  /** 게임 실제 정지 상태 = 보스키 || 메뉴정지(pausedBy) 중 하나라도 활성. 한 곳에서만 setPaused 호출. */
+  const recomputePause = (): void => { gameModule?.setPaused?.(bossOn || pausedBy.size > 0); };
 
   // 게임 시작 시점에 들어와 있던 플레이어들 (관전자와 구분).
   // 게임 도중에 들어오는 사람은 전부 spectators 로. role='spectator' 마킹.
@@ -513,14 +520,34 @@ export function createGameScreenAsHostScreen(args: GameScreenAsHostArgs): Screen
           }
           return;
         }
-        // 일시정지/재개: 다른 게스트에 forward + 호스트 자기 dim 처리 + 게임 모듈에 알림
+        // 보스키(전원 공유 래치): 누가 켜든 전원 업데이트 화면 + 정지, 누가 끄든 전원 해제.
+        //   pausedBy 회계와 별개(bossOn) — 원격 dismiss 도 전원 해제되게.
+        if (msg.type === 'pause' && msg.boss) {
+          for (const pid of host.listGuestPeerIds()) {
+            if (pid !== fromPeerId) host.sendTo(pid, msg);
+          }
+          bossOn = true;
+          bossHandle?.showRemote();
+          recomputePause();
+          return;
+        }
+        if (msg.type === 'resume' && msg.boss) {
+          for (const pid of host.listGuestPeerIds()) {
+            if (pid !== fromPeerId) host.sendTo(pid, msg);
+          }
+          bossOn = false;
+          bossHandle?.hideRemote();
+          recomputePause();
+          return;
+        }
+        // 일시정지/재개(⚙️ 메뉴): 다른 게스트에 forward + 호스트 자기 dim 처리 + 게임 모듈에 알림
         if (msg.type === 'pause') {
           for (const pid of host.listGuestPeerIds()) {
             if (pid !== fromPeerId) host.sendTo(pid, msg);
           }
           pausedBy.add(fromPeerId);
           showPauseOverlay(el, msg.byNickname);
-          gameModule?.setPaused?.(true);
+          recomputePause();
           return;
         }
         if (msg.type === 'resume') {
@@ -531,7 +558,7 @@ export function createGameScreenAsHostScreen(args: GameScreenAsHostArgs): Screen
             if (pid !== fromPeerId) host.sendTo(pid, msg);
           }
           hidePauseOverlay(el);
-          gameModule?.setPaused?.(false);
+          recomputePause();
           return;
         }
         // 채팅: 내 화면 append + 다른 게스트에게 relay
@@ -643,15 +670,21 @@ export function createGameScreenAsHostScreen(args: GameScreenAsHostArgs): Screen
         onOpen: () => {
           pausedBy.add(host.myPeerId);
           host.send({ type: 'pause', byPeerId: host.myPeerId, byNickname: hostNickname });
-          gameModule?.setPaused?.(true);
+          recomputePause();
         },
         onClose: () => {
           pausedBy.delete(host.myPeerId);
           if (pausedBy.size > 0) return; // 아직 다른 사람이 멈춰둠 — 계속 정지
           host.send({ type: 'resume', byPeerId: host.myPeerId });
-          gameModule?.setPaused?.(false);
+          recomputePause();
         },
       });
+
+      // 보스키(Esc) — 내가 켜면 전원에게 boss 플래그 pause broadcast(동기화). 끄면 boss resume.
+      bossHandle = mountBossKey(
+        () => { bossOn = true; host.send({ type: 'pause', byPeerId: host.myPeerId, byNickname: hostNickname, boss: true }); recomputePause(); },
+        () => { bossOn = false; host.send({ type: 'resume', byPeerId: host.myPeerId, boss: true }); recomputePause(); },
+      );
 
       // 채팅 패널 — 호스트: 자기 화면 append + 모든 게스트 broadcast
       cleanupChat = wireChatPanel(el, {
@@ -721,6 +754,8 @@ export function createGameScreenAsHostScreen(args: GameScreenAsHostArgs): Screen
       cleanupMenu = null;
       cleanupChat?.();
       cleanupChat = null;
+      bossHandle?.cleanup();
+      bossHandle = null;
       // 결과 화면으로 넘기는 경우(closeOnDispose=false)엔 항목 유지 → 결과 화면이 목록 노출 이어감.
       // 방을 완전히 닫는 경우(메뉴 복귀 등)만 디렉토리에서 제거.
       if (closeOnDispose) {
@@ -750,6 +785,11 @@ export function createGameScreenAsGuestScreen(args: GameScreenAsGuestArgs): Scre
   const pendingPayloads: Parameters<GameModule['onPeerMessage']>[0][] = [];
   let cleanupMenu: (() => void) | null = null;
   let cleanupChat: (() => void) | null = null;
+  /** 보스키(전원 공유 업데이트 화면) 켜짐 여부 + 메뉴정지 여부 — 둘 중 하나라도 켜지면 게임 정지. */
+  let bossOn = false;
+  let menuPaused = false;
+  let bossHandle: BossKeyHandle | null = null;
+  const recomputePause = (): void => { gameModule?.setPaused?.(bossOn || menuPaused); };
 
   // "나"의 role 판정 — roomState.players 에서 내 peerId 찾아 role='spectator' 면 관전 모드.
   // (게임 중 입장한 관전자는 roomState가 호스트에서 build 된 시점에 이미 role='spectator' 마킹되어 있음)
@@ -843,15 +883,30 @@ export function createGameScreenAsGuestScreen(args: GameScreenAsGuestArgs): Scre
           showReactionBubble(msg.emoji, msg.nickname);
           return;
         }
+        // 보스키(전원 공유): 누가 켜든 내 화면도 가짜 업데이트 + 정지, 누가 끄든 해제.
+        if (msg.type === 'pause' && msg.boss) {
+          bossOn = true;
+          bossHandle?.showRemote();
+          recomputePause();
+          return;
+        }
+        if (msg.type === 'resume' && msg.boss) {
+          bossOn = false;
+          bossHandle?.hideRemote();
+          recomputePause();
+          return;
+        }
         // 일시정지/재개 — 다른 사람이 ⚙️ 메뉴를 열었음. 내 화면 dim + 게임 모듈 정지.
         if (msg.type === 'pause') {
+          menuPaused = true;
           showPauseOverlay(el, msg.byNickname);
-          gameModule?.setPaused?.(true);
+          recomputePause();
           return;
         }
         if (msg.type === 'resume') {
+          menuPaused = false;
           hidePauseOverlay(el);
-          gameModule?.setPaused?.(false);
+          recomputePause();
           return;
         }
         // 채팅 — 호스트로부터 (자신이 보낸 건 echo 안 옴)
@@ -902,15 +957,33 @@ export function createGameScreenAsGuestScreen(args: GameScreenAsGuestArgs): Scre
           // 관전자는 전체 일시정지를 걸 수 없음 — 관전자가 메뉴 열었다고 플레이어들 게임이
           //   멈추면 안 됨(그리핑 방지). 관전자 메뉴는 나가기 용도로만.
           if (isSpectator) return;
+          menuPaused = true;
           guest.send({ type: 'pause', byPeerId: guest.myPeerId, byNickname: guestNickname });
-          gameModule?.setPaused?.(true);
+          recomputePause();
         },
         onClose: () => {
           if (isSpectator) return;
+          menuPaused = false;
           guest.send({ type: 'resume', byPeerId: guest.myPeerId });
-          gameModule?.setPaused?.(false);
+          recomputePause();
         },
       });
+
+      // 보스키(Esc) — 내가 켜면 전원에게 boss pause broadcast(호스트가 relay). 관전자는 로컬만(그리핑 방지).
+      bossHandle = mountBossKey(
+        () => {
+          if (isSpectator) return; // 관전자는 자기 화면만 가려짐(위 show()가 이미 오버레이 띄움), broadcast 안 함
+          bossOn = true;
+          guest.send({ type: 'pause', byPeerId: guest.myPeerId, byNickname: guestNickname, boss: true });
+          recomputePause();
+        },
+        () => {
+          if (isSpectator) return;
+          bossOn = false;
+          guest.send({ type: 'resume', byPeerId: guest.myPeerId, boss: true });
+          recomputePause();
+        },
+      );
 
       // 채팅 패널 — 게스트: 자기 화면 append + 호스트로 송신 (호스트가 다른 게스트로 relay)
       cleanupChat = wireChatPanel(el, {
@@ -970,6 +1043,8 @@ export function createGameScreenAsGuestScreen(args: GameScreenAsGuestArgs): Scre
       cleanupMenu = null;
       cleanupChat?.();
       cleanupChat = null;
+      bossHandle?.cleanup();
+      bossHandle = null;
       if (closeOnDispose) guest.close();
     },
   };

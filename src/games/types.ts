@@ -316,12 +316,16 @@ export interface PauseMsg {
   type: 'pause';
   byPeerId: string;
   byNickname: string;
+  /** true 면 "보스키"(가짜 윈도우 업데이트) 정지 — 받는 쪽도 밋밋한 dim 대신 업데이트 화면을 띄운다. */
+  boss?: boolean;
 }
 
 /** 일시정지 해제 — 메뉴 닫았음. 모든 화면 dim 제거. */
 export interface ResumeMsg {
   type: 'resume';
   byPeerId: string;
+  /** true 면 보스키 해제 — 누가 껐든 전원의 업데이트 화면을 내린다. */
+  boss?: boolean;
 }
 
 /**
