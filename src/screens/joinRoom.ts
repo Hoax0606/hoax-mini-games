@@ -5,6 +5,7 @@ import { GuestSession, type PeerConnectError } from '../core/peer';
 import type { NetworkMessage } from '../games/types';
 import { createWaitingRoomAsGuestScreen } from './waitingRoom';
 import { createGameScreenAsGuestScreen } from './gameScreen';
+import { icon } from '../ui/icons';
 
 /**
  * 방 참여 화면
@@ -62,11 +63,15 @@ export function createJoinRoomScreen(
           </div>` : '';
       const pwFieldHTML = `
           <div class="form-group" id="password-group" style="display: ${mode === 'password' ? 'block' : 'none'};">
-            <label class="input-label">🔒 비밀번호</label>
+            <label class="input-label">${icon('lock', { size: 16, hue: '#9a86c0' })} 비밀번호</label>
             <input type="text" class="input" id="password-input"
               placeholder="비밀번호를 입력하세요" maxlength="12" autocomplete="off" />
           </div>`;
-      const title = mode === 'auto' ? '🚪 입장 중' : mode === 'password' ? '🔒 비밀방 입장' : '🚪 방 참여하기';
+      const title = mode === 'auto'
+        ? `${icon('login', { size: 22, hue: '#5b9dff' })} 입장 중`
+        : mode === 'password'
+          ? `${icon('lock', { size: 22, hue: '#9a86c0' })} 비밀방 입장`
+          : `${icon('login', { size: 22, hue: '#5b9dff' })} 방 참여하기`;
       const subtitle = mode === 'auto' ? '방에 연결하고 있어요. 잠시만 기다려주세요.'
         : mode === 'password' ? '이 방은 비밀번호가 필요해요.'
           : '친구에게 받은 방 코드를 입력하세요';
@@ -81,7 +86,7 @@ export function createJoinRoomScreen(
       el.innerHTML = `
         <button class="back-btn" id="back-btn" title="뒤로">←</button>
 
-        <div class="card" style="min-width: 420px;">
+        <div class="card pop-in" style="min-width: 420px;">
           <div class="card-title">${title}</div>
           <div class="card-subtitle">${subtitle}</div>
           ${codeFieldHTML}

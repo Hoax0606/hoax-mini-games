@@ -2,6 +2,7 @@ import type { Screen } from '../core/screen';
 import { router } from '../core/screen';
 import { storage } from '../core/storage';
 import { sound } from '../core/sound';
+import { icon } from '../ui/icons';
 
 /**
  * 설정 화면
@@ -20,23 +21,23 @@ export function createSettingsScreen(): Screen {
       el.innerHTML = `
         <button class="back-btn" id="back-btn" title="뒤로">←</button>
 
-        <div class="card">
-          <div class="card-title">⚙️ 설정</div>
+        <div class="card pop-in">
+          <div class="card-title">${icon('settings', { size: 24, hue: '#9a86c0' })} 설정</div>
           <div class="card-subtitle">사운드 설정을 조절해보세요</div>
 
           <div class="slider-row">
-            <span class="slider-label">🔊 마스터 볼륨</span>
+            <span class="slider-label">${icon('volume', { size: 18, hue: '#5b9dff' })} 마스터 볼륨</span>
             <input type="range" class="slider" id="vol" min="0" max="100" value="${settings.masterVolume}" />
             <span class="slider-value" id="vol-val">${settings.masterVolume}</span>
           </div>
 
           <div class="toggle-row">
-            <span class="toggle-label">🎵 배경음악 (BGM)</span>
+            <span class="toggle-label">${icon('music', { size: 18, hue: '#a06bff' })} 배경음악 (BGM)</span>
             <div class="toggle ${settings.bgmEnabled ? 'on' : ''}" id="bgm-toggle"></div>
           </div>
 
           <div class="toggle-row">
-            <span class="toggle-label">🔔 효과음 (SFX)</span>
+            <span class="toggle-label">${icon('bell', { size: 18, hue: '#ff9838' })} 효과음 (SFX)</span>
             <div class="toggle ${settings.sfxEnabled ? 'on' : ''}" id="sfx-toggle"></div>
           </div>
         </div>

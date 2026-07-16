@@ -7,6 +7,7 @@ import {
   type PublicRoomEntry,
 } from '../core/roomDirectory';
 import { escapeHtml, escapeAttr } from '../ui/escape';
+import { icon } from '../ui/icons';
 
 /**
  * 공개방 찾기 화면
@@ -28,7 +29,7 @@ export function createPublicRoomsScreen(): Screen {
         <button class="back-btn" id="back-btn" title="뒤로">←</button>
 
         <div style="text-align: center; width: 100%; max-width: 880px;">
-          <div class="screen-title">🌐 방 찾기</div>
+          <div class="screen-title">${icon('search', { size: 26, hue: '#5b9dff' })} 방 찾기</div>
           <div class="screen-subtitle">지금 열려있는 방에 바로 들어가요</div>
 
           <div class="public-rooms-list" id="public-rooms-list">
@@ -43,7 +44,7 @@ export function createPublicRoomsScreen(): Screen {
       if (!isRoomDirectoryEnabled()) {
         listEl.innerHTML = `
           <div class="public-rooms-empty">
-            <div style="font-size: 28px; margin-bottom: 8px;">🛠️</div>
+            <div style="margin-bottom: 8px;">${icon('settings', { size: 34, hue: '#9a86c0' })}</div>
             <div>방 찾기 기능이 아직 설정 안 됐어요</div>
             <div class="public-rooms-empty-sub">
               <code>src/core/firebase.config.ts</code> 에 Firebase 정보를 채워주세요.
@@ -73,7 +74,7 @@ function renderList(listEl: HTMLDivElement, rooms: PublicRoomEntry[]): void {
   if (rooms.length === 0) {
     listEl.innerHTML = `
       <div class="public-rooms-empty">
-        <div style="font-size: 28px; margin-bottom: 8px;">📭</div>
+        <div style="margin-bottom: 8px;">${icon('inbox', { size: 34, hue: '#b89aff' })}</div>
         <div>지금 열려있는 방이 없어요</div>
         <div class="public-rooms-empty-sub">직접 방을 만들어보세요</div>
       </div>

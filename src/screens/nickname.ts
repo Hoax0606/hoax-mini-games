@@ -2,6 +2,7 @@ import type { Screen } from '../core/screen';
 import { router } from '../core/screen';
 import { storage } from '../core/storage';
 import { createMenuScreen } from './menu';
+import { icon } from '../ui/icons';
 
 /**
  * 닉네임 입력 화면
@@ -23,8 +24,8 @@ export function createNicknameScreen(options?: {
       const el = document.createElement('div');
       el.className = 'screen';
       el.innerHTML = `
-        <div class="card" style="min-width: 380px;">
-          <div class="card-title">✨ 닉네임을 알려주세요</div>
+        <div class="card pop-in" style="min-width: 380px;">
+          <div class="card-title">${icon('pen', { size: 24, hue: '#ff9838' })} 닉네임을 알려주세요</div>
           <div class="card-subtitle">친구와 함께할 때 보일 이름이에요</div>
 
           <div class="form-group">

@@ -2,6 +2,7 @@ import type { Screen } from '../core/screen';
 import { router } from '../core/screen';
 import { games } from '../games/registry';
 import { escapeHtml, escapeAttr } from '../ui/escape';
+import { icon } from '../ui/icons';
 
 /**
  * 게임 목록(도감) 화면 — 구경 전용.
@@ -17,7 +18,7 @@ export function createGameListScreen(): Screen {
         <button class="back-btn" id="back-btn" title="뒤로">←</button>
 
         <div style="text-align: center; width: 100%; max-width: 960px;">
-          <div class="screen-title">📖 게임 목록</div>
+          <div class="screen-title">${icon('games', { size: 26, hue: '#a06bff' })} 게임 목록</div>
           <div class="screen-subtitle">방을 만든 뒤 안에서 골라요</div>
 
           <div class="game-grid">

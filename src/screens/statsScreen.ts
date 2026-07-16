@@ -3,6 +3,7 @@ import { router } from '../core/screen';
 import { storage, type GameStats } from '../core/storage';
 import { games } from '../games/registry';
 import { escapeHtml, escapeAttr } from '../ui/escape';
+import { icon } from '../ui/icons';
 
 /**
  * 통계 화면
@@ -29,7 +30,7 @@ export function createStatsScreen(): Screen {
         <button class="back-btn" id="back-btn" title="뒤로">←</button>
 
         <div style="width: 100%; max-width: 720px;">
-          <div class="screen-title" style="text-align: center;">📊 전체 통계</div>
+          <div class="screen-title" style="text-align: center;">${icon('chart', { size: 26, hue: '#2eb872' })} 전체 통계</div>
           <div class="screen-subtitle" style="text-align: center;">이 컴퓨터에 기록된 누적 전적이에요</div>
 
           <div class="stats-grid">

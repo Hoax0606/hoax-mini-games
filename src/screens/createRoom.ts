@@ -3,6 +3,7 @@ import { router } from '../core/screen';
 import { GLOBAL_MAX_PLAYERS } from '../games/registry';
 import { HostSession, type PeerConnectError } from '../core/peer';
 import { createWaitingRoomAsHostScreen } from './waitingRoom';
+import { icon } from '../ui/icons';
 
 /**
  * 방 만들기 화면
@@ -28,12 +29,12 @@ export function createCreateRoomScreen(): Screen {
       el.innerHTML = `
         <button class="back-btn" id="back-btn" title="뒤로">←</button>
 
-        <div class="card">
-          <div class="card-title">🏠 방 만들기</div>
+        <div class="card pop-in">
+          <div class="card-title">${icon('home-add', { size: 24, hue: '#ff5a92' })} 방 만들기</div>
           <div class="card-subtitle">방을 만든 뒤 안에서 게임을 골라요</div>
 
           <div class="toggle-row">
-            <span class="toggle-label">🔒 비공개방 (비밀번호)</span>
+            <span class="toggle-label">${icon('lock', { size: 18, hue: '#9a86c0' })} 비공개방 (비밀번호)</span>
             <div class="toggle" id="private-toggle"></div>
           </div>
 
