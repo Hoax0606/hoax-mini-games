@@ -49,6 +49,8 @@ export function icon(name: string, opts: IconOpts = {}): string {
   const svg = ICONS[name];
   if (!svg) return '';
   const size = opts.size ?? 22;
-  const style = `font-size:${size}px${opts.hue ? `;color:${opts.hue}` : ''}`;
+  // 색은 --hue 커스텀 속성으로 넘긴다(.ic { color: var(--hue, inherit) }).
+  // 이러면 hover 등에서 CSS가 color 를 덮어쓸 수 있음(인라인 color 면 못 덮음).
+  const style = `font-size:${size}px${opts.hue ? `;--hue:${opts.hue}` : ''}`;
   return `<span class="ic${opts.cls ? ' ' + opts.cls : ''}" style="${style}">${svg}</span>`;
 }

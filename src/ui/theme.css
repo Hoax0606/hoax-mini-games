@@ -2861,6 +2861,7 @@ input {
 .ic {
   display: inline-flex; align-items: center; justify-content: center;
   line-height: 0; vertical-align: middle; flex: 0 0 auto;
+  color: var(--hue, inherit); /* hue 지정 시 그 색, 아니면 부모색 상속. hover 등에서 CSS로 덮어쓰기 가능 */
 }
 .ic svg { width: 1em; height: 1em; display: block; }
 
@@ -2908,11 +2909,15 @@ input {
   color: var(--text-main);
   box-shadow: 0 2px 8px rgba(255, 130, 172, .10), inset 0 1px 0 rgba(255, 255, 255, .8);
 }
+/* 마우스 올린 항목은 핑크로 물들며 살짝 떠오름 (아이콘·글자는 흰색) */
 .menu-card .btn-secondary:not(:disabled):hover {
-  background: rgba(255, 255, 255, .82);
-  box-shadow: 0 8px 20px rgba(255, 130, 172, .20);
+  background: linear-gradient(180deg, var(--pink-300), var(--pink-400));
+  border-color: transparent;
+  color: #fff;
+  box-shadow: 0 10px 22px rgba(255, 90, 146, .30);
   transform: translateY(-2px);
 }
+.menu-card .btn-secondary:not(:disabled):hover .ic { color: #fff; }
 /* 주 버튼 = 분홍 채움 + 밝은 윗엣지 + 깊은 그림자 */
 .menu-card .btn-primary {
   background: linear-gradient(180deg, #ff8fb5, var(--pink-500));
