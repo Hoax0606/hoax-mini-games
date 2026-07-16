@@ -48,9 +48,9 @@ import {
 const STATE_BROADCAST_MS = 100;
 
 /** 키 반복 시작까지 지연 (DAS) — 좌우/아래 이동만 반복 */
-const DAS_DELAY_MS = 160;
-/** 좌우 이동 반복 간격 (ARR) */
-const DAS_INTERVAL_MS = 45;
+const DAS_DELAY_MS = 150;
+/** 좌우 이동 반복 간격 (ARR) — 작을수록 좌우 이동이 매끄럽고 가볍게 느껴짐 */
+const DAS_INTERVAL_MS = 30;
 /** 소프트드롭(↓) 반복 간격 — 좌우보다 훨씬 빠르게. 대략 65칸/초 */
 const SOFT_DROP_INTERVAL_MS = 15;
 

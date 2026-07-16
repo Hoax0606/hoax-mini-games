@@ -333,15 +333,22 @@ export class TetrisRenderer {
       stroke = def.stroke;
     }
 
+    // 각진 사각형 대신 모서리를 살짝 둥글려 부드러운 느낌 (반경 = 셀의 약 22%)
+    const r = Math.max(2, size * 0.22);
+    const bx = x + 0.5, by = y + 0.5, bs = size - 1;
+    ctx.beginPath();
+    ctx.roundRect(bx, by, bs, bs, r);
     ctx.fillStyle = fill;
-    ctx.fillRect(x + 0.5, y + 0.5, size - 1, size - 1);
+    ctx.fill();
     ctx.strokeStyle = stroke;
     ctx.lineWidth = 1;
-    ctx.strokeRect(x + 0.5, y + 0.5, size - 1, size - 1);
-    // 상단 내부 하이라이트 (파스텔 광택)
+    ctx.stroke();
+    // 상단 내부 하이라이트 (파스텔 광택) — 셀 곡률에 맞춰 둥글게
     if (size >= 12) {
-      ctx.fillStyle = 'rgba(255, 255, 255, 0.25)';
-      ctx.fillRect(x + 2, y + 2, size - 4, Math.max(1, size * 0.2));
+      ctx.beginPath();
+      ctx.roundRect(x + 2, y + 2, size - 4, Math.max(1, size * 0.24), r * 0.7);
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.28)';
+      ctx.fill();
     }
   }
 
