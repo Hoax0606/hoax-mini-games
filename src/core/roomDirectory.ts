@@ -55,6 +55,8 @@ export interface PublicRoomEntry {
   playerCount: number;
   maxPlayers: number;
   status: 'waiting' | 'playing';
+  /** 비공개(비번)방 여부 — 목록에 🔒로 표시, 클릭 시 비번 입력 요구. 공개방은 false. */
+  isPrivate: boolean;
   /** Date.now() — 정렬용. 오래된 방은 아래로. */
   createdAt: number;
 }
@@ -104,6 +106,8 @@ export function subscribePublicRooms(
     }
     const rooms = Object.values(val as Record<string, unknown>)
       .filter((v): v is PublicRoomEntry => isValidEntry(v))
+      // isPrivate 없는 옛 항목 호환 (기본 공개방으로 취급)
+      .map((r) => ({ ...r, isPrivate: r.isPrivate === true }))
       // 최근 만든 방이 위로
       .sort((a, b) => b.createdAt - a.createdAt);
     callback(rooms);

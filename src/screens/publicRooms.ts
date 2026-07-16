@@ -88,12 +88,17 @@ function renderList(listEl: HTMLDivElement, rooms: PublicRoomEntry[]): void {
       const statusBadge = inGame
         ? `<span class="public-room-badge is-playing">🎮 게임 중</span>`
         : `<span class="public-room-badge is-waiting">🪑 대기 중</span>`;
+      // 비공개방은 자물쇠 표시 — 클릭하면 비번 입력 화면으로 감.
+      const lockBadge = r.isPrivate
+        ? `<span class="public-room-badge is-locked">🔒 비공개</span>`
+        : '';
       // 정원(활성+대기) 초과면 게임 중이든 대기든 못 들어감 → 흐림+비활성.
       //   (게임 중 방도 관전/대기 자리가 정원에 포함되어 꽉 차면 입장 불가)
       const blocked = isFull;
       return `
         <button class="public-room-card${blocked ? ' is-full' : ''}"
                 data-room-id="${escapeAttr(r.roomId)}"
+                data-private="${r.isPrivate ? '1' : '0'}"
                 ${blocked ? 'disabled' : ''}>
           <div class="public-room-game-name">${escapeHtml(r.gameName)}</div>
           <div class="public-room-meta-row">
@@ -103,6 +108,7 @@ function renderList(listEl: HTMLDivElement, rooms: PublicRoomEntry[]): void {
           </div>
           <div class="public-room-bottom-row">
             ${statusBadge}
+            ${lockBadge}
             <span class="public-room-code">${escapeHtml(r.roomId)}</span>
           </div>
         </button>
@@ -114,9 +120,14 @@ function renderList(listEl: HTMLDivElement, rooms: PublicRoomEntry[]): void {
     card.addEventListener('click', () => {
       const roomId = card.dataset.roomId;
       if (!roomId) return;
-      // joinRoom 화면에서 autoJoin 으로 즉시 입장. gameId 는 어차피 join_accepted 의
-      // roomState 가 정답이라 여기선 임의 빈 문자열 전달 OK.
-      router.push(() => createJoinRoomScreen('', { initialCode: roomId, autoJoin: true }));
+      const isPrivate = card.dataset.private === '1';
+      // 비공개방: 비번 입력 필요 → 자동입장 대신 비번 필드를 처음부터 보여줌.
+      // 공개방: autoJoin 으로 즉시 입장. gameId 는 어차피 join_accepted 의 roomState 가 정답이라 빈 문자열 OK.
+      if (isPrivate) {
+        router.push(() => createJoinRoomScreen('', { initialCode: roomId, requirePassword: true }));
+      } else {
+        router.push(() => createJoinRoomScreen('', { initialCode: roomId, autoJoin: true }));
+      }
     });
   });
 }

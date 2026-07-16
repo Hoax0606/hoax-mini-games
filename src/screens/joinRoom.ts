@@ -23,12 +23,13 @@ import { createGameScreenAsGuestScreen } from './gameScreen';
  *
  * @param gameId 로비에서 선택한 게임 (참여 직후 화면 플로우 일관성용이지만,
  *               실제 수락된 roomState의 gameId가 정답이라서 서로 다를 경우 후자를 따름)
- * @param options.initialCode  방 코드 필드를 이 값으로 미리 채움 (URL 공유 입장용)
- * @param options.autoJoin     initialCode가 5자 완전하면 화면 뜨자마자 자동 join 시도
+ * @param options.initialCode     방 코드 필드를 이 값으로 미리 채움 (URL 공유 입장용)
+ * @param options.autoJoin        initialCode가 5자 완전하면 화면 뜨자마자 자동 join 시도
+ * @param options.requirePassword 비공개방 입장 — 비번 필드를 처음부터 노출(공개방 목록에서 🔒 방 클릭 시)
  */
 export function createJoinRoomScreen(
   _gameId: string,
-  options?: { initialCode?: string; autoJoin?: boolean },
+  options?: { initialCode?: string; autoJoin?: boolean; requirePassword?: boolean },
 ): Screen {
   let disposed = false;
   /** 연결 중에 뒤로가기 누르면 정리하기 위한 레퍼런스 */
@@ -40,7 +41,8 @@ export function createJoinRoomScreen(
       const initialCodeRaw = (options?.initialCode ?? '').toUpperCase().replace(/[^A-Z0-9]/g, '');
       let roomCode = initialCodeRaw.slice(0, 5);
       let password = '';
-      let needsPassword = false;
+      // 비공개방 목록에서 들어온 경우 처음부터 비번 필드 노출 + 검증 켬.
+      let needsPassword = options?.requirePassword === true;
 
       const el = document.createElement('div');
       el.className = 'screen';
@@ -90,11 +92,17 @@ export function createJoinRoomScreen(
       const errorEl = el.querySelector<HTMLDivElement>('#error-message')!;
       const joinBtn = el.querySelector<HTMLButtonElement>('#join-btn')!;
 
-      // 미리 채움: URL 공유로 들어온 경우
+      // 미리 채움: URL 공유 / 공개방 목록에서 들어온 경우
       if (roomCode.length > 0) {
         codeInput.value = roomCode;
       }
-      setTimeout(() => codeInput.focus(), 50);
+      // 비공개방(목록에서 🔒 클릭)이면 비번 필드를 처음부터 보여주고 비번칸에 포커스.
+      if (needsPassword) {
+        passwordGroup.style.display = 'block';
+        setTimeout(() => passwordInput.focus(), 50);
+      } else {
+        setTimeout(() => codeInput.focus(), 50);
+      }
 
       // 방 코드는 대문자 + 영숫자만 허용 (서버 영문+숫자 조합)
       codeInput.addEventListener('input', () => {

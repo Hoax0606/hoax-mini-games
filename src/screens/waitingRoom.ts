@@ -189,20 +189,20 @@ export function createWaitingRoomAsHostScreen(args: WaitingRoomAsHostArgs): Scre
       const toastEl = el.querySelector<HTMLDivElement>('#toast')!;
       const playerCountEl = el.querySelector<HTMLSpanElement>('#player-count')!;
 
-      // 공개방이면 디렉토리(Firebase)에 등록. 게스트 입장/퇴장 때 인원 갱신, dispose 때 해제.
-      const isPublic = !isPrivate;
-      if (isPublic) {
-        publishRoom({
-          roomId: host.roomId,
-          hostNickname,
-          gameId,
-          gameName: game.meta.name,
-          playerCount: 1,
-          maxPlayers,
-          status: 'waiting',
-          createdAt: Date.now(),
-        }).catch((err) => console.error('[waitingRoom] publishRoom failed', err));
-      }
+      // 공개/비공개 모두 디렉토리(Firebase)에 등록. 비공개방은 isPrivate=true 로 목록에 🔒 표시되고,
+      // 입장하려면 비번을 입력해야 함(호스트 onJoinRequest 에서 검증). 게스트 입장/퇴장 때 인원 갱신.
+      // 이 항목은 대기→게임→결과 화면 내내 유지되고, 호스트가 방을 완전히 닫을 때만(dispose+closeOnDispose) 제거.
+      publishRoom({
+        roomId: host.roomId,
+        hostNickname,
+        gameId,
+        gameName: game.meta.name,
+        playerCount: 1,
+        maxPlayers,
+        status: 'waiting',
+        isPrivate,
+        createdAt: Date.now(),
+      }).catch((err) => console.error('[waitingRoom] publishRoom failed', err));
 
       /** 참가자 리스트 / 카운터 / 시작 버튼 상태 동기화 */
       const refreshUI = (): void => {
@@ -254,9 +254,7 @@ export function createWaitingRoomAsHostScreen(args: WaitingRoomAsHostArgs): Scre
         host.send({ type: 'room_state', roomState: snapshotRoomState() });
 
         refreshUI();
-        if (isPublic) {
-          updatePublicRoom(host.roomId, { playerCount: 1 + guestPlayers.length }).catch(() => {});
-        }
+        updatePublicRoom(host.roomId, { playerCount: 1 + guestPlayers.length }).catch(() => {});
         showToast(`${nickname} 님이 들어왔어요`);
       };
 
@@ -268,9 +266,7 @@ export function createWaitingRoomAsHostScreen(args: WaitingRoomAsHostArgs): Scre
           host.send({ type: 'room_state', roomState: snapshotRoomState() });
         }
         refreshUI();
-        if (isPublic) {
-          updatePublicRoom(host.roomId, { playerCount: 1 + guestPlayers.length }).catch(() => {});
-        }
+        updatePublicRoom(host.roomId, { playerCount: 1 + guestPlayers.length }).catch(() => {});
         showToast(`${removed?.nickname ?? '게스트'} 님이 나갔어요`);
       };
 
@@ -377,9 +373,10 @@ export function createWaitingRoomAsHostScreen(args: WaitingRoomAsHostArgs): Scre
     },
 
     dispose() {
-      // 대기실을 떠나는 순간 공개방 디렉토리에서 제거 (게임 화면 이동 / 메뉴 복귀 둘 다).
-      // 게임 시작으로 떠난 경우엔 게임 화면이 다시 publish 하지 않으므로 목록에 안 보임 → 의도.
-      if (!isPrivate) {
+      // 게임 시작으로 떠나는 경우(closeOnDispose=false)엔 항목을 유지 → 게임 화면이 status='playing'
+      // 으로 갱신하고, 목록엔 '게임 중'으로 계속 노출된다(중간 입장 관전 가능).
+      // 호스트가 방을 완전히 닫을 때(메뉴 복귀 등, closeOnDispose=true)만 디렉토리에서 제거.
+      if (closeOnDispose) {
         unpublishRoom(host.roomId).catch(() => {});
       }
       if (closeOnDispose) {

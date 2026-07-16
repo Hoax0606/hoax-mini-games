@@ -1865,6 +1865,10 @@ input {
   background: var(--lavender-100);
   color: #6b4cb0;
 }
+.public-room-badge.is-locked {
+  background: var(--cream-200);
+  color: #a8791f;
+}
 .public-room-code {
   font-family: 'Pretendard', monospace;
   font-size: 11px;

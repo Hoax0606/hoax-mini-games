@@ -8,6 +8,7 @@ import { storage } from '../core/storage';
 import { games, getGameById } from '../games/registry';
 import { buildChatPanelHTML, wireChatPanel, appendChatMessage } from '../ui/chat';
 import { escapeHtml, escapeAttr } from '../ui/escape';
+import { unpublishRoom } from '../core/roomDirectory';
 
 /**
  * 결과 화면 (호스트/게스트 factory 2종)
@@ -1935,7 +1936,12 @@ export function createResultScreenAsHostScreen(args: ResultScreenAsHostArgs): Sc
       cleanupChat = null;
       cleanupChangeGame?.();
       cleanupChangeGame = null;
-      if (closeOnDispose) host.close();
+      // 다시하기/다른게임으로 넘기면(closeOnDispose=false) 항목 유지 → 다음 판도 목록 노출.
+      // 메뉴 복귀 등 방을 닫을 때만 디렉토리에서 제거.
+      if (closeOnDispose) {
+        unpublishRoom(host.roomId).catch(() => {});
+        host.close();
+      }
     },
   };
 }

@@ -2,7 +2,7 @@ import type { Screen } from '../core/screen';
 import { router } from '../core/screen';
 import type { HostSession, GuestSession, JoinRequest, JoinDecision } from '../core/peer';
 import { getGameById } from '../games/registry';
-import { updatePublicRoom } from '../core/roomDirectory';
+import { updatePublicRoom, unpublishRoom } from '../core/roomDirectory';
 import type { GameContext, GameModule, Player, RoomState } from '../games/types';
 import { createMenuScreen } from './menu';
 import { createResultScreenAsHostScreen, createResultScreenAsGuestScreen } from './resultScreen';
@@ -403,9 +403,9 @@ export function createGameScreenAsHostScreen(args: GameScreenAsHostArgs): Screen
   /** 정원 = 활성 플레이어 + 관전(대기)자. 이 수가 maxPlayers 넘으면 입장 거부. */
   const roomMaxPlayers = getGameById(roomState.gameId)?.meta.maxPlayers ?? 2;
   const currentOccupancy = (): number => activePlayers.length + spectators.length;
-  /** 공개방 인원수(대기 포함) 갱신 — 게임 중 관전자 들어오고 나갈 때 */
+  /** 공개/비공개방 인원수(대기 포함)+상태 갱신 — 게임 시작 시 + 관전자 들어오고 나갈 때.
+   *  항목 자체는 대기실에서 publish 됐고 여기선 부분 갱신만(status='playing'). */
   const publishCount = (): void => {
-    if (isPrivate) return;
     updatePublicRoom(roomState.roomId, { playerCount: currentOccupancy(), status: 'playing' });
   };
 
@@ -416,6 +416,9 @@ export function createGameScreenAsHostScreen(args: GameScreenAsHostArgs): Screen
         queueMicrotask(() => router.reset(() => createMenuScreen()));
         return document.createElement('div');
       }
+
+      // 게임 시작 → 공개방 목록에서 '게임 중'으로 표시되도록 상태 갱신(항목은 대기실에서 이미 publish됨).
+      publishCount();
 
       const hostNickname = roomState.hostNickname;
       const guestNickname = roomState.guestNickname ?? '상대';
@@ -718,7 +721,12 @@ export function createGameScreenAsHostScreen(args: GameScreenAsHostArgs): Screen
       cleanupMenu = null;
       cleanupChat?.();
       cleanupChat = null;
-      if (closeOnDispose) host.close();
+      // 결과 화면으로 넘기는 경우(closeOnDispose=false)엔 항목 유지 → 결과 화면이 목록 노출 이어감.
+      // 방을 완전히 닫는 경우(메뉴 복귀 등)만 디렉토리에서 제거.
+      if (closeOnDispose) {
+        unpublishRoom(roomState.roomId).catch(() => {});
+        host.close();
+      }
     },
   };
 }
