@@ -210,7 +210,13 @@ export type NetworkMessage =
   | ReactionMsg
   | PauseMsg
   | ResumeMsg
+  | KickedMsg
   | ChatMsg;
+
+/** 호스트 → 게스트: 방장이 내보냄. 받은 게스트는 안내 후 메뉴로. */
+export interface KickedMsg {
+  type: 'kicked';
+}
 
 /** 게스트 → 호스트: 방 입장 요청 (연결 직후 첫 메시지) */
 export interface JoinRequestMsg {

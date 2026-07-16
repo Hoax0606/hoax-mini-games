@@ -1205,6 +1205,24 @@ input {
   font-weight: 500;
 }
 
+/* 강퇴 버튼 — 방장 화면 참가자 행 우측 */
+.participant-kick {
+  margin-left: auto;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  font-size: 13px;
+  line-height: 1;
+  padding: 4px 6px;
+  border-radius: var(--radius-sm);
+  opacity: 0.55;
+  transition: opacity 0.15s, background 0.15s;
+}
+.participant-kick:hover {
+  opacity: 1;
+  background: var(--pink-50);
+}
+
 .participant-you {
   font-size: 12px;
   color: var(--text-muted);

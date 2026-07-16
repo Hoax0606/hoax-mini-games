@@ -310,6 +310,18 @@ export class HostSession {
     return Array.from(this.acceptedConns.keys());
   }
 
+  /**
+   * 특정 게스트 강퇴 — 'kicked' 안내 전송 후 연결을 끊는다.
+   * 끊기면 onGuestDisconnected 가 자연히 호출돼 방 상태에서 제거된다.
+   */
+  kick(peerId: string): void {
+    const conn = this.acceptedConns.get(peerId);
+    if (!conn?.open) return;
+    safeSend(conn, { type: 'kicked' });
+    // 메시지 전달 여유를 두고 끊기 (즉시 close 하면 kicked 안내가 유실될 수 있음)
+    setTimeout(() => conn.close(), 150);
+  }
+
   /** 방 종료 — 모든 연결 끊고 브로커에서 해제 */
   close(): void {
     if (this.pingIntervalId !== null) {

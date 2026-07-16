@@ -5,6 +5,7 @@ import type { HostSession, GuestSession, JoinRequest, JoinDecision } from '../co
 import { getGameById, GLOBAL_MAX_PLAYERS } from '../games/registry';
 import type { Player, RoomState } from '../games/types';
 import { createGameScreenAsHostScreen, createGameScreenAsGuestScreen } from './gameScreen';
+import { createMenuScreen } from './menu';
 import { buildReactionBarHTML, wireReactionBar, showReactionBubble } from '../ui/reactions';
 import { buildChatPanelHTML, wireChatPanel, appendChatMessage } from '../ui/chat';
 import type { ChatMsg } from '../games/types';
@@ -33,6 +34,7 @@ function renderParticipantsHTML(
   players: Player[],
   maxPlayers: number,
   myPeerId: string | null,
+  showKick = false,
 ): string {
   const cells: string[] = [];
   for (let i = 0; i < maxPlayers; i++) {
@@ -45,10 +47,15 @@ function renderParticipantsHTML(
       const nameHtml = isMe
         ? `${escapeHtml(p.nickname)} <span class="participant-you">(나)</span>`
         : escapeHtml(p.nickname);
+      // 방장 화면에서만, 방장 본인이 아닌 참가자에게 강퇴(❌) 버튼
+      const kickBtn = showKick && !p.isHost
+        ? `<button class="participant-kick" data-kick-peer="${escapeHtml(p.peerId)}" title="강퇴">❌</button>`
+        : '';
       cells.push(`
         <div class="participant ${hostCls}">
           <span class="participant-badge ${badgeCls}">${badgeText}</span>
           <span class="participant-name">${nameHtml}</span>
+          ${kickBtn}
         </div>
       `);
     } else {
@@ -216,9 +223,22 @@ export function createWaitingRoomAsHostScreen(args: WaitingRoomAsHostArgs): Scre
         const max = maxPlayers();
         gameNameEl.textContent = gameName();
         optionSummaryEl.textContent = buildOptionSummary(snapshotRoomState(), gameId);
-        participantsEl.innerHTML = renderParticipantsHTML(players, max, hostPlayer.peerId);
+        participantsEl.innerHTML = renderParticipantsHTML(players, max, hostPlayer.peerId, true);
         playerCountEl.textContent = `${players.length} / ${max}`;
         pickGameBtn.textContent = gameId ? '🎲 게임 변경' : '🎲 게임 선택';
+
+        // 강퇴 버튼 배선 — 방장이 해당 게스트 연결을 끊음(onGuestDisconnected 가 정리)
+        participantsEl.querySelectorAll<HTMLButtonElement>('.participant-kick').forEach((btn) => {
+          btn.addEventListener('click', () => {
+            const peerId = btn.dataset.kickPeer;
+            if (!peerId) return;
+            const target = guestPlayers.find((g) => g.peerId === peerId);
+            if (!target) return;
+            if (window.confirm(`${target.nickname} 님을 강퇴할까요?`)) {
+              host.kick(peerId);
+            }
+          });
+        });
 
         if (!gameId) {
           startBtn.disabled = true;
@@ -456,6 +476,7 @@ export function createWaitingRoomAsGuestScreen(args: WaitingRoomAsGuestArgs): Sc
   let closeOnDispose = true;
   let cleanupChatGuest: (() => void) | null = null;
   let roomState: RoomState = initialRoomState;
+  let wasKicked = false; // 강퇴 안내(kicked)와 방장 나감(onDisconnect) 중복 알림 방지
   const myPeerId = guest.myPeerId;
 
   // 게임은 방장이 방 안에서 고름 → gameId 가 '' 일 수 있고, 도중에 바뀔 수도 있음(room_state 로 반영).
@@ -541,6 +562,12 @@ export function createWaitingRoomAsGuestScreen(args: WaitingRoomAsGuestArgs): Sc
             router.replace(() => createGameScreenAsGuestScreen({ guest, roomState: rs }));
             break;
           }
+          case 'kicked':
+            // 방장이 내보냄 — onDisconnect 의 "방장이 나갔어요" 와 구분하기 위해 플래그.
+            wasKicked = true;
+            alert('방장이 내보냈어요');
+            router.reset(() => createMenuScreen());
+            break;
           case 'game_end':
           case 'game_msg':
             break;
@@ -571,6 +598,7 @@ export function createWaitingRoomAsGuestScreen(args: WaitingRoomAsGuestArgs): Sc
       });
 
       guest.onDisconnect = () => {
+        if (wasKicked) return; // 강퇴는 'kicked' 에서 이미 안내+이동함
         alert('방장이 방을 나갔어요');
         router.back();
       };
