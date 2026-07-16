@@ -339,17 +339,11 @@ class OneCardGame implements GameModule {
       this.broadcastAll();
       return;
     }
+    // 일반 뽑기: 1장 뽑으면 바로 턴 종료(뽑고 그 자리서 내기 금지). 스택 받기(위)만 예외로 반격 가능.
     if (this.awaitingPostDraw) return;
     this.drawCards(from, 1);
-    const hand = this.hands.get(from)!;
-    const drawn = hand[hand.length - 1]!;
-    if (canPlay(drawn, this.activeColor, this.topKind())) {
-      this.awaitingPostDraw = true; // 턴 유지 — 낼지/패스할지
-      this.lastAction = `${this.nick(from)} 카드 뽑음`;
-    } else {
-      this.setTurn(advanceTurn(this.order, this.currentTurn, this.direction, set, 1));
-      this.lastAction = `${this.nick(from)} 뽑고 패스`;
-    }
+    this.setTurn(advanceTurn(this.order, this.currentTurn, this.direction, set, 1));
+    this.lastAction = `${this.nick(from)} 1장 뽑고 넘김`;
     this.broadcastAll();
   }
 
