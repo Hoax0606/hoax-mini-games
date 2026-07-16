@@ -2898,8 +2898,8 @@ input {
   border-radius: 26px; padding: 16px;
   box-shadow: 0 20px 50px rgba(150, 110, 170, .18);
 }
-/* 메뉴 버튼: 왼쪽 정렬 아이콘 + 라벨 */
-.menu-card .btn { justify-content: flex-start; gap: 12px; }
+/* 메뉴 버튼: 왼쪽 정렬 아이콘 + 라벨. 좌우 패딩 통일 → btn-lg(방만들기)도 아이콘 세로줄 정렬 맞음 */
+.menu-card .btn { justify-content: flex-start; gap: 12px; padding-left: 22px; padding-right: 22px; }
 .menu-card .btn .btn-label { flex: 1; text-align: left; }
 /* 보조 버튼 = 반투명 흰 재질 (그라데이션 배경 위 = 잘 보임) */
 .menu-card .btn-secondary {
