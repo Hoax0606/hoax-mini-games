@@ -45,6 +45,12 @@ function renderParticipantsHTML(
     const nameHtml = isMe
       ? `${escapeHtml(p.nickname)} <span class="participant-you">(나)</span>`
       : escapeHtml(p.nickname);
+    // 게스트 준비 상태 배지 (방장은 항상 준비된 것으로 취급 → 표시 안 함)
+    const readyTag = p.isHost
+      ? ''
+      : p.ready
+        ? `<span class="participant-ready is-ready">✅ 준비완료</span>`
+        : `<span class="participant-ready">준비중…</span>`;
     // 방장 화면에서만, 방장 본인이 아닌 참가자에게 강퇴(❌) 버튼
     const kickBtn = showKick && !p.isHost
       ? `<button class="participant-kick" data-kick-peer="${escapeHtml(p.peerId)}" title="강퇴">❌</button>`
@@ -53,6 +59,7 @@ function renderParticipantsHTML(
       <div class="participant ${hostCls}">
         <span class="participant-badge ${badgeCls}">${badgeText}</span>
         <span class="participant-name">${nameHtml}</span>
+        ${readyTag}
         ${kickBtn}
       </div>
     `;
@@ -217,15 +224,20 @@ export function createWaitingRoomAsHostScreen(args: WaitingRoomAsHostArgs): Scre
           });
         });
 
+        // 전원 준비돼야 시작 가능(방장은 항상 준비된 것으로 취급 → 게스트만 검사).
+        const notReady = guestPlayers.filter((g) => !g.ready).length;
         if (!gameId) {
           startBtn.disabled = true;
           startBtn.textContent = '게임을 먼저 골라주세요';
-        } else if (players.length >= minPlayers()) {
-          startBtn.disabled = false;
-          startBtn.textContent = '게임 시작';
-        } else {
+        } else if (players.length < minPlayers()) {
           startBtn.disabled = true;
           startBtn.textContent = `${minPlayers() - players.length}명 더 필요해요`;
+        } else if (notReady > 0) {
+          startBtn.disabled = true;
+          startBtn.textContent = `준비 대기 중… (${notReady}명)`;
+        } else {
+          startBtn.disabled = false;
+          startBtn.textContent = '게임 시작';
         }
       };
       refreshUI();
@@ -242,6 +254,8 @@ export function createWaitingRoomAsHostScreen(args: WaitingRoomAsHostArgs): Scre
         }
         gameId = newGameId;
         roomOptions = { ...newOptions };
+        // 게임이 바뀌면 모두 다시 준비해야 함 → 게스트 ready 리셋
+        guestPlayers.forEach((p) => { p.ready = false; });
         // 정원 좁힘 — 이후 입장은 이 게임 기준으로 막힘
         host.maxAccepted = Math.max(1, g.meta.maxPlayers - 1);
         // 전원에게 새 방 상태 통지 + 공개목록 갱신(게임이름/정원)
@@ -273,8 +287,11 @@ export function createWaitingRoomAsHostScreen(args: WaitingRoomAsHostArgs): Scre
           sel.addEventListener('change', () => {
             const key = sel.id.replace('opt-', '');
             roomOptions = { ...roomOptions, [key]: sel.value };
+            // 설정이 바뀌면 게스트가 본 조건이 달라짐 → 준비 리셋(다시 확인하고 준비하도록)
+            guestPlayers.forEach((p) => { p.ready = false; });
             host.send({ type: 'room_state', roomState: snapshotRoomState() });
             updatePublicRoom(host.roomId, { playerCount: 1 + guestPlayers.length }).catch(() => {});
+            refreshUI(); // 시작 버튼/참가자 준비 배지 갱신
           });
         });
       }
@@ -342,6 +359,16 @@ export function createWaitingRoomAsHostScreen(args: WaitingRoomAsHostArgs): Scre
           appendChatMessage(el, msg, false);
           for (const pid of host.listGuestPeerIds()) {
             if (pid !== fromPeerId) host.sendTo(pid, msg);
+          }
+          return;
+        }
+        // 준비 토글: 해당 게스트 ready 갱신 후 전원에 방 상태 동기화 (참가자 배지 + 시작 버튼 반영)
+        if (msg.type === 'ready') {
+          const g = guestPlayers.find((p) => p.peerId === fromPeerId);
+          if (g) {
+            g.ready = msg.ready;
+            host.send({ type: 'room_state', roomState: snapshotRoomState() });
+            refreshUI();
           }
           return;
         }
@@ -480,8 +507,8 @@ export function createWaitingRoomAsGuestScreen(args: WaitingRoomAsGuestArgs): Sc
             <div class="waiting-left">
               <div class="waiting-section-title">👥 참가자 <span class="waiting-count" id="player-count">${roomState.players.length} / ${guestMaxPlayers()}명</span></div>
               <div class="participants" id="participants"></div>
-              <button class="btn btn-secondary btn-lg btn-block" id="waiting-label" disabled>
-                방장이 게임을 고르고 있어요...
+              <button class="btn btn-primary btn-lg btn-block" id="ready-btn" disabled>
+                방장이 게임을 고르는 중…
               </button>
               <div style="margin-top: 10px;">${buildReactionBarHTML()}</div>
             </div>
@@ -504,7 +531,11 @@ export function createWaitingRoomAsGuestScreen(args: WaitingRoomAsGuestArgs): Sc
       const gameNameEl = el.querySelector<HTMLDivElement>('#game-name')!;
       const gameGridEl = el.querySelector<HTMLDivElement>('#game-grid')!;
       const gameOptionsEl = el.querySelector<HTMLDivElement>('#game-options')!;
-      const waitingLabel = el.querySelector<HTMLButtonElement>('#waiting-label')!;
+      const readyBtn = el.querySelector<HTMLButtonElement>('#ready-btn')!;
+
+      /** roomState 안의 내 ready 값 (없으면 false) */
+      const amIReady = (): boolean =>
+        !!roomState.players.find((p) => p.peerId === myPeerId)?.ready;
 
       const refreshUI = (): void => {
         const max = guestMaxPlayers();
@@ -521,11 +552,33 @@ export function createWaitingRoomAsGuestScreen(args: WaitingRoomAsGuestArgs): Sc
           : '';
         // 게스트는 설정을 못 바꿈 → 셀렉트 비활성화
         gameOptionsEl.querySelectorAll('select').forEach((s) => { s.disabled = true; });
-        waitingLabel.textContent = roomState.gameId
-          ? '방장이 시작하기를 기다리는 중...'
-          : '방장이 게임을 고르고 있어요...';
+
+        // 준비 버튼 — 게임이 정해지기 전엔 비활성, 정해지면 준비/준비완료 토글
+        if (!roomState.gameId) {
+          readyBtn.disabled = true;
+          readyBtn.className = 'btn btn-secondary btn-lg btn-block';
+          readyBtn.textContent = '방장이 게임을 고르는 중…';
+        } else if (amIReady()) {
+          readyBtn.disabled = false;
+          readyBtn.className = 'btn btn-secondary btn-lg btn-block';
+          readyBtn.textContent = '✅ 준비 완료 (누르면 취소)';
+        } else {
+          readyBtn.disabled = false;
+          readyBtn.className = 'btn btn-primary btn-lg btn-block';
+          readyBtn.textContent = '준비';
+        }
       };
       refreshUI();
+
+      // 준비 토글 — 낙관적으로 내 상태를 로컬 반영 후 호스트에 통지(호스트가 room_state 로 되돌려줌)
+      readyBtn.addEventListener('click', () => {
+        if (!roomState.gameId) return;
+        const me = roomState.players.find((p) => p.peerId === myPeerId);
+        const next = !me?.ready;
+        if (me) me.ready = next;
+        guest.send({ type: 'ready', ready: next });
+        refreshUI();
+      });
 
       guest.onMessage = (msg) => {
         switch (msg.type) {

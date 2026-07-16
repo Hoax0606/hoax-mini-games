@@ -91,6 +91,12 @@ export interface Player {
    * - 'spectator': 관전 (Phase 2에서 구현)
    */
   role: 'player' | 'spectator';
+  /**
+   * 대기실 준비 완료 여부(게스트만 의미 있음, 방장은 항상 준비된 것으로 취급).
+   * 게스트가 '준비' 토글 → ReadyMsg 로 호스트에 전달 → 호스트가 갱신·broadcast.
+   * 방장은 전원 준비돼야 게임 시작 가능. 게임/설정이 바뀌면 리셋된다.
+   */
+  ready?: boolean;
 }
 
 /**
@@ -219,7 +225,14 @@ export type NetworkMessage =
   | PauseMsg
   | ResumeMsg
   | KickedMsg
+  | ReadyMsg
   | ChatMsg;
+
+/** 게스트 → 호스트: 대기실 '준비' 토글. 호스트가 해당 게스트의 ready 를 갱신 후 room_state broadcast. */
+export interface ReadyMsg {
+  type: 'ready';
+  ready: boolean;
+}
 
 /** 호스트 → 게스트: 방장이 내보냄. 받은 게스트는 안내 후 메뉴로. */
 export interface KickedMsg {

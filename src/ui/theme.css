@@ -1230,6 +1230,18 @@ input {
   margin-left: 4px;
 }
 
+/* 게스트 준비 상태 배지 — 이름 오른쪽으로 밀어 정렬. 준비완료면 초록(#2e8a70, ping-good 과 동일) */
+.participant-ready {
+  margin-left: auto;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+.participant-ready.is-ready { color: #2e8a70; }
+/* 준비 배지 뒤에 강퇴 버튼이 오면 그 사이 간격만 */
+.participant-ready + .participant-kick { margin-left: 6px; }
+
 .participant-empty .participant-name {
   color: var(--text-muted);
   font-style: italic;
