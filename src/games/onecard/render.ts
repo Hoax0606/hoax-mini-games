@@ -58,7 +58,10 @@ export interface RenderState {
 type Hit =
   | { kind: 'card'; index: number }
   | { kind: 'draw' }
-  | { kind: 'color'; color: Color };
+  | { kind: 'color'; color: Color }
+  | { kind: 'surrender' };
+
+const SURRENDER_RECT = { x: 10, y: 372, w: 74, h: 22 };
 
 const HAND_Y = 316;
 const HAND_CARD_W = 56;
@@ -114,6 +117,9 @@ export class OneCardRenderer {
     if (x >= DRAW_RECT.x && x <= DRAW_RECT.x + DRAW_RECT.w && y >= DRAW_RECT.y && y <= DRAW_RECT.y + DRAW_RECT.h) {
       return { kind: 'draw' };
     }
+    // 기권 버튼
+    const s = SURRENDER_RECT;
+    if (x >= s.x && x <= s.x + s.w && y >= s.y && y <= s.y + s.h) return { kind: 'surrender' };
     return null;
   }
 
@@ -144,6 +150,23 @@ export class OneCardRenderer {
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       ctx.fillText(pub.lastAction, W / 2, 286);
+    }
+
+    // 기권 버튼 (내가 아직 안 끝났고 관전 아니면)
+    const iAmOut = pub.finished.includes(state.myPeerId) || pub.outPeers.includes(state.myPeerId);
+    if (!state.isSpectator && pub.phase === 'playing' && !iAmOut) {
+      const s = SURRENDER_RECT;
+      this.roundRect(ctx, s.x, s.y, s.w, s.h, 7);
+      ctx.fillStyle = '#f3e0e6';
+      ctx.fill();
+      ctx.lineWidth = 1.5;
+      ctx.strokeStyle = '#d99';
+      ctx.stroke();
+      ctx.fillStyle = '#b05068';
+      ctx.font = `700 12px ${FONT}`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('🏳 기권', s.x + s.w / 2, s.y + s.h / 2);
     }
 
     if (state.wildPickIndex >= 0) this.drawWildPicker(ctx);
@@ -181,9 +204,10 @@ export class OneCardRenderer {
       const cx = startX + i * cw + cw / 2;
       const isTurn = pub.phase === 'playing' && pub.order[pub.currentTurn] === pid;
       const finRank = pub.finished.indexOf(pid);
+      const isOut = pub.outPeers.includes(pid);
 
       // 카드 뒷면 아이콘 + 장수
-      ctx.fillStyle = finRank >= 0 ? C.muted : C.cardBack;
+      ctx.fillStyle = (finRank >= 0 || isOut) ? C.muted : C.cardBack;
       this.roundRect(ctx, cx - 16, y, 32, 22, 5);
       ctx.fill();
       ctx.fillStyle = '#fff';
@@ -202,6 +226,10 @@ export class OneCardRenderer {
         ctx.fillStyle = C.muted;
         ctx.font = `700 11px ${FONT}`;
         ctx.fillText(`${finRank + 1}등 완료`, cx, y + 52);
+      } else if (isOut) {
+        ctx.fillStyle = C.muted;
+        ctx.font = `700 11px ${FONT}`;
+        ctx.fillText('🏳 기권', cx, y + 52);
       } else if (pid === nextPid || pid === prevPid) {
         // 내 앞/다음 명확히 (진행방향 기준). 다음 = 내가 공격카드 넘길 대상
         ctx.fillStyle = C.turnHi;

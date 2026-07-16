@@ -15,7 +15,7 @@ import {
 import {
   encodeHello, decodeHello, encodeSync, decodeSync, encodeHand, decodeHand,
   encodePlay, decodePlay, encodeDraw, decodeDraw, encodePass, decodePass,
-  encodeEnd, decodeEnd, type OneCardPublic,
+  decodeSurrender, encodeSurrender, encodeEnd, decodeEnd, type OneCardPublic,
 } from './netSync';
 import { OneCardRenderer, type RenderState } from './render';
 
@@ -47,6 +47,8 @@ class OneCardGame implements GameModule {
   private currentTurn = 0;
   private direction: 1 | -1 = 1;
   private finished: string[] = [];
+  /** 기권한 사람 peerId (턴에서 제외. 최종 순위는 남은 카드 수) */
+  private out: string[] = [];
   private phase: 'playing' | 'ended' = 'playing';
   private awaitingPostDraw = false;
   private lastAction = '';
@@ -106,6 +108,8 @@ class OneCardGame implements GameModule {
       if (draw) { this.handleDraw(draw.from); return; }
       const pass = decodePass(msg);
       if (pass) { this.handlePass(pass.from); return; }
+      const surr = decodeSurrender(msg);
+      if (surr) { this.handleSurrender(surr.from); return; }
       return;
     }
 
@@ -199,6 +203,13 @@ class OneCardGame implements GameModule {
       return;
     }
 
+    // 기권 버튼 — 내 차례 아니어도 가능(교착/포기 탈출). 이미 완료·기권했으면 무시.
+    if (hit.kind === 'surrender') {
+      const iAmOut = this.pub.finished.includes(this.myPeerId) || this.pub.outPeers.includes(this.myPeerId);
+      if (!iAmOut) this.doSurrender();
+      return;
+    }
+
     const myTurn = this.pub.order[this.pub.currentTurn] === this.myPeerId;
     if (!myTurn) return;
 
@@ -234,6 +245,10 @@ class OneCardGame implements GameModule {
     if (this.isHost) this.handlePass(this.myPeerId);
     else this.ctx.sendToPeer(encodePass(this.myPeerId));
   }
+  private doSurrender(): void {
+    if (this.isHost) this.handleSurrender(this.myPeerId);
+    else this.ctx.sendToPeer(encodeSurrender(this.myPeerId));
+  }
 
   // ============================================
   // 호스트 게임 로직
@@ -258,6 +273,7 @@ class OneCardGame implements GameModule {
     this.currentTurn = 0;
     this.direction = 1;
     this.finished = [];
+    this.out = [];
     this.phase = 'playing';
     this.awaitingPostDraw = false;
     this.pendingDraw = 0;
@@ -274,10 +290,12 @@ class OneCardGame implements GameModule {
   }
 
   private curPeer(): string { return this.order[this.currentTurn]!; }
+  /** 완료(비움)+기권 = 턴에서 빠진 사람 집합 */
+  private doneSet(): Set<string> { return new Set([...this.finished, ...this.out]); }
   private nick(pid: string): string { return this.playersMeta.find((p) => p.peerId === pid)?.nickname ?? '?'; }
   private topKind(): CardKind { return this.discard[this.discard.length - 1]!.kind; }
   private activeCount(): number {
-    const set = new Set(this.finished);
+    const set = this.doneSet();
     return this.order.filter((p) => !set.has(p)).length;
   }
 
@@ -299,7 +317,7 @@ class OneCardGame implements GameModule {
     this.discard.push(card);
     this.activeColor = isWild(card) ? (chosenColor ?? 'r') : (card.color as Color);
 
-    const set = new Set(this.finished);
+    const set = this.doneSet();
     if (hand.length === 0 && !set.has(from)) { this.finished.push(from); set.add(from); }
 
     let steps = 1;
@@ -326,7 +344,7 @@ class OneCardGame implements GameModule {
 
   private handleDraw(from: string): void {
     if (this.phase !== 'playing' || from !== this.curPeer()) return;
-    const set = new Set(this.finished);
+    const set = this.doneSet();
     // 스택 진행 중이면 = 누적 벌칙 전부 받되, 턴은 유지 → 받은 뒤 카드를 낼 수 있음(반격 가능).
     //   낼 것 없거나 원하면 뽑기더미 다시 눌러 패스.
     if (this.pendingDraw > 0) {
@@ -349,16 +367,31 @@ class OneCardGame implements GameModule {
 
   private handlePass(from: string): void {
     if (this.phase !== 'playing' || from !== this.curPeer() || !this.awaitingPostDraw) return;
-    const set = new Set(this.finished);
+    const set = this.doneSet();
     this.setTurn(advanceTurn(this.order, this.currentTurn, this.direction, set, 1));
     this.lastAction = `${this.nick(from)} 패스`;
+    this.broadcastAll();
+  }
+
+  /** 기권 — 턴에서 빠짐. 내 차례였으면 다음으로 넘기고, 활성 1명 이하면 종료. */
+  private handleSurrender(from: string): void {
+    if (this.phase !== 'playing') return;
+    if (this.doneSet().has(from)) return; // 이미 완료/기권
+    const wasCurrent = from === this.curPeer();
+    this.out.push(from);
+    this.pendingDraw = 0; this.pendingKind = null; // 기권 시 걸린 스택 무효
+    this.lastAction = `${this.nick(from)} 기권`;
+    if (wasCurrent) {
+      this.setTurn(advanceTurn(this.order, this.currentTurn, this.direction, this.doneSet(), 1));
+    }
+    this.checkEnd();
     this.broadcastAll();
   }
 
   /** 호스트: 턴 제한시간 초과 → 스택 있으면 받고, 없으면 1장 뽑고 무조건 넘김 */
   private timeoutCurrent(): void {
     const from = this.curPeer();
-    const set = new Set(this.finished);
+    const set = this.doneSet();
     if (this.pendingDraw > 0) {
       this.drawCards(from, this.pendingDraw);
       this.lastAction = `${this.nick(from)} 시간초과 — ${this.pendingDraw}장!`;
@@ -389,13 +422,9 @@ class OneCardGame implements GameModule {
   }
 
   private checkEnd(): void {
-    if (this.activeCount() <= 1) {
-      // 마지막 남은 1명도 finished 에 추가(꼴등) 후 종료
-      const set = new Set(this.finished);
-      const last = this.order.find((p) => !set.has(p));
-      if (last) this.finished.push(last);
-      this.phase = 'ended';
-    }
+    // 손 비운 사람 빼고 남은 "활성"(기권 안 하고 카드 든) 사람이 1명 이하면 종료.
+    //   (전원 기권/비움이면 0명일 수도) 순위는 finishAsHost 에서 확정.
+    if (this.activeCount() <= 1) this.phase = 'ended';
   }
 
   private buildPublic(): OneCardPublic {
@@ -411,6 +440,7 @@ class OneCardGame implements GameModule {
       direction: this.direction,
       drawPileCount: this.deck.length,
       finished: [...this.finished],
+      outPeers: [...this.out],
       phase: this.phase,
       awaitingPostDraw: this.awaitingPostDraw,
       pendingDraw: this.pendingDraw,
@@ -436,8 +466,14 @@ class OneCardGame implements GameModule {
 
   private finishAsHost(): void {
     if (this.endScheduled) return;
-    const total = this.finished.length;
-    const rankings = this.finished.map((peerId, i) => ({
+    // 순위: (1) 손 비운 사람 = 비운 순서(상위), (2) 나머지(기권/최후 보유) = 남은 카드 적은 순.
+    const emptied = [...this.finished];
+    const rest = this.order
+      .filter((p) => !emptied.includes(p))
+      .sort((a, b) => (this.hands.get(a)?.length ?? 0) - (this.hands.get(b)?.length ?? 0));
+    const orderedPeers = [...emptied, ...rest];
+    const total = orderedPeers.length;
+    const rankings = orderedPeers.map((peerId, i) => ({
       peerId, nickname: this.nick(peerId), rank: i + 1,
     }));
     const summaryFor = (peerId: string): Record<string, unknown> => ({

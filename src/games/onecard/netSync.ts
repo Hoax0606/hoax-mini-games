@@ -26,8 +26,10 @@ export interface OneCardPublic {
   currentTurn: number;
   direction: 1 | -1;
   drawPileCount: number;
-  /** 손패 다 비운 순서(=순위). 마지막 남는 1명이 꼴등 */
+  /** 손패 다 비운 순서(=상위 순위) */
   finished: string[];
+  /** 기권한 사람들 (턴에서 빠짐. 최종 순위는 남은 카드 수로) */
+  outPeers: string[];
   phase: 'playing' | 'ended';
   /** 현재 턴 플레이어가 이미 1장 뽑아서 이제 "패스 가능" 상태인지(뽑은 카드 낼지 패스할지) */
   awaitingPostDraw: boolean;
@@ -47,6 +49,7 @@ const T_HAND = 'oc:hand';
 const T_PLAY = 'oc:play';
 const T_DRAW = 'oc:draw';
 const T_PASS = 'oc:pass';
+const T_SURRENDER = 'oc:surrender';
 const T_END = 'oc:end';
 
 // hello
@@ -69,6 +72,7 @@ export function decodeSync(msg: GameMessage): OneCardPublic | null {
   if (!p || !p.discardTop || !Array.isArray(p.order)) return null;
   return {
     ...(p as OneCardPublic),
+    outPeers: Array.isArray(p.outPeers) ? (p.outPeers as string[]) : [],
     pendingDraw: typeof p.pendingDraw === 'number' ? p.pendingDraw : 0,
     pendingKind: p.pendingKind === 'draw2' || p.pendingKind === 'wild4' ? p.pendingKind : null,
     turnMs: typeof p.turnMs === 'number' ? p.turnMs : 20000,
@@ -112,6 +116,12 @@ export function decodeDraw(msg: GameMessage): { from: string } | null {
 export function encodePass(from: string): GameMessage { return { type: T_PASS, payload: { from } }; }
 export function decodePass(msg: GameMessage): { from: string } | null {
   if (msg.type !== T_PASS) return null;
+  const p = msg.payload as { from?: unknown } | null;
+  return p && typeof p.from === 'string' ? { from: p.from } : null;
+}
+export function encodeSurrender(from: string): GameMessage { return { type: T_SURRENDER, payload: { from } }; }
+export function decodeSurrender(msg: GameMessage): { from: string } | null {
+  if (msg.type !== T_SURRENDER) return null;
   const p = msg.payload as { from?: unknown } | null;
   return p && typeof p.from === 'string' ? { from: p.from } : null;
 }
