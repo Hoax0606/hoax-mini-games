@@ -5,7 +5,6 @@ import { createSettingsScreen } from './settings';
 import { createNicknameScreen } from './nickname';
 import { createGameListScreen } from './gameList';
 import { createCreateRoomScreen } from './createRoom';
-import { createJoinRoomScreen } from './joinRoom';
 import { createStatsScreen } from './statsScreen';
 import { createPublicRoomsScreen } from './publicRooms';
 import { clearChatHistory } from '../ui/chat';
@@ -35,11 +34,8 @@ export function createMenuScreen(): Screen {
             <button class="btn btn-primary btn-lg btn-block" id="btn-create-room">
               🏠 방 만들기
             </button>
-            <button class="btn btn-secondary btn-block" id="btn-join-room">
-              🚪 코드로 참여
-            </button>
             <button class="btn btn-secondary btn-block" id="btn-public-rooms">
-              🌐 공개방 찾기
+              🌐 방 찾기
             </button>
             <button class="btn btn-secondary btn-block" id="btn-game-list">
               📖 게임 목록
@@ -60,10 +56,6 @@ export function createMenuScreen(): Screen {
       el.querySelector('#btn-create-room')!.addEventListener('click', () => {
         // 게임은 방 안(대기실)에서 고른다 → 여기선 게임 없이 방부터 만든다.
         router.push(() => createCreateRoomScreen());
-      });
-
-      el.querySelector('#btn-join-room')!.addEventListener('click', () => {
-        router.push(() => createJoinRoomScreen(''));
       });
 
       el.querySelector('#btn-public-rooms')!.addEventListener('click', () => {

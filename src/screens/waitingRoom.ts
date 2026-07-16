@@ -158,13 +158,10 @@ export function createWaitingRoomAsHostScreen(args: WaitingRoomAsHostArgs): Scre
           <div class="card-subtitle" id="game-name">${escapeHtml(gameName())}</div>
 
           <div class="room-code-box">
-            <div class="room-code-label">방 코드</div>
-            <div class="room-code-row">
-              <span class="room-code" id="room-code-text">${escapeHtml(host.roomId)}</span>
-              <button class="btn btn-secondary btn-sm" id="copy-btn">📋 코드</button>
-              <button class="btn btn-secondary btn-sm" id="share-btn">🔗 링크</button>
+            <div class="room-code-row" style="justify-content: center;">
+              <button class="btn btn-secondary btn-sm" id="share-btn">🔗 초대 링크 복사</button>
             </div>
-            <div class="room-code-hint">코드 또는 링크를 친구에게 공유하세요</div>
+            <div class="room-code-hint">링크를 공유하거나, 친구가 "방 찾기"에서 들어올 수 있어요</div>
           </div>
 
           <button class="btn btn-secondary btn-block" id="pick-game-btn" style="margin-bottom: 10px;">
@@ -194,7 +191,6 @@ export function createWaitingRoomAsHostScreen(args: WaitingRoomAsHostArgs): Scre
       const participantsEl = el.querySelector<HTMLDivElement>('#participants')!;
       const startBtn = el.querySelector<HTMLButtonElement>('#start-btn')!;
       const pickGameBtn = el.querySelector<HTMLButtonElement>('#pick-game-btn')!;
-      const copyBtn = el.querySelector<HTMLButtonElement>('#copy-btn')!;
       const shareBtn = el.querySelector<HTMLButtonElement>('#share-btn')!;
       const leaveBtn = el.querySelector<HTMLButtonElement>('#leave-btn')!;
       const toastEl = el.querySelector<HTMLDivElement>('#toast')!;
@@ -381,17 +377,6 @@ export function createWaitingRoomAsHostScreen(args: WaitingRoomAsHostArgs): Scre
         },
       });
 
-      // ---- 방 코드 복사 ----
-      copyBtn.addEventListener('click', async () => {
-        try {
-          await navigator.clipboard.writeText(host.roomId);
-          showToast('방 코드를 복사했어요!');
-        } catch {
-          const ok = window.prompt('방 코드를 복사하세요:', host.roomId);
-          if (ok !== null) showToast('방 코드를 확인했어요');
-        }
-      });
-
       // ---- 방 링크 복사 (카톡 등 공유 편의용) ----
       shareBtn.addEventListener('click', async () => {
         const shareUrl = buildRoomShareUrl(host.roomId);
@@ -493,13 +478,6 @@ export function createWaitingRoomAsGuestScreen(args: WaitingRoomAsGuestArgs): Sc
         <div class="card" style="min-width: 460px;">
           <div class="card-title">🎀 대기실</div>
           <div class="card-subtitle" id="game-name">${escapeHtml(guestGameName())}</div>
-
-          <div class="room-code-box">
-            <div class="room-code-label">방 코드</div>
-            <div class="room-code-row">
-              <span class="room-code">${escapeHtml(roomState.roomId)}</span>
-            </div>
-          </div>
 
           <div class="participants" id="participants"></div>
 
