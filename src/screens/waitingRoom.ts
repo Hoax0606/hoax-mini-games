@@ -69,18 +69,6 @@ function buildRoomShareUrl(roomCode: string): string {
   return url.toString();
 }
 
-function buildOptionSummary(roomState: RoomState, gameId: string): string {
-  const game = getGameById(gameId);
-  if (!game) return '';
-  return game.meta.roomOptions
-    .map((opt) => {
-      const val = roomState.roomOptions[opt.key] ?? opt.defaultValue;
-      const choice = opt.choices.find((c) => c.value === val);
-      return `${opt.label}: ${choice?.label ?? val}`;
-    })
-    .join(' · ');
-}
-
 // ============================================
 // 호스트 대기실
 // ============================================
@@ -163,8 +151,8 @@ export function createWaitingRoomAsHostScreen(args: WaitingRoomAsHostArgs): Scre
 
             <div class="waiting-right">
               <div class="waiting-section-title">🎲 게임 선택 <span class="waiting-section-hint">인원 초과 게임은 잠겨요</span></div>
-              <div class="change-game-options waiting-options" id="game-options"></div>
               <div class="change-game-grid waiting-grid" id="game-grid"></div>
+              <div class="change-game-options waiting-options" id="game-options"></div>
             </div>
           </div>
         </div>
@@ -209,11 +197,11 @@ export function createWaitingRoomAsHostScreen(args: WaitingRoomAsHostArgs): Scre
 
         // 게임 타일 그리드 (항상 노출, 인원 초과 게임은 잠금) + 선택 게임 옵션
         gameGridEl.innerHTML = buildGameTilesHTML(players.length, gameId, { enforceMin: false });
-        // 옵션은 오른쪽 타일 위 컴팩트 바. 옵션 없는 게임/미선택이면 바 자체를 숨겨(is-empty) 타일 영역 안 침범.
+        // 옵션은 우측 타일 그리드 아래 고정 바. 크기 고정이라 옵션 유무와 무관하게 그리드 높이 안 변함.
+        // 옵션 없는 게임/미선택이면 빈 크림 박스만 그대로 둔다(숨기지 않음).
         const selectedGame = gameId ? getGameById(gameId) : null;
         const hasOptions = !!selectedGame && selectedGame.meta.roomOptions.length > 0;
         gameOptionsEl.innerHTML = hasOptions ? buildGameOptionsHTML(gameId, roomOptions) : '';
-        gameOptionsEl.classList.toggle('is-empty', !hasOptions);
         wireGameArea();
 
         // 강퇴 버튼 배선 — 방장이 해당 게스트 연결을 끊음(onGuestDisconnected 가 정리)
@@ -480,22 +468,31 @@ export function createWaitingRoomAsGuestScreen(args: WaitingRoomAsGuestArgs): Sc
       el.innerHTML = `
         <button class="back-btn" id="leave-btn" title="방 나가기">×</button>
 
-        <div class="card" style="min-width: 460px;">
-          <div class="card-title">🎀 대기실</div>
-          <div class="card-subtitle" id="game-name">${escapeHtml(guestGameName())}</div>
-
-          <div class="participants" id="participants"></div>
-
-          <div class="room-info">
-            <span class="room-info-item" id="option-summary"></span>
-            <span class="room-info-item" id="player-count">${roomState.players.length} / ${guestMaxPlayers()}명</span>
+        <div class="card waiting-card">
+          <div class="waiting-head">
+            <div class="waiting-head-title">
+              <div class="card-title">🎀 대기실</div>
+              <div class="card-subtitle" id="game-name">${escapeHtml(guestGameName())}</div>
+            </div>
           </div>
 
-          <button class="btn btn-secondary btn-lg btn-block" id="waiting-label" disabled>
-            방장이 게임을 고르고 있어요...
-          </button>
+          <div class="waiting-body">
+            <div class="waiting-left">
+              <div class="waiting-section-title">👥 참가자 <span class="waiting-count" id="player-count">${roomState.players.length} / ${guestMaxPlayers()}명</span></div>
+              <div class="participants" id="participants"></div>
+              <button class="btn btn-secondary btn-lg btn-block" id="waiting-label" disabled>
+                방장이 게임을 고르고 있어요...
+              </button>
+              <div style="margin-top: 10px;">${buildReactionBarHTML()}</div>
+            </div>
 
-          <div style="margin-top: 14px;">${buildReactionBarHTML()}</div>
+            <div class="waiting-right">
+              <div class="waiting-section-title">🎲 방장이 고른 게임</div>
+              <!-- 게스트는 보기 전용: 클릭 못 하게 is-readonly (CSS pointer-events:none) -->
+              <div class="change-game-grid waiting-grid is-readonly" id="game-grid"></div>
+              <div class="change-game-options waiting-options" id="game-options"></div>
+            </div>
+          </div>
         </div>
 
         ${buildChatPanelHTML()}
@@ -505,15 +502,25 @@ export function createWaitingRoomAsGuestScreen(args: WaitingRoomAsGuestArgs): Sc
       const playerCountEl = el.querySelector<HTMLSpanElement>('#player-count')!;
       const leaveBtn = el.querySelector<HTMLButtonElement>('#leave-btn')!;
       const gameNameEl = el.querySelector<HTMLDivElement>('#game-name')!;
-      const optionSummaryEl = el.querySelector<HTMLSpanElement>('#option-summary')!;
+      const gameGridEl = el.querySelector<HTMLDivElement>('#game-grid')!;
+      const gameOptionsEl = el.querySelector<HTMLDivElement>('#game-options')!;
       const waitingLabel = el.querySelector<HTMLButtonElement>('#waiting-label')!;
 
       const refreshUI = (): void => {
         const max = guestMaxPlayers();
+        const count = roomState.players.length;
         gameNameEl.textContent = guestGameName();
-        optionSummaryEl.textContent = buildOptionSummary(roomState, roomState.gameId);
         participantsEl.innerHTML = renderParticipantsHTML(roomState.players, max, myPeerId);
-        playerCountEl.textContent = `${roomState.players.length} / ${max}명`;
+        playerCountEl.textContent = `${count} / ${max}명`;
+        // 방장이 고른 게임/설정을 그대로(읽기 전용) 표시 — 방장 화면과 동일 UI.
+        gameGridEl.innerHTML = buildGameTilesHTML(count, roomState.gameId, { enforceMin: false });
+        const selectedGame = roomState.gameId ? getGameById(roomState.gameId) : null;
+        const hasOptions = !!selectedGame && selectedGame.meta.roomOptions.length > 0;
+        gameOptionsEl.innerHTML = hasOptions
+          ? buildGameOptionsHTML(roomState.gameId, roomState.roomOptions)
+          : '';
+        // 게스트는 설정을 못 바꿈 → 셀렉트 비활성화
+        gameOptionsEl.querySelectorAll('select').forEach((s) => { s.disabled = true; });
         waitingLabel.textContent = roomState.gameId
           ? '방장이 시작하기를 기다리는 중...'
           : '방장이 게임을 고르고 있어요...';

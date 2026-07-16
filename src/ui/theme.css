@@ -2540,17 +2540,18 @@ input {
   align-content: start;
   padding-right: 4px;
 }
-/* 게임 설정 — 우측 타일 그리드 위에 한 줄 컴팩트 바. 옵션 없으면 숨겨 타일 영역을 안 침범 */
+/* 게임 설정 — 우측 타일 그리드 '아래 고정' 바. 크기 고정이라 옵션 유무와 무관하게 그리드가 안 밀림.
+   옵션 없는 게임/미선택이면 내용 없이 크림색 빈 박스만 그대로 둔다(숨기지 않음). */
 .waiting-options {
   flex: 0 0 auto;
+  min-height: 52px;
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 6px 14px;
-  margin: 0 0 10px;
+  margin: 10px 0 0;
   padding: 8px 12px;
 }
-.waiting-options.is-empty { display: none; }
 .waiting-options .change-game-options-title { margin: 0; font-size: 12px; }
 .waiting-options .form-group {
   margin: 0;
@@ -2560,6 +2561,8 @@ input {
 }
 .waiting-options .input-label { margin: 0; font-size: 12px; white-space: nowrap; }
 .waiting-options .select { width: auto; padding: 5px 9px; font-size: 13px; }
+/* 게스트: 게임 그리드는 보기 전용 — 클릭/호버 반응 없이 방장이 고른 게임만 확인 */
+.waiting-grid.is-readonly { pointer-events: none; }
 @media (max-width: 720px) {
   .waiting-card { height: auto; max-height: 88vh; }
   .waiting-body { flex-direction: column; }
