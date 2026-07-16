@@ -27,16 +27,19 @@ export const DASH_CD_MS = 1500;
 export const FALLER_SIZE = 30;
 /** 충돌 판정 여유(px) — 히트박스를 살짝 줄여 "닿을락 말락"은 안 죽게(재미) */
 export const HIT_PADDING = 6;
-/** 낙하 속도: base + 경과초 × accel + 지터 (시간 지날수록 빨라짐) */
-const FALL_BASE = 190;
-const FALL_ACCEL = 3.2;
-const FALL_JITTER = 70;
-/** 스폰 간격(초): start 에서 시작해 시간 지날수록 min 까지 촘촘 */
-const SPAWN_START = 0.70;
-const SPAWN_MIN = 0.24;
-const SPAWN_RAMP = 0.006;
+/** 낙하 속도: base + 경과초 × accel + 지터 (시간 지날수록 빨라짐 — 가속 상향) */
+const FALL_BASE = 230;
+const FALL_ACCEL = 7.0;
+const FALL_JITTER = 90;
+/** 스폰 간격(초): start 에서 시작해 시간 지날수록 min 까지 촘촘 (더 빨리·더 촘촘하게) */
+const SPAWN_START = 0.60;
+const SPAWN_MIN = 0.14;
+const SPAWN_RAMP = 0.011;
 /** 첫 스폰까지 딜레이(초) — 시작하자마자 안 맞게 */
 const FIRST_SPAWN_T = 0.6;
+/** 동시 낙하 개수(버스트): 시간 지날수록 한 번에 여러 개 떨어짐. BURST_EVERY 초마다 +1, 상한 MAX_BURST */
+const BURST_EVERY = 20;
+const MAX_BURST = 4;
 
 /** 호스트 안전장치 — 이 시간(ms) 지나면 강제 종료(생존시간 순위). 보통 그 전에 다 죽음. */
 export const MAX_GAME_MS = 180_000;
@@ -78,9 +81,13 @@ export function createSpawner(seed: number): { fallers: Faller[]; ensure(t: numb
     ensure(t: number): void {
       // 현재 시각 + 2초 앞까지 미리 생성 (렌더 룩어헤드)
       while (nextT <= t + 2) {
-        const x = rand() * (FIELD_W - FALLER_SIZE);
-        const speed = FALL_BASE + nextT * FALL_ACCEL + (rand() - 0.5) * FALL_JITTER;
-        fallers.push({ x, size: FALLER_SIZE, spawnT: nextT, speed });
+        // 시간 지날수록 한 번에 여러 개(버스트) — 똥 개수 점점 증가
+        const burst = Math.min(MAX_BURST, 1 + Math.floor(nextT / BURST_EVERY));
+        for (let b = 0; b < burst; b++) {
+          const x = rand() * (FIELD_W - FALLER_SIZE);
+          const speed = FALL_BASE + nextT * FALL_ACCEL + (rand() - 0.5) * FALL_JITTER;
+          fallers.push({ x, size: FALLER_SIZE, spawnT: nextT, speed });
+        }
         const interval = Math.max(SPAWN_MIN, SPAWN_START - nextT * SPAWN_RAMP);
         nextT += interval;
       }
