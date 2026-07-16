@@ -327,13 +327,15 @@ class OneCardGame implements GameModule {
   private handleDraw(from: string): void {
     if (this.phase !== 'playing' || from !== this.curPeer()) return;
     const set = new Set(this.finished);
-    // 스택 진행 중이면 = 누적 벌칙 전부 받고 턴 종료
+    // 스택 진행 중이면 = 누적 벌칙 전부 받되, 턴은 유지 → 받은 뒤 카드를 낼 수 있음(반격 가능).
+    //   낼 것 없거나 원하면 뽑기더미 다시 눌러 패스.
     if (this.pendingDraw > 0) {
       this.drawCards(from, this.pendingDraw);
-      this.lastAction = `${this.nick(from)} ${this.pendingDraw}장 받음!`;
+      this.lastAction = `${this.nick(from)} ${this.pendingDraw}장 받음! (내고 반격 가능)`;
       this.pendingDraw = 0;
       this.pendingKind = null;
-      this.setTurn(advanceTurn(this.order, this.currentTurn, this.direction, set, 1));
+      this.awaitingPostDraw = true; // 턴 유지 — 카드 내거나 패스
+      this.turnStartedAt = performance.now(); // 타이머 리셋
       this.broadcastAll();
       return;
     }

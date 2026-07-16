@@ -156,6 +156,21 @@ export class OneCardRenderer {
     const others = pub.order.filter((pid) => pid !== state.myPeerId);
     const n = others.length;
     if (n === 0) return;
+    // 내 앞/다음 플레이어 계산 (진행 방향 + 완료자 건너뜀) → 태그로 명확히 표시
+    const fin = new Set(pub.finished);
+    const myIdx = pub.order.indexOf(state.myPeerId);
+    const stepActive = (from: number, dir: number): string => {
+      if (from < 0) return '';
+      const len = pub.order.length;
+      let idx = from;
+      for (let c = 0; c < len; c++) {
+        idx = (idx + dir + len) % len;
+        if (!fin.has(pub.order[idx]!)) return pub.order[idx]!;
+      }
+      return '';
+    };
+    const nextPid = stepActive(myIdx, pub.direction);
+    const prevPid = stepActive(myIdx, -pub.direction);
     const cw = Math.min(120, (W - 40) / n);
     const total = n * cw;
     const startX = (W - total) / 2;
@@ -187,6 +202,11 @@ export class OneCardRenderer {
         ctx.fillStyle = C.muted;
         ctx.font = `700 11px ${FONT}`;
         ctx.fillText(`${finRank + 1}등 완료`, cx, y + 52);
+      } else if (pid === nextPid || pid === prevPid) {
+        // 내 앞/다음 명확히 (진행방향 기준). 다음 = 내가 공격카드 넘길 대상
+        ctx.fillStyle = C.turnHi;
+        ctx.font = `800 11px ${FONT}`;
+        ctx.fillText(pid === nextPid ? '⬅ 내 다음' : '내 앞 ➡', cx, y + 52);
       }
     }
   }
