@@ -19,9 +19,16 @@ export const TERRAIN_WIDTH = 800;
 /** 논리 세로(고정) */
 export const TERRAIN_HEIGHT = 400;
 
-/** 인원수에 따른 지형 폭 — 많을수록 넓게 (2인 800 → 6인 1320). */
+/** 인원수에 따른 지형 폭 — 많을수록 넓게 (2인 800 → 6인 1320). (구버전 호환용) */
 export function mapWidthForPlayers(n: number): number {
   return TERRAIN_WIDTH + Math.max(0, n - 2) * 130;
+}
+
+/** 포대 '개수' 기준 지형 폭 — 카메라 스크롤 전제. 포대당 ~190px + 여백, 최소 900. */
+export function mapWidthForForts(fortCount: number): number {
+  const MARGIN = 90;
+  const SPACING = 190;
+  return Math.max(900, MARGIN * 2 + Math.max(0, fortCount - 1) * SPACING);
 }
 
 /** 지면 평균 top y. 이 아래로 흙. 위쪽(0~) 은 하늘 = 포탄 궤적 공간. */
@@ -49,10 +56,12 @@ function mulberry32(seed: number): () => number {
 export function generateTerrain(seed: number, width: number = TERRAIN_WIDTH): number[] {
   const rng = mulberry32(seed);
   // 겹겹의 사인파 — 낮은 주파수(큰 언덕) + 높은 주파수(잔굴곡)
+  // 겹겹 사인파 — 큰 언덕(낮은 주파수) + 중간 굴곡 + 잔굴곡. 넓은 맵에 지형이 밋밋하지 않게 진폭을 키움.
   const layers = [
-    { amp: 55 + rng() * 35, freq: (0.6 + rng() * 0.5) / 100, phase: rng() * Math.PI * 2 },
-    { amp: 22 + rng() * 18, freq: (1.4 + rng() * 0.8) / 100, phase: rng() * Math.PI * 2 },
-    { amp: 10 + rng() * 8,  freq: (3.0 + rng() * 1.5) / 100, phase: rng() * Math.PI * 2 },
+    { amp: 68 + rng() * 42, freq: (0.5 + rng() * 0.45) / 100, phase: rng() * Math.PI * 2 },
+    { amp: 32 + rng() * 22, freq: (1.1 + rng() * 0.7) / 100, phase: rng() * Math.PI * 2 },
+    { amp: 15 + rng() * 11, freq: (2.4 + rng() * 1.3) / 100, phase: rng() * Math.PI * 2 },
+    { amp: 7  + rng() * 6,  freq: (4.4 + rng() * 2.0) / 100, phase: rng() * Math.PI * 2 },
   ];
   const hm = new Array<number>(width);
   for (let x = 0; x < width; x++) {

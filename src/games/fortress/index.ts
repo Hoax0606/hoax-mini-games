@@ -485,6 +485,14 @@ class FortressGameModule implements GameModule {
       const power01 = Math.min(1, Math.hypot(dx, dy) / MAX_DRAG_PX);
       aim = { fromX: this.aimFromX, fromY: this.aimFromY, mx: this.mouseX, my: this.mouseY, power01 };
     }
+    // 카메라 포커스: 포탄이 날면 포탄(첫 번째)을, 아니면 현재 차례 포대를 따라간다.
+    let focusX: number | undefined;
+    if (this.shells.length > 0) {
+      focusX = this.shells[0]!.x;
+    } else {
+      const cur = this.game.forts.find((f) => f.id === this.game.currentTurn && f.alive);
+      focusX = cur?.x;
+    }
     return {
       game: this.game,
       hm: this.hm,
@@ -500,6 +508,7 @@ class FortressGameModule implements GameModule {
       // 턴 타이머 표시용 — 각 클라 로컬 시각(자기 시계 기준). 호스트가 실제 타임아웃 판정.
       turnStartedAt: this.turnStartedAt,
       turnTimeMs: TURN_TIME_MS,
+      focusX,
     };
   }
 

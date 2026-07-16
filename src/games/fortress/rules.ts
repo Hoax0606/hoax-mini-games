@@ -5,7 +5,7 @@
  * 여기서는 높이맵을 인자로 받아 포대 y·데미지만 계산한다.
  */
 
-import { terrainTopAt, mapWidthForPlayers } from './terrain';
+import { terrainTopAt, mapWidthForForts } from './terrain';
 
 export type FortIndex = number; // 소유자(플레이어) 인덱스 0..N-1 (최대 10인)
 
@@ -171,7 +171,9 @@ export function createInitialGame(
   }
   const perPlayer = Math.max(1, Math.min(3, fortsPerPlayer));
   const total = players.length * perPlayer;
-  const terrainWidth = mapWidthForPlayers(players.length);
+  // 지형 폭은 '포대 개수'에 비례 — 카메라 스크롤 전제라 넉넉히 벌려 포대가 안 붙게.
+  //   포대당 약 190px 간격 + 여백. 2인 1포대(2개)여도 최소 900 유지.
+  const terrainWidth = mapWidthForForts(total);
   const xs = layoutFortX(total, terrainWidth);
 
   // 라운드로빈 배치: 좌→우로 P0,P1,...,P0,P1,... — 같은 소유자 포대가 흩어져 균형

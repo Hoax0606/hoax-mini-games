@@ -80,6 +80,8 @@ export interface RenderState {
   turnStartedAt: number;
   /** 한 턴 제한 시간(ms) */
   turnTimeMs: number;
+  /** 카메라가 가로로 따라갈 월드 x (현재 포대/날아가는 포탄). 없으면 맵 중앙 */
+  focusX?: number;
 }
 
 export interface FortressRendererArgs {
@@ -95,6 +97,8 @@ export class FortressRenderer {
   private scaleCss = 1;
   private offXCss = 0;
   private offYCss = 0;
+  /** 카메라 좌측 월드 x (부드러운 따라가기용, 시각 전용). null=아직 초기화 전 */
+  private camLeft: number | null = null;
 
   /** 화면(rect 내 CSS 픽셀) 좌표 → 게임 논리 좌표 */
   screenToLogical(px: number, py: number): { x: number; y: number } {
@@ -130,13 +134,26 @@ export class FortressRenderer {
     const dpr = window.devicePixelRatio || 1;
     const logicalW = state.game.terrainWidth;
 
-    // uniform scale + letterbox — 논리(logicalW × 400)를 화면에 왜곡 없이 담기
-    const scale = Math.min(rect.width / logicalW, rect.height / TERRAIN_HEIGHT);
+    // 카메라: 세로(TERRAIN_HEIGHT)를 화면 높이에 꽉 채우는 고정 스케일 → 맵이 넓어도 포대 크기 일정.
+    //   가로는 포커스(현재 포대/날아가는 포탄)를 따라 스크롤. 맵이 화면보다 좁으면 가운데 정렬.
+    const scale = rect.height / TERRAIN_HEIGHT;
+    const viewW = rect.width / scale; // 화면에 보이는 월드 가로 폭
+    let targetLeft: number;
+    if (viewW >= logicalW) {
+      targetLeft = (logicalW - viewW) / 2; // 좁은 맵 → 가운데(양옆 레터박스)
+    } else {
+      const focus = state.focusX ?? logicalW / 2;
+      targetLeft = Math.max(0, Math.min(logicalW - viewW, focus - viewW / 2));
+    }
+    // 부드러운 따라가기(시각 전용 — 시뮬 결정론과 무관)
+    if (this.camLeft === null) this.camLeft = targetLeft;
+    else this.camLeft += (targetLeft - this.camLeft) * 0.18;
+
     this.scaleCss = scale;
     // 착탄 직후 화면 흔들림 (타격 피드백)
     const shake = this.explosionShake(state.explosions, state.now);
-    this.offXCss = (rect.width - logicalW * scale) / 2 + shake;
-    this.offYCss = (rect.height - TERRAIN_HEIGHT * scale) / 2 + shake * 0.7;
+    this.offXCss = -this.camLeft * scale + shake;
+    this.offYCss = shake * 0.7;
 
     // 전체 배경(레터박스 여백) 채우기
     ctx.setTransform(1, 0, 0, 1, 0, 0);
