@@ -2544,7 +2544,8 @@ input {
    옵션 없는 게임/미선택이면 내용 없이 크림색 빈 박스만 그대로 둔다(숨기지 않음). */
 .waiting-options {
   flex: 0 0 auto;
-  min-height: 52px;
+  height: 58px;          /* 옵션 유무와 무관하게 항상 동일 크기 (넘치면 내부 스크롤) */
+  overflow-y: auto;
   display: flex;
   flex-wrap: wrap;
   align-items: center;
