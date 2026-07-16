@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 200">
+  <defs>
+    <linearGradient id="tyBg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#ffe4ee"/>
+      <stop offset="1" stop-color="#e0fff4"/>
+    </linearGradient>
+  </defs>
+  <rect width="320" height="200" rx="22" fill="url(#tyBg)"/>
+  <circle cx="30" cy="30" r="3" fill="#ffc9dd"/>
+  <circle cx="290" cy="40" r="2.5" fill="#b8f5e0"/>
+  <circle cx="290" cy="170" r="3" fill="#d9c7ff"/>
+  <circle cx="30" cy="170" r="2.2" fill="#ffeec2"/>
+
+  <!-- 격자판 -->
+  <g transform="translate(50 40)">
+    <rect x="0" y="0" width="220" height="120" rx="8" fill="#f4f0f7" stroke="#e0d0f0" stroke-width="2"/>
+    <!-- 빨강 영토 (좌상) -->
+    <rect x="8" y="8" width="70" height="52" fill="#ffc2cd"/>
+    <rect x="8" y="8" width="70" height="52" fill="none"/>
+    <!-- 파랑 영토 (우하) -->
+    <rect x="130" y="58" width="82" height="54" fill="#bcd8ff"/>
+    <!-- 초록 영토 (우상) -->
+    <rect x="150" y="8" width="62" height="34" fill="#bff0cb"/>
+    <!-- 빨강 꼬리 + 머리 -->
+    <rect x="78" y="34" width="14" height="14" fill="#ff5a6e" opacity="0.6"/>
+    <rect x="92" y="34" width="14" height="14" fill="#ff5a6e" opacity="0.6"/>
+    <rect x="106" y="34" width="14" height="14" fill="#ff5a6e" stroke="#fff" stroke-width="2"/>
+    <!-- 파랑 머리 -->
+    <rect x="116" y="80" width="14" height="14" fill="#4a86e8" opacity="0.6"/>
+    <rect x="116" y="66" width="14" height="14" fill="#4a86e8" stroke="#fff" stroke-width="2"/>
+    <!-- 격자선 옅게 -->
+    <g stroke="rgba(120,100,130,0.12)" stroke-width="1">
+      <line x1="55" y1="0" x2="55" y2="120"/><line x1="110" y1="0" x2="110" y2="120"/><line x1="165" y1="0" x2="165" y2="120"/>
+      <line x1="0" y1="40" x2="220" y2="40"/><line x1="0" y1="80" x2="220" y2="80"/>
+    </g>
+  </g>
+</svg>

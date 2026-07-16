@@ -26,6 +26,7 @@ import bombWordChainThumbnail from './bomb-wordchain/thumbnail.svg';
 import storyDrawThumbnail from './story-draw/thumbnail.svg';
 import dodgeThumbnail from './dodge/thumbnail.svg';
 import oneCardThumbnail from './onecard/thumbnail.svg';
+import territoryThumbnail from './territory/thumbnail.svg';
 
 export const games: GameEntry[] = [
   {
@@ -414,6 +415,33 @@ export const games: GameEntry[] = [
     load: async () => {
       const mod = await import('./onecard');
       return mod.createOneCardGame();
+    },
+  },
+  {
+    meta: {
+      id: 'territory',
+      name: '땅따먹기',
+      description: '방향키로 움직이며 영토 밖으로 나가 크게 한 바퀴 돌아 돌아오면 그 안이 내 땅! 남의 꼬리를 밟으면 그 사람이 죽어요. 시간 종료 시 땅 넓은 사람 승 (죽으면 리스폰).',
+      thumbnail: territoryThumbnail,
+      minPlayers: 2,
+      maxPlayers: 6,
+      roomOptions: [
+        {
+          key: 'duration',
+          label: '경기 시간',
+          type: 'select',
+          choices: [
+            { value: '120', label: '짧게 · 2분' },
+            { value: '180', label: '보통 · 3분' },
+            { value: '240', label: '길게 · 4분' },
+          ],
+          defaultValue: '180',
+        },
+      ],
+    },
+    load: async () => {
+      const mod = await import('./territory');
+      return mod.createTerritoryGame();
     },
   },
 ];

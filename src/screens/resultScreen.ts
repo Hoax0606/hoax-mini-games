@@ -1668,6 +1668,78 @@ function buildOneCardResultHTML(args: {
 }
 
 // ============================================
+// 땅따먹기 전용 결과 HTML
+// ============================================
+
+interface TerritoryRankEntry { peerId: string; nickname: string; rank: number; score: number; }
+
+function parseTerritorySummary(summary: Record<string, unknown>): {
+  myPeerId: string; rank: number; totalPlayers: number; cells: number; rankings: TerritoryRankEntry[];
+} | null {
+  if (summary['gameId'] !== 'territory') return null;
+  const myPeerId = typeof summary['myPeerId'] === 'string' ? (summary['myPeerId'] as string) : null;
+  const rank = typeof summary['rank'] === 'number' ? (summary['rank'] as number) : null;
+  const totalPlayers = typeof summary['totalPlayers'] === 'number' ? (summary['totalPlayers'] as number) : null;
+  const cells = typeof summary['cells'] === 'number' ? (summary['cells'] as number) : 1;
+  if (!myPeerId || rank === null || totalPlayers === null) return null;
+  const raw = summary['rankings'] as unknown;
+  const rankings: TerritoryRankEntry[] = Array.isArray(raw)
+    ? (raw as Partial<TerritoryRankEntry>[])
+        .filter((r) => typeof r.peerId === 'string' && typeof r.nickname === 'string' && typeof r.rank === 'number' && typeof r.score === 'number')
+        .map((r) => ({ peerId: r.peerId!, nickname: r.nickname!, rank: r.rank!, score: r.score! }))
+    : [];
+  return { myPeerId, rank, totalPlayers, cells, rankings };
+}
+
+function buildTerritoryResultHTML(args: {
+  myWinner: 'me' | 'opponent' | null;
+  rank: number; totalPlayers: number; cells: number; rankings: TerritoryRankEntry[];
+  myPeerId: string; isHost: boolean; isSpectator: boolean;
+}): string {
+  const { myWinner, rank, totalPlayers, cells, rankings, myPeerId, isHost, isSpectator } = args;
+  const { emoji, title, titleClass } = isSpectator
+    ? { emoji: '🗺️', title: '땅따먹기 종료', titleClass: 'result-title-draw' }
+    : winnerVisuals(myWinner);
+  const actionsHTML = buildActionsHTML(isHost);
+  const pct = (n: number): string => ((n / Math.max(1, cells)) * 100).toFixed(1);
+
+  const myBlock = isSpectator ? '' : `
+    <div class="result-tetris-rank">
+      <span class="result-tetris-rank-num">${rank}</span> / ${totalPlayers}위
+    </div>
+  `;
+  const rankingsHTML = rankings.length >= 1 ? `
+    <div class="result-tetris-rankings">
+      <div class="result-tetris-rankings-title">🏅 차지한 땅</div>
+      ${rankings.map((r) => {
+        const isMe = r.peerId === myPeerId;
+        const badgeClass = r.rank <= 3 ? `rank-${r.rank}` : '';
+        return `
+          <div class="result-tetris-rank-row ${isMe ? 'is-me' : ''}">
+            <span class="result-tetris-rank-badge ${badgeClass}">${r.rank}</span>
+            <span class="result-tetris-rank-name">${escapeHtml(r.nickname)}</span>
+            <span class="result-apple-rank-score">${pct(r.score)}%</span>
+            ${isMe ? '<span class="result-tetris-rank-me-tag">나</span>' : ''}
+          </div>
+        `;
+      }).join('')}
+    </div>
+  ` : '';
+
+  return `
+    <div class="result-card result-card-tetris">
+      <div class="result-emoji">${emoji}</div>
+      <div class="result-title ${titleClass}">${title}</div>
+      ${myBlock}
+      ${rankingsHTML}
+      <div class="result-actions">
+        ${actionsHTML}
+      </div>
+    </div>
+  `;
+}
+
+// ============================================
 // 호스트 결과 화면
 // ============================================
 
@@ -1710,6 +1782,7 @@ export function createResultScreenAsHostScreen(args: ResultScreenAsHostArgs): Sc
       const bomb = parseBombSummary(result.summary);
       const dodge = parseDodgeSummary(result.summary);
       const onecard = parseOneCardSummary(result.summary);
+      const territory = parseTerritorySummary(result.summary);
       if (tetris) {
         el.innerHTML = buildTetrisResultHTML({
           myWinner: result.winner,
@@ -1729,6 +1802,12 @@ export function createResultScreenAsHostScreen(args: ResultScreenAsHostArgs): Sc
           myWinner: result.winner,
           rank: onecard.rank, totalPlayers: onecard.totalPlayers, rankings: onecard.rankings,
           myPeerId: onecard.myPeerId, isHost: true, isSpectator: false,
+        });
+      } else if (territory) {
+        el.innerHTML = buildTerritoryResultHTML({
+          myWinner: result.winner,
+          rank: territory.rank, totalPlayers: territory.totalPlayers, cells: territory.cells,
+          rankings: territory.rankings, myPeerId: territory.myPeerId, isHost: true, isSpectator: false,
         });
       } else if (reflex) {
         el.innerHTML = buildReflexResultHTML({
@@ -1980,6 +2059,7 @@ export function createResultScreenAsGuestScreen(args: ResultScreenAsGuestArgs): 
       const bomb = parseBombSummary(result.summary);
       const dodge = parseDodgeSummary(result.summary);
       const onecard = parseOneCardSummary(result.summary);
+      const territory = parseTerritorySummary(result.summary);
       // 관전자는 summary.myPeerId 가 자기가 아닐 수 있음 — 자기 peerId 는 guest.myPeerId.
       // rankings 에 "나" 가 없으면 관전자로 간주.
       const myPeerIdForResult = guest.myPeerId;
@@ -2007,6 +2087,14 @@ export function createResultScreenAsGuestScreen(args: ResultScreenAsGuestArgs): 
           myWinner: result.winner,
           rank: onecard.rank, totalPlayers: onecard.totalPlayers, rankings: onecard.rankings,
           myPeerId: isSpec ? myPeerIdForResult : onecard.myPeerId,
+          isHost: false, isSpectator: isSpec,
+        });
+      } else if (territory) {
+        const isSpec = !territory.rankings.some((r) => r.peerId === myPeerIdForResult);
+        el.innerHTML = buildTerritoryResultHTML({
+          myWinner: result.winner,
+          rank: territory.rank, totalPlayers: territory.totalPlayers, cells: territory.cells,
+          rankings: territory.rankings, myPeerId: isSpec ? myPeerIdForResult : territory.myPeerId,
           isHost: false, isSpectator: isSpec,
         });
       } else if (reflex) {
