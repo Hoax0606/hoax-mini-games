@@ -4,12 +4,12 @@ import type { HostSession, GuestSession } from '../core/peer';
 import type { RoomState, GameResult, ChatMsg } from '../games/types';
 import { createMenuScreen } from './menu';
 import { createGameScreenAsHostScreen, createGameScreenAsGuestScreen } from './gameScreen';
+import { createWaitingRoomAsHostScreen, createWaitingRoomAsGuestScreen } from './waitingRoom';
 import { storage } from '../core/storage';
 import { getGameById } from '../games/registry';
 import { buildChatPanelHTML, wireChatPanel, appendChatMessage } from '../ui/chat';
 import { escapeHtml, escapeAttr } from '../ui/escape';
 import { unpublishRoom } from '../core/roomDirectory';
-import { openGamePickerOverlay } from '../ui/gamePicker';
 import { showReconnectOverlay, hideReconnectOverlay } from '../ui/reconnectOverlay';
 
 /**
@@ -50,7 +50,7 @@ function buildActionsHTML(isHost: boolean): string {
   return isHost
     ? `
         <button type="button" class="btn btn-primary btn-lg btn-block" id="retry-btn">🔄 다시하기</button>
-        <button type="button" class="btn btn-secondary btn-block" id="change-game-btn">🎲 다른 게임 선택</button>
+        <button type="button" class="btn btn-secondary btn-block" id="lobby-btn">🏠 대기실로 이동</button>
         <button type="button" class="btn btn-ghost btn-block" id="menu-btn">메뉴로</button>
       `
     : `
@@ -1531,7 +1531,6 @@ export function createResultScreenAsHostScreen(args: ResultScreenAsHostArgs): Sc
   let closeOnDispose = true;
   let cleanupChat: (() => void) | null = null;
   /** "다른 게임 선택" 오버레이 정리 함수 (열려있으면 document keydown 리스너 제거) */
-  let cleanupChangeGame: (() => void) | null = null;
 
   // 전적 기록 (호스트는 관전자 될 일 없음 → isSpectator=false 고정)
   recordResultToStats(roomState.gameId, result.winner, result.summary, false);
@@ -1682,7 +1681,7 @@ export function createResultScreenAsHostScreen(args: ResultScreenAsHostArgs): Sc
 
       const retryBtn = el.querySelector<HTMLButtonElement>('#retry-btn')!;
       const menuBtn = el.querySelector<HTMLButtonElement>('#menu-btn')!;
-      const changeGameBtn = el.querySelector<HTMLButtonElement>('#change-game-btn')!;
+      const lobbyBtn = el.querySelector<HTMLButtonElement>('#lobby-btn')!;
 
       // 채팅 패널 — 호스트: 자기 화면 append + 모든 게스트 broadcast
       const hostNick = roomState.hostNickname;
@@ -1725,47 +1724,34 @@ export function createResultScreenAsHostScreen(args: ResultScreenAsHostArgs): Sc
         router.reset(() => createMenuScreen());
       });
 
-      // 다른 게임 선택 — 결과 카드 위에 공용 게임 선택 오버레이(대기실과 동일) 띄움
-      changeGameBtn.addEventListener('click', () => {
-        cleanupChangeGame = openGamePickerOverlay(el, {
-          playerCount: roomState.players.length,
-          currentGameId: roomState.gameId,
-          title: '🎲 다른 게임 선택',
-          subtitle: `현재 방 멤버 ${roomState.players.length}명 그대로 시작해요`,
-          confirmLabel: '시작',
-          currentSuffix: '방금 한 게임',
-          onConfirm: (newGameId, newOptions) => {
-            const newRoomState: RoomState = {
-              ...roomState,
-              players: roomState.players.map((p) => ({ ...p, role: 'player' as const })), // 관전자 승격
-              gameId: newGameId,
-              roomOptions: { ...newOptions },
-              status: 'playing',
-            };
-            // 게스트에게 새 방 상태 + 게임 시작 통지 (room_state → game_start 순서)
-            host.send({ type: 'room_state', roomState: newRoomState });
-            host.send({ type: 'game_start' });
-            closeOnDispose = false;
-            router.replace(() => createGameScreenAsHostScreen({
-              host,
-              roomState: newRoomState,
-              isPrivate,
-              password,
-            }));
-          },
-        });
+      // 대기실로 이동 — 연결은 유지한 채 방장/게스트 모두 대기실로 복귀.
+      //   거기서 게임을 (다시) 고르고 전원 준비 후 시작한다(즉석 시작 대신 정식 로비 흐름).
+      lobbyBtn.addEventListener('click', () => {
+        // 관전자 승격 + 준비 리셋한 대기 상태
+        const players = roomState.players.map((p) => ({ ...p, role: 'player' as const, ready: false }));
+        const lobbyState: RoomState = { ...roomState, players, status: 'waiting' };
+        // 게스트도 대기실로 돌아가게 통지
+        host.send({ type: 'return_to_lobby', roomState: lobbyState });
+        closeOnDispose = false; // 연결 유지
+        router.replace(() => createWaitingRoomAsHostScreen({
+          host,
+          gameId: roomState.gameId,
+          isPrivate,
+          password,
+          roomOptions: roomState.roomOptions,
+          initialPlayers: players,
+        }));
       });
 
       // 일시 끊김 후 유예 안에 재연결 — 현재 상태 재전송(상대가 나간 걸로 처리 안 되게 유지)
       host.onGuestReconnected = () => roomState;
 
-      // 상대가 먼저 나가면 다시하기 + 다른 게임 선택 비활성
+      // 상대가 먼저 나가면 다시하기 비활성('대기실로 이동'은 남은 인원과 계속 가능하니 유지)
       host.onGuestDisconnected = () => {
         retryBtn.disabled = true;
         retryBtn.textContent = '상대가 나갔어요';
         retryBtn.classList.remove('btn-primary');
         retryBtn.classList.add('btn-secondary');
-        changeGameBtn.disabled = true;
       };
 
       // 결과 화면에선 게임 관련 메시지는 무시하고 chat 만 처리 + relay
@@ -1787,9 +1773,7 @@ export function createResultScreenAsHostScreen(args: ResultScreenAsHostArgs): Sc
       host.onMessage = null;
       cleanupChat?.();
       cleanupChat = null;
-      cleanupChangeGame?.();
-      cleanupChangeGame = null;
-      // 다시하기/다른게임으로 넘기면(closeOnDispose=false) 항목 유지 → 다음 판도 목록 노출.
+      // 다시하기/대기실이동으로 넘기면(closeOnDispose=false) 항목 유지 → 다음 판도 목록 노출.
       // 메뉴 복귀 등 방을 닫을 때만 디렉토리에서 제거.
       if (closeOnDispose) {
         unpublishRoom(host.roomId).catch(() => {});
@@ -2031,6 +2015,12 @@ export function createResultScreenAsGuestScreen(args: ResultScreenAsGuestArgs): 
           closeOnDispose = false;
           const rs: RoomState = { ...currentRoomState, status: 'playing' };
           router.replace(() => createGameScreenAsGuestScreen({ guest, roomState: rs }));
+          return;
+        }
+        if (msg.type === 'return_to_lobby') {
+          // 방장이 '대기실로 이동' — 나도 대기실(게스트)로 돌아가 다음 게임 선택/준비를 기다림
+          closeOnDispose = false; // 연결 유지
+          router.replace(() => createWaitingRoomAsGuestScreen({ guest, initialRoomState: msg.roomState }));
         }
       };
 

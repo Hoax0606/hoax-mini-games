@@ -227,6 +227,7 @@ export type NetworkMessage =
   | KickedMsg
   | ReadyMsg
   | LeaveMsg
+  | ReturnToLobbyMsg
   | ChatMsg;
 
 /** 게스트 → 호스트: 대기실 '준비' 토글. 호스트가 해당 게스트의 ready 를 갱신 후 room_state broadcast. */
@@ -242,6 +243,16 @@ export interface ReadyMsg {
  */
 export interface LeaveMsg {
   type: 'leave';
+}
+
+/**
+ * 호스트 → 게스트: 결과 화면에서 '대기실로 이동'을 누름.
+ * 게스트도 대기실(게스트 화면)로 돌아가 방장의 다음 게임 선택/준비를 기다린다.
+ * roomState 는 대기실 초기 상태(status='waiting', 준비 리셋된 players).
+ */
+export interface ReturnToLobbyMsg {
+  type: 'return_to_lobby';
+  roomState: RoomState;
 }
 
 /** 호스트 → 게스트: 방장이 내보냄. 받은 게스트는 안내 후 메뉴로. */

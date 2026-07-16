@@ -85,6 +85,11 @@ export interface WaitingRoomAsHostArgs {
   isPrivate: boolean;
   password: string;
   roomOptions: Record<string, string>;
+  /**
+   * 결과 화면 '대기실로 이동'으로 재진입할 때, 이미 연결돼 있는 게스트들을 그대로 넘김.
+   * (새 방일 땐 undefined — 게스트는 join_request 로 들어온다.) 준비 상태는 리셋된다.
+   */
+  initialPlayers?: Player[];
 }
 
 export function createWaitingRoomAsHostScreen(args: WaitingRoomAsHostArgs): Screen {
@@ -97,8 +102,11 @@ export function createWaitingRoomAsHostScreen(args: WaitingRoomAsHostArgs): Scre
   let cleanupChatHost: (() => void) | null = null;
   const hostNickname = storage.getNickname();
 
-  // 방 내부 상태 — guestPlayers는 방장 제외한 참가자들
-  let guestPlayers: Player[] = [];
+  // 방 내부 상태 — guestPlayers는 방장 제외한 참가자들.
+  // 결과 화면에서 되돌아온 경우 이미 연결된 게스트를 seed (준비는 리셋 → 다시 준비해야 시작 가능).
+  let guestPlayers: Player[] = (args.initialPlayers ?? [])
+    .filter((p) => !p.isHost)
+    .map((p) => ({ ...p, role: 'player', ready: false }));
 
   // 게임이 아직 안 정해졌을 수 있음(gameId='') → 그때 정원은 전체 상한.
   const currentGame = () => getGameById(gameId);
