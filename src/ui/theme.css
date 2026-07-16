@@ -2561,6 +2561,8 @@ input {
 }
 .waiting-options .input-label { margin: 0; font-size: 12px; white-space: nowrap; }
 .waiting-options .select { width: auto; padding: 5px 9px; font-size: 13px; }
+/* 기본 .change-game-options:empty 는 숨김이지만, 하단 고정 바는 비어도 크림 박스를 유지 */
+.waiting-options:empty { display: flex; }
 /* 게스트: 게임 그리드는 보기 전용 — 클릭/호버 반응 없이 방장이 고른 게임만 확인 */
 .waiting-grid.is-readonly { pointer-events: none; }
 @media (max-width: 720px) {
