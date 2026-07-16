@@ -214,7 +214,7 @@ function buildTetrisResultHTML(args: {
 
   const rankingsHTML = rankings.length >= 2 ? `
     <div class="result-tetris-rankings">
-      <div class="result-tetris-rankings-title">🏅 전체 랭킹</div>
+      <div class="result-tetris-rankings-title">${icon('medal', { size: 18, hue: '#ffb12e' })} 전체 랭킹</div>
       ${rankings.map((r) => {
         const isMe = r.peerId === myPeerId;
         const badgeClass = r.rank <= 3 ? `rank-${r.rank}` : '';
@@ -323,7 +323,7 @@ function buildAppleResultHTML(args: {
 
   const rankingsHTML = rankings.length >= 2 ? `
     <div class="result-tetris-rankings">
-      <div class="result-tetris-rankings-title">🏅 최종 랭킹</div>
+      <div class="result-tetris-rankings-title">${icon('medal', { size: 18, hue: '#ffb12e' })} 최종 랭킹</div>
       ${rankings.map((r) => {
         const isMe = r.peerId === myPeerId;
         const badgeClass = r.rank <= 3 ? `rank-${r.rank}` : '';
@@ -550,7 +550,7 @@ function buildReflexResultHTML(args: {
 
   const rankingsHTML = rankings.length >= 1 ? `
     <div class="result-tetris-rankings">
-      <div class="result-tetris-rankings-title">🏅 최종 랭킹</div>
+      <div class="result-tetris-rankings-title">${icon('medal', { size: 18, hue: '#ffb12e' })} 최종 랭킹</div>
       ${rankings.map((r) => {
         const isMe = r.peerId === myPeerId;
         const badgeClass = r.rank <= 3 ? `rank-${r.rank}` : '';
@@ -642,7 +642,7 @@ function buildLiarResultHTML(args: {
 
   const rankingsHTML = rankings.length >= 1 ? `
     <div class="result-tetris-rankings">
-      <div class="result-tetris-rankings-title">🏅 최종 순위</div>
+      <div class="result-tetris-rankings-title">${icon('medal', { size: 18, hue: '#ffb12e' })} 최종 순위</div>
       ${rankings.map((r) => {
         const isMe = r.peerId === myPeerId;
         const badgeClass = r.rank <= 3 ? `rank-${r.rank}` : '';
@@ -738,7 +738,7 @@ function buildRamenResultHTML(args: {
 
   const rankingsHTML = rankings.length >= 1 ? `
     <div class="result-tetris-rankings">
-      <div class="result-tetris-rankings-title">🏅 매출 순위</div>
+      <div class="result-tetris-rankings-title">${icon('medal', { size: 18, hue: '#ffb12e' })} 매출 순위</div>
       ${rankings.map((r) => {
         const isMe = r.peerId === myPeerId;
         const badgeClass = r.rank <= 3 ? `rank-${r.rank}` : '';
@@ -817,7 +817,7 @@ function buildBombResultHTML(args: {
 
   const rankingsHTML = `
     <div class="result-tetris-rankings">
-      <div class="result-tetris-rankings-title">🏅 결과</div>
+      <div class="result-tetris-rankings-title">${icon('medal', { size: 18, hue: '#ffb12e' })} 결과</div>
       ${sorted.map((p) => {
         const isMe = p.peerId === s.myPeerId;
         const badgeClass = p.survived ? '' : 'rank-1';
@@ -919,14 +919,14 @@ function buildDartsResultHTML(args: {
       <span class="result-tetris-rank-num">${summary.rank}</span> / ${summary.totalPlayers}위
     </div>
     <div class="result-apple-myscore">
-      <div class="result-apple-myscore-label">🎯 ${escapeHtml(myEntry.scoreLabel)}</div>
+      <div class="result-apple-myscore-label">${icon('target', { size: 16, hue: '#ff5a92' })} ${escapeHtml(myEntry.scoreLabel)}</div>
       <div class="result-apple-myscore-value">${myEntry.score}</div>
     </div>
   `;
 
   const rankingsHTML = summary.rankings.length >= 1 ? `
     <div class="result-tetris-rankings">
-      <div class="result-tetris-rankings-title">🏅 최종 랭킹</div>
+      <div class="result-tetris-rankings-title">${icon('medal', { size: 18, hue: '#ffb12e' })} 최종 랭킹</div>
       ${summary.rankings.map((r) => {
         const isMe = r.peerId === summary.myPeerId;
         const badgeClass = r.rank <= 3 ? `rank-${r.rank}` : '';
@@ -1023,7 +1023,7 @@ function buildAlgagiResultHTML(args: {
 
   const rankingsHTML = `
     <div class="result-tetris-rankings">
-      <div class="result-tetris-rankings-title">🏅 남은 알</div>
+      <div class="result-tetris-rankings-title">${icon('medal', { size: 18, hue: '#ffb12e' })} 남은 알</div>
       ${sorted.map((p, idx) => {
         const isMe = p.peerId === summary.myPeerId;
         const isWinner = summary.winnerNickname !== null && p.nickname === summary.winnerNickname;
@@ -1130,7 +1130,7 @@ function buildWordChainResultHTML(args: {
 
   const rankingsHTML = `
     <div class="result-tetris-rankings">
-      <div class="result-tetris-rankings-title">🏅 결과</div>
+      <div class="result-tetris-rankings-title">${icon('medal', { size: 18, hue: '#ffb12e' })} 결과</div>
       ${sorted.map((p, idx) => {
         const isMe = p.peerId === summary.myPeerId;
         const isWinner = summary.winnerNickname !== null && p.nickname === summary.winnerNickname;
@@ -1226,7 +1226,7 @@ function buildDrawQuizResultHTML(args: {
 
   const rankingsHTML = `
     <div class="result-tetris-rankings">
-      <div class="result-tetris-rankings-title">🏅 맞춘 개수</div>
+      <div class="result-tetris-rankings-title">${icon('medal', { size: 18, hue: '#ffb12e' })} 맞춘 개수</div>
       ${summary.rankings.map((r) => {
         const isMe = r.peerId === summary.myPeerId;
         const badgeClass = r.rank <= 3 ? `rank-${r.rank}` : '';
@@ -1315,7 +1315,7 @@ function buildFortressResultHTML(args: {
 
   const rankingsHTML = `
     <div class="result-tetris-rankings">
-      <div class="result-tetris-rankings-title">🏅 결과</div>
+      <div class="result-tetris-rankings-title">${icon('medal', { size: 18, hue: '#ffb12e' })} 결과</div>
       ${summary.rankings.map((r) => {
         const isMe = r.peerId === summary.myPeerId;
         const badgeClass = r.rank <= 3 ? `rank-${r.rank}` : '';
@@ -1405,14 +1405,14 @@ function buildDodgeResultHTML(args: {
       <span class="result-tetris-rank-num">${myEntry.rank}</span> / ${summary.totalPlayers}위
     </div>
     <div class="result-apple-myscore">
-      <div class="result-apple-myscore-label">⏱ 내 생존시간</div>
+      <div class="result-apple-myscore-label">${icon('stopwatch', { size: 16, hue: '#5b9dff' })} 내 생존시간</div>
       <div class="result-apple-myscore-value">${(myEntry.survivalMs / 1000).toFixed(1)}초</div>
     </div>
   `;
 
   const rankingsHTML = summary.rankings.length >= 1 ? `
     <div class="result-tetris-rankings">
-      <div class="result-tetris-rankings-title">🏅 생존 순위</div>
+      <div class="result-tetris-rankings-title">${icon('medal', { size: 18, hue: '#ffb12e' })} 생존 순위</div>
       ${summary.rankings.map((r) => {
         const isMe = r.peerId === summary.myPeerId;
         const badgeClass = r.rank <= 3 ? `rank-${r.rank}` : '';
@@ -1483,7 +1483,7 @@ function buildOneCardResultHTML(args: {
   const last = totalPlayers;
   const rankingsHTML = rankings.length >= 1 ? `
     <div class="result-tetris-rankings">
-      <div class="result-tetris-rankings-title">🏅 순위 (먼저 비운 순)</div>
+      <div class="result-tetris-rankings-title">${icon('medal', { size: 18, hue: '#ffb12e' })} 순위 (먼저 비운 순)</div>
       ${rankings.map((r) => {
         const isMe = r.peerId === myPeerId;
         const badgeClass = r.rank <= 3 ? `rank-${r.rank}` : '';
