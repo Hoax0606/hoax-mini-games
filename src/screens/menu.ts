@@ -37,8 +37,8 @@ export function createMenuScreen(): Screen {
           <div class="tagline">친구와 함께하는 작은 게임들 · ${escapeHtml(nickname)}</div>
 
           <div class="menu-card menu-list stagger-in">
-            <button class="btn btn-primary btn-lg btn-block" id="btn-create-room">
-              ${icon('home-add', { size: 22, hue: '#fff' })}<span class="btn-label">방 만들기</span>
+            <button class="btn btn-secondary btn-lg btn-block" id="btn-create-room">
+              ${icon('home-add', { size: 22, hue: HUE.create })}<span class="btn-label">방 만들기</span>
             </button>
             <button class="btn btn-secondary btn-block" id="btn-public-rooms">
               ${icon('search', { size: 22, hue: HUE.find })}<span class="btn-label">방 찾기</span>
