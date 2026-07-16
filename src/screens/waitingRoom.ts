@@ -45,12 +45,10 @@ function renderParticipantsHTML(
     const nameHtml = isMe
       ? `${escapeHtml(p.nickname)} <span class="participant-you">(나)</span>`
       : escapeHtml(p.nickname);
-    // 게스트 준비 상태 배지 (방장은 항상 준비된 것으로 취급 → 표시 안 함)
-    const readyTag = p.isHost
-      ? ''
-      : p.ready
-        ? `<span class="participant-ready is-ready">준비</span>`
-        : `<span class="participant-ready">준비중</span>`;
+    // 게스트 준비 배지 — 준비 완료일 때만 표시(방장/미준비는 표시 안 함)
+    const readyTag = !p.isHost && p.ready
+      ? `<span class="participant-ready is-ready">준비</span>`
+      : '';
     // 방장 화면에서만, 방장 본인이 아닌 참가자에게 강퇴(❌) 버튼
     const kickBtn = showKick && !p.isHost
       ? `<button class="participant-kick" data-kick-peer="${escapeHtml(p.peerId)}" title="강퇴">❌</button>`
@@ -561,7 +559,7 @@ export function createWaitingRoomAsGuestScreen(args: WaitingRoomAsGuestArgs): Sc
         } else if (amIReady()) {
           readyBtn.disabled = false;
           readyBtn.className = 'btn btn-secondary btn-lg btn-block';
-          readyBtn.textContent = '준비 완료';
+          readyBtn.textContent = '준비 취소';
         } else {
           readyBtn.disabled = false;
           readyBtn.className = 'btn btn-primary btn-lg btn-block';
