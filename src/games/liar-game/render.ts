@@ -209,33 +209,38 @@ export class LiarRenderer {
     }
     ctx.textBaseline = 'middle';
     const n = g.hints.length;
-    // 행 높이를 힌트 수에 맞춰 축소 → 낮은 해상도에서도 전부 보이게 (최소 15px)
-    const rowH = Math.max(15, Math.min(26, h / n));
-    const nameFs = Math.max(9, Math.min(12, Math.floor(rowH - 8)));
-    const textFs = Math.max(10, Math.min(13, Math.floor(rowH - 7)));
-    const maxRows = Math.max(1, Math.floor(h / rowH));
-    const shown = g.hints.slice(-maxRows); // rowH 가 n 에 맞춰지므로 보통 전부 표시됨
-    let ry = y + rowH / 2;
-    for (const hint of shown) {
+    // 전부 보이게 — 1단으로 안 들어가면(작은 화면·설명 많음) 2단 컬럼으로 나눠 절대 안 잘리게.
+    //   (예전엔 최소 행높이 15px 고정 + maxRows 초과분 slice 로 잘려서, 화면 작은 사람만 일부 설명이 안 보였음)
+    const cols = n > Math.max(1, Math.floor(h / 17)) ? 2 : 1;
+    const perCol = Math.ceil(n / cols);
+    const rowH = Math.max(12, Math.min(26, h / perCol));
+    const colW = (w - 8) / cols;
+    const nameFs = Math.max(8, Math.min(12, Math.floor(rowH - 7)));
+    const textFs = Math.max(9, Math.min(13, Math.floor(rowH - 6)));
+    for (let i = 0; i < n; i++) {
+      const hint = g.hints[i]!;
+      const col = Math.floor(i / perCol);
+      const rowInCol = i % perCol;
+      const cx0 = x + 8 + col * colW;
+      const ry = y + rowH / 2 + rowInCol * rowH;
       const isMe = hint.peerId === state.myPeerId;
       ctx.textAlign = 'left';
       ctx.font = `700 ${nameFs}px ${FONT}`;
       ctx.fillStyle = isMe ? C.accent : C.hintName;
       const label = `${hint.nickname}:`;
-      ctx.fillText(label, x + 8, ry);
-      const tx = x + 8 + ctx.measureText(label).width + 6;
-      // 설명 — 남는 폭에 안 들어가면 글자 크기를 더 줄여 전부 보이게
-      const avail = x + w - 8 - tx;
+      ctx.fillText(label, cx0, ry);
+      const tx = cx0 + ctx.measureText(label).width + 5;
+      // 설명 — 남는 폭에 안 들어가면 글자 크기 더 줄여 전부 보이게
+      const avail = x + 8 + (col + 1) * colW - 6 - tx;
       let fs = textFs;
       ctx.font = `500 ${fs}px ${FONT}`;
       const tw = ctx.measureText(hint.text).width;
-      if (tw > avail && avail > 20) {
-        fs = Math.max(9, Math.floor((fs * avail) / tw));
+      if (tw > avail && avail > 16) {
+        fs = Math.max(8, Math.floor((fs * avail) / tw));
         ctx.font = `500 ${fs}px ${FONT}`;
       }
       ctx.fillStyle = C.hintText;
       ctx.fillText(hint.text, tx, ry);
-      ry += rowH;
     }
   }
 
