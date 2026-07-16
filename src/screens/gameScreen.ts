@@ -277,9 +277,10 @@ function wireGameMenuModal(el: HTMLElement, callbacks: GameMenuCallbacks): () =>
     if (on) sound.play('pop');
   });
 
-  // Esc = "보스키" — 가짜 윈도우 업데이트 화면을 전체화면으로 덮는다(게임 숨기기).
+  // Esc = "보스키" — 가짜 윈도우 업데이트 화면을 전체화면으로 덮고 게임도 정지(숨기기).
   //   설정 모달은 ⚙️ 버튼으로만 연다(Esc 로는 안 뜸).
-  const cleanupBoss = mountBossKey();
+  //   show/hide 시 메뉴와 동일한 pause/resume 콜백을 태워 게임이 실제로 멈췄다 재개되게 한다.
+  const cleanupBoss = mountBossKey(callbacks.onOpen, callbacks.onClose);
 
   return (): void => {
     cleanupBoss();
@@ -287,42 +288,35 @@ function wireGameMenuModal(el: HTMLElement, callbacks: GameMenuCallbacks): () =>
 }
 
 /**
- * 보스키 — Esc 를 누르면 윈도우 업데이트 화면(가짜)을 전체화면으로 띄우고, 다시 Esc(또는 클릭)로 닫는다.
- * 순수 로컬 오버레이(네트워크/일시정지 없음). 진행률은 천천히 올라가다 반복돼 "업데이트 중"처럼 보인다.
+ * 보스키 — Esc 를 누르면 윈도우 업데이트 화면(가짜)을 전체화면으로 띄우고 게임을 정지한다.
+ * 다시 Esc(또는 클릭)로 닫으면서 재개. 진행률은 30% 고정(끝나지 않는 업데이트처럼 보임).
+ * @param onShow 보스키 뜰 때(게임 정지) / @param onHide 닫을 때(재개)
  * @returns cleanup
  */
-function mountBossKey(): () => void {
+function mountBossKey(onShow?: () => void, onHide?: () => void): () => void {
   const el = document.createElement('div');
   el.className = 'boss-update';
   el.innerHTML = `
     <div class="boss-inner">
       <div class="boss-spinner">${'<span></span>'.repeat(8)}</div>
-      <div class="boss-title">업데이트를 구성하는 중 <b class="boss-pct">0</b>% 완료</div>
+      <div class="boss-title">업데이트를 구성하는 중 30% 완료</div>
       <div class="boss-sub">컴퓨터를 끄지 마세요.</div>
     </div>
   `;
   document.body.appendChild(el);
-  const pctEl = el.querySelector<HTMLElement>('.boss-pct')!;
 
   let on = false;
-  let pct = 0;
-  let timer: number | null = null;
-
-  const tick = (): void => {
-    // 0→100 천천히 오르다 다시 낮은 값으로 (끝나지 않는 업데이트 느낌)
-    pct += Math.random() < 0.5 ? 1 : 2;
-    if (pct >= 100) pct = Math.floor(Math.random() * 30);
-    pctEl.textContent = String(pct);
-  };
   const show = (): void => {
+    if (on) return;
     on = true;
     el.classList.add('is-on');
-    if (timer === null) timer = window.setInterval(tick, 700);
+    onShow?.(); // 게임 정지
   };
   const hide = (): void => {
+    if (!on) return;
     on = false;
     el.classList.remove('is-on');
-    if (timer !== null) { window.clearInterval(timer); timer = null; }
+    onHide?.(); // 게임 재개
   };
 
   const onKey = (e: KeyboardEvent): void => {
@@ -330,13 +324,11 @@ function mountBossKey(): () => void {
     e.preventDefault();
     on ? hide() : show();
   };
-  // 화면 클릭으로도 닫기(빠른 복귀)
-  el.addEventListener('mousedown', (e) => { e.preventDefault(); hide(); });
+  el.addEventListener('mousedown', (e) => { e.preventDefault(); hide(); }); // 클릭으로도 복귀
   window.addEventListener('keydown', onKey);
 
   return (): void => {
     window.removeEventListener('keydown', onKey);
-    if (timer !== null) window.clearInterval(timer);
     el.remove();
   };
 }
