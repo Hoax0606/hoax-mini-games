@@ -105,7 +105,7 @@ export class DodgeRenderer {
     ctx.font = `600 20px ${FONT}`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillText('연결 중…', FIELD_W / 2, FIELD_H / 2);
+    ctx.fillText('연결 중', FIELD_W / 2, FIELD_H / 2);
   }
 
   private drawField(s: RenderState): void {
@@ -153,7 +153,7 @@ export class DodgeRenderer {
     }
 
     // 오버레이
-    if (s.isSpectator) this.drawCenterMsg('👀 관전 중', '다들 피하는 중…');
+    if (s.isSpectator) this.drawCenterMsg('👀 관전 중', '다들 피하는 중');
     else if (s.phase === 'dead') {
       this.drawCenterMsg('💀 아웃!', `생존 ${(s.myAliveMs / 1000).toFixed(1)}초 · 다른 사람 기다리는 중`);
     }
@@ -205,7 +205,7 @@ export class DodgeRenderer {
     this.roundRect(gx, gy, gw * s.dashReady01, gh, 4.5); ctx.fill();
     ctx.fillStyle = COLORS.textMuted;
     ctx.font = `600 11px ${FONT}`;
-    ctx.fillText(s.dashReady01 >= 1 ? '대시 준비됨 (Space)' : '대시 충전 중…', gx, gy + gh + 4);
+    ctx.fillText(s.dashReady01 >= 1 ? '대시 준비됨 (Space)' : '대시 충전 중', gx, gy + gh + 4);
   }
 
   private drawCenterMsg(title: string, sub: string): void {

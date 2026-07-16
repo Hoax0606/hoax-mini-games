@@ -413,7 +413,7 @@ class WordChainGameModule implements GameModule {
     const container = document.createElement('div');
     container.className = 'wc-input-container';
     container.innerHTML = `
-      <div class="wc-input-hint" id="wc-input-hint">잠시만요…</div>
+      <div class="wc-input-hint" id="wc-input-hint">잠시만요</div>
       <form class="wc-input-form" id="wc-input-form" autocomplete="off">
         <input type="text" class="wc-input" id="wc-input" maxlength="10"
                placeholder="단어 입력 후 Enter" />

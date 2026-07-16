@@ -343,7 +343,7 @@ export class RamenRenderer {
     switch (pot.state) {
       case 'empty': return '클릭 → 물';
       case 'water': return '클릭 → 면';
-      case 'cooking': return '끓는 중…';
+      case 'cooking': return '끓는 중';
       case 'ready': return '토핑 후 배달';
       case 'overcooked': return '클릭 → 버리기';
     }

@@ -39,7 +39,7 @@ function winnerVisuals(myWinner: 'me' | 'opponent' | null): {
   titleClass: string;
 } {
   if (myWinner === 'me')       return { emoji: '🏆', title: '승리!',   titleClass: 'result-title-win' };
-  if (myWinner === 'opponent') return { emoji: '💫', title: '패배…', titleClass: 'result-title-lose' };
+  if (myWinner === 'opponent') return { emoji: '💫', title: '패배', titleClass: 'result-title-lose' };
   return                              { emoji: '⚖️', title: '무승부',   titleClass: 'result-title-draw' };
 }
 
@@ -806,7 +806,7 @@ function buildBombResultHTML(args: {
   const { isHost, isSpectator } = args;
   const iLost = !isSpectator && s.loserPeerId === s.myPeerId;
   const emoji = isSpectator ? '💣' : iLost ? '💥' : '😌';
-  const title = isSpectator ? '폭탄 터짐!' : iLost ? '펑! 내가 폭탄을…' : '살았다!';
+  const title = isSpectator ? '폭탄 터짐!' : iLost ? '펑! 내가 폭탄을 들고 있었다' : '살았다!';
   const titleClass = iLost ? 'result-title-lose' : 'result-title-win';
   const actionsHTML = buildActionsHTML(isHost);
 

@@ -267,7 +267,7 @@ class LiarGameModule implements GameModule {
       case 'hint': {
         // 현재 차례가 시간 초과 → 빈 힌트로 넘김
         const cur = currentHinter(this.game);
-        if (cur) this.acceptHint(cur, '…(시간 초과)');
+        if (cur) this.acceptHint(cur, '(시간 초과)');
         break;
       }
       case 'vote':
@@ -588,7 +588,7 @@ class LiarGameModule implements GameModule {
         this.setHintEnabled(true);
         window.setTimeout(() => this.panel?.querySelector<HTMLInputElement>('#lg-hint-input')?.focus(), 10);
       } else {
-        this.showMessage('다른 사람이 설명 중이에요…');
+        this.showMessage('다른 사람이 설명 중이에요');
       }
     } else if (g.phase === 'vote') {
       voteBox.style.display = '';
@@ -599,7 +599,7 @@ class LiarGameModule implements GameModule {
         guessForm.style.display = '';
         window.setTimeout(() => this.panel?.querySelector<HTMLInputElement>('#lg-guess-input')?.focus(), 10);
       } else {
-        this.showMessage('라이어가 제시어를 추측하는 중…');
+        this.showMessage('라이어가 제시어를 추측하는 중');
       }
     }
   }
@@ -620,7 +620,7 @@ class LiarGameModule implements GameModule {
         box.querySelectorAll<HTMLButtonElement>('.lg-vote-btn').forEach((x) => { x.disabled = true; });
         b.classList.add('voted');
         this.submitVote(p.peerId);
-        this.showMessage('투표 완료! 결과를 기다려요…');
+        this.showMessage('투표 완료! 결과를 기다려요');
       });
       row.appendChild(b);
     }

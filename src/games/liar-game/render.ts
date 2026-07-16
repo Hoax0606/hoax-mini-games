@@ -184,7 +184,7 @@ export class LiarRenderer {
         return '🗳️ 라이어를 지목하세요';
       case 'guess': {
         const acc = g.accusedPeerId ? nick(g.accusedPeerId) : '?';
-        return `🎯 ${acc} 지목! 라이어가 제시어 추측 중…`;
+        return `🎯 ${acc} 지목! 라이어가 제시어 추측 중`;
       }
       case 'result':
         return '📢 라운드 결과';
@@ -203,7 +203,7 @@ export class LiarRenderer {
         ctx.textBaseline = 'middle';
         ctx.fillStyle = C.muted;
         ctx.font = `500 13px ${FONT}`;
-        ctx.fillText('첫 설명을 기다리는 중…', x + w / 2, y + h / 2);
+        ctx.fillText('첫 설명을 기다리는 중', x + w / 2, y + h / 2);
       }
       return;
     }
@@ -312,7 +312,7 @@ export class LiarRenderer {
 
     ctx.font = `500 13px ${FONT}`;
     ctx.fillStyle = 'rgba(255,255,255,0.85)';
-    const next = g.round >= g.totalRounds ? '최종 결과로…' : '다음 라운드 준비 중…';
+    const next = g.round >= g.totalRounds ? '최종 결과로' : '다음 라운드 준비 중';
     ctx.fillText(next, W / 2, H / 2 + 40);
   }
 

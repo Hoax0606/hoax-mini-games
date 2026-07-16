@@ -99,7 +99,7 @@ export function createCreateRoomScreen(): Screen {
         }
 
         createBtn.disabled = true;
-        createBtn.textContent = '방 만드는 중…';
+        createBtn.textContent = '방 만드는 중';
 
         try {
           const host = await HostSession.create();

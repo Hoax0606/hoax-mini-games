@@ -161,7 +161,7 @@ export class StoryDrawRenderer {
     ctx.textBaseline = 'middle';
     ctx.fillStyle = COLORS.textMuted;
     ctx.font = `600 20px ${FONT}`;
-    ctx.fillText('연결 중…', CANVAS_W / 2, CANVAS_H / 2);
+    ctx.fillText('연결 중', CANVAS_W / 2, CANVAS_H / 2);
   }
 
   // ============================================
@@ -264,7 +264,7 @@ export class StoryDrawRenderer {
     const countTxt = state.totalPlayers
       ? `  (${state.submittedCount ?? 0}/${state.totalPlayers})`
       : '';
-    const base = state.spectator ? '모두 그리는 중이에요…' : '다른 친구들을 기다리는 중…';
+    const base = state.spectator ? '모두 그리는 중이에요' : '다른 친구들을 기다리는 중';
     ctx.fillText(base + countTxt, CANVAS_W / 2, CANVAS_H / 2 + 18);
   }
 
@@ -289,7 +289,7 @@ export class StoryDrawRenderer {
       ctx.fillText(`“${state.title ?? ''}”`, CANVAS_W / 2, CANVAS_H / 2 + 12);
       ctx.fillStyle = COLORS.textMuted;
       ctx.font = `500 15px ${FONT}`;
-      ctx.fillText('…이 어떻게 변했을까요?', CANVAS_W / 2, CANVAS_H / 2 + 58);
+      ctx.fillText('과연 어떻게 변했을까요?', CANVAS_W / 2, CANVAS_H / 2 + 58);
       this.drawPaperBorder();
       return;
     }

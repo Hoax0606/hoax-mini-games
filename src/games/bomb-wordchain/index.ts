@@ -304,7 +304,7 @@ class BombWordChainModule implements GameModule {
     const container = document.createElement('div');
     container.className = 'wc-input-container';
     container.innerHTML = `
-      <div class="wc-input-hint" id="bw-input-hint">잠시만요…</div>
+      <div class="wc-input-hint" id="bw-input-hint">잠시만요</div>
       <form class="wc-input-form" id="bw-input-form" autocomplete="off">
         <input type="text" class="wc-input" id="bw-input" maxlength="10" placeholder="단어 입력 후 Enter" />
         <button type="submit" class="wc-input-submit">제출</button>

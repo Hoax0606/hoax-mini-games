@@ -459,7 +459,7 @@ export class AlgagiRenderer {
         ctx.fillText('상대 차례 — 잠시 기다려요', PANEL_X + PANEL_W / 2, hintY);
       }
     } else if (game.phase === 'resolving') {
-      ctx.fillText('굴러가는 중…', PANEL_X + PANEL_W / 2, hintY);
+      ctx.fillText('굴러가는 중', PANEL_X + PANEL_W / 2, hintY);
     }
   }
 

@@ -554,7 +554,7 @@ export class FortressRenderer {
     // 좌: 현재 차례 (타이머는 탱크 주위 링으로 표시하므로 여기선 이름만)
     const cur = g.forts.find((f) => f.id === g.currentTurn);
     const turnLabel = g.phase === 'ended' ? '게임 종료'
-      : g.phase === 'firing' ? '발사 중…'
+      : g.phase === 'firing' ? '발사 중'
       : `${cur?.ownerNickname ?? '?'} 차례`;
     const midY = 28; // 박스(10~46) 중앙
     ctx.fillStyle = COLORS.textMain;

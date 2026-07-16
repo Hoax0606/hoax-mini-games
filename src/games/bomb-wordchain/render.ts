@@ -267,7 +267,7 @@ export class BombRenderer {
     ctx.font = `900 26px ${FONT}`;
     ctx.fillStyle = iLost ? COLORS.accentPink : '#fff';
     const title = iLost
-      ? '펑! 내가 폭탄을 들고 있었다…'
+      ? '펑! 내가 폭탄을 들고 있었다'
       : `${loser?.nickname ?? '?'} 폭발! 나는 살았다`;
     ctx.fillText(title, PANEL_X / 2, CANVAS_H / 2 + 28);
   }

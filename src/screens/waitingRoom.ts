@@ -49,8 +49,8 @@ function renderParticipantsHTML(
     const readyTag = p.isHost
       ? ''
       : p.ready
-        ? `<span class="participant-ready is-ready">✅ 준비완료</span>`
-        : `<span class="participant-ready">준비중…</span>`;
+        ? `<span class="participant-ready is-ready">준비</span>`
+        : `<span class="participant-ready">준비중</span>`;
     // 방장 화면에서만, 방장 본인이 아닌 참가자에게 강퇴(❌) 버튼
     const kickBtn = showKick && !p.isHost
       ? `<button class="participant-kick" data-kick-peer="${escapeHtml(p.peerId)}" title="강퇴">❌</button>`
@@ -151,7 +151,7 @@ export function createWaitingRoomAsHostScreen(args: WaitingRoomAsHostArgs): Scre
               <div class="waiting-section-title">👥 참가자 <span class="waiting-count" id="player-count">1 / ${maxPlayers()}명</span></div>
               <div class="participants" id="participants"></div>
               <button class="btn btn-primary btn-lg btn-block" id="start-btn" disabled>
-                친구를 기다리는 중...
+                친구를 기다리는 중
               </button>
               <div style="margin-top: 10px;">${buildReactionBarHTML()}</div>
             </div>
@@ -234,7 +234,7 @@ export function createWaitingRoomAsHostScreen(args: WaitingRoomAsHostArgs): Scre
           startBtn.textContent = `${minPlayers() - players.length}명 더 필요해요`;
         } else if (notReady > 0) {
           startBtn.disabled = true;
-          startBtn.textContent = `준비 대기 중… (${notReady}명)`;
+          startBtn.textContent = `준비 대기 중 (${notReady}명)`;
         } else {
           startBtn.disabled = false;
           startBtn.textContent = '게임 시작';
@@ -508,7 +508,7 @@ export function createWaitingRoomAsGuestScreen(args: WaitingRoomAsGuestArgs): Sc
               <div class="waiting-section-title">👥 참가자 <span class="waiting-count" id="player-count">${roomState.players.length} / ${guestMaxPlayers()}명</span></div>
               <div class="participants" id="participants"></div>
               <button class="btn btn-primary btn-lg btn-block" id="ready-btn" disabled>
-                방장이 게임을 고르는 중…
+                방장이 게임을 고르는 중
               </button>
               <div style="margin-top: 10px;">${buildReactionBarHTML()}</div>
             </div>
@@ -557,11 +557,11 @@ export function createWaitingRoomAsGuestScreen(args: WaitingRoomAsGuestArgs): Sc
         if (!roomState.gameId) {
           readyBtn.disabled = true;
           readyBtn.className = 'btn btn-secondary btn-lg btn-block';
-          readyBtn.textContent = '방장이 게임을 고르는 중…';
+          readyBtn.textContent = '방장이 게임을 고르는 중';
         } else if (amIReady()) {
           readyBtn.disabled = false;
           readyBtn.className = 'btn btn-secondary btn-lg btn-block';
-          readyBtn.textContent = '✅ 준비 완료 (누르면 취소)';
+          readyBtn.textContent = '준비 완료';
         } else {
           readyBtn.disabled = false;
           readyBtn.className = 'btn btn-primary btn-lg btn-block';

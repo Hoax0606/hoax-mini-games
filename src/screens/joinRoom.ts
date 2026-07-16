@@ -66,7 +66,7 @@ export function createJoinRoomScreen(
             <input type="text" class="input" id="password-input"
               placeholder="비밀번호를 입력하세요" maxlength="12" autocomplete="off" />
           </div>`;
-      const title = mode === 'auto' ? '🚪 입장 중…' : mode === 'password' ? '🔒 비밀방 입장' : '🚪 방 참여하기';
+      const title = mode === 'auto' ? '🚪 입장 중' : mode === 'password' ? '🔒 비밀방 입장' : '🚪 방 참여하기';
       const subtitle = mode === 'auto' ? '방에 연결하고 있어요. 잠시만 기다려주세요.'
         : mode === 'password' ? '이 방은 비밀번호가 필요해요.'
           : '친구에게 받은 방 코드를 입력하세요';
@@ -129,7 +129,7 @@ export function createJoinRoomScreen(
       const setBusy = (busy: boolean): void => {
         if (!joinBtn) return; // 자동 입장 모드엔 버튼이 없음
         joinBtn.disabled = busy;
-        joinBtn.textContent = busy ? '연결 중…' : (mode === 'password' ? '입장하기' : '참여하기');
+        joinBtn.textContent = busy ? '연결 중' : (mode === 'password' ? '입장하기' : '참여하기');
       };
 
       const tryJoin = async (): Promise<void> => {

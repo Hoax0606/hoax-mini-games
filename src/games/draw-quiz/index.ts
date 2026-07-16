@@ -991,7 +991,7 @@ class DrawQuizGameModule implements GameModule {
           form.className = 'dq-customword-form';
           form.autocomplete = 'off';
           form.innerHTML = `
-            <input type="text" class="dq-customword-input" maxlength="12" placeholder="또는 직접 입력…" />
+            <input type="text" class="dq-customword-input" maxlength="12" placeholder="또는 직접 입력" />
             <button type="submit" class="dq-candidate-btn">직접 출제</button>`;
           form.addEventListener('submit', (e) => {
             e.preventDefault();

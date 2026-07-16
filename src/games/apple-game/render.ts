@@ -434,7 +434,7 @@ export class AppleRenderer {
       ctx.font = `500 11px ${FONT}`;
       ctx.textAlign = 'left';
       ctx.textBaseline = 'alphabetic';
-      ctx.fillText(`...외 ${names.length - maxShow}명`, RIGHT_PANEL_X, PANEL_Y + 16 + maxShow * (rowH + rowGap) + 14);
+      ctx.fillText(`외 ${names.length - maxShow}명`, RIGHT_PANEL_X, PANEL_Y + 16 + maxShow * (rowH + rowGap) + 14);
     }
 
     // 안내 문구 — 점수가 끝에 공개된다는 걸 알려줌

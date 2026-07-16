@@ -32,7 +32,7 @@ export function createPublicRoomsScreen(): Screen {
           <div class="screen-subtitle">지금 열려있는 방에 바로 들어가요</div>
 
           <div class="public-rooms-list" id="public-rooms-list">
-            <div class="public-rooms-empty">불러오는 중…</div>
+            <div class="public-rooms-empty">불러오는 중</div>
           </div>
         </div>
       `;

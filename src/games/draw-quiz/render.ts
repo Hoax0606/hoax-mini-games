@@ -406,7 +406,7 @@ export class DrawQuizRenderer {
       ctx.fillText('✏️', cx, DRAW_H / 2 - 24);
       ctx.font = `700 18px ${FONT}`;
       ctx.fillText(`${drawer?.nickname ?? '출제자'} 님이`, cx, DRAW_H / 2 + 6);
-      ctx.fillText('단어를 고르고 있어요…', cx, DRAW_H / 2 + 32);
+      ctx.fillText('단어를 고르고 있어요', cx, DRAW_H / 2 + 32);
     }
   }
 
