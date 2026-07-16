@@ -155,11 +155,6 @@ export function createWaitingRoomAsHostScreen(args: WaitingRoomAsHostArgs): Scre
             <div class="waiting-left">
               <div class="waiting-section-title">👥 참가자 <span class="waiting-count" id="player-count">1 / ${maxPlayers()}명</span></div>
               <div class="participants" id="participants"></div>
-              <div class="change-game-options waiting-options" id="game-options"></div>
-              <div class="room-info">
-                <span class="room-info-item" id="option-summary"></span>
-                <span class="room-info-item">${isPrivate ? '🔒 비공개' : '🌐 공개'}</span>
-              </div>
               <button class="btn btn-primary btn-lg btn-block" id="start-btn" disabled>
                 친구를 기다리는 중...
               </button>
@@ -168,6 +163,7 @@ export function createWaitingRoomAsHostScreen(args: WaitingRoomAsHostArgs): Scre
 
             <div class="waiting-right">
               <div class="waiting-section-title">🎲 게임 선택 <span class="waiting-section-hint">인원 초과 게임은 잠겨요</span></div>
+              <div class="change-game-options waiting-options" id="game-options"></div>
               <div class="change-game-grid waiting-grid" id="game-grid"></div>
             </div>
           </div>
@@ -187,7 +183,6 @@ export function createWaitingRoomAsHostScreen(args: WaitingRoomAsHostArgs): Scre
       const toastEl = el.querySelector<HTMLDivElement>('#toast')!;
       const playerCountEl = el.querySelector<HTMLSpanElement>('#player-count')!;
       const gameNameEl = el.querySelector<HTMLDivElement>('#game-name')!;
-      const optionSummaryEl = el.querySelector<HTMLSpanElement>('#option-summary')!;
 
       // 공개/비공개 모두 디렉토리(Firebase)에 등록. 비공개방은 isPrivate=true 로 목록에 🔒 표시되고,
       // 입장하려면 비번을 입력해야 함(호스트 onJoinRequest 에서 검증). 게스트 입장/퇴장 때 인원 갱신.
@@ -209,15 +204,16 @@ export function createWaitingRoomAsHostScreen(args: WaitingRoomAsHostArgs): Scre
         const players = [hostPlayer, ...guestPlayers];
         const max = maxPlayers();
         gameNameEl.textContent = gameName();
-        optionSummaryEl.textContent = buildOptionSummary(snapshotRoomState(), gameId);
         participantsEl.innerHTML = renderParticipantsHTML(players, max, hostPlayer.peerId, true);
         playerCountEl.textContent = `${players.length} / ${max}명`;
 
         // 게임 타일 그리드 (항상 노출, 인원 초과 게임은 잠금) + 선택 게임 옵션
         gameGridEl.innerHTML = buildGameTilesHTML(players.length, gameId, { enforceMin: false });
-        gameOptionsEl.innerHTML = gameId
-          ? buildGameOptionsHTML(gameId, roomOptions)
-          : `<div class="change-game-no-options">게임 타일을 눌러 골라주세요</div>`;
+        // 옵션은 오른쪽 타일 위 컴팩트 바. 옵션 없는 게임/미선택이면 바 자체를 숨겨(is-empty) 타일 영역 안 침범.
+        const selectedGame = gameId ? getGameById(gameId) : null;
+        const hasOptions = !!selectedGame && selectedGame.meta.roomOptions.length > 0;
+        gameOptionsEl.innerHTML = hasOptions ? buildGameOptionsHTML(gameId, roomOptions) : '';
+        gameOptionsEl.classList.toggle('is-empty', !hasOptions);
         wireGameArea();
 
         // 강퇴 버튼 배선 — 방장이 해당 게스트 연결을 끊음(onGuestDisconnected 가 정리)
@@ -291,7 +287,6 @@ export function createWaitingRoomAsHostScreen(args: WaitingRoomAsHostArgs): Scre
             roomOptions = { ...roomOptions, [key]: sel.value };
             host.send({ type: 'room_state', roomState: snapshotRoomState() });
             updatePublicRoom(host.roomId, { playerCount: 1 + guestPlayers.length }).catch(() => {});
-            optionSummaryEl.textContent = buildOptionSummary(snapshotRoomState(), gameId);
           });
         });
       }
@@ -493,7 +488,6 @@ export function createWaitingRoomAsGuestScreen(args: WaitingRoomAsGuestArgs): Sc
 
           <div class="room-info">
             <span class="room-info-item" id="option-summary"></span>
-            <span class="room-info-item">${roomState.isPrivate ? '🔒 비공개' : '🌐 공개'}</span>
             <span class="room-info-item" id="player-count">${roomState.players.length} / ${guestMaxPlayers()}명</span>
           </div>
 

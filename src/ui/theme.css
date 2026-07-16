@@ -2540,20 +2540,26 @@ input {
   align-content: start;
   padding-right: 4px;
 }
-/* 게임 설정 — 좌측 열(참가자 아래)에 컴팩트하게. 우측 타일 영역을 침범하지 않음 */
+/* 게임 설정 — 우측 타일 그리드 위에 한 줄 컴팩트 바. 옵션 없으면 숨겨 타일 영역을 안 침범 */
 .waiting-options {
   flex: 0 0 auto;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 14px;
   margin: 0 0 10px;
-  padding: 10px 12px;
-  max-height: 40%;
-  overflow-y: auto;
+  padding: 8px 12px;
 }
-.waiting-options .change-game-options-title { margin-bottom: 6px; font-size: 12px; }
-.waiting-options .form-group { margin-bottom: 8px; }
-.waiting-options .form-group:last-child { margin-bottom: 0; }
-.waiting-options .input-label { font-size: 12px; margin-bottom: 4px; }
-.waiting-options .select { padding: 7px 10px; font-size: 13px; }
-.waiting-options .change-game-no-options { padding: 4px 0; font-size: 12px; }
+.waiting-options.is-empty { display: none; }
+.waiting-options .change-game-options-title { margin: 0; font-size: 12px; }
+.waiting-options .form-group {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.waiting-options .input-label { margin: 0; font-size: 12px; white-space: nowrap; }
+.waiting-options .select { width: auto; padding: 5px 9px; font-size: 13px; }
 @media (max-width: 720px) {
   .waiting-card { height: auto; max-height: 88vh; }
   .waiting-body { flex-direction: column; }
