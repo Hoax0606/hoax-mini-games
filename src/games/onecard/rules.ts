@@ -28,6 +28,17 @@ export function isWild(card: Card): boolean {
   return card.kind === 'wild' || card.kind === 'wild4';
 }
 
+/**
+ * 공격카드 스택 받아치기 가능 여부.
+ *   - +2 스택은 +2 또는 +4 로 받아칠 수 있음 (+4 가 상위)
+ *   - +4 스택은 +4 로만 받아칠 수 있음 (+2 로는 방어 불가)
+ */
+export function canCounter(played: CardKind, pending: 'draw2' | 'wild4' | null): boolean {
+  if (!pending) return false;
+  if (pending === 'draw2') return played === 'draw2' || played === 'wild4';
+  return played === 'wild4';
+}
+
 /** 표준 108장 덱 생성 (미셔플). */
 export function buildDeck(): Card[] {
   const deck: Card[] = [];

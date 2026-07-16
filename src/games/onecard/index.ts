@@ -9,7 +9,7 @@
 import type { GameContext, GameMessage, GameModule, GameResult, Player } from '../types';
 import { sound } from '../../core/sound';
 import {
-  buildDeck, shuffle, canPlay, isWild, isPlainNumber, advanceTurn,
+  buildDeck, shuffle, canPlay, isWild, isPlainNumber, advanceTurn, canCounter,
   type Card, type Color, type CardKind,
 } from './rules';
 import {
@@ -217,9 +217,9 @@ class OneCardGame implements GameModule {
     if (hit.kind === 'card') {
       const card = this.myHand[hit.index];
       if (!card) return;
-      // 스택 중이면 같은 종류 공격카드로만 받아치기, 아니면 일반 유효성
+      // 스택 중이면 받아치기 규칙(+2는 +2/+4, +4는 +4로만), 아니면 일반 유효성
       const playable = pending
-        ? card.kind === this.pub.pendingKind
+        ? canCounter(card.kind, this.pub.pendingKind)
         : canPlay(card, this.pub.activeColor, this.pub.discardTop.kind);
       if (!playable) { sound.play('button_click'); return; }
       if (isWild(card)) { this.wildPickIndex = hit.index; return; } // 색 선택 오버레이
@@ -306,9 +306,9 @@ class OneCardGame implements GameModule {
     const idx = hand.findIndex((c) => c.color === card.color && c.kind === card.kind);
     if (idx < 0) return;
     const kind = card.kind;
-    // 스택 진행 중이면 같은 종류 공격카드로만 받아치기 가능. 아니면 일반 유효성.
+    // 스택 진행 중이면 받아치기 규칙(+2는 +2/+4로, +4는 +4로만). 아니면 일반 유효성.
     if (this.pendingDraw > 0) {
-      if (kind !== this.pendingKind) return;
+      if (!canCounter(kind, this.pendingKind)) return;
     } else if (!canPlay(card, this.activeColor, this.topKind())) {
       return;
     }
