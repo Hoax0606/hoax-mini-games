@@ -1,0 +1,48 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 200">
+  <defs>
+    <linearGradient id="ocBg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#ffe4ee"/>
+      <stop offset="1" stop-color="#e0fff4"/>
+    </linearGradient>
+  </defs>
+  <rect width="320" height="200" rx="22" fill="url(#ocBg)"/>
+
+  <!-- 배경 데코 -->
+  <circle cx="30" cy="30" r="3" fill="#ffc9dd"/>
+  <circle cx="290" cy="40" r="2.5" fill="#b8f5e0"/>
+  <circle cx="290" cy="170" r="3" fill="#d9c7ff"/>
+  <circle cx="30" cy="170" r="2.2" fill="#ffeec2"/>
+  <path d="M 54 60 L 56 66 L 62 66 L 57 70 L 59 76 L 54 72 L 49 76 L 51 70 L 46 66 L 52 66 Z" fill="#ffd0dc" opacity="0.85"/>
+  <path d="M 270 130 L 272 135 L 277 135 L 273 138 L 274 143 L 270 140 L 266 143 L 267 138 L 263 135 L 268 135 Z" fill="#c5e8d8" opacity="0.85"/>
+
+  <!-- 부채꼴 카드 5장 -->
+  <g transform="translate(160 120)">
+    <g transform="rotate(-28) translate(0 -6)">
+      <rect x="-27" y="-42" width="54" height="80" rx="9" fill="#fff" stroke="rgba(74,58,74,0.25)" stroke-width="1.5"/>
+      <rect x="-21" y="-36" width="42" height="68" rx="6" fill="#ff6b81"/>
+      <text x="0" y="4" text-anchor="middle" font-family="Pretendard, system-ui, sans-serif" font-size="30" font-weight="900" fill="#fff">7</text>
+    </g>
+    <g transform="rotate(-14) translate(0 -2)">
+      <rect x="-27" y="-42" width="54" height="80" rx="9" fill="#fff" stroke="rgba(74,58,74,0.25)" stroke-width="1.5"/>
+      <rect x="-21" y="-36" width="42" height="68" rx="6" fill="#5b9be6"/>
+      <text x="0" y="4" text-anchor="middle" font-family="Pretendard, system-ui, sans-serif" font-size="30" font-weight="900" fill="#fff">3</text>
+    </g>
+    <g>
+      <rect x="-27" y="-44" width="54" height="80" rx="9" fill="#fff" stroke="rgba(74,58,74,0.25)" stroke-width="1.5"/>
+      <rect x="-21" y="-38" width="42" height="68" rx="6" fill="#57c777"/>
+      <text x="0" y="2" text-anchor="middle" font-family="Pretendard, system-ui, sans-serif" font-size="26" font-weight="900" fill="#fff">⇄</text>
+    </g>
+    <g transform="rotate(14) translate(0 -2)">
+      <rect x="-27" y="-42" width="54" height="80" rx="9" fill="#fff" stroke="rgba(74,58,74,0.25)" stroke-width="1.5"/>
+      <rect x="-21" y="-36" width="42" height="68" rx="6" fill="#f2c94c"/>
+      <text x="0" y="4" text-anchor="middle" font-family="Pretendard, system-ui, sans-serif" font-size="24" font-weight="900" fill="#fff">+2</text>
+    </g>
+    <g transform="rotate(28) translate(0 -6)">
+      <rect x="-27" y="-42" width="54" height="80" rx="9" fill="#fff" stroke="rgba(74,58,74,0.25)" stroke-width="1.5"/>
+      <rect x="-21" y="-36" width="20" height="33" rx="3" fill="#ff6b81"/>
+      <rect x="1" y="-36" width="20" height="33" rx="3" fill="#5b9be6"/>
+      <rect x="-21" y="-2" width="20" height="33" rx="3" fill="#57c777"/>
+      <rect x="1" y="-2" width="20" height="33" rx="3" fill="#f2c94c"/>
+    </g>
+  </g>
+</svg>

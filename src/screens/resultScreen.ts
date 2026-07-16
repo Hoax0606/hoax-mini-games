@@ -1596,6 +1596,78 @@ function buildDodgeResultHTML(args: {
 }
 
 // ============================================
+// 원카드 전용 결과 HTML
+// ============================================
+
+interface OneCardRankEntry { peerId: string; nickname: string; rank: number; }
+
+function parseOneCardSummary(summary: Record<string, unknown>): {
+  myPeerId: string; rank: number; totalPlayers: number; rankings: OneCardRankEntry[];
+} | null {
+  if (summary['gameId'] !== 'onecard') return null;
+  const myPeerId = typeof summary['myPeerId'] === 'string' ? (summary['myPeerId'] as string) : null;
+  const rank = typeof summary['rank'] === 'number' ? (summary['rank'] as number) : null;
+  const totalPlayers = typeof summary['totalPlayers'] === 'number' ? (summary['totalPlayers'] as number) : null;
+  if (!myPeerId || rank === null || totalPlayers === null) return null;
+  const raw = summary['rankings'] as unknown;
+  const rankings: OneCardRankEntry[] = Array.isArray(raw)
+    ? (raw as Partial<OneCardRankEntry>[])
+        .filter((r) => typeof r.peerId === 'string' && typeof r.nickname === 'string' && typeof r.rank === 'number')
+        .map((r) => ({ peerId: r.peerId!, nickname: r.nickname!, rank: r.rank! }))
+    : [];
+  return { myPeerId, rank, totalPlayers, rankings };
+}
+
+function buildOneCardResultHTML(args: {
+  myWinner: 'me' | 'opponent' | null;
+  rank: number; totalPlayers: number; rankings: OneCardRankEntry[];
+  myPeerId: string; isHost: boolean; isSpectator: boolean;
+}): string {
+  const { myWinner, rank, totalPlayers, rankings, myPeerId, isHost, isSpectator } = args;
+  const { emoji, title, titleClass } = isSpectator
+    ? { emoji: '🃏', title: '원카드 종료', titleClass: 'result-title-draw' }
+    : winnerVisuals(myWinner);
+  const actionsHTML = buildActionsHTML(isHost);
+
+  const myBlock = isSpectator ? '' : `
+    <div class="result-tetris-rank">
+      <span class="result-tetris-rank-num">${rank}</span> / ${totalPlayers}위
+    </div>
+  `;
+  const last = totalPlayers;
+  const rankingsHTML = rankings.length >= 1 ? `
+    <div class="result-tetris-rankings">
+      <div class="result-tetris-rankings-title">🏅 순위 (먼저 비운 순)</div>
+      ${rankings.map((r) => {
+        const isMe = r.peerId === myPeerId;
+        const badgeClass = r.rank <= 3 ? `rank-${r.rank}` : '';
+        const tag = r.rank === last ? '🃏 꼴등' : `${r.rank}등`;
+        return `
+          <div class="result-tetris-rank-row ${isMe ? 'is-me' : ''}">
+            <span class="result-tetris-rank-badge ${badgeClass}">${r.rank}</span>
+            <span class="result-tetris-rank-name">${escapeHtml(r.nickname)}</span>
+            <span class="result-apple-rank-score">${tag}</span>
+            ${isMe ? '<span class="result-tetris-rank-me-tag">나</span>' : ''}
+          </div>
+        `;
+      }).join('')}
+    </div>
+  ` : '';
+
+  return `
+    <div class="result-card result-card-tetris">
+      <div class="result-emoji">${emoji}</div>
+      <div class="result-title ${titleClass}">${title}</div>
+      ${myBlock}
+      ${rankingsHTML}
+      <div class="result-actions">
+        ${actionsHTML}
+      </div>
+    </div>
+  `;
+}
+
+// ============================================
 // 호스트 결과 화면
 // ============================================
 
@@ -1637,6 +1709,7 @@ export function createResultScreenAsHostScreen(args: ResultScreenAsHostArgs): Sc
       const ramen = parseRamenSummary(result.summary);
       const bomb = parseBombSummary(result.summary);
       const dodge = parseDodgeSummary(result.summary);
+      const onecard = parseOneCardSummary(result.summary);
       if (tetris) {
         el.innerHTML = buildTetrisResultHTML({
           myWinner: result.winner,
@@ -1650,6 +1723,12 @@ export function createResultScreenAsHostScreen(args: ResultScreenAsHostArgs): Sc
       } else if (dodge) {
         el.innerHTML = buildDodgeResultHTML({
           myWinner: result.winner, summary: dodge, isHost: true, isSpectator: false,
+        });
+      } else if (onecard) {
+        el.innerHTML = buildOneCardResultHTML({
+          myWinner: result.winner,
+          rank: onecard.rank, totalPlayers: onecard.totalPlayers, rankings: onecard.rankings,
+          myPeerId: onecard.myPeerId, isHost: true, isSpectator: false,
         });
       } else if (reflex) {
         el.innerHTML = buildReflexResultHTML({
@@ -1900,6 +1979,7 @@ export function createResultScreenAsGuestScreen(args: ResultScreenAsGuestArgs): 
       const ramen = parseRamenSummary(result.summary);
       const bomb = parseBombSummary(result.summary);
       const dodge = parseDodgeSummary(result.summary);
+      const onecard = parseOneCardSummary(result.summary);
       // 관전자는 summary.myPeerId 가 자기가 아닐 수 있음 — 자기 peerId 는 guest.myPeerId.
       // rankings 에 "나" 가 없으면 관전자로 간주.
       const myPeerIdForResult = guest.myPeerId;
@@ -1920,6 +2000,14 @@ export function createResultScreenAsGuestScreen(args: ResultScreenAsGuestArgs): 
           summary: isSpec ? { ...dodge, myPeerId: myPeerIdForResult } : dodge,
           isHost: false,
           isSpectator: isSpec,
+        });
+      } else if (onecard) {
+        const isSpec = !onecard.rankings.some((r) => r.peerId === myPeerIdForResult);
+        el.innerHTML = buildOneCardResultHTML({
+          myWinner: result.winner,
+          rank: onecard.rank, totalPlayers: onecard.totalPlayers, rankings: onecard.rankings,
+          myPeerId: isSpec ? myPeerIdForResult : onecard.myPeerId,
+          isHost: false, isSpectator: isSpec,
         });
       } else if (reflex) {
         const isSpec = !reflex.rankings.some((r) => r.peerId === myPeerIdForResult);

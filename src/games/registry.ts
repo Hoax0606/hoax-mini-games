@@ -25,6 +25,7 @@ import ramenShopThumbnail from './ramen-shop/thumbnail.svg';
 import bombWordChainThumbnail from './bomb-wordchain/thumbnail.svg';
 import storyDrawThumbnail from './story-draw/thumbnail.svg';
 import dodgeThumbnail from './dodge/thumbnail.svg';
+import oneCardThumbnail from './onecard/thumbnail.svg';
 
 export const games: GameEntry[] = [
   {
@@ -398,6 +399,21 @@ export const games: GameEntry[] = [
     load: async () => {
       const mod = await import('./dodge');
       return mod.createDodgeGame();
+    },
+  },
+  {
+    meta: {
+      id: 'onecard',
+      name: '원카드',
+      description: '색·숫자·기호를 맞춰 카드를 내고, 건너뛰기·방향바꾸기·+2·색바꾸기로 서로 방해! 손패를 먼저 다 비우면 순위 확정, 최후 1명이 꼴등.',
+      thumbnail: oneCardThumbnail,
+      minPlayers: 2,
+      maxPlayers: 8,
+      roomOptions: [],
+    },
+    load: async () => {
+      const mod = await import('./onecard');
+      return mod.createOneCardGame();
     },
   },
 ];
