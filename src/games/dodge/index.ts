@@ -292,10 +292,10 @@ class DodgeGameModule implements GameModule {
     if (this.gameEnded) return;
     const players = [...this.standings.values()];
     const aliveCount = players.filter((e) => !e.dead).length;
-    const total = players.length;
-    const threshold = total >= 2 ? 1 : 0; // 2인+ 마지막 1명 남으면 끝 / 솔로는 죽으면 끝
+    // 전원 죽어야 종료 — 마지막 생존자도 자기가 죽을 때까지 계속 피함(순위=생존시간).
+    // (예전엔 마지막 1명 남으면 바로 끝났는데, 끝까지 플레이하도록 변경)
     const watchdog = now - this.gameStartWall > MAX_GAME_MS;
-    if (aliveCount <= threshold || watchdog) this.finalizeAsHost();
+    if (aliveCount <= 0 || watchdog) this.finalizeAsHost();
   }
 
   private finalizeAsHost(): void {
