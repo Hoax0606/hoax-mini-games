@@ -10,7 +10,7 @@ import { buildReactionBarHTML, wireReactionBar, showReactionBubble } from '../ui
 import { buildChatPanelHTML, wireChatPanel, appendChatMessage } from '../ui/chat';
 import type { ChatMsg } from '../games/types';
 import { publishRoom, updatePublicRoom, unpublishRoom } from '../core/roomDirectory';
-import { openGamePickerOverlay } from '../ui/gamePicker';
+import { buildGameTilesHTML, buildGameOptionsHTML } from '../ui/gamePicker';
 import { escapeHtml } from '../ui/escape';
 
 /**
@@ -153,34 +153,35 @@ export function createWaitingRoomAsHostScreen(args: WaitingRoomAsHostArgs): Scre
       el.innerHTML = `
         <button class="back-btn" id="leave-btn" title="방 나가기">×</button>
 
-        <div class="card" style="min-width: 460px;">
-          <div class="card-title">🎀 대기실</div>
-          <div class="card-subtitle" id="game-name">${escapeHtml(gameName())}</div>
-
-          <div class="room-code-box">
-            <div class="room-code-row" style="justify-content: center;">
-              <button class="btn btn-secondary btn-sm" id="share-btn">🔗 초대 링크 복사</button>
+        <div class="card waiting-card">
+          <div class="waiting-head">
+            <div class="waiting-head-title">
+              <div class="card-title">🎀 대기실</div>
+              <div class="card-subtitle" id="game-name">${escapeHtml(gameName())}</div>
             </div>
-            <div class="room-code-hint">링크를 공유하거나, 친구가 "방 찾기"에서 들어올 수 있어요</div>
+            <button class="btn btn-secondary btn-sm" id="share-btn" title="초대 링크 복사">🔗 초대</button>
           </div>
 
-          <button class="btn btn-secondary btn-block" id="pick-game-btn" style="margin-bottom: 10px;">
-            🎲 게임 선택
-          </button>
+          <div class="waiting-body">
+            <div class="waiting-left">
+              <div class="waiting-section-title">👥 참가자 <span class="waiting-count" id="player-count">1 / ${maxPlayers()}</span></div>
+              <div class="participants" id="participants"></div>
+              <div class="room-info">
+                <span class="room-info-item" id="option-summary"></span>
+                <span class="room-info-item">${isPrivate ? '🔒 비공개' : '🌐 공개'}</span>
+              </div>
+              <button class="btn btn-primary btn-lg btn-block" id="start-btn" disabled>
+                친구를 기다리는 중...
+              </button>
+              <div style="margin-top: 10px;">${buildReactionBarHTML()}</div>
+            </div>
 
-          <div class="participants" id="participants"></div>
-
-          <div class="room-info">
-            <span class="room-info-item" id="option-summary"></span>
-            <span class="room-info-item">${isPrivate ? '🔒 비공개' : '🌐 공개'}</span>
-            <span class="room-info-item" id="player-count">1 / ${maxPlayers()}</span>
+            <div class="waiting-right">
+              <div class="waiting-section-title">🎲 게임 선택 <span class="waiting-section-hint">인원 초과 게임은 잠겨요</span></div>
+              <div class="change-game-grid waiting-grid" id="game-grid"></div>
+              <div class="change-game-options" id="game-options"></div>
+            </div>
           </div>
-
-          <button class="btn btn-primary btn-lg btn-block" id="start-btn" disabled>
-            친구를 기다리는 중...
-          </button>
-
-          <div style="margin-top: 14px;">${buildReactionBarHTML()}</div>
         </div>
 
         ${buildChatPanelHTML()}
@@ -190,7 +191,8 @@ export function createWaitingRoomAsHostScreen(args: WaitingRoomAsHostArgs): Scre
 
       const participantsEl = el.querySelector<HTMLDivElement>('#participants')!;
       const startBtn = el.querySelector<HTMLButtonElement>('#start-btn')!;
-      const pickGameBtn = el.querySelector<HTMLButtonElement>('#pick-game-btn')!;
+      const gameGridEl = el.querySelector<HTMLDivElement>('#game-grid')!;
+      const gameOptionsEl = el.querySelector<HTMLDivElement>('#game-options')!;
       const shareBtn = el.querySelector<HTMLButtonElement>('#share-btn')!;
       const leaveBtn = el.querySelector<HTMLButtonElement>('#leave-btn')!;
       const toastEl = el.querySelector<HTMLDivElement>('#toast')!;
@@ -221,7 +223,13 @@ export function createWaitingRoomAsHostScreen(args: WaitingRoomAsHostArgs): Scre
         optionSummaryEl.textContent = buildOptionSummary(snapshotRoomState(), gameId);
         participantsEl.innerHTML = renderParticipantsHTML(players, max, hostPlayer.peerId, true);
         playerCountEl.textContent = `${players.length} / ${max}`;
-        pickGameBtn.textContent = gameId ? '🎲 게임 변경' : '🎲 게임 선택';
+
+        // 게임 타일 그리드 (항상 노출, 인원 초과 게임은 잠금) + 선택 게임 옵션
+        gameGridEl.innerHTML = buildGameTilesHTML(players.length, gameId, { enforceMin: false });
+        gameOptionsEl.innerHTML = gameId
+          ? buildGameOptionsHTML(gameId, roomOptions)
+          : `<div class="change-game-no-options">게임 타일을 눌러 골라주세요</div>`;
+        wireGameArea();
 
         // 강퇴 버튼 배선 — 방장이 해당 게스트 연결을 끊음(onGuestDisconnected 가 정리)
         participantsEl.querySelectorAll<HTMLButtonElement>('.participant-kick').forEach((btn) => {
@@ -274,17 +282,30 @@ export function createWaitingRoomAsHostScreen(args: WaitingRoomAsHostArgs): Scre
         refreshUI();
       };
 
-      pickGameBtn.addEventListener('click', () => {
-        openGamePickerOverlay(el, {
-          playerCount: 1 + guestPlayers.length,
-          currentGameId: gameId,
-          title: '🎲 게임 선택',
-          subtitle: `현재 방 인원 ${1 + guestPlayers.length}명 · 인원 초과하는 게임만 잠겨요`,
-          confirmLabel: '이 게임으로',
-          enforceMin: false, // 시작 전이니 인원 모자라도 미리 골라둘 수 있게(min 은 시작 버튼에서 강제)
-          onConfirm: selectGame,
+      // 게임 타일 클릭 / 옵션 변경 배선 — refreshUI 가 그리드를 다시 그릴 때마다 재호출.
+      function wireGameArea(): void {
+        gameGridEl.querySelectorAll<HTMLButtonElement>('.change-game-card:not(.is-disabled)').forEach((card) => {
+          card.addEventListener('click', () => {
+            const gid = card.dataset.gameId;
+            if (!gid || gid === gameId) return; // 이미 고른 게임이면 무시(옵션 리셋 방지)
+            const g = getGameById(gid);
+            if (!g) return;
+            const opts: Record<string, string> = {};
+            for (const o of g.meta.roomOptions) opts[o.key] = o.defaultValue;
+            selectGame(gid, opts); // 즉시 적용 → refreshUI 로 강조/옵션 갱신
+          });
         });
-      });
+        // 옵션 select 변경 — 그리드 재렌더 없이 옵션만 반영(select 값은 native 유지)
+        gameOptionsEl.querySelectorAll<HTMLSelectElement>('select[id^="opt-"]').forEach((sel) => {
+          sel.addEventListener('change', () => {
+            const key = sel.id.replace('opt-', '');
+            roomOptions = { ...roomOptions, [key]: sel.value };
+            host.send({ type: 'room_state', roomState: snapshotRoomState() });
+            updatePublicRoom(host.roomId, { playerCount: 1 + guestPlayers.length }).catch(() => {});
+            optionSummaryEl.textContent = buildOptionSummary(snapshotRoomState(), gameId);
+          });
+        });
+      }
 
       // ---- 방 로직 콜백 ----
       host.onJoinRequest = (req: JoinRequest, fromPeerId: string): JoinDecision => {

@@ -38,18 +38,26 @@ export interface GamePickerOptions {
   onConfirm: (gameId: string, options: Record<string, string>) => void;
 }
 
-function buildOverlayHTML(o: GamePickerOptions): string {
-  const currentSuffix = o.currentSuffix ?? '지금 선택됨';
-  const enforceMin = o.enforceMin ?? true;
-  const cards = games.map((g) => {
-    const overMax = o.playerCount > g.meta.maxPlayers;
-    const underMin = enforceMin && o.playerCount < g.meta.minPlayers;
+/**
+ * 게임 타일 그리드 HTML (오버레이/대기실 인라인 공용).
+ * 인원 초과(overMax)면 항상 잠금. enforceMin 이면 인원 미달(underMin)도 잠금.
+ */
+export function buildGameTilesHTML(
+  playerCount: number,
+  currentGameId: string,
+  opts?: { enforceMin?: boolean; currentSuffix?: string },
+): string {
+  const enforceMin = opts?.enforceMin ?? true;
+  const currentSuffix = opts?.currentSuffix ?? '지금 선택됨';
+  return games.map((g) => {
+    const overMax = playerCount > g.meta.maxPlayers;
+    const underMin = enforceMin && playerCount < g.meta.minPlayers;
     const fits = !overMax && !underMin;
     const playerLabel = g.meta.minPlayers === g.meta.maxPlayers
       ? `${g.meta.minPlayers}인 전용`
       : `${g.meta.minPlayers}~${g.meta.maxPlayers}인`;
-    const reason = fits ? playerLabel : `${playerLabel} (현재 ${o.playerCount}명)`;
-    const isCurrent = g.meta.id === o.currentGameId;
+    const reason = fits ? playerLabel : `${playerLabel} (현재 ${playerCount}명)`;
+    const isCurrent = g.meta.id === currentGameId;
     return `
       <button class="change-game-card${fits ? '' : ' is-disabled'}${isCurrent ? ' is-current' : ''}"
               data-game-id="${escapeAttr(g.meta.id)}" ${fits ? '' : 'disabled'}>
@@ -59,6 +67,25 @@ function buildOverlayHTML(o: GamePickerOptions): string {
       </button>
     `;
   }).join('');
+}
+
+/** 선택된 게임의 옵션 폼 HTML. current 로 현재 선택값을 반영(없으면 기본값). 옵션 없으면 안내. */
+export function buildGameOptionsHTML(gameId: string, current?: Record<string, string>): string {
+  const g = getGameById(gameId);
+  if (!g) return '';
+  if (g.meta.roomOptions.length === 0) {
+    return `<div class="change-game-no-options">설정 없이 바로 시작할 수 있어요</div>`;
+  }
+  return `<div class="change-game-options-title">⚙️ 게임 설정</div>${
+    g.meta.roomOptions.map((opt) => renderOption(opt, current?.[opt.key])).join('')
+  }`;
+}
+
+function buildOverlayHTML(o: GamePickerOptions): string {
+  const cards = buildGameTilesHTML(o.playerCount, o.currentGameId, {
+    enforceMin: o.enforceMin,
+    currentSuffix: o.currentSuffix,
+  });
 
   return `
     <div class="change-game-overlay" id="change-game-overlay">
@@ -79,13 +106,14 @@ function buildOverlayHTML(o: GamePickerOptions): string {
   `;
 }
 
-function renderOption(opt: GameRoomOption): string {
+function renderOption(opt: GameRoomOption, currentValue?: string): string {
+  const chosen = currentValue ?? opt.defaultValue;
   return `
     <div class="form-group">
       <label class="input-label">${escapeHtml(opt.label)}</label>
       <select class="select" id="opt-${escapeAttr(opt.key)}">
         ${opt.choices.map((c) => `
-          <option value="${escapeAttr(c.value)}"${c.value === opt.defaultValue ? ' selected' : ''}>
+          <option value="${escapeAttr(c.value)}"${c.value === chosen ? ' selected' : ''}>
             ${escapeHtml(c.label)}
           </option>
         `).join('')}
