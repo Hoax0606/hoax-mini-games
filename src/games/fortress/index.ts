@@ -87,6 +87,10 @@ interface Shell extends Projectile {
   seg: FlightSeg;
   /** 현재 구간에서 경과한 시간(초). 위치 = segPos(seg, st) */
   st: number;
+  /** 발사한 포대 id — 이 포대는 자탄이 벗어나기 전엔 충돌 무시(자기 포대 자폭 방지) */
+  originFortId: number;
+  /** 자기 포대 히트박스를 한 번 벗어났는지. false 동안은 originFortId 충돌 무시(아래로 쏠 때 자폭 방지) */
+  armed: boolean;
 }
 
 /** 포탄의 현재 (x,y,vx,vy) 를 원점으로 새 비행 구간 시작 (발사·분열·튕김 공통) */
@@ -287,7 +291,7 @@ class FortressGameModule implements GameModule {
         // 발사자 탄약 차감 (모든 클라 동일하게 — 결정론적)
         const shooter = this.game.forts.find((f) => f.id === fire.fromFortId);
         if (shooter) spendAmmo(this.game, shooter.ownerPeerId, fire.weapon);
-        this.beginProjectile(fire.startX, fire.startY, fire.angleRad, fire.power01, fire.wind, fire.weapon);
+        this.beginProjectile(fire.startX, fire.startY, fire.angleRad, fire.power01, fire.wind, fire.weapon, fire.fromFortId);
       }
       return;
     }
@@ -401,9 +405,11 @@ class FortressGameModule implements GameModule {
         if (Math.abs(dx) > this.fuelLeft) dx = this.moveDir * this.fuelLeft; // 연료 한도
         const margin = 30;
         const nextX = Math.max(margin, Math.min(this.game.terrainWidth - margin, cf.x + dx));
-        // 가파른 지형(크레이터 벽)은 못 넘어감 — 넘으려 하면 정지(순간이동 방지)
-        const rise = Math.abs(terrainTopAt(this.hm, nextX) - terrainTopAt(this.hm, cf.x));
-        if (rise <= MAX_CLIMB_PER_STEP) {
+        // 올라가는(더 높은 땅) 것만 막고, 내려가는(파인 땅/크레이터 안쪽) 건 허용.
+        //   hm 값 클수록 낮은 땅 → climb>0 이면 목적지가 더 높음(올라감). 예전엔 abs 라 내려가기도
+        //   막혀서 "깎인 땅으로 못 감" 버그. 이제 낙차(내려감)는 자유, 오르막만 MAX_CLIMB 로 제한.
+        const climb = terrainTopAt(this.hm, cf.x) - terrainTopAt(this.hm, nextX);
+        if (climb <= MAX_CLIMB_PER_STEP) {
           this.fuelLeft = Math.max(0, this.fuelLeft - Math.abs(nextX - cf.x));
           cf.x = nextX;
           if (now - this.moveBroadcastAt > MOVE_BROADCAST_MS) {
@@ -542,10 +548,22 @@ class FortressGameModule implements GameModule {
           startSeg(s, this.fireWind); // 반사 후 새 속도로 새 구간 시작
         }
       } else {
+        // 자탄이 발사 포대 히트박스를 한 번 벗어나면 armed — 이후엔 자기 포대에도 맞을 수 있음(되돌아오는 경우).
+        //   아래로 쏠 때 클리어런스(20px)만으론 자기 포대(반경16) 안이라 자폭하던 문제 방지.
+        if (!s.armed) {
+          const origin = this.game.forts.find((f) => f.id === s.originFortId);
+          if (origin) {
+            const oy = terrainTopAt(this.hm, origin.x) - FORT_HIT_RISE;
+            if (Math.hypot(s.x - origin.x, s.y - oy) > FORT_HIT_RADIUS + 6) s.armed = true;
+          } else {
+            s.armed = true;
+          }
+        }
         let hitFort = false;
         if (cleared) {
           for (const f of this.game.forts) {
             if (!f.alive) continue;
+            if (f.id === s.originFortId && !s.armed) continue; // 발사 포대는 벗어나기 전엔 무시
             // 탱크 몸통 중심 기준 원형 히트박스. 스텝 이동선분(prev→cur)과의 최근접거리로
             //   판정해 고속 포탄이 탱크를 한 프레임에 통과(터널링)해도 잡는다.
             const fy = terrainTopAt(this.hm, f.x) - FORT_HIT_RISE;
@@ -586,6 +604,8 @@ class FortressGameModule implements GameModule {
         spawnX: s.x, spawnY: s.y,
         seg: { x0: s.x, y0: s.y, vx0: vx, vy0: vy, wind: this.fireWind },
         st: 0,
+        // 파편은 공중에서 생겨 이미 자기 포대 밖 → 바로 armed
+        originFortId: s.originFortId, armed: true,
       };
     });
   }
@@ -867,7 +887,7 @@ class FortressGameModule implements GameModule {
     const power01 = Math.min(1, dragLen / MAX_DRAG_PX);
 
     // 로컬 즉시 시작 + broadcast (게스트/호스트 공통)
-    this.beginProjectile(this.aimFromX, this.aimFromY, angleRad, power01, effWind, weapon);
+    this.beginProjectile(this.aimFromX, this.aimFromY, angleRad, power01, effWind, weapon, this.game.currentTurn);
     spendAmmo(this.game, ownerPeerId, weapon);
     if (!hasAmmo(this.game, ownerPeerId, weapon)) this.selectedWeapon = 'normal'; // 소진 시 기본 복귀
     this.ctx.sendToPeer(encodeFire({
@@ -878,7 +898,7 @@ class FortressGameModule implements GameModule {
     this.refreshWeaponBar();
   };
 
-  private beginProjectile(sx: number, sy: number, angleRad: number, power01: number, wind: number, weapon: WeaponId): void {
+  private beginProjectile(sx: number, sy: number, angleRad: number, power01: number, wind: number, weapon: WeaponId, originFortId: number): void {
     const { vx, vy } = launchVelocity(angleRad, power01);
     const spec = WEAPONS[weapon];
     this.shells = [{
@@ -887,6 +907,7 @@ class FortressGameModule implements GameModule {
       spawnX: sx, spawnY: sy,
       seg: { x0: sx, y0: sy, vx0: vx, vy0: vy, wind },
       st: 0,
+      originFortId, armed: false,
     }];
     this.simAccum = 0;
     this.splitDone = false;
