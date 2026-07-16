@@ -516,7 +516,7 @@ class FortressGameModule implements GameModule {
     let guidedTarget: RenderState['guidedTarget'] = null;
     if (this.guidedTarget !== null && this.shells.length === 0) {
       const t = this.game.forts.find((f) => f.id === this.guidedTarget && f.alive);
-      if (t) guidedTarget = { x: t.x, y: terrainTopAt(this.hm, t.x) - FORT_HIT_RISE };
+      if (t) guidedTarget = { x: t.x, y: fortCenterY(this.hm, t) }; // 실제 호밍 목표점과 동일
       else this.guidedTarget = null;
     }
     // 카메라 포커스: 포탄이 날면 포탄을 따라가고(수동 해제), 아니면 수동 스크롤 위치 > 현재 포대.
@@ -591,7 +591,7 @@ class FortressGameModule implements GameModule {
       }
 
       const off = s.x < -60 || s.x > this.game.terrainWidth + 60 || s.y > 440
-        || (s.guided === true && s.y < -60);
+        || (s.guided === true && s.y < -200); // 유도탄 상승 아크가 화면 위로 넘어가도 성급히 미스 처리 안 하게
       // 총구 클리어런스 — 발사 직후 일정 거리 전엔 지형/포대 충돌 무시(오조준 착탄 방지)
       const cleared = Math.hypot(s.x - s.spawnX, s.y - s.spawnY) > LAUNCH_CLEARANCE;
       const groundY = terrainTopAt(this.hm, s.x);

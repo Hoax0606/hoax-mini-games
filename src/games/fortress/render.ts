@@ -14,6 +14,10 @@ import { FORT_HP, type FortressGame, type WeaponId } from './rules';
 
 const FONT = `'Pretendard', 'Apple SD Gothic Neo', 'Noto Sans KR', system-ui, sans-serif`;
 
+/** 한 화면에 보여줄 최대 월드 가로 폭(논리 px). 화면이 이보다 넓어도 이만큼만 확대해 보여줌
+ *  → 포대가 충분히 크게 보이고, 맵이 이보다 넓으면 가로 스크롤이 생긴다. */
+const MAX_VIEW_W = 820;
+
 /** 포대 색 — 플레이어별 (최대 10인). 서로 구분되는 10색 */
 const FILL = [
   '#6ed9b3', '#ff6b9e', '#b89aff', '#ffd454', '#5b9cff',
@@ -132,13 +136,13 @@ export class FortressRenderer {
   render(state: RenderState): void {
     const ctx = this.ctx;
     const rect = this.canvas.getBoundingClientRect();
-    if (rect.width === 0) return;
+    if (rect.width === 0 || rect.height === 0) return; // 높이 0 이면 scale=0 → NaN 오염 방지
     const dpr = window.devicePixelRatio || 1;
     const logicalW = state.game.terrainWidth;
 
-    // 카메라: 세로(TERRAIN_HEIGHT)를 화면 높이에 꽉 채우는 고정 스케일 → 맵이 넓어도 포대 크기 일정.
-    //   가로는 포커스(현재 포대/날아가는 포탄)를 따라 스크롤. 맵이 화면보다 좁으면 가운데 정렬.
-    const scale = rect.height / TERRAIN_HEIGHT;
+    // 스케일: 세로를 화면에 채우되, 화면이 너무 넓으면 MAX_VIEW_W 만큼만 보이도록 더 확대(줌인).
+    //   → 포대가 크게 보이고 넓은 맵은 가로 스크롤. 세로가 넘치면 지형 바닥 기준 정렬(위 하늘만 잘림).
+    const scale = Math.max(rect.height / TERRAIN_HEIGHT, rect.width / MAX_VIEW_W);
     const viewW = rect.width / scale; // 화면에 보이는 월드 가로 폭
     let targetLeft: number;
     if (viewW >= logicalW) {
@@ -147,15 +151,22 @@ export class FortressRenderer {
       const focus = state.focusX ?? logicalW / 2;
       targetLeft = Math.max(0, Math.min(logicalW - viewW, focus - viewW / 2));
     }
-    // 부드러운 따라가기(시각 전용 — 시뮬 결정론과 무관)
-    if (this.camLeft === null) this.camLeft = targetLeft;
+    // 부드러운 따라가기(시각 전용 — 시뮬 결정론과 무관). 비정상값이면 즉시 스냅해 복구.
+    if (this.camLeft === null || !Number.isFinite(this.camLeft)) this.camLeft = targetLeft;
     else this.camLeft += (targetLeft - this.camLeft) * 0.18;
 
+    // 세로 정렬: 월드 높이가 화면보다 크면 바닥(지형) 기준(위 하늘 잘림), 작으면 가운데.
+    const worldHpx = TERRAIN_HEIGHT * scale;
+    const offY = worldHpx <= rect.height ? (rect.height - worldHpx) / 2 : (rect.height - worldHpx);
+
+    // screenToLogical 역변환용 오프셋은 '흔들림 제외'(안 그러면 클릭이 shake만큼 튀어 타겟 오조준).
     this.scaleCss = scale;
-    // 착탄 직후 화면 흔들림 (타격 피드백)
+    this.offXCss = -this.camLeft * scale;
+    this.offYCss = offY;
+    // 그리기용 오프셋엔 착탄 흔들림(shake) 추가 (시각 전용)
     const shake = this.explosionShake(state.explosions, state.now);
-    this.offXCss = -this.camLeft * scale + shake;
-    this.offYCss = shake * 0.7;
+    const drawOffX = this.offXCss + shake;
+    const drawOffY = this.offYCss + shake * 0.7;
 
     // 전체 배경(레터박스 여백) 채우기
     ctx.setTransform(1, 0, 0, 1, 0, 0);
@@ -164,7 +175,7 @@ export class FortressRenderer {
     ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
 
     // 논리 좌표계로 전환 (물리픽셀 = CSS × dpr)
-    ctx.setTransform(scale * dpr, 0, 0, scale * dpr, this.offXCss * dpr, this.offYCss * dpr);
+    ctx.setTransform(scale * dpr, 0, 0, scale * dpr, drawOffX * dpr, drawOffY * dpr);
 
     this.drawSky(logicalW, state.now);
     this.drawWind(logicalW, state.game.wind, state.now);
