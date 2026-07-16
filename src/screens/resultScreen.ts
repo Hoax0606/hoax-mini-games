@@ -1943,11 +1943,11 @@ export function createResultScreenAsHostScreen(args: ResultScreenAsHostArgs): Sc
             gomoku_hostSide: prev === 'B' ? 'W' : 'B',
           };
         }
-        const rs: RoomState = { ...roomState, roomOptions: nextRoomOptions, status: 'playing' };
-        // 옵션이 바뀌었으면 게스트에게도 갱신된 방 상태 알림 (game_start 전에)
-        if (nextRoomOptions !== roomState.roomOptions) {
-          host.send({ type: 'room_state', roomState: rs });
-        }
+        // 게임 중 합류한 관전자를 이번 판부터 플레이어로 승격(대기→참여)
+        const promoted = roomState.players.map((p) => ({ ...p, role: 'player' as const }));
+        const rs: RoomState = { ...roomState, players: promoted, roomOptions: nextRoomOptions, status: 'playing' };
+        // 역할(관전→플레이어)/옵션 변경을 게스트에 반드시 알림 (game_start 전에)
+        host.send({ type: 'room_state', roomState: rs });
         host.send({ type: 'game_start' });
         closeOnDispose = false;
         router.replace(() => createGameScreenAsHostScreen({ host, roomState: rs, isPrivate, password }));
@@ -1965,6 +1965,7 @@ export function createResultScreenAsHostScreen(args: ResultScreenAsHostArgs): Sc
           onStart: (newGameId, newOptions) => {
             const newRoomState: RoomState = {
               ...roomState,
+              players: roomState.players.map((p) => ({ ...p, role: 'player' as const })), // 관전자 승격
               gameId: newGameId,
               roomOptions: { ...newOptions },
               status: 'playing',

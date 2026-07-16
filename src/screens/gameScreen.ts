@@ -2,6 +2,7 @@ import type { Screen } from '../core/screen';
 import { router } from '../core/screen';
 import type { HostSession, GuestSession, JoinRequest, JoinDecision } from '../core/peer';
 import { getGameById } from '../games/registry';
+import { updatePublicRoom } from '../core/roomDirectory';
 import type { GameContext, GameModule, Player, RoomState } from '../games/types';
 import { createMenuScreen } from './menu';
 import { createResultScreenAsHostScreen, createResultScreenAsGuestScreen } from './resultScreen';
@@ -407,6 +408,15 @@ export function createGameScreenAsHostScreen(args: GameScreenAsHostArgs): Screen
     status: 'playing',
   });
 
+  /** 정원 = 활성 플레이어 + 관전(대기)자. 이 수가 maxPlayers 넘으면 입장 거부. */
+  const roomMaxPlayers = getGameById(roomState.gameId)?.meta.maxPlayers ?? 2;
+  const currentOccupancy = (): number => activePlayers.length + spectators.length;
+  /** 공개방 인원수(대기 포함) 갱신 — 게임 중 관전자 들어오고 나갈 때 */
+  const publishCount = (): void => {
+    if (isPrivate) return;
+    updatePublicRoom(roomState.roomId, { playerCount: currentOccupancy(), status: 'playing' });
+  };
+
   return {
     render() {
       const game = getGameById(roomState.gameId);
@@ -471,8 +481,10 @@ export function createGameScreenAsHostScreen(args: GameScreenAsHostArgs): Screen
           window.setTimeout(() => {
             if (disposed) return;
             closeOnDispose = false; // host 소유권을 결과 화면에 넘김
+            // 게임 중 합류한 관전자까지 포함한 방 상태를 넘김 → 결과화면에서 다음 판 시작 시
+            //   관전자를 플레이어로 승격(대기→참여)할 수 있게.
             router.replace(() =>
-              createResultScreenAsHostScreen({ host, roomState, result, isPrivate, password })
+              createResultScreenAsHostScreen({ host, roomState: snapshotRoomState(), result, isPrivate, password })
             );
           }, 900);
         },
@@ -567,6 +579,10 @@ export function createGameScreenAsHostScreen(args: GameScreenAsHostArgs): Screen
         if (isPrivate && req.password !== password) {
           return { accept: false, reason: 'wrong_password' };
         }
+        // 정원(활성+관전) 초과면 거부 → 입장 측에서 "방 꽉참" 알림
+        if (currentOccupancy() >= roomMaxPlayers) {
+          return { accept: false, reason: 'room_full' };
+        }
         const newSpec: Player = {
           peerId: fromPeerId,
           nickname: req.nickname,
@@ -593,6 +609,7 @@ export function createGameScreenAsHostScreen(args: GameScreenAsHostArgs): Screen
         // 기존 피어들(플레이어+기존 관전자)에게 새 관전자 알림. 게스트 gameScreen에서 이 메시지는
         // 로그/토스트 용도. ctx.players 자동 업데이트는 하지 않는다(MVP 범위 밖).
         host.send({ type: 'player_joined', player: newSpec });
+        publishCount(); // 공개방 인원수(대기 포함) 갱신
       };
 
       // 연결 끊김: 플레이어 이탈이면 게임 즉시 종료, 관전자 이탈이면 조용히 제거만.
@@ -603,6 +620,7 @@ export function createGameScreenAsHostScreen(args: GameScreenAsHostArgs): Screen
           if (removed) {
             host.send({ type: 'player_left', peerId, nickname: removed.nickname });
           }
+          publishCount(); // 관전자 이탈 → 인원수 갱신
           // 나간 사람이 일시정지를 걸어둔 사람이면 resume 이 영영 안 와서 dim 이 굳는다 →
           //   집합에서 빼고, 남은 pauser 가 없을 때만 강제 재개.
           if (pausedBy.delete(peerId) && pausedBy.size === 0) {
