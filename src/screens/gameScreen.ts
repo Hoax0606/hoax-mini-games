@@ -315,17 +315,23 @@ function mountBossKey(onShow?: () => void, onHide?: () => void): BossKeyHandle {
   const show = (): void => { if (!on) { setOverlay(true); onShow?.(); } };
   const hide = (): void => { if (on) { setOverlay(false); onHide?.(); } };
 
+  const isEscape = (e: KeyboardEvent): boolean =>
+    e.key === 'Escape' || e.code === 'Escape' || e.keyCode === 27;
   const onKey = (e: KeyboardEvent): void => {
-    if (e.key !== 'Escape') return;
+    if (!isEscape(e)) return;
+    // 길게 눌러 연타(repeat) 로 show→hide→show 가 짝수번 토글돼 "안 뜬 것처럼" 되던 문제 방지 —
+    //   최초 keydown 1회만 처리.
+    if (e.repeat) return;
     e.preventDefault();
     on ? hide() : show();
   };
   el.addEventListener('mousedown', (e) => { e.preventDefault(); hide(); }); // 클릭으로도 복귀
-  window.addEventListener('keydown', onKey);
+  // 캡처 단계로 등록 — 게임/입력창 어떤 핸들러보다 먼저 Esc 를 가로채 확실히 뜨게 한다.
+  window.addEventListener('keydown', onKey, true);
 
   return {
     cleanup: (): void => {
-      window.removeEventListener('keydown', onKey);
+      window.removeEventListener('keydown', onKey, true);
       el.remove();
     },
     // 원격 동기화: 오버레이만 토글(재브로드캐스트 방지 위해 콜백 안 태움)
