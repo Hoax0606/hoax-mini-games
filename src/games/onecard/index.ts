@@ -132,6 +132,25 @@ class OneCardGame implements GameModule {
     if (this.ctx?.canvas) this.ctx.canvas.style.cursor = '';
   }
 
+  /**
+   * 게임 도중 누가 나감 (호스트에서만 호출). 기권과 동일하게 처리 —
+   * 턴 순서에서 빼고(그 사람 차례였으면 넘김), 걸린 스택 무효, 종료 판정 후 sync.
+   * 남은 카드 수 기준 하위 순위. 다 나가고 1명만 남으면 checkEnd 가 게임 끝냄.
+   */
+  onPeerLeft(peerId: string): void {
+    if (!this.isHost || this.phase !== 'playing') return;
+    if (this.doneSet().has(peerId)) return; // 이미 완료/기권/나감
+    const wasCurrent = peerId === this.curPeer();
+    this.out.push(peerId);
+    this.pendingDraw = 0; this.pendingKind = null;
+    this.lastAction = `${this.nick(peerId)} 나감`;
+    if (wasCurrent) {
+      this.setTurn(advanceTurn(this.order, this.currentTurn, this.direction, this.doneSet(), 1));
+    }
+    this.checkEnd();
+    this.broadcastAll();
+  }
+
   private pauseStart = 0;
   setPaused(paused: boolean): void {
     if (paused === this.paused) return;

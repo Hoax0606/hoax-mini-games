@@ -152,6 +152,14 @@ export interface GameModule {
   onPeerMessage(message: GameMessage): void;
   destroy(): void;
   setPaused?(paused: boolean): void;
+  /**
+   * (선택) 게임 도중 어떤 플레이어가 연결을 끊었을 때 호출 (호스트 authoritative).
+   * 이 메서드를 구현한 게임만 "이탈해도 계속 진행" 대상이 된다(gameScreen 이 판단).
+   *   - 턴제: 그 사람을 턴 순서에서 빼고, 그 사람 차례였으면 다음으로 넘긴다.
+   *   - 실시간: 그 사람 점수/상태를 확정(정지)만 하면 됨.
+   * 미구현 게임은 기존대로 "누가 나가면 게임 종료".
+   */
+  onPeerLeft?(peerId: string): void;
 }
 
 /** 게임 레지스트리 엔트리 — 메타 + 실제 모듈 팩토리 */

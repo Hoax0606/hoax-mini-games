@@ -658,6 +658,25 @@ export function createGameScreenAsHostScreen(args: GameScreenAsHostArgs): Screen
           }
           return;
         }
+
+        // 플레이어 이탈 — 게임이 이탈 처리를 지원(onPeerLeft)하고 남은 인원이 최소인원 이상이면
+        //   그 사람만 빼고 계속. 아니면(2인 게임에서 상대가 나감 등) 기존대로 게임 종료.
+        const leaver = activePlayers.find((p) => p.peerId === peerId);
+        const remaining = activePlayers.filter((p) => p.peerId !== peerId);
+        const minP = getGameById(roomState.gameId)?.meta.minPlayers ?? 2;
+        if (gameModule?.onPeerLeft && remaining.length >= minP) {
+          activePlayers.splice(0, activePlayers.length, ...remaining);
+          gameModule.onPeerLeft(peerId); // 호스트 authoritative 로직이 턴/상태 갱신 후 게임 프로토콜로 sync
+          host.send({ type: 'player_left', peerId, nickname: leaver?.nickname ?? '' });
+          publishCount();
+          if (pausedBy.delete(peerId) && pausedBy.size === 0) {
+            hidePauseOverlay(el);
+            gameModule?.setPaused?.(false);
+            host.send({ type: 'resume', byPeerId: peerId });
+          }
+          return;
+        }
+
         alert('상대가 게임을 나갔어요');
         router.reset(() => createMenuScreen());
       };
