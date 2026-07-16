@@ -2499,39 +2499,52 @@ input {
   margin-bottom: 18px;
 }
 
-/* 대기실 2단 레이아웃 (좌: 참가자 / 우: 게임 타일) */
-.waiting-card { width: 100%; max-width: 820px; }
+/* 대기실 2단 레이아웃 (좌: 참가자 / 우: 게임 타일)
+   카드는 고정 크기 — 게임/옵션이 바뀌어도 흰 카드 크기가 안 흔들리게. 내부에서 채우고 넘치면 스크롤. */
+.waiting-card {
+  width: min(94vw, 960px);
+  max-width: none;
+  height: min(86vh, 700px);
+  display: flex;
+  flex-direction: column;
+}
 .waiting-head {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
   gap: 12px;
   margin-bottom: 16px;
+  flex: 0 0 auto;
 }
 .waiting-head-title { text-align: left; }
-.waiting-body { display: flex; gap: 22px; align-items: stretch; }
-.waiting-left { flex: 0 0 300px; display: flex; flex-direction: column; }
-.waiting-right { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; }
-.waiting-left .participants { flex: 1 1 auto; margin-bottom: 12px; }
+.waiting-body { display: flex; gap: 22px; align-items: stretch; flex: 1 1 auto; min-height: 0; }
+.waiting-left { flex: 0 0 260px; display: flex; flex-direction: column; min-height: 0; }
+.waiting-right { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; min-height: 0; }
+/* 참가자 목록: 남는 세로를 채우고 넘치면 스크롤 (시작 버튼은 아래 고정) */
+.waiting-left .participants { flex: 1 1 auto; min-height: 0; overflow-y: auto; margin-bottom: 12px; }
 .waiting-section-title {
   font-size: 14px; font-weight: 700; color: var(--text-main);
-  text-align: left; margin-bottom: 10px;
+  text-align: left; margin-bottom: 10px; flex: 0 0 auto;
   display: flex; align-items: baseline; gap: 8px;
 }
 .waiting-count { color: var(--accent); font-weight: 800; }
 .waiting-section-hint { font-size: 11px; font-weight: 500; color: var(--text-muted); }
+/* 게임 타일: 우측 영역을 꽉 채움. 지금 게임 수(≈15)는 스크롤 없이 들어감 */
 .waiting-grid {
-  grid-template-columns: repeat(auto-fill, minmax(118px, 1fr));
-  gap: 10px;
+  grid-template-columns: repeat(auto-fill, minmax(124px, 1fr));
+  gap: 12px;
   margin-bottom: 12px;
-  max-height: 330px;
+  flex: 1 1 auto;
+  min-height: 0;
   overflow-y: auto;
+  align-content: start;
   padding-right: 4px;
 }
+.waiting-right .change-game-options { flex: 0 0 auto; }
 @media (max-width: 720px) {
+  .waiting-card { height: auto; max-height: 88vh; }
   .waiting-body { flex-direction: column; }
   .waiting-left { flex: none; }
-  .waiting-grid { max-height: 260px; }
 }
 
 .change-game-card {

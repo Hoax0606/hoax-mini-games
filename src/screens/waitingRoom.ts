@@ -36,38 +36,27 @@ function renderParticipantsHTML(
   myPeerId: string | null,
   showKick = false,
 ): string {
-  const cells: string[] = [];
-  for (let i = 0; i < maxPlayers; i++) {
-    const p = players[i];
-    if (p) {
-      const badgeText = p.isHost ? '방장' : '손님';
-      const badgeCls = p.isHost ? '' : 'participant-badge-lavender';
-      const hostCls = p.isHost ? 'participant-host' : 'participant-guest';
-      const isMe = myPeerId !== null && p.peerId === myPeerId;
-      const nameHtml = isMe
-        ? `${escapeHtml(p.nickname)} <span class="participant-you">(나)</span>`
-        : escapeHtml(p.nickname);
-      // 방장 화면에서만, 방장 본인이 아닌 참가자에게 강퇴(❌) 버튼
-      const kickBtn = showKick && !p.isHost
-        ? `<button class="participant-kick" data-kick-peer="${escapeHtml(p.peerId)}" title="강퇴">❌</button>`
-        : '';
-      cells.push(`
-        <div class="participant ${hostCls}">
-          <span class="participant-badge ${badgeCls}">${badgeText}</span>
-          <span class="participant-name">${nameHtml}</span>
-          ${kickBtn}
-        </div>
-      `);
-    } else {
-      cells.push(`
-        <div class="participant participant-empty">
-          <span class="participant-badge">빈 자리</span>
-          <span class="participant-name">친구를 기다리는 중...</span>
-        </div>
-      `);
-    }
-  }
-  return cells.join('');
+  void maxPlayers; // 빈 자리는 더 이상 나열하지 않음(게임찾기처럼 실제 인원만). 정원은 상단 카운트로 표시.
+  return players.map((p) => {
+    const badgeText = p.isHost ? '방장' : '손님';
+    const badgeCls = p.isHost ? '' : 'participant-badge-lavender';
+    const hostCls = p.isHost ? 'participant-host' : 'participant-guest';
+    const isMe = myPeerId !== null && p.peerId === myPeerId;
+    const nameHtml = isMe
+      ? `${escapeHtml(p.nickname)} <span class="participant-you">(나)</span>`
+      : escapeHtml(p.nickname);
+    // 방장 화면에서만, 방장 본인이 아닌 참가자에게 강퇴(❌) 버튼
+    const kickBtn = showKick && !p.isHost
+      ? `<button class="participant-kick" data-kick-peer="${escapeHtml(p.peerId)}" title="강퇴">❌</button>`
+      : '';
+    return `
+      <div class="participant ${hostCls}">
+        <span class="participant-badge ${badgeCls}">${badgeText}</span>
+        <span class="participant-name">${nameHtml}</span>
+        ${kickBtn}
+      </div>
+    `;
+  }).join('');
 }
 
 /** 현재 URL에 ?room=XXXXX 붙여 공유용 링크 생성 (base 경로/호스트 자동 유지) */
@@ -164,7 +153,7 @@ export function createWaitingRoomAsHostScreen(args: WaitingRoomAsHostArgs): Scre
 
           <div class="waiting-body">
             <div class="waiting-left">
-              <div class="waiting-section-title">👥 참가자 <span class="waiting-count" id="player-count">1 / ${maxPlayers()}</span></div>
+              <div class="waiting-section-title">👥 참가자 <span class="waiting-count" id="player-count">1 / ${maxPlayers()}명</span></div>
               <div class="participants" id="participants"></div>
               <div class="room-info">
                 <span class="room-info-item" id="option-summary"></span>
@@ -222,7 +211,7 @@ export function createWaitingRoomAsHostScreen(args: WaitingRoomAsHostArgs): Scre
         gameNameEl.textContent = gameName();
         optionSummaryEl.textContent = buildOptionSummary(snapshotRoomState(), gameId);
         participantsEl.innerHTML = renderParticipantsHTML(players, max, hostPlayer.peerId, true);
-        playerCountEl.textContent = `${players.length} / ${max}`;
+        playerCountEl.textContent = `${players.length} / ${max}명`;
 
         // 게임 타일 그리드 (항상 노출, 인원 초과 게임은 잠금) + 선택 게임 옵션
         gameGridEl.innerHTML = buildGameTilesHTML(players.length, gameId, { enforceMin: false });
@@ -505,7 +494,7 @@ export function createWaitingRoomAsGuestScreen(args: WaitingRoomAsGuestArgs): Sc
           <div class="room-info">
             <span class="room-info-item" id="option-summary"></span>
             <span class="room-info-item">${roomState.isPrivate ? '🔒 비공개' : '🌐 공개'}</span>
-            <span class="room-info-item" id="player-count">${roomState.players.length} / ${guestMaxPlayers()}</span>
+            <span class="room-info-item" id="player-count">${roomState.players.length} / ${guestMaxPlayers()}명</span>
           </div>
 
           <button class="btn btn-secondary btn-lg btn-block" id="waiting-label" disabled>
@@ -530,7 +519,7 @@ export function createWaitingRoomAsGuestScreen(args: WaitingRoomAsGuestArgs): Sc
         gameNameEl.textContent = guestGameName();
         optionSummaryEl.textContent = buildOptionSummary(roomState, roomState.gameId);
         participantsEl.innerHTML = renderParticipantsHTML(roomState.players, max, myPeerId);
-        playerCountEl.textContent = `${roomState.players.length} / ${max}`;
+        playerCountEl.textContent = `${roomState.players.length} / ${max}명`;
         waitingLabel.textContent = roomState.gameId
           ? '방장이 시작하기를 기다리는 중...'
           : '방장이 게임을 고르고 있어요...';
