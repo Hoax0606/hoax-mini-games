@@ -9,6 +9,7 @@ import { createStatsScreen } from './statsScreen';
 import { createPublicRoomsScreen } from './publicRooms';
 import { clearChatHistory } from '../ui/chat';
 import { escapeHtml } from '../ui/escape';
+import { icon } from '../ui/icons';
 import { showBirthdayEvent } from '../ui/birthdayEvent';
 import { sound } from '../core/sound';
 
@@ -25,29 +26,34 @@ export function createMenuScreen(): Screen {
 
       const el = document.createElement('div');
       el.className = 'screen';
+      // 각 메뉴 아이콘 색 (컬러 모드 — iOS 설정처럼 항목별 파스텔 색)
+      const HUE = {
+        create: '#ff5a92', find: '#5b9dff', games: '#a06bff',
+        stats: '#2eb872', nick: '#ff9838', settings: '#9a86c0',
+      };
       el.innerHTML = `
         <div style="text-align: center;">
-          <div class="logo">Hoax Minigames</div>
+          <div class="logo pop-in">Hoax Minigames</div>
           <div class="tagline">친구와 함께하는 작은 게임들 · ${escapeHtml(nickname)}</div>
 
-          <div class="menu-list">
+          <div class="menu-card menu-list stagger-in">
             <button class="btn btn-primary btn-lg btn-block" id="btn-create-room">
-              🏠 방 만들기
+              ${icon('home-add', { size: 22, hue: '#fff' })}<span class="btn-label">방 만들기</span>
             </button>
             <button class="btn btn-secondary btn-block" id="btn-public-rooms">
-              🌐 방 찾기
+              ${icon('search', { size: 22, hue: HUE.find })}<span class="btn-label">방 찾기</span>
             </button>
             <button class="btn btn-secondary btn-block" id="btn-game-list">
-              📖 게임 목록
+              ${icon('games', { size: 22, hue: HUE.games })}<span class="btn-label">게임 목록</span>
             </button>
             <button class="btn btn-secondary btn-block" id="btn-stats">
-              📊 통계
+              ${icon('chart', { size: 22, hue: HUE.stats })}<span class="btn-label">통계</span>
             </button>
             <button class="btn btn-secondary btn-block" id="btn-nickname">
-              ✏️ 닉네임 변경
+              ${icon('pen', { size: 22, hue: HUE.nick })}<span class="btn-label">닉네임 변경</span>
             </button>
             <button class="btn btn-secondary btn-block" id="btn-settings">
-              ⚙️ 설정
+              ${icon('settings', { size: 22, hue: HUE.settings })}<span class="btn-label">설정</span>
             </button>
           </div>
         </div>

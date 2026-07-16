@@ -194,12 +194,15 @@ input {
   border-radius: var(--radius-full);
   font-size: 16px;
   font-weight: 600;
-  transition: transform 0.15s, box-shadow 0.15s, background 0.15s;
+  /* 눌림 스프링 — transform 은 살짝 오버슈트하는 커브로(잡았다 놓는 느낌) */
+  transition: transform 0.16s cubic-bezier(.34, 1.56, .64, 1), box-shadow 0.15s, background 0.15s;
   min-height: 48px;
 }
 
+/* 누르는 즉시 반응(§Response) — 살짝 눌리는 스케일 */
 .btn:not(:disabled):active {
-  transform: translateY(1px);
+  transform: scale(0.97);
+  transition: transform 0.08s ease-out;
 }
 
 /* 비활성 버튼 — 명확히 흐리게 + 상호작용 차단 (예전엔 disabled 여도 활성처럼 보이고 hover 로 떠올랐음) */
@@ -2850,3 +2853,72 @@ input {
 @keyframes reconnect-rot { to { transform: rotate(360deg); } }
 .reconnect-msg { font-size: 15px; font-weight: 800; color: var(--text-main); }
 .reconnect-sub { font-size: 12px; color: var(--text-muted); }
+
+/* ============================================
+   공용 아이콘 시스템 (Solar duotone, icons.ts)
+   ============================================ */
+/* font-size 로 크기 제어(svg=1em). color 상속 → hue 지정 시 그 색. */
+.ic {
+  display: inline-flex; align-items: center; justify-content: center;
+  line-height: 0; vertical-align: middle; flex: 0 0 auto;
+}
+.ic svg { width: 1em; height: 1em; display: block; }
+
+/* ============================================
+   등장 모션 유틸 (opt-in) — §진입
+   ============================================ */
+@keyframes ui-rise { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+@keyframes ui-pop  { from { opacity: 0; transform: scale(.96); }        to { opacity: 1; transform: none; } }
+@keyframes ui-fade { from { opacity: 0; } to { opacity: 1; } }
+.pop-in { animation: ui-pop .5s cubic-bezier(.2, .9, .3, 1) both; }
+/* 자식들을 순차로 올려줌 */
+.stagger-in > * { animation: ui-rise .55s cubic-bezier(.2, .9, .3, 1) both; }
+.stagger-in > *:nth-child(1) { animation-delay: .05s; }
+.stagger-in > *:nth-child(2) { animation-delay: .10s; }
+.stagger-in > *:nth-child(3) { animation-delay: .15s; }
+.stagger-in > *:nth-child(4) { animation-delay: .20s; }
+.stagger-in > *:nth-child(5) { animation-delay: .25s; }
+.stagger-in > *:nth-child(6) { animation-delay: .30s; }
+.stagger-in > *:nth-child(7) { animation-delay: .35s; }
+.stagger-in > *:nth-child(8) { animation-delay: .40s; }
+@media (prefers-reduced-motion: reduce) {
+  .pop-in, .stagger-in > * { animation: ui-fade .25s ease both; }
+}
+
+/* ============================================
+   메뉴 — 프로스티드 카드(A안) + 컬러 아이콘
+   ============================================ */
+.menu-card {
+  display: flex; flex-direction: column; gap: 10px;
+  width: 360px; max-width: 92vw; margin: 28px auto 0;
+  background: rgba(255, 255, 255, .5);
+  backdrop-filter: blur(18px) saturate(160%);
+  border: 1px solid rgba(255, 255, 255, .75);
+  border-radius: 26px; padding: 16px;
+  box-shadow: 0 20px 50px rgba(150, 110, 170, .18);
+}
+/* 메뉴 버튼: 왼쪽 정렬 아이콘 + 라벨 */
+.menu-card .btn { justify-content: flex-start; gap: 12px; }
+.menu-card .btn .btn-label { flex: 1; text-align: left; }
+/* 보조 버튼 = 반투명 흰 재질 (그라데이션 배경 위 = 잘 보임) */
+.menu-card .btn-secondary {
+  background: rgba(255, 255, 255, .62);
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, .85);
+  color: var(--text-main);
+  box-shadow: 0 2px 8px rgba(255, 130, 172, .10), inset 0 1px 0 rgba(255, 255, 255, .8);
+}
+.menu-card .btn-secondary:not(:disabled):hover {
+  background: rgba(255, 255, 255, .82);
+  box-shadow: 0 8px 20px rgba(255, 130, 172, .20);
+  transform: translateY(-2px);
+}
+/* 주 버튼 = 분홍 채움 + 밝은 윗엣지 + 깊은 그림자 */
+.menu-card .btn-primary {
+  background: linear-gradient(180deg, #ff8fb5, var(--pink-500));
+  box-shadow: 0 10px 22px rgba(255, 90, 146, .34), inset 0 1px 0 rgba(255, 255, 255, .5);
+}
+.menu-card .btn-primary:not(:disabled):hover {
+  box-shadow: 0 14px 28px rgba(255, 90, 146, .42);
+  transform: translateY(-2px);
+}
