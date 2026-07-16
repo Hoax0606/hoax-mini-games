@@ -11,6 +11,7 @@ import { buildChatPanelHTML, wireChatPanel, appendChatMessage } from '../ui/chat
 import { escapeHtml, escapeAttr } from '../ui/escape';
 import { unpublishRoom } from '../core/roomDirectory';
 import { showReconnectOverlay, hideReconnectOverlay } from '../ui/reconnectOverlay';
+import { icon } from '../ui/icons';
 
 /**
  * 결과 화면 (호스트/게스트 factory 2종)
@@ -49,8 +50,8 @@ function winnerVisuals(myWinner: 'me' | 'opponent' | null): {
 function buildActionsHTML(isHost: boolean): string {
   return isHost
     ? `
-        <button type="button" class="btn btn-primary btn-lg btn-block" id="retry-btn">🔄 다시하기</button>
-        <button type="button" class="btn btn-secondary btn-block" id="lobby-btn">🏠 대기실로 이동</button>
+        <button type="button" class="btn btn-primary btn-lg btn-block" id="retry-btn">${icon('refresh', { size: 20, hue: '#fff' })} 다시하기</button>
+        <button type="button" class="btn btn-secondary btn-block" id="lobby-btn">${icon('home', { size: 20, hue: '#ff5a92' })} 대기실로 이동</button>
         <button type="button" class="btn btn-ghost btn-block" id="menu-btn">메뉴로</button>
       `
     : `

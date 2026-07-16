@@ -13,6 +13,7 @@ import { storage } from '../core/storage';
 import { sound } from '../core/sound';
 import { escapeHtml } from '../ui/escape';
 import { showReconnectOverlay, hideReconnectOverlay } from '../ui/reconnectOverlay';
+import { icon } from '../ui/icons';
 
 /**
  * 게임 실행 화면 (호스트용 / 게스트용 factory 2종)
@@ -176,21 +177,21 @@ function buildGameMenuModalHTML(): string {
   return `
     <div class="game-menu-overlay" id="game-menu-overlay" hidden>
       <div class="game-menu-card">
-        <div class="game-menu-title">⚙️ 게임 설정</div>
+        <div class="game-menu-title">${icon('settings', { size: 22, hue: '#9a86c0' })} 게임 설정</div>
 
         <div class="slider-row">
-          <span class="slider-label">🔊 마스터 볼륨</span>
+          <span class="slider-label">${icon('volume', { size: 18, hue: '#5b9dff' })} 마스터 볼륨</span>
           <input type="range" class="slider" id="gm-vol" min="0" max="100" value="70" />
           <span class="slider-value" id="gm-vol-val">70</span>
         </div>
 
         <div class="toggle-row">
-          <span class="toggle-label">🎵 배경음악 (BGM)</span>
+          <span class="toggle-label">${icon('music', { size: 18, hue: '#a06bff' })} 배경음악 (BGM)</span>
           <div class="toggle" id="gm-bgm-toggle"></div>
         </div>
 
         <div class="toggle-row">
-          <span class="toggle-label">🔔 효과음 (SFX)</span>
+          <span class="toggle-label">${icon('bell', { size: 18, hue: '#ff9838' })} 효과음 (SFX)</span>
           <div class="toggle" id="gm-sfx-toggle"></div>
         </div>
 

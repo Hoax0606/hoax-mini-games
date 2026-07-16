@@ -13,6 +13,7 @@ import { publishRoom, updatePublicRoom, unpublishRoom } from '../core/roomDirect
 import { buildGameTilesHTML, buildGameOptionsHTML } from '../ui/gamePicker';
 import { escapeHtml } from '../ui/escape';
 import { showReconnectOverlay, hideReconnectOverlay } from '../ui/reconnectOverlay';
+import { icon } from '../ui/icons';
 
 /**
  * 대기실 — 호스트 측 / 게스트 측 factory 2종.
@@ -150,12 +151,12 @@ export function createWaitingRoomAsHostScreen(args: WaitingRoomAsHostArgs): Scre
               <div class="card-title">🎀 대기실</div>
               <div class="card-subtitle" id="game-name">${escapeHtml(gameName())}</div>
             </div>
-            <button class="btn btn-secondary btn-sm" id="share-btn" title="초대 링크 복사">🔗 초대</button>
+            <button class="btn btn-secondary btn-sm" id="share-btn" title="초대 링크 복사">${icon('link', { size: 16, hue: '#5b9dff' })} 초대</button>
           </div>
 
           <div class="waiting-body">
             <div class="waiting-left">
-              <div class="waiting-section-title">👥 참가자 <span class="waiting-count" id="player-count">1 / ${maxPlayers()}명</span></div>
+              <div class="waiting-section-title">${icon('users', { size: 18, hue: '#5b9dff' })} 참가자 <span class="waiting-count" id="player-count">1 / ${maxPlayers()}명</span></div>
               <div class="participants" id="participants"></div>
               <button class="btn btn-primary btn-lg btn-block" id="start-btn" disabled>
                 친구를 기다리는 중
@@ -164,7 +165,7 @@ export function createWaitingRoomAsHostScreen(args: WaitingRoomAsHostArgs): Scre
             </div>
 
             <div class="waiting-right">
-              <div class="waiting-section-title">🎲 게임 선택 <span class="waiting-section-hint">인원 초과 게임은 잠겨요</span></div>
+              <div class="waiting-section-title">${icon('games', { size: 18, hue: '#a06bff' })} 게임 선택 <span class="waiting-section-hint">인원 초과 게임은 잠겨요</span></div>
               <div class="change-game-grid waiting-grid" id="game-grid"></div>
               <div class="change-game-options waiting-options" id="game-options"></div>
             </div>
@@ -517,7 +518,7 @@ export function createWaitingRoomAsGuestScreen(args: WaitingRoomAsGuestArgs): Sc
 
           <div class="waiting-body">
             <div class="waiting-left">
-              <div class="waiting-section-title">👥 참가자 <span class="waiting-count" id="player-count">${roomState.players.length} / ${guestMaxPlayers()}명</span></div>
+              <div class="waiting-section-title">${icon('users', { size: 18, hue: '#5b9dff' })} 참가자 <span class="waiting-count" id="player-count">${roomState.players.length} / ${guestMaxPlayers()}명</span></div>
               <div class="participants" id="participants"></div>
               <button class="btn btn-primary btn-lg btn-block" id="ready-btn" disabled>
                 방장이 게임을 고르는 중
@@ -526,7 +527,7 @@ export function createWaitingRoomAsGuestScreen(args: WaitingRoomAsGuestArgs): Sc
             </div>
 
             <div class="waiting-right">
-              <div class="waiting-section-title">🎲 방장이 고른 게임</div>
+              <div class="waiting-section-title">${icon('games', { size: 18, hue: '#a06bff' })} 방장이 고른 게임</div>
               <!-- 게스트는 보기 전용: 클릭 못 하게 is-readonly (CSS pointer-events:none) -->
               <div class="change-game-grid waiting-grid is-readonly" id="game-grid"></div>
               <div class="change-game-options waiting-options" id="game-options"></div>
