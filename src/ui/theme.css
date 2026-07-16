@@ -2637,3 +2637,61 @@ input {
   font-size: 19px;
   padding: 18px 40px;
 }
+
+/* ============================================
+   보스키 — 가짜 윈도우 업데이트 전체화면 (Esc 토글)
+   ============================================ */
+.boss-update {
+  position: fixed;
+  inset: 0;
+  z-index: 99999;               /* 모든 것 위 */
+  display: none;
+  background: #0067c0;          /* 윈도우10 업데이트 블루 */
+  color: #ffffff;
+  cursor: default;
+}
+.boss-update.is-on { display: flex; }
+.boss-inner {
+  margin: auto;
+  text-align: center;
+  transform: translateY(-6%);
+  font-family: 'Segoe UI', 'Malgun Gothic', 'Pretendard', system-ui, sans-serif;
+}
+.boss-title {
+  font-size: 26px;
+  font-weight: 400;
+  letter-spacing: -0.3px;
+}
+.boss-title b { font-weight: 400; }
+.boss-sub {
+  margin-top: 14px;
+  font-size: 17px;
+  font-weight: 400;
+  opacity: 0.95;
+}
+/* 도트 링 스피너 (윈도우 업데이트 스타일) */
+.boss-spinner {
+  position: relative;
+  width: 64px;
+  height: 64px;
+  margin: 0 auto 44px;
+  animation: boss-rot 1.4s linear infinite;
+}
+.boss-spinner span {
+  position: absolute;
+  top: 0; left: 50%;
+  width: 7px; height: 7px;
+  margin-left: -3.5px;
+  background: #ffffff;
+  border-radius: 50%;
+  transform-origin: 3.5px 32px;
+}
+.boss-spinner span:nth-child(1) { transform: rotate(0deg);   opacity: 1;    }
+.boss-spinner span:nth-child(2) { transform: rotate(45deg);  opacity: 0.85; }
+.boss-spinner span:nth-child(3) { transform: rotate(90deg);  opacity: 0.7;  }
+.boss-spinner span:nth-child(4) { transform: rotate(135deg); opacity: 0.55; }
+.boss-spinner span:nth-child(5) { transform: rotate(180deg); opacity: 0.45; }
+.boss-spinner span:nth-child(6) { transform: rotate(225deg); opacity: 0.35; }
+.boss-spinner span:nth-child(7) { transform: rotate(270deg); opacity: 0.25; }
+.boss-spinner span:nth-child(8) { transform: rotate(315deg); opacity: 0.15; }
+@keyframes boss-rot { to { transform: rotate(360deg); } }
