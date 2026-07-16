@@ -47,7 +47,10 @@ export function decodeSync(msg: GameMessage): SyncPayload | null {
   if (msg.type !== T_SYNC) return null;
   const p = msg.payload as Partial<SyncPayload> | null;
   if (!p || !p.game || !Array.isArray(p.craters)) return null;
-  return { game: p.game as FortressGame, craters: p.craters as Crater[] };
+  const game = p.game as FortressGame;
+  // wind 이 혹시 숫자로 안 오면 0 으로 방어 (decodeImpact 의 nextWind 처리와 동일). undefined 면 게스트 HUD 에서 바람이 안 그려짐.
+  if (typeof game.wind !== 'number' || !Number.isFinite(game.wind)) game.wind = 0;
+  return { game, craters: p.craters as Crater[] };
 }
 
 // --- fire (발사 파라미터) ---

@@ -563,7 +563,8 @@ export class FortressRenderer {
     ctx.fillText(`🎯 ${turnLabel}`, boxX + 14, midY);
 
     // 우: 바람 — "바람" 라벨 + 방향(▶/◀) 삼각형(핑크, 세기만큼)
-    const wind = g.wind;
+    //   wind 가 undefined/NaN 이면 예전엔 화살표도 '무풍'도 안 그려져(게스트에서 아무것도 안 보임) → 0 으로 방어.
+    const wind = Number.isFinite(g.wind) ? g.wind : 0;
     ctx.textAlign = 'right';
     ctx.font = `700 13px ${FONT}`;
     if (Math.abs(wind) < 6) {
