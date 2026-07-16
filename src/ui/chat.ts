@@ -53,8 +53,23 @@ export function restoreChatHistory(parent: HTMLElement): void {
       renderMessageRow(parent, item.msg, item.isMe);
     }
   }
-  const stream = parent.querySelector<HTMLDivElement>('#chat-stream');
-  if (stream) stream.scrollTop = stream.scrollHeight;
+  scrollToBottomDeferred(parent);
+}
+
+/**
+ * 맨 아래로 스크롤 — 여러 번 재시도.
+ * restoreChatHistory 는 화면 render() 중(= el 이 아직 DOM 에 안 붙어 scrollHeight=0)에 호출되므로,
+ * 즉시 + rAF + 짧은 timeout 세 번 시도해 레이아웃 완료 후 확실히 바닥으로 보낸다.
+ * (이게 안 되면 스크롤이 맨 위에 고착 → nearBottom 이 계속 false → 그 사용자만 새 채팅이 안 보이던 버그)
+ */
+function scrollToBottomDeferred(parent: HTMLElement): void {
+  const go = (): void => {
+    const stream = parent.querySelector<HTMLDivElement>('#chat-stream');
+    if (stream) stream.scrollTop = stream.scrollHeight;
+  };
+  go();
+  requestAnimationFrame(go);
+  setTimeout(go, 80);
 }
 
 export function buildChatPanelHTML(): string {
