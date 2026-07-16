@@ -14,6 +14,7 @@
 
 import type { ChatMsg } from '../games/types';
 import { escapeHtml } from './escape';
+import { icon } from './icons';
 
 /** 한 사람이 1초에 보낼 수 있는 최대 메시지 수 (스팸 방어) */
 const SEND_COOLDOWN_MS = 250;
@@ -76,9 +77,9 @@ export function buildChatPanelHTML(): string {
   return `
     <aside class="chat-panel" id="chat-panel">
       <button class="chat-collapsed-btn" id="chat-collapsed-btn" type="button"
-              aria-label="채팅 열기" title="채팅 열기">💬</button>
+              aria-label="채팅 열기" title="채팅 열기">${icon('chat', { size: 22 })}</button>
       <div class="chat-header">
-        <span class="chat-title">💬 채팅</span>
+        <span class="chat-title">${icon('chat', { size: 16, hue: '#5b9dff' })} 채팅</span>
         <button class="chat-toggle" id="chat-toggle" type="button"
                 aria-label="접기" title="접기">▾</button>
       </div>

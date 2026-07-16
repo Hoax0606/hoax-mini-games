@@ -87,11 +87,11 @@ function renderList(listEl: HTMLDivElement, rooms: PublicRoomEntry[]): void {
       const isFull = r.playerCount >= r.maxPlayers;
       const inGame = r.status === 'playing';
       const statusBadge = inGame
-        ? `<span class="public-room-badge is-playing">🎮 게임 중</span>`
-        : `<span class="public-room-badge is-waiting">🪑 대기 중</span>`;
+        ? `<span class="public-room-badge is-playing">${icon('games', { size: 14 })} 게임 중</span>`
+        : `<span class="public-room-badge is-waiting">${icon('clock', { size: 14 })} 대기 중</span>`;
       // 비공개방은 자물쇠 표시 — 클릭하면 비번 입력 화면으로 감.
       const lockBadge = r.isPrivate
-        ? `<span class="public-room-badge is-locked">🔒 비공개</span>`
+        ? `<span class="public-room-badge is-locked">${icon('lock', { size: 14 })} 비공개</span>`
         : '';
       // 정원(활성+대기) 초과면 게임 중이든 대기든 못 들어감 → 흐림+비활성.
       //   (게임 중 방도 관전/대기 자리가 정원에 포함되어 꽉 차면 입장 불가)
