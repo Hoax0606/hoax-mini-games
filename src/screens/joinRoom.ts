@@ -44,68 +44,70 @@ export function createJoinRoomScreen(
       // 비공개방 목록에서 들어온 경우 처음부터 비번 필드 노출 + 검증 켬.
       let needsPassword = options?.requirePassword === true;
 
+      // 입장 방식:
+      //   'auto'    — 공개방(오픈) 클릭 → 코드 입력칸 없이 "입장 중" 만 보이고 자동 연결
+      //   'password'— 공개방(🔒) 클릭 → 코드 감추고 비밀번호만 입력
+      //   'manual'  — 직접 방 코드 입력 (기본)
+      // 공개방에서 온 경우 방 코드는 이미 알고 있으니 UI에 노출하지 않는다(사용자 요청).
+      const mode: 'auto' | 'password' | 'manual' =
+        options?.autoJoin && !options?.requirePassword ? 'auto'
+          : options?.requirePassword ? 'password'
+            : 'manual';
+
+      const codeFieldHTML = mode === 'manual' ? `
+          <div class="form-group">
+            <label class="input-label">방 코드 (5자)</label>
+            <input type="text" class="input room-code-input" id="code-input"
+              placeholder="PK4M9" maxlength="5" autocomplete="off" autocapitalize="characters" />
+          </div>` : '';
+      const pwFieldHTML = `
+          <div class="form-group" id="password-group" style="display: ${mode === 'password' ? 'block' : 'none'};">
+            <label class="input-label">🔒 비밀번호</label>
+            <input type="text" class="input" id="password-input"
+              placeholder="비밀번호를 입력하세요" maxlength="12" autocomplete="off" />
+          </div>`;
+      const title = mode === 'auto' ? '🚪 입장 중…' : mode === 'password' ? '🔒 비밀방 입장' : '🚪 방 참여하기';
+      const subtitle = mode === 'auto' ? '방에 연결하고 있어요. 잠시만 기다려주세요.'
+        : mode === 'password' ? '이 방은 비밀번호가 필요해요.'
+          : '친구에게 받은 방 코드를 입력하세요';
+      // 자동 입장 모드엔 버튼 없음(자동 연결). 그 외엔 참여/입장 버튼.
+      const buttonHTML = mode === 'auto' ? '' : `
+          <button class="btn btn-primary btn-lg btn-block" id="join-btn" style="margin-top: 20px;">
+            ${mode === 'password' ? '입장하기' : '참여하기'}
+          </button>`;
+
       const el = document.createElement('div');
       el.className = 'screen';
       el.innerHTML = `
         <button class="back-btn" id="back-btn" title="뒤로">←</button>
 
         <div class="card" style="min-width: 420px;">
-          <div class="card-title">🚪 방 참여하기</div>
-          <div class="card-subtitle">친구에게 받은 방 코드를 입력하세요</div>
-
-          <div class="form-group">
-            <label class="input-label">방 코드 (5자)</label>
-            <input
-              type="text"
-              class="input room-code-input"
-              id="code-input"
-              placeholder="PK4M9"
-              maxlength="5"
-              autocomplete="off"
-              autocapitalize="characters"
-            />
-          </div>
-
-          <div class="form-group" id="password-group" style="display: none;">
-            <label class="input-label">🔒 비밀번호</label>
-            <input
-              type="text"
-              class="input"
-              id="password-input"
-              placeholder="비밀번호를 입력하세요"
-              maxlength="12"
-              autocomplete="off"
-            />
-          </div>
-
+          <div class="card-title">${title}</div>
+          <div class="card-subtitle">${subtitle}</div>
+          ${codeFieldHTML}
+          ${pwFieldHTML}
           <div class="error-message" id="error-message"></div>
-
-          <button class="btn btn-primary btn-lg btn-block" id="join-btn" style="margin-top: 20px;">
-            참여하기
-          </button>
+          ${buttonHTML}
         </div>
       `;
 
-      const codeInput = el.querySelector<HTMLInputElement>('#code-input')!;
+      // code-input / join-btn 은 모드에 따라 없을 수 있음 → nullable.
+      const codeInput = el.querySelector<HTMLInputElement>('#code-input');
       const passwordGroup = el.querySelector<HTMLDivElement>('#password-group')!;
       const passwordInput = el.querySelector<HTMLInputElement>('#password-input')!;
       const errorEl = el.querySelector<HTMLDivElement>('#error-message')!;
-      const joinBtn = el.querySelector<HTMLButtonElement>('#join-btn')!;
+      const joinBtn = el.querySelector<HTMLButtonElement>('#join-btn');
 
-      // 미리 채움: URL 공유 / 공개방 목록에서 들어온 경우
-      if (roomCode.length > 0) {
-        codeInput.value = roomCode;
-      }
-      // 비공개방(목록에서 🔒 클릭)이면 비번 필드를 처음부터 보여주고 비번칸에 포커스.
-      if (needsPassword) {
-        passwordGroup.style.display = 'block';
+      // 수동 입력 모드에서만 코드 프리필/포커스. 공개방 모드는 코드 UI 자체가 없음.
+      if (roomCode.length > 0 && codeInput) codeInput.value = roomCode;
+      if (mode === 'password') {
         setTimeout(() => passwordInput.focus(), 50);
-      } else {
+      } else if (codeInput) {
         setTimeout(() => codeInput.focus(), 50);
       }
 
       // 방 코드는 대문자 + 영숫자만 허용 (서버 영문+숫자 조합)
-      codeInput.addEventListener('input', () => {
+      codeInput?.addEventListener('input', () => {
         const filtered = codeInput.value.toUpperCase().replace(/[^A-Z0-9]/g, '');
         codeInput.value = filtered;
         roomCode = filtered;
@@ -125,8 +127,9 @@ export function createJoinRoomScreen(
       };
 
       const setBusy = (busy: boolean): void => {
+        if (!joinBtn) return; // 자동 입장 모드엔 버튼이 없음
         joinBtn.disabled = busy;
-        joinBtn.textContent = busy ? '연결 중…' : '참여하기';
+        joinBtn.textContent = busy ? '연결 중…' : (mode === 'password' ? '입장하기' : '참여하기');
       };
 
       const tryJoin = async (): Promise<void> => {
@@ -135,7 +138,7 @@ export function createJoinRoomScreen(
         // 입력 검증
         if (roomCode.length !== 5) {
           showError('방 코드는 5자리예요');
-          codeInput.focus();
+          codeInput?.focus();
           return;
         }
         if (needsPassword && (password.length < 4 || password.length > 12)) {
@@ -228,8 +231,8 @@ export function createJoinRoomScreen(
         }
       };
 
-      joinBtn.addEventListener('click', tryJoin);
-      codeInput.addEventListener('keydown', (e) => {
+      joinBtn?.addEventListener('click', tryJoin);
+      codeInput?.addEventListener('keydown', (e) => {
         if (e.key === 'Enter') tryJoin();
       });
       passwordInput.addEventListener('keydown', (e) => {
