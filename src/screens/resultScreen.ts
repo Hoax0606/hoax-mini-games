@@ -10,6 +10,7 @@ import { buildChatPanelHTML, wireChatPanel, appendChatMessage } from '../ui/chat
 import { escapeHtml, escapeAttr } from '../ui/escape';
 import { unpublishRoom } from '../core/roomDirectory';
 import { openGamePickerOverlay } from '../ui/gamePicker';
+import { showReconnectOverlay, hideReconnectOverlay } from '../ui/reconnectOverlay';
 
 /**
  * 결과 화면 (호스트/게스트 factory 2종)
@@ -1755,6 +1756,9 @@ export function createResultScreenAsHostScreen(args: ResultScreenAsHostArgs): Sc
         });
       });
 
+      // 일시 끊김 후 유예 안에 재연결 — 현재 상태 재전송(상대가 나간 걸로 처리 안 되게 유지)
+      host.onGuestReconnected = () => roomState;
+
       // 상대가 먼저 나가면 다시하기 + 다른 게임 선택 비활성
       host.onGuestDisconnected = () => {
         retryBtn.disabled = true;
@@ -1779,6 +1783,7 @@ export function createResultScreenAsHostScreen(args: ResultScreenAsHostArgs): Sc
 
     dispose() {
       host.onGuestDisconnected = null;
+      host.onGuestReconnected = null;
       host.onMessage = null;
       cleanupChat?.();
       cleanupChat = null;
@@ -2029,7 +2034,12 @@ export function createResultScreenAsGuestScreen(args: ResultScreenAsGuestArgs): 
         }
       };
 
+      // 일시적 끊김 — 재연결 오버레이. peer.ts 가 유예 안에 자동 재연결 시도.
+      guest.onReconnecting = () => showReconnectOverlay();
+      guest.onReconnected = () => hideReconnectOverlay();
+
       guest.onDisconnect = () => {
+        hideReconnectOverlay();
         alert('방장이 방을 나갔어요');
         router.reset(() => createMenuScreen());
       };
@@ -2042,8 +2052,11 @@ export function createResultScreenAsGuestScreen(args: ResultScreenAsGuestArgs): 
     },
 
     dispose() {
+      hideReconnectOverlay();
       guest.onMessage = null;
       guest.onDisconnect = null;
+      guest.onReconnecting = null;
+      guest.onReconnected = null;
       cleanupChat?.();
       cleanupChat = null;
       if (closeOnDispose) guest.close();

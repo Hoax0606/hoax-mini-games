@@ -12,6 +12,7 @@ import type { ChatMsg } from '../games/types';
 import { storage } from '../core/storage';
 import { sound } from '../core/sound';
 import { escapeHtml } from '../ui/escape';
+import { showReconnectOverlay, hideReconnectOverlay } from '../ui/reconnectOverlay';
 
 /**
  * 게임 실행 화면 (호스트용 / 게스트용 factory 2종)
@@ -640,6 +641,10 @@ export function createGameScreenAsHostScreen(args: GameScreenAsHostArgs): Screen
         publishCount(); // 공개방 인원수(대기 포함) 갱신
       };
 
+      // 게임 중 일시 끊김 → 유예 안에 재연결. 현재 방 상태 재전송(플레이어/관전자 목록 유지).
+      // 게임 상태 자체는 게임 모듈이 계속 broadcast 하므로 재연결 후 자연히 따라잡는다.
+      host.onGuestReconnected = () => snapshotRoomState();
+
       // 연결 끊김: 플레이어 이탈이면 게임 즉시 종료, 관전자 이탈이면 조용히 제거만.
       host.onGuestDisconnected = (peerId) => {
         const specIdx = spectators.findIndex((s) => s.peerId === peerId);
@@ -772,6 +777,7 @@ export function createGameScreenAsHostScreen(args: GameScreenAsHostArgs): Screen
       gameModule = null;
       host.onMessage = null;
       host.onGuestDisconnected = null;
+      host.onGuestReconnected = null;
       host.onJoinRequest = null;
       host.onGuestConnected = null;
       host.onPingChanged = null;
@@ -964,7 +970,12 @@ export function createGameScreenAsGuestScreen(args: GameScreenAsGuestArgs): Scre
         guest.send({ type: 'reaction', emoji, nickname: myNick });
       });
 
+      // 일시적 끊김 — 재연결 오버레이. peer.ts 가 유예 안에 자동 재연결 시도.
+      guest.onReconnecting = () => showReconnectOverlay();
+      guest.onReconnected = () => hideReconnectOverlay();
+
       guest.onDisconnect = () => {
+        hideReconnectOverlay();
         alert(isSpectator ? '방이 닫혔어요' : '방장이 게임을 나갔어요');
         router.reset(() => createMenuScreen());
       };
@@ -1059,10 +1070,13 @@ export function createGameScreenAsGuestScreen(args: GameScreenAsGuestArgs): Scre
 
     dispose() {
       disposed = true;
+      hideReconnectOverlay();
       gameModule?.destroy();
       gameModule = null;
       guest.onMessage = null;
       guest.onDisconnect = null;
+      guest.onReconnecting = null;
+      guest.onReconnected = null;
       guest.onPingChanged = null;
       cleanupMenu?.();
       cleanupMenu = null;

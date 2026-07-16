@@ -226,12 +226,22 @@ export type NetworkMessage =
   | ResumeMsg
   | KickedMsg
   | ReadyMsg
+  | LeaveMsg
   | ChatMsg;
 
 /** 게스트 → 호스트: 대기실 '준비' 토글. 호스트가 해당 게스트의 ready 를 갱신 후 room_state broadcast. */
 export interface ReadyMsg {
   type: 'ready';
   ready: boolean;
+}
+
+/**
+ * 게스트 → 호스트: 자발적 퇴장 알림(방 나가기/탭 닫기 직전).
+ * 이게 오면 호스트는 재연결 유예 없이 즉시 방에서 제거한다
+ * (일시적 연결 끊김과 '진짜 나감'을 구분하기 위함).
+ */
+export interface LeaveMsg {
+  type: 'leave';
 }
 
 /** 호스트 → 게스트: 방장이 내보냄. 받은 게스트는 안내 후 메뉴로. */

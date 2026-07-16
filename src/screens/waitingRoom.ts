@@ -12,6 +12,7 @@ import type { ChatMsg } from '../games/types';
 import { publishRoom, updatePublicRoom, unpublishRoom } from '../core/roomDirectory';
 import { buildGameTilesHTML, buildGameOptionsHTML } from '../ui/gamePicker';
 import { escapeHtml } from '../ui/escape';
+import { showReconnectOverlay, hideReconnectOverlay } from '../ui/reconnectOverlay';
 
 /**
  * 대기실 — 호스트 측 / 게스트 측 factory 2종.
@@ -343,6 +344,10 @@ export function createWaitingRoomAsHostScreen(args: WaitingRoomAsHostArgs): Scre
         showToast(`${removed?.nickname ?? '게스트'} 님이 나갔어요`);
       };
 
+      // 게스트가 일시적으로 끊겼다 유예 안에 재연결 — 현재 방 상태를 돌려줘 그대로 복구
+      // (플레이어 목록은 유지되므로 다른 사람 화면엔 나감/재입장이 안 보인다)
+      host.onGuestReconnected = () => snapshotRoomState();
+
       host.onMessage = (msg, fromPeerId) => {
         // 이모지 반응: 내 화면에 표시 + 다른 게스트들에게 forward (호스트 = relay 허브)
         if (msg.type === 'reaction') {
@@ -459,6 +464,7 @@ export function createWaitingRoomAsHostScreen(args: WaitingRoomAsHostArgs): Scre
       host.onJoinRequest = null;
       host.onGuestConnected = null;
       host.onGuestDisconnected = null;
+      host.onGuestReconnected = null;
       host.onMessage = null;
     },
   };
@@ -637,7 +643,12 @@ export function createWaitingRoomAsGuestScreen(args: WaitingRoomAsGuestArgs): Sc
         },
       });
 
+      // 일시적 끊김 — 바로 튕기지 않고 재연결 오버레이를 띄운다(peer.ts 가 자동 재시도)
+      guest.onReconnecting = () => showReconnectOverlay();
+      guest.onReconnected = () => hideReconnectOverlay();
+
       guest.onDisconnect = () => {
+        hideReconnectOverlay();
         if (wasKicked) return; // 강퇴는 'kicked' 에서 이미 안내+이동함
         alert('방장이 방을 나갔어요');
         router.back();
@@ -651,11 +662,14 @@ export function createWaitingRoomAsGuestScreen(args: WaitingRoomAsGuestArgs): Sc
     },
 
     dispose() {
+      hideReconnectOverlay();
       if (closeOnDispose) guest.close();
       cleanupChatGuest?.();
       cleanupChatGuest = null;
       guest.onMessage = null;
       guest.onDisconnect = null;
+      guest.onReconnecting = null;
+      guest.onReconnected = null;
     },
   };
 }

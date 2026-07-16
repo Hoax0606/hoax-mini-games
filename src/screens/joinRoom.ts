@@ -286,6 +286,10 @@ function sendJoinRequestAndWait(
     guest.onMessage = (msg) => {
       if (msg.type === 'join_accepted' || msg.type === 'join_rejected') {
         finish(msg);
+      } else if (msg.type === 'room_state') {
+        // 입장 직후 순간 끊김 → 재연결되면 호스트가 join_accepted 대신 room_state 를 보낸다
+        //   (이미 수락된 상태라 재입장이 아님). 이걸 받았다 = 입장 성공 → accepted 로 처리.
+        finish({ type: 'join_accepted', roomState: msg.roomState });
       }
     };
     guest.onDisconnect = () => {
