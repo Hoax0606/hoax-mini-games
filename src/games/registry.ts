@@ -321,10 +321,10 @@ export const games: GameEntry[] = [
           label: '컷당 시간',
           type: 'select',
           choices: [
-            { value: '60', label: '60초' },
             { value: '120', label: '120초' },
+            { value: '180', label: '180초' },
           ],
-          defaultValue: '60',
+          defaultValue: '120',
         },
       ],
     },
