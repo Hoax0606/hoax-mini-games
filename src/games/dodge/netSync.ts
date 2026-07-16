@@ -36,6 +36,8 @@ export interface StartPayload {
   mode: DodgeMode;
   /** 동일 모드에서 전원이 쓸 시드. 랜덤 모드에선 각자 자기 시드 생성(무시) */
   seed: number;
+  /** 호스트의 현재 게임시각(초). 늦게 시작하는 클라가 같은 패턴 위치에서 시작하도록 정렬(쉬운 초반 재획득 방지) */
+  t: number;
 }
 export function encodeStart(p: StartPayload): GameMessage {
   return { type: T_START, payload: p };
@@ -47,6 +49,7 @@ export function decodeStart(msg: GameMessage): StartPayload | null {
   return {
     mode: p.mode === 'random' ? 'random' : 'same',
     seed: typeof p.seed === 'number' ? p.seed : 1,
+    t: typeof p.t === 'number' ? p.t : 0,
   };
 }
 

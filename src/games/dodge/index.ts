@@ -88,8 +88,8 @@ class DodgeGameModule implements GameModule {
       const mode: DodgeMode = ctx.roomOptions['pattern'] === 'random' ? 'random' : 'same';
       const seed = (Math.floor(Math.random() * 2 ** 31) || 1) >>> 0;
       // 호스트 자신 시작 + 전원에게 알림
-      this.beginLocal(mode, seed);
-      this.ctx.sendToPeer(encodeStart({ mode, seed }));
+      this.beginLocal(mode, seed, 0);
+      this.ctx.sendToPeer(encodeStart({ mode, seed, t: 0 }));
       // 순위표 초기화 (role==='player' 전원)
       for (const p of ctx.players) {
         if (p.role !== 'player') continue;
@@ -106,8 +106,9 @@ class DodgeGameModule implements GameModule {
     this.rafId = requestAnimationFrame(this.loop);
   }
 
-  /** 모드/시드 확정 후 로컬 게임 시작 (호스트/게스트 공통) */
-  private beginLocal(mode: DodgeMode, seed: number): void {
+  /** 모드/시드 확정 후 로컬 게임 시작 (호스트/게스트 공통).
+   *  @param t0 호스트 현재 게임시각(초) — 늦게 시작해도 같은 패턴 위치에서 시작(쉬운 초반 재획득 방지) */
+  private beginLocal(mode: DodgeMode, seed: number, t0 = 0): void {
     if (this.started) return;
     this.started = true;
     this.mode = mode;
@@ -116,10 +117,11 @@ class DodgeGameModule implements GameModule {
     const useSeed = mode === 'same' ? seed : ((Math.floor(Math.random() * 2 ** 31) || 1) >>> 0);
     this.spawner = createSpawner(useSeed);
     // 카운트다운은 플랫폼(gameScreen)이 시작 전에 이미 3초 보여줌 → 여기선 바로 플레이.
-    this.simT = 0;
+    // simT 를 호스트 시각으로 맞춤: 정상 시작이면 ~0, 늦게 합류/재동기면 그만큼 진행된 지점에서 시작.
+    this.simT = Math.max(0, t0);
     this.playerX = (FIELD_W - PLAYER_W) / 2;
     this.dead = false;
-    this.myAliveMs = 0;
+    this.myAliveMs = this.simT * 1000;
   }
 
   onPeerMessage(msg: GameMessage): void {
@@ -130,7 +132,7 @@ class DodgeGameModule implements GameModule {
       if (this.isHost && this.started) {
         // 합류/재동기 — 현재 모드+시드 + 순위표 전달
         this.ctx.sendToPeer(
-          encodeStart({ mode: this.mode, seed: this.currentSeedForShare() }),
+          encodeStart({ mode: this.mode, seed: this.currentSeedForShare(), t: this.simT }),
           { target: hello.peerId },
         );
         this.ctx.sendToPeer(encodeStandings([...this.standings.values()]), { target: hello.peerId });
@@ -140,7 +142,7 @@ class DodgeGameModule implements GameModule {
 
     const start = decodeStart(msg);
     if (start) {
-      if (!this.isHost) this.beginLocal(start.mode, start.seed);
+      if (!this.isHost) this.beginLocal(start.mode, start.seed, start.t);
       return;
     }
 
