@@ -50,6 +50,8 @@ export interface RenderState {
   isSpectator: boolean;
   /** 와일드 색 선택 대기 중이면 그 카드 인덱스, 아니면 -1 */
   wildPickIndex: number;
+  /** 내 차례 남은 시간(ms) — 손패 위 타이머 바 */
+  turnRemainMs: number;
   now: number;
 }
 
@@ -251,14 +253,16 @@ export class OneCardRenderer {
       this.handRects.push({ x, y, w: HAND_CARD_W, h: HAND_CARD_H });
       this.drawCardFace(ctx, hand[i]!, x, y, HAND_CARD_W, HAND_CARD_H);
     }
-    // 내 차례면 손패 위 얇은 강조선
-    if (myTurn) {
-      ctx.strokeStyle = C.turnHi;
-      ctx.lineWidth = 3;
-      ctx.beginPath();
-      ctx.moveTo(startX, HAND_Y - 6);
-      ctx.lineTo(startX + totalW, HAND_Y - 6);
-      ctx.stroke();
+    // 내 차례면 손패 위 "타이머 바" — 남은 시간만큼 줄어듦(빨강). 10% 이하 경고색.
+    if (myTurn && state.pub.phase === 'playing') {
+      const ratio = Math.max(0, Math.min(1, state.turnRemainMs / (state.pub.turnMs || 1)));
+      const barY = HAND_Y - 9;
+      ctx.fillStyle = '#eadff0';
+      this.roundRect(ctx, startX, barY, totalW, 5, 2.5);
+      ctx.fill();
+      ctx.fillStyle = ratio < 0.25 ? '#e5484d' : C.turnHi;
+      this.roundRect(ctx, startX, barY, totalW * ratio, 5, 2.5);
+      ctx.fill();
     }
   }
 
@@ -272,7 +276,16 @@ export class OneCardRenderer {
     ctx.font = `800 16px ${FONT}`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillText(mine ? '🃏 내 차례! 카드를 내거나 뽑기' : `⏳ ${curNick} 차례`, W / 2, 108);
+    let msg: string;
+    if (pub.pendingDraw > 0) {
+      const stackTxt = pub.pendingKind === 'wild4' ? '+4' : '+2';
+      msg = mine
+        ? `💥 누적 ${pub.pendingDraw}장! ${stackTxt} 로 받아치거나 뽑기더미 클릭해 받기`
+        : `💥 ${curNick} — 누적 ${pub.pendingDraw}장 대응 중`;
+    } else {
+      msg = mine ? '🃏 내 차례! 카드를 내거나 뽑기' : `⏳ ${curNick} 차례`;
+    }
+    ctx.fillText(msg, W / 2, 108);
   }
 
   private drawWildPicker(ctx: CanvasRenderingContext2D): void {

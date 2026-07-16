@@ -31,6 +31,12 @@ export interface OneCardPublic {
   phase: 'playing' | 'ended';
   /** 현재 턴 플레이어가 이미 1장 뽑아서 이제 "패스 가능" 상태인지(뽑은 카드 낼지 패스할지) */
   awaitingPostDraw: boolean;
+  /** 누적된 공격카드 벌칙 장수(중첩). 0이면 스택 없음 → 현재 턴은 같은 종류로 받아치거나 이만큼 뽑아야 함 */
+  pendingDraw: number;
+  /** 누적 스택 종류 ('draw2'|'wild4'|null) — 받아치기는 같은 종류만 */
+  pendingKind: 'draw2' | 'wild4' | null;
+  /** 턴 제한시간(ms). 각 클라는 currentTurn 바뀔 때 로컬 시계로 카운트다운 */
+  turnMs: number;
   /** 최근 행동 안내 문구 (UI 토스트) */
   lastAction: string;
 }
@@ -61,7 +67,12 @@ export function decodeSync(msg: GameMessage): OneCardPublic | null {
   if (msg.type !== T_SYNC) return null;
   const p = msg.payload as Partial<OneCardPublic> | null;
   if (!p || !p.discardTop || !Array.isArray(p.order)) return null;
-  return p as OneCardPublic;
+  return {
+    ...(p as OneCardPublic),
+    pendingDraw: typeof p.pendingDraw === 'number' ? p.pendingDraw : 0,
+    pendingKind: p.pendingKind === 'draw2' || p.pendingKind === 'wild4' ? p.pendingKind : null,
+    turnMs: typeof p.turnMs === 'number' ? p.turnMs : 20000,
+  };
 }
 
 // hand (비공개 손패)

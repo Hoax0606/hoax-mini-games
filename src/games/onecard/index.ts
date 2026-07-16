@@ -21,6 +21,7 @@ import { OneCardRenderer, type RenderState } from './render';
 
 const HAND_START = 7;
 const END_DELAY_MS = 1600;
+const TURN_TIME_MS = 20_000; // 턴 제한시간 — 초과 시 자동 뽑고 넘김
 
 class OneCardGame implements GameModule {
   private ctx!: GameContext;
@@ -49,6 +50,14 @@ class OneCardGame implements GameModule {
   private phase: 'playing' | 'ended' = 'playing';
   private awaitingPostDraw = false;
   private lastAction = '';
+  /** 누적 공격카드 벌칙(중첩) */
+  private pendingDraw = 0;
+  private pendingKind: 'draw2' | 'wild4' | null = null;
+  /** 호스트: 현재 턴 시작 시각(제한시간 판정) */
+  private turnStartedAt = 0;
+  /** 표시용: 마지막으로 본 currentTurn + 그 로컬 시작 시각(각 클라 카운트다운) */
+  private dispTurn = -1;
+  private dispTurnStart = 0;
 
   private rafId: number | null = null;
   private destroyed = false;
@@ -119,7 +128,17 @@ class OneCardGame implements GameModule {
     if (this.ctx?.canvas) this.ctx.canvas.style.cursor = '';
   }
 
-  setPaused(paused: boolean): void { this.paused = paused; }
+  private pauseStart = 0;
+  setPaused(paused: boolean): void {
+    if (paused === this.paused) return;
+    this.paused = paused;
+    if (paused) this.pauseStart = performance.now();
+    else if (this.pauseStart > 0) {
+      // 정지 동안 흐른 만큼 턴 제한시각을 밀어 재개 즉시 타임아웃 안 나게
+      this.turnStartedAt += performance.now() - this.pauseStart;
+      this.pauseStart = 0;
+    }
+  }
 
   // ============================================
   // 루프
@@ -133,13 +152,22 @@ class OneCardGame implements GameModule {
       this.lastHelloAt = now;
       this.ctx.sendToPeer(encodeHello(this.myPeerId));
     }
+    // 호스트: 턴 제한시간 초과 감시
+    if (this.isHost && this.phase === 'playing' && !this.paused
+      && this.turnStartedAt > 0 && now - this.turnStartedAt > TURN_TIME_MS) {
+      this.timeoutCurrent();
+    }
     if (!this.pub) return; // 아직 상태 못 받음
+    // 표시용 턴 카운트다운 — currentTurn 바뀌면 로컬 시계로 리셋(cross-clock 회피)
+    if (this.pub.currentTurn !== this.dispTurn) { this.dispTurn = this.pub.currentTurn; this.dispTurnStart = now; }
+    const turnRemainMs = this.pub.phase === 'playing' ? Math.max(0, this.pub.turnMs - (now - this.dispTurnStart)) : 0;
     const rs: RenderState = {
       pub: this.pub,
       myPeerId: this.myPeerId,
       myHand: this.myHand,
       isSpectator: this.isSpectator,
       wildPickIndex: this.wildPickIndex,
+      turnRemainMs,
       now,
     };
     try { this.renderer.render(rs); } catch (err) { console.error('[onecard] render', err); }
@@ -154,7 +182,7 @@ class OneCardGame implements GameModule {
     const rect = this.ctx.canvas.getBoundingClientRect();
     const rs: RenderState = {
       pub: this.pub, myPeerId: this.myPeerId, myHand: this.myHand,
-      isSpectator: false, wildPickIndex: this.wildPickIndex, now: performance.now(),
+      isSpectator: false, wildPickIndex: this.wildPickIndex, turnRemainMs: 0, now: performance.now(),
     };
     const hit = this.renderer.hitTest(e.clientX - rect.left, e.clientY - rect.top, rs);
     if (!hit) return;
@@ -174,18 +202,21 @@ class OneCardGame implements GameModule {
     const myTurn = this.pub.order[this.pub.currentTurn] === this.myPeerId;
     if (!myTurn) return;
 
+    const pending = this.pub.pendingDraw > 0;
     if (hit.kind === 'card') {
       const card = this.myHand[hit.index];
       if (!card) return;
-      if (!canPlay(card, this.pub.activeColor, this.pub.discardTop.kind)) {
-        sound.play('button_click'); // 못 내는 카드 — 무시(피드백만)
-        return;
-      }
+      // 스택 중이면 같은 종류 공격카드로만 받아치기, 아니면 일반 유효성
+      const playable = pending
+        ? card.kind === this.pub.pendingKind
+        : canPlay(card, this.pub.activeColor, this.pub.discardTop.kind);
+      if (!playable) { sound.play('button_click'); return; }
       if (isWild(card)) { this.wildPickIndex = hit.index; return; } // 색 선택 오버레이
       this.doPlay(card);
     } else if (hit.kind === 'draw') {
-      // 이미 뽑았으면(패스 가능) 뽑기더미 재클릭 = 패스, 아니면 뽑기
-      if (this.pub.awaitingPostDraw) this.doPass();
+      // 스택 중이면 뽑기 = 누적 벌칙 받기. 아니면 (이미 뽑았으면 패스 / 아니면 1장 뽑기)
+      if (pending) this.doDraw();
+      else if (this.pub.awaitingPostDraw) this.doPass();
       else this.doDraw();
     }
   };
@@ -229,7 +260,17 @@ class OneCardGame implements GameModule {
     this.finished = [];
     this.phase = 'playing';
     this.awaitingPostDraw = false;
+    this.pendingDraw = 0;
+    this.pendingKind = null;
+    this.turnStartedAt = performance.now();
     this.lastAction = '';
+  }
+
+  /** 현재 턴 인덱스 설정 + 제한시간 리셋 */
+  private setTurn(idx: number): void {
+    this.currentTurn = idx;
+    this.turnStartedAt = performance.now();
+    this.awaitingPostDraw = false;
   }
 
   private curPeer(): string { return this.order[this.currentTurn]!; }
@@ -244,59 +285,67 @@ class OneCardGame implements GameModule {
     if (this.phase !== 'playing' || from !== this.curPeer()) return;
     const hand = this.hands.get(from);
     if (!hand) return;
-    // 손패에서 동일 카드 찾기 (color+kind)
     const idx = hand.findIndex((c) => c.color === card.color && c.kind === card.kind);
     if (idx < 0) return;
-    if (!canPlay(card, this.activeColor, this.topKind())) return;
+    const kind = card.kind;
+    // 스택 진행 중이면 같은 종류 공격카드로만 받아치기 가능. 아니면 일반 유효성.
+    if (this.pendingDraw > 0) {
+      if (kind !== this.pendingKind) return;
+    } else if (!canPlay(card, this.activeColor, this.topKind())) {
+      return;
+    }
 
     hand.splice(idx, 1);
     this.discard.push(card);
     this.activeColor = isWild(card) ? (chosenColor ?? 'r') : (card.color as Color);
-    this.lastAction = `${this.nick(from)} 냄`;
-    this.awaitingPostDraw = false;
 
     const set = new Set(this.finished);
     if (hand.length === 0 && !set.has(from)) { this.finished.push(from); set.add(from); }
 
-    // 특수 효과 + 턴 이동
     let steps = 1;
-    const kind = card.kind;
-    if (kind === 'skip') { steps = 2; this.lastAction = `${this.nick(from)} 건너뛰기!`; }
-    else if (kind === 'reverse') {
+    if (kind === 'draw2' || kind === 'wild4') {
+      // 스택 누적 — 즉시 뽑지 않고 다음 사람에게 넘김(받아치거나 뽑아야 함)
+      this.pendingDraw += kind === 'draw2' ? 2 : 4;
+      this.pendingKind = kind;
+      this.lastAction = `${this.nick(from)} ${kind === 'draw2' ? '+2' : '+4'} (누적 ${this.pendingDraw}장!)`;
+      steps = 1;
+    } else if (kind === 'skip') {
+      steps = 2; this.lastAction = `${this.nick(from)} 건너뛰기!`;
+    } else if (kind === 'reverse') {
       this.direction = (this.direction * -1) as 1 | -1;
       steps = this.activeCount() <= 2 ? 2 : 1;
       this.lastAction = `${this.nick(from)} 방향 전환!`;
-    } else if (kind === 'draw2') {
-      const v = advanceTurn(this.order, this.currentTurn, this.direction, set, 1);
-      this.drawCards(this.order[v]!, 2);
-      steps = 2;
-      this.lastAction = `${this.nick(this.order[v]!)} +2장!`;
-    } else if (kind === 'wild4') {
-      const v = advanceTurn(this.order, this.currentTurn, this.direction, set, 1);
-      this.drawCards(this.order[v]!, 4);
-      steps = 2;
-      this.lastAction = `${this.nick(this.order[v]!)} +4장!`;
+    } else {
+      this.lastAction = `${this.nick(from)} 냄`;
     }
-    this.currentTurn = advanceTurn(this.order, this.currentTurn, this.direction, set, steps);
 
+    this.setTurn(advanceTurn(this.order, this.currentTurn, this.direction, set, steps));
     this.checkEnd();
     this.broadcastAll();
   }
 
   private handleDraw(from: string): void {
-    if (this.phase !== 'playing' || from !== this.curPeer() || this.awaitingPostDraw) return;
+    if (this.phase !== 'playing' || from !== this.curPeer()) return;
+    const set = new Set(this.finished);
+    // 스택 진행 중이면 = 누적 벌칙 전부 받고 턴 종료
+    if (this.pendingDraw > 0) {
+      this.drawCards(from, this.pendingDraw);
+      this.lastAction = `${this.nick(from)} ${this.pendingDraw}장 받음!`;
+      this.pendingDraw = 0;
+      this.pendingKind = null;
+      this.setTurn(advanceTurn(this.order, this.currentTurn, this.direction, set, 1));
+      this.broadcastAll();
+      return;
+    }
+    if (this.awaitingPostDraw) return;
     this.drawCards(from, 1);
     const hand = this.hands.get(from)!;
     const drawn = hand[hand.length - 1]!;
     if (canPlay(drawn, this.activeColor, this.topKind())) {
-      // 뽑은 카드 낼 수 있음 → 턴 유지, 낼지/패스할지 선택
-      this.awaitingPostDraw = true;
+      this.awaitingPostDraw = true; // 턴 유지 — 낼지/패스할지
       this.lastAction = `${this.nick(from)} 카드 뽑음`;
     } else {
-      // 낼 수 없음 → 자동 패스(다음 턴)
-      this.awaitingPostDraw = false;
-      const set = new Set(this.finished);
-      this.currentTurn = advanceTurn(this.order, this.currentTurn, this.direction, set, 1);
+      this.setTurn(advanceTurn(this.order, this.currentTurn, this.direction, set, 1));
       this.lastAction = `${this.nick(from)} 뽑고 패스`;
     }
     this.broadcastAll();
@@ -304,10 +353,25 @@ class OneCardGame implements GameModule {
 
   private handlePass(from: string): void {
     if (this.phase !== 'playing' || from !== this.curPeer() || !this.awaitingPostDraw) return;
-    this.awaitingPostDraw = false;
     const set = new Set(this.finished);
-    this.currentTurn = advanceTurn(this.order, this.currentTurn, this.direction, set, 1);
+    this.setTurn(advanceTurn(this.order, this.currentTurn, this.direction, set, 1));
     this.lastAction = `${this.nick(from)} 패스`;
+    this.broadcastAll();
+  }
+
+  /** 호스트: 턴 제한시간 초과 → 스택 있으면 받고, 없으면 1장 뽑고 무조건 넘김 */
+  private timeoutCurrent(): void {
+    const from = this.curPeer();
+    const set = new Set(this.finished);
+    if (this.pendingDraw > 0) {
+      this.drawCards(from, this.pendingDraw);
+      this.lastAction = `${this.nick(from)} 시간초과 — ${this.pendingDraw}장!`;
+      this.pendingDraw = 0; this.pendingKind = null;
+    } else {
+      this.drawCards(from, 1);
+      this.lastAction = `${this.nick(from)} 시간초과 — 1장`;
+    }
+    this.setTurn(advanceTurn(this.order, this.currentTurn, this.direction, set, 1));
     this.broadcastAll();
   }
 
@@ -353,6 +417,9 @@ class OneCardGame implements GameModule {
       finished: [...this.finished],
       phase: this.phase,
       awaitingPostDraw: this.awaitingPostDraw,
+      pendingDraw: this.pendingDraw,
+      pendingKind: this.pendingKind,
+      turnMs: TURN_TIME_MS,
       lastAction: this.lastAction,
     };
   }
