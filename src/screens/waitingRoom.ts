@@ -148,7 +148,7 @@ export function createWaitingRoomAsHostScreen(args: WaitingRoomAsHostArgs): Scre
         <div class="card waiting-card">
           <div class="waiting-head">
             <div class="waiting-head-title">
-              <div class="card-title">🎀 대기실</div>
+              <div class="card-title">${icon('sofa', { size: 24, hue: '#ff5a92' })} 대기실</div>
               <div class="card-subtitle" id="game-name">${escapeHtml(gameName())}</div>
             </div>
             <button class="btn btn-secondary btn-sm" id="share-btn" title="초대 링크 복사">${icon('link', { size: 16, hue: '#5b9dff' })} 초대</button>
@@ -511,7 +511,7 @@ export function createWaitingRoomAsGuestScreen(args: WaitingRoomAsGuestArgs): Sc
         <div class="card waiting-card">
           <div class="waiting-head">
             <div class="waiting-head-title">
-              <div class="card-title">🎀 대기실</div>
+              <div class="card-title">${icon('sofa', { size: 24, hue: '#ff5a92' })} 대기실</div>
               <div class="card-subtitle" id="game-name">${escapeHtml(guestGameName())}</div>
             </div>
           </div>
