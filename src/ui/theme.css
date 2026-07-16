@@ -2540,7 +2540,20 @@ input {
   align-content: start;
   padding-right: 4px;
 }
-.waiting-right .change-game-options { flex: 0 0 auto; }
+/* 게임 설정 — 좌측 열(참가자 아래)에 컴팩트하게. 우측 타일 영역을 침범하지 않음 */
+.waiting-options {
+  flex: 0 0 auto;
+  margin: 0 0 10px;
+  padding: 10px 12px;
+  max-height: 40%;
+  overflow-y: auto;
+}
+.waiting-options .change-game-options-title { margin-bottom: 6px; font-size: 12px; }
+.waiting-options .form-group { margin-bottom: 8px; }
+.waiting-options .form-group:last-child { margin-bottom: 0; }
+.waiting-options .input-label { font-size: 12px; margin-bottom: 4px; }
+.waiting-options .select { padding: 7px 10px; font-size: 13px; }
+.waiting-options .change-game-no-options { padding: 4px 0; font-size: 12px; }
 @media (max-width: 720px) {
   .waiting-card { height: auto; max-height: 88vh; }
   .waiting-body { flex-direction: column; }

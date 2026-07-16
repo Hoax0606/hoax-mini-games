@@ -155,6 +155,7 @@ export function createWaitingRoomAsHostScreen(args: WaitingRoomAsHostArgs): Scre
             <div class="waiting-left">
               <div class="waiting-section-title">👥 참가자 <span class="waiting-count" id="player-count">1 / ${maxPlayers()}명</span></div>
               <div class="participants" id="participants"></div>
+              <div class="change-game-options waiting-options" id="game-options"></div>
               <div class="room-info">
                 <span class="room-info-item" id="option-summary"></span>
                 <span class="room-info-item">${isPrivate ? '🔒 비공개' : '🌐 공개'}</span>
@@ -168,7 +169,6 @@ export function createWaitingRoomAsHostScreen(args: WaitingRoomAsHostArgs): Scre
             <div class="waiting-right">
               <div class="waiting-section-title">🎲 게임 선택 <span class="waiting-section-hint">인원 초과 게임은 잠겨요</span></div>
               <div class="change-game-grid waiting-grid" id="game-grid"></div>
-              <div class="change-game-options" id="game-options"></div>
             </div>
           </div>
         </div>
