@@ -64,6 +64,9 @@ export interface FirePayload {
   wind: number;
   /** 발사 무기 종류 */
   weapon: WeaponId;
+  /** 유도탄 목표 좌표 (weapon==='guided' 일 때만). 없으면 일반 포물선 발사 */
+  targetX?: number;
+  targetY?: number;
 }
 export function encodeFire(p: FirePayload): GameMessage {
   return { type: T_FIRE, payload: p };

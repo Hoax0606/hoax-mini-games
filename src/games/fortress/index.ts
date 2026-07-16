@@ -54,6 +54,12 @@ const FIRING_MAX_MS = 6_000;
 const RESYNC_STALE_AIMING_MS = 1_500;
 /** 분열탄 파편 각 벌림(라디안) */
 const SPLIT_SPREAD = 0.30;
+/** 유도탄 등속(px/s) — 중력/바람 무시, 타겟까지 일정 속도 */
+const GUIDED_SPEED = 340;
+/** 유도탄 최대 선회 각속도(rad/s) — 클수록 급하게 타겟으로 꺾음 */
+const GUIDED_TURN_RATE = 3.4;
+/** 유도탄 발사 시 타겟보다 이만큼(px) 위를 겨눠 상승 후 하강(미사일 아크). 지형에 막히면 지형 피격 */
+const GUIDED_LOFT = 150;
 /** 수류탄 지형 반사 감쇠 계수 */
 const BOUNCE_DAMP = 0.55;
 /** 발사 직후 이 거리(px)까진 지형/포대 충돌 무시 — 총구 앞 오조준 착탄 방지 */
@@ -91,6 +97,11 @@ interface Shell extends Projectile {
   originFortId: number;
   /** 자기 포대 히트박스를 한 번 벗어났는지. false 동안은 originFortId 충돌 무시(아래로 쏠 때 자폭 방지) */
   armed: boolean;
+  /** 유도탄 여부 — true 면 seg(포물선) 대신 타겟 향해 호밍(등속 선회) */
+  guided?: boolean;
+  /** 유도탄 목표 좌표(발사 시 고정) */
+  tx?: number;
+  ty?: number;
 }
 
 /** 포탄의 현재 (x,y,vx,vy) 를 원점으로 새 비행 구간 시작 (발사·분열·튕김 공통) */
@@ -183,6 +194,9 @@ class FortressGameModule implements GameModule {
   private aimFromY = 0;
   private mouseX: number | null = null;
   private mouseY: number | null = null;
+
+  /** 유도탄 타겟으로 고른 적 포대 id (null=미지정). 같은 타겟 재클릭 시 발사 */
+  private guidedTarget: number | null = null;
 
   // 카메라 수동 스크롤 — 휠/좌우 화살표로 맵을 둘러봄. null 이면 자동 따라가기.
   private camUserX: number | null = null;
@@ -296,7 +310,9 @@ class FortressGameModule implements GameModule {
         // 발사자 탄약 차감 (모든 클라 동일하게 — 결정론적)
         const shooter = this.game.forts.find((f) => f.id === fire.fromFortId);
         if (shooter) spendAmmo(this.game, shooter.ownerPeerId, fire.weapon);
-        this.beginProjectile(fire.startX, fire.startY, fire.angleRad, fire.power01, fire.wind, fire.weapon, fire.fromFortId);
+        const guidedTarget = (fire.weapon === 'guided' && typeof fire.targetX === 'number' && typeof fire.targetY === 'number')
+          ? { tx: fire.targetX, ty: fire.targetY } : undefined;
+        this.beginProjectile(fire.startX, fire.startY, fire.angleRad, fire.power01, fire.wind, fire.weapon, fire.fromFortId, guidedTarget);
       }
       return;
     }
@@ -490,10 +506,18 @@ class FortressGameModule implements GameModule {
       const power01 = Math.min(1, Math.hypot(dx, dy) / MAX_DRAG_PX);
       aim = { fromX: this.aimFromX, fromY: this.aimFromY, mx: this.mouseX, my: this.mouseY, power01 };
     }
-    // 턴이 바뀌면 수동 스크롤 해제하고 현재 포대로 재중심
+    // 턴이 바뀌면 수동 스크롤 해제하고 현재 포대로 재중심 + 유도탄 타겟 초기화
     if (this.game.currentTurn !== this.lastFocusTurn) {
       this.lastFocusTurn = this.game.currentTurn;
       this.camUserX = null;
+      this.guidedTarget = null;
+    }
+    // 유도탄 타겟 레티클 (내가 유도탄 조준 중이고 타겟이 살아있을 때)
+    let guidedTarget: RenderState['guidedTarget'] = null;
+    if (this.guidedTarget !== null && this.shells.length === 0) {
+      const t = this.game.forts.find((f) => f.id === this.guidedTarget && f.alive);
+      if (t) guidedTarget = { x: t.x, y: terrainTopAt(this.hm, t.x) - FORT_HIT_RISE };
+      else this.guidedTarget = null;
     }
     // 카메라 포커스: 포탄이 날면 포탄을 따라가고(수동 해제), 아니면 수동 스크롤 위치 > 현재 포대.
     let focusX: number | undefined;
@@ -521,6 +545,7 @@ class FortressGameModule implements GameModule {
       turnStartedAt: this.turnStartedAt,
       turnTimeMs: TURN_TIME_MS,
       focusX,
+      guidedTarget,
     };
   }
 
@@ -542,13 +567,31 @@ class FortressGameModule implements GameModule {
       if (s.landed) continue;
       if (spec.fuseMs) s.fuseLeft -= dt * 1000;
 
-      // 해석식으로 한 스텝 전진 — 이전 위치는 스침(터널링) 판정에 사용
+      // 한 스텝 전진 — 이전 위치는 스침(터널링) 판정에 사용
       const prevX = s.x, prevY = s.y;
-      s.st += dt;
-      const p = segPos(s.seg, s.st); s.x = p.x; s.y = p.y;
-      const v = segVel(s.seg, s.st); s.vx = v.vx; s.vy = v.vy;
+      if (s.guided) {
+        // 호밍: 타겟 방향으로 제한 각속도만큼 선회, 등속 유지(중력/바람 무시). 고정스텝이라 결정론적.
+        const desired = Math.atan2((s.ty ?? s.y) - s.y, (s.tx ?? s.x) - s.x);
+        let cur = Math.atan2(s.vy, s.vx);
+        let diff = desired - cur;
+        while (diff > Math.PI) diff -= 2 * Math.PI;
+        while (diff < -Math.PI) diff += 2 * Math.PI;
+        const maxTurn = GUIDED_TURN_RATE * dt;
+        diff = Math.max(-maxTurn, Math.min(maxTurn, diff));
+        cur += diff;
+        s.vx = Math.cos(cur) * GUIDED_SPEED;
+        s.vy = Math.sin(cur) * GUIDED_SPEED;
+        s.x += s.vx * dt;
+        s.y += s.vy * dt;
+      } else {
+        // 해석식(포물선) — 구간 시작 후 경과시간 t 의 닫힌 수식
+        s.st += dt;
+        const p = segPos(s.seg, s.st); s.x = p.x; s.y = p.y;
+        const v = segVel(s.seg, s.st); s.vx = v.vx; s.vy = v.vy;
+      }
 
-      const off = s.x < -60 || s.x > this.game.terrainWidth + 60 || s.y > 440;
+      const off = s.x < -60 || s.x > this.game.terrainWidth + 60 || s.y > 440
+        || (s.guided === true && s.y < -60);
       // 총구 클리어런스 — 발사 직후 일정 거리 전엔 지형/포대 충돌 무시(오조준 착탄 방지)
       const cleared = Math.hypot(s.x - s.spawnX, s.y - s.spawnY) > LAUNCH_CLEARANCE;
       const groundY = terrainTopAt(this.hm, s.x);
@@ -785,6 +828,7 @@ class FortressGameModule implements GameModule {
       const w = btn.dataset.weapon as WeaponId;
       if (!hasAmmo(this.game, this.myPeerId, w)) return;
       this.selectedWeapon = w;
+      if (w !== 'guided') this.guidedTarget = null; // 유도탄 아니면 타겟 해제
       this.refreshWeaponBar();
       sound.play('button_click');
     });
@@ -896,12 +940,59 @@ class FortressGameModule implements GameModule {
     if (!this.canAim()) return;
     const me = this.currentFort();
     if (!me) return;
+    const rect = this.ctx.canvas.getBoundingClientRect();
+    const { x, y } = this.renderer.screenToLogical(e.clientX - rect.left, e.clientY - rect.top);
+
+    // 유도탄: 드래그 조준 대신 '적 포대 클릭 → 타겟 락, 같은 타겟 재클릭 → 발사'
+    if (this.selectedWeapon === 'guided' && hasAmmo(this.game, me.ownerPeerId, 'guided')) {
+      const target = this.fortNear(x, y, me.ownerPeerId);
+      if (target) {
+        if (this.guidedTarget === target.id) this.fireGuided();
+        else this.guidedTarget = target.id;
+      }
+      return; // 유도탄은 드래그 조준 안 함
+    }
+
     this.aiming = true;
     this.aimFromX = me.x;
     this.aimFromY = fortCenterY(this.hm, me) - MUZZLE_RISE;
-    const rect = this.ctx.canvas.getBoundingClientRect();
-    const { x, y } = this.renderer.screenToLogical(e.clientX - rect.left, e.clientY - rect.top);
     this.mouseX = x; this.mouseY = y;
+  };
+
+  /** 클릭 지점 근처의 살아있는 '남의' 포대 (유도탄 타겟용). 없으면 undefined */
+  private fortNear(x: number, y: number, myPeerId: string): Fort | undefined {
+    let best: Fort | undefined;
+    let bestD = 44; // 타겟 인식 반경(논리 px)
+    for (const f of this.game.forts) {
+      if (!f.alive || f.ownerPeerId === myPeerId) continue;
+      const fy = terrainTopAt(this.hm, f.x) - FORT_HIT_RISE;
+      const d = Math.hypot(x - f.x, y - fy);
+      if (d < bestD) { bestD = d; best = f; }
+    }
+    return best;
+  }
+
+  /** 유도탄 발사 — 지정 타겟으로 호밍 미사일 발사 + broadcast. */
+  private fireGuided(): void {
+    const me = this.currentFort();
+    if (!me || me.ownerPeerId !== this.myPeerId || this.game.phase !== 'aiming' || this.shells.length > 0) return;
+    if (!hasAmmo(this.game, me.ownerPeerId, 'guided')) return;
+    const target = this.game.forts.find((f) => f.id === this.guidedTarget && f.alive);
+    if (!target) { this.guidedTarget = null; return; }
+    const sx = me.x, sy = fortCenterY(this.hm, me) - MUZZLE_RISE;
+    const tx = target.x, ty = fortCenterY(this.hm, target);
+
+    this.beginProjectile(sx, sy, 0, 0, 0, 'guided', this.game.currentTurn, { tx, ty });
+    spendAmmo(this.game, me.ownerPeerId, 'guided');
+    if (!hasAmmo(this.game, me.ownerPeerId, 'guided')) this.selectedWeapon = 'normal';
+    this.ctx.sendToPeer(encodeFire({
+      fromFortId: this.game.currentTurn,
+      startX: sx, startY: sy,
+      angleRad: 0, power01: 0, wind: 0, weapon: 'guided',
+      targetX: tx, targetY: ty,
+    }));
+    this.guidedTarget = null;
+    this.refreshWeaponBar();
   };
 
   private onMove = (e: MouseEvent): void => {
@@ -949,9 +1040,21 @@ class FortressGameModule implements GameModule {
     this.refreshWeaponBar();
   };
 
-  private beginProjectile(sx: number, sy: number, angleRad: number, power01: number, wind: number, weapon: WeaponId, originFortId: number): void {
-    const { vx, vy } = launchVelocity(angleRad, power01);
+  private beginProjectile(sx: number, sy: number, angleRad: number, power01: number, wind: number, weapon: WeaponId, originFortId: number, guidedTarget?: { tx: number; ty: number }): void {
     const spec = WEAPONS[weapon];
+    let vx: number, vy: number;
+    let guided = false, tx: number | undefined, ty: number | undefined;
+    if (weapon === 'guided' && guidedTarget) {
+      // 유도탄: 타겟보다 GUIDED_LOFT 만큼 위를 겨눠 발사(상승 아크) → 이후 매 스텝 타겟으로 호밍.
+      //   초기 속도/타겟이 모두 결정론 파라미터(sx,sy,tx,ty)라 전 클라 동일 궤적.
+      guided = true; tx = guidedTarget.tx; ty = guidedTarget.ty;
+      const heading = Math.atan2((ty - GUIDED_LOFT) - sy, tx - sx);
+      vx = Math.cos(heading) * GUIDED_SPEED;
+      vy = Math.sin(heading) * GUIDED_SPEED;
+    } else {
+      const lv = launchVelocity(angleRad, power01);
+      vx = lv.vx; vy = lv.vy;
+    }
     this.shells = [{
       x: sx, y: sy, vx, vy,
       bounces: 0, fuseLeft: spec.fuseMs ?? Infinity, landed: false,
@@ -959,6 +1062,7 @@ class FortressGameModule implements GameModule {
       seg: { x0: sx, y0: sy, vx0: vx, vy0: vy, wind },
       st: 0,
       originFortId, armed: false,
+      guided, tx, ty,
     }];
     this.simAccum = 0;
     this.splitDone = false;

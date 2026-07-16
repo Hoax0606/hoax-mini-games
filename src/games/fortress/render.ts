@@ -82,6 +82,8 @@ export interface RenderState {
   turnTimeMs: number;
   /** 카메라가 가로로 따라갈 월드 x (현재 포대/날아가는 포탄). 없으면 맵 중앙 */
   focusX?: number;
+  /** 유도탄 조준 중 타겟 위치(레티클 + 조준선). 없으면 null */
+  guidedTarget?: { x: number; y: number } | null;
 }
 
 export interface FortressRendererArgs {
@@ -172,6 +174,7 @@ export class FortressRenderer {
     this.drawExplosions(state.explosions, state.now);
     this.drawDamagePops(state.damagePops, state.now);
     if (state.aim) this.drawAim(state.aim);
+    if (state.guidedTarget) this.drawGuidedTarget(state);
 
     // HUD/종료 오버레이는 화면 좌표(캔버스 기준)로 — 레터박스에 밀려 잘리지 않게
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
@@ -505,6 +508,47 @@ export class FortressRenderer {
       }
       ctx.globalAlpha = 1;
     }
+  }
+
+  /** 유도탄 타겟 레티클 + 내 포대→타겟 조준선 + "재클릭 발사" 안내 */
+  private drawGuidedTarget(state: RenderState): void {
+    const t = state.guidedTarget!;
+    const ctx = this.ctx;
+    // 내 현재 포대 총구에서 타겟까지 점선 조준선
+    const me = state.game.forts.find((f) => f.id === state.game.currentTurn);
+    if (me) {
+      const my = terrainTopAt(state.hm, me.x) - 24;
+      ctx.save();
+      ctx.strokeStyle = 'rgba(255,90,146,0.6)';
+      ctx.lineWidth = 2;
+      ctx.setLineDash([7, 6]);
+      ctx.beginPath();
+      ctx.moveTo(me.x, my);
+      ctx.lineTo(t.x, t.y);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.restore();
+    }
+    // 레티클 (핑크 원 + 십자)
+    ctx.save();
+    ctx.strokeStyle = COLORS.accentPink;
+    ctx.lineWidth = 2.5;
+    ctx.beginPath();
+    ctx.arc(t.x, t.y, 17, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(t.x - 24, t.y); ctx.lineTo(t.x - 8, t.y);
+    ctx.moveTo(t.x + 8, t.y); ctx.lineTo(t.x + 24, t.y);
+    ctx.moveTo(t.x, t.y - 24); ctx.lineTo(t.x, t.y - 8);
+    ctx.moveTo(t.x, t.y + 8); ctx.lineTo(t.x, t.y + 24);
+    ctx.stroke();
+    // 안내 문구
+    ctx.fillStyle = COLORS.accentPink;
+    ctx.font = `700 12px ${FONT}`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'bottom';
+    ctx.fillText('다시 클릭하면 발사', t.x, t.y - 26);
+    ctx.restore();
   }
 
   private drawAim(aim: NonNullable<RenderState['aim']>): void {
