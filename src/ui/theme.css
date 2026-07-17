@@ -2550,8 +2550,14 @@ input {
   min-height: 0;
   overflow-y: auto;
   align-content: start;
-  padding-right: 4px;
+  padding: 4px 4px 0;
+  /* 스크롤 하단 edge fade (하드 스크롤 경계 대신 부드럽게) */
+  -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 16px), transparent);
+  mask-image: linear-gradient(to bottom, #000 calc(100% - 16px), transparent);
 }
+/* 대기실 헤더의 제목/부제는 좌측 정렬 (card-title 전역 가운데정렬 override) */
+.waiting-head-title .card-title { justify-content: flex-start; margin-bottom: 2px; }
+.waiting-head-title .card-subtitle { text-align: left; margin-bottom: 0; }
 /* 게임 설정 — 우측 타일 그리드 '아래 고정' 바. 크기 고정이라 옵션 유무와 무관하게 그리드가 안 밀림.
    옵션 없는 게임/미선택이면 내용 없이 크림색 빈 박스만 그대로 둔다(숨기지 않음). */
 .waiting-options {
@@ -2587,6 +2593,7 @@ input {
 }
 
 .change-game-card {
+  position: relative;
   background: #fff;
   border: 1.5px solid var(--pink-100);
   border-radius: 14px;
@@ -2596,25 +2603,54 @@ input {
   flex-direction: column;
   align-items: center;
   gap: 6px;
-  transition: transform 0.12s ease, border-color 0.12s ease, box-shadow 0.12s ease;
+  transition: transform 0.14s cubic-bezier(.2,.9,.25,1), border-color 0.14s ease, box-shadow 0.14s ease;
 }
 .change-game-card:hover:not(:disabled) {
-  transform: translateY(-2px);
-  border-color: var(--pink-300);
-  box-shadow: 0 6px 16px rgba(255, 142, 178, 0.2);
+  transform: translateY(-3px);
+  border-color: var(--pink-200);
+  box-shadow: 0 8px 20px rgba(255, 142, 178, 0.22);
 }
-.change-game-card.is-selected {
-  border-color: var(--pink-500);
-  background: var(--pink-50);
-  box-shadow: 0 0 0 3px rgba(255, 142, 178, 0.25);
-}
-.change-game-card.is-disabled {
-  opacity: 0.45;
-  cursor: not-allowed;
-  filter: grayscale(0.5);
-}
+.change-game-card:active:not(:disabled) { transform: scale(0.97); }
+
+/* 선택된 게임 (대기실=is-current / 오버레이 클릭=is-selected) — 핑크 링 + 체크 뱃지 */
+.change-game-card.is-selected,
 .change-game-card.is-current {
-  border-style: dashed;
+  border: 2px solid var(--pink-500);
+  background: var(--pink-50);
+  box-shadow: 0 0 0 3px rgba(255, 90, 146, 0.28), 0 8px 20px rgba(255, 142, 178, 0.22);
+}
+.change-game-card.is-selected::after,
+.change-game-card.is-current::after {
+  content: "✓";
+  position: absolute;
+  top: -8px;
+  right: -8px;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: var(--pink-500);
+  color: #fff;
+  font-size: 14px;
+  font-weight: 900;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: var(--shadow-sm);
+}
+/* 인원 초과/미달로 잠긴 게임 — 흐림 + 자물쇠 */
+.change-game-card.is-disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  filter: grayscale(0.45);
+}
+.change-game-card.is-disabled::after {
+  content: "🔒";
+  position: absolute;
+  top: 8px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 20px;
+  filter: none;
 }
 
 .change-game-card-thumb {
