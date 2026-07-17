@@ -1219,28 +1219,26 @@ input {
 }
 
 /* 강퇴 버튼 — 방장 화면 참가자 행 우측 */
-/* 강퇴 버튼 — 깔끔한 원형. 평소 옅고 hover 시 핑크 배경 + 진해짐 */
+/* 강퇴 버튼 — 항상 보이는 핑크 원형(제거 버튼임이 분명하게). hover 시 진해지고 살짝 커짐 */
 .participant-kick {
   margin-left: auto;
-  width: 26px;
-  height: 26px;
+  width: 28px;
+  height: 28px;
   flex-shrink: 0;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   border: none;
-  background: transparent;
+  background: var(--pink-100);
   cursor: pointer;
   border-radius: 50%;
-  color: var(--text-muted);
-  opacity: 0.45;
-  transition: opacity 0.15s, background 0.15s, color 0.15s;
+  transition: transform 0.12s ease, background 0.15s ease;
 }
 .participant-kick:hover {
-  opacity: 1;
-  background: var(--pink-100);
-  color: var(--pink-500);
+  background: var(--pink-200);
+  transform: scale(1.1);
 }
+.participant-kick:active { transform: scale(0.92); }
 
 .participant-you {
   font-size: 12px;
@@ -2662,31 +2660,33 @@ input {
   background: var(--bg-card);
   border: 2px solid var(--border-soft);
   border-radius: var(--radius-lg);
-  padding: 14px;
+  padding: 12px 10px 13px;
   cursor: pointer;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 10px;
+  gap: 7px;
   box-shadow: var(--shadow-sm);
   transition: transform 0.14s cubic-bezier(.2,.9,.25,1), border-color 0.14s ease, box-shadow 0.14s ease;
 }
-/* 이름 + 인원 뱃지 (도감과 동일) */
+/* 게임 이름 — 썸네일 아래 한 줄(길면 균형 있게 줄바꿈), 그 아래 인원 뱃지 독립 줄 */
 .change-game-card-name {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  flex-wrap: wrap;
+  font-size: 13.5px;
+  font-weight: 800;
+  color: var(--text-main);
+  text-align: center;
+  line-height: 1.25;
+  text-wrap: balance;
 }
 .change-game-card-players {
-  font-size: 10px;
+  font-size: 10.5px;
   font-weight: 700;
   color: var(--text-inverse);
   background: var(--lavender-300);
-  padding: 2px 7px;
+  padding: 2px 9px;
   border-radius: var(--radius-full);
   letter-spacing: 0.3px;
+  white-space: nowrap;
 }
 .change-game-card:hover:not(:disabled) {
   transform: translateY(-3px);
@@ -2744,16 +2744,11 @@ input {
   background: #f7e8ee;
 }
 
-.change-game-card-name {
-  font-size: 14px;
-  font-weight: 800;
-  color: var(--text-main);
-  text-align: center;
-}
-
+/* .change-game-card-name 은 위 통합 규칙에서 정의됨 (중복 제거) */
 .change-game-card-meta {
   font-size: 11px;
-  color: var(--text-muted);
+  color: var(--pink-500);
+  font-weight: 700;
   text-align: center;
   line-height: 1.3;
 }

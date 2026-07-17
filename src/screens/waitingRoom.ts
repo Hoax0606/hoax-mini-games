@@ -52,7 +52,7 @@ function renderParticipantsHTML(
       : '';
     // 방장 화면에서만, 방장 본인이 아닌 참가자에게 강퇴(❌) 버튼
     const kickBtn = showKick && !p.isHost
-      ? `<button class="participant-kick" data-kick-peer="${escapeHtml(p.peerId)}" title="강퇴">${icon('close', { size: 16 })}</button>`
+      ? `<button class="participant-kick" data-kick-peer="${escapeHtml(p.peerId)}" title="강퇴">${icon('close', { size: 15, hue: '#ff5a92' })}</button>`
       : '';
     return `
       <div class="participant ${hostCls}">

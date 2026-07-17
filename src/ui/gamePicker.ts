@@ -65,9 +65,8 @@ export function buildGameTilesHTML(
       <button class="change-game-card${fits ? '' : ' is-disabled'}${isCurrent ? ' is-current' : ''}"
               data-game-id="${escapeAttr(g.meta.id)}" ${fits ? '' : 'disabled'}>
         <img class="change-game-card-thumb" src="${escapeAttr(g.meta.thumbnail)}" alt="" />
-        <div class="change-game-card-name">${escapeHtml(g.meta.name)}
-          <span class="change-game-card-players">${escapeHtml(playerLabel)}</span>
-        </div>
+        <div class="change-game-card-name">${escapeHtml(g.meta.name)}</div>
+        <span class="change-game-card-players">${escapeHtml(playerLabel)}</span>
         ${note ? `<div class="change-game-card-meta">${escapeHtml(note)}</div>` : ''}
       </button>
     `;
