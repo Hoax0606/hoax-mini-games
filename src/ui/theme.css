@@ -1936,6 +1936,14 @@ input {
   overflow: hidden;
   transition: width 0.18s ease, height 0.18s ease;
 }
+/* 대기실에선 채팅 패널 높이를 대기실 카드(min(86vh,700px))와 맞추고 세로 가운데 —
+   게임화면처럼 전체높이 사이드바로 뜨면 텅 비어 보여서 목업처럼 카드 옆 아담한 패널로. */
+.screen:has(.waiting-card) .chat-panel:not(.is-collapsed) {
+  top: 50%;
+  bottom: auto;
+  transform: translateY(-50%);
+  height: min(86vh, 700px);
+}
 .chat-panel.is-collapsed {
   width: 48px;
   height: 48px;
