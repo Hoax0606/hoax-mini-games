@@ -40,7 +40,7 @@ const LEFT_PANEL_X = 18;
 const RIGHT_PANEL_X = 665;
 const PANEL_Y = 40;
 /** 우측 랭킹 row 너비 — 좁아진 우측 패널에 맞춤 */
-const RANK_ROW_W = 125;
+const RANK_ROW_W = 132;
 
 const COLORS = {
   bg: '#fff9fd',
@@ -239,11 +239,11 @@ export class AppleRenderer {
 
   private drawApples(board: Board): void {
     const ctx = this.ctx;
-    ctx.font = `900 17px ${FONT}`;
+    ctx.font = `900 15px ${FONT}`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
 
-    const bodyRadius = APPLE_RADIUS + 1; // 몸통 키움 (셀 꽉 차게)
+    const bodyRadius = APPLE_RADIUS - 1; // 몸통 (셀 안에 여백 두고 아담하게)
 
     for (let r = 0; r < BOARD_ROWS; r++) {
       const row = board[r];
@@ -267,30 +267,30 @@ export class AppleRenderer {
 
         // 꼭지 — 짧고 살짝 기운 갈색(길게 세우면 폭탄 도화선처럼 보여서 짧게).
         ctx.strokeStyle = COLORS.appleStem;
-        ctx.lineWidth = 1.8;
+        ctx.lineWidth = 1.5;
         ctx.lineCap = 'round';
         ctx.beginPath();
-        ctx.moveTo(x - 0.5, cy - bodyRadius + 1);
-        ctx.lineTo(x + 2, cy - bodyRadius - 2.5);
+        ctx.moveTo(x - 0.4, cy - bodyRadius + 0.5);
+        ctx.lineTo(x + 1.5, cy - bodyRadius - 2);
         ctx.stroke();
 
-        // 잎 — 크게, 꼭지 오른쪽 위. 물방울 + 잎맥. (잎을 앞세워 '사과'로 명확히)
+        // 잎 — 꼭지 오른쪽 위. 물방울 + 잎맥. (몸통에 맞춰 아담하게)
         ctx.save();
-        ctx.translate(x + 1.5, cy - bodyRadius - 1);
+        ctx.translate(x + 1.2, cy - bodyRadius - 0.5);
         ctx.rotate(-Math.PI / 6);
         ctx.fillStyle = COLORS.appleLeaf;
         ctx.beginPath();
         ctx.moveTo(0, 0);
-        ctx.quadraticCurveTo(6, -4.5, 11, 0);
-        ctx.quadraticCurveTo(6, 4.5, 0, 0);
+        ctx.quadraticCurveTo(4.2, -3.2, 8, 0);
+        ctx.quadraticCurveTo(4.2, 3.2, 0, 0);
         ctx.fill();
         ctx.strokeStyle = COLORS.appleLeafStroke;
-        ctx.lineWidth = 0.8;
+        ctx.lineWidth = 0.7;
         ctx.stroke();
         ctx.beginPath();
-        ctx.moveTo(1.5, 0);
-        ctx.lineTo(9.5, 0);
-        ctx.lineWidth = 0.6;
+        ctx.moveTo(1, 0);
+        ctx.lineTo(7, 0);
+        ctx.lineWidth = 0.5;
         ctx.stroke();
         ctx.restore();
 
@@ -440,9 +440,9 @@ export class AppleRenderer {
       ctx.font = `700 12px ${FONT}`;
       ctx.textAlign = 'left';
       ctx.textBaseline = 'middle';
-      // 이름 잘림 완화 — '(나)' 자리 감안해 길이 조정(나=8자, 남=10자)
-      const label = truncate(row.nickname, row.isMe ? 8 : 10) + (row.isMe ? ' (나)' : '');
-      ctx.fillText(label, RIGHT_PANEL_X + 10, y + rowH / 2);
+      // 이름 잘림 완화 — 넓힌 행 + 길이 확대 ('나' 자리 감안: 나=11자, 남=13자). 닉네임 최대 12자라 대부분 다 보임.
+      const label = truncate(row.nickname, row.isMe ? 11 : 13) + (row.isMe ? ' (나)' : '');
+      ctx.fillText(label, RIGHT_PANEL_X + 9, y + rowH / 2);
     }
 
     if (names.length > maxShow) {
