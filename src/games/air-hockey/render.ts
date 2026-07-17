@@ -162,7 +162,45 @@ export class Renderer {
     this.drawPuckTrail(ctx);
     this.drawPuck(ctx, state.puck);
     this.drawParticles(ctx);
+    this.drawScoreboard(ctx, state);
     this.drawPhaseOverlay(ctx, state);
+  }
+
+  /** 상단 중앙 스코어보드 — 점수를 캔버스 HUD 로(헤더 대신). 호스트 핑크 : 게스트 라벤더. */
+  private drawScoreboard(ctx: CanvasRenderingContext2D, state: GameState): void {
+    const cx = FIELD.WIDTH / 2;
+    const y = 30;
+    const hs = String(state.score.host);
+    const gs = String(state.score.guest);
+
+    ctx.save();
+    // 프로스티드 배경 알약 (반투명 — 퍽이 지나가도 비침)
+    const bw = 128, bh = 48;
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.62)';
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.8)';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.roundRect(cx - bw / 2, y - bh / 2, bw, bh, 16);
+    ctx.fill();
+    ctx.stroke();
+
+    ctx.textBaseline = 'middle';
+    ctx.font = `900 30px ${FONT_SANS}`;
+    // 호스트(핑크) 좌
+    ctx.fillStyle = COLORS.hostStroke;
+    ctx.textAlign = 'right';
+    ctx.fillText(hs, cx - 18, y + 1);
+    // 콜론
+    ctx.fillStyle = 'rgba(74, 58, 74, 0.35)';
+    ctx.textAlign = 'center';
+    ctx.font = `800 22px ${FONT_SANS}`;
+    ctx.fillText(':', cx, y);
+    // 게스트(라벤더) 우
+    ctx.fillStyle = COLORS.guestStroke;
+    ctx.textAlign = 'left';
+    ctx.font = `900 30px ${FONT_SANS}`;
+    ctx.fillText(gs, cx + 18, y + 1);
+    ctx.restore();
   }
 
   // ============================================
