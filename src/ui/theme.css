@@ -1232,10 +1232,16 @@ input {
   background: var(--pink-100);
   cursor: pointer;
   border-radius: 50%;
-  transition: transform 0.12s ease, background 0.15s ease;
+  color: var(--pink-500);
+  font-size: 18px;
+  font-weight: 700;
+  line-height: 1;
+  padding: 0;
+  transition: transform 0.12s ease, background 0.15s ease, color 0.15s ease;
 }
 .participant-kick:hover {
-  background: var(--pink-200);
+  background: var(--pink-500);
+  color: #fff;
   transform: scale(1.1);
 }
 .participant-kick:active { transform: scale(0.92); }
