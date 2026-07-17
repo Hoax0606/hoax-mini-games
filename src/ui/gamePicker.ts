@@ -76,7 +76,10 @@ export function buildGameTilesHTML(
 /** 선택된 게임의 옵션 폼 HTML. current 로 현재 선택값을 반영(없으면 기본값). 옵션 없으면 안내. */
 export function buildGameOptionsHTML(gameId: string, current?: Record<string, string>): string {
   const g = getGameById(gameId);
-  if (!g) return '';
+  // 게임 미선택 — 통일성 위해 박스는 항상 노출하고 안내만
+  if (!g) {
+    return `<div class="change-game-no-options">게임을 먼저 골라주세요</div>`;
+  }
   if (g.meta.roomOptions.length === 0) {
     return `<div class="change-game-no-options">설정 없이 바로 시작할 수 있어요</div>`;
   }

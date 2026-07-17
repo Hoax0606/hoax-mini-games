@@ -220,11 +220,8 @@ export function createWaitingRoomAsHostScreen(args: WaitingRoomAsHostArgs): Scre
 
         // 게임 타일 그리드 (항상 노출, 인원 초과 게임은 잠금) + 선택 게임 옵션
         gameGridEl.innerHTML = buildGameTilesHTML(players.length, gameId, { enforceMin: false });
-        // 선택 게임에 옵션이 있을 때만 옵션 박스 노출. 없거나 미선택이면 빈 크림 박스가 떠 보이므로 숨김.
-        const selectedGame = gameId ? getGameById(gameId) : null;
-        const hasOptions = !!selectedGame && selectedGame.meta.roomOptions.length > 0;
-        gameOptionsEl.innerHTML = hasOptions ? buildGameOptionsHTML(gameId, roomOptions) : '';
-        gameOptionsEl.style.display = hasOptions ? '' : 'none';
+        // 옵션 박스는 항상 노출(통일성) — 옵션 있으면 셀렉트, 없으면 '설정 없음', 미선택이면 안내.
+        gameOptionsEl.innerHTML = buildGameOptionsHTML(gameId, roomOptions);
         wireGameArea();
 
         // 강퇴 버튼 배선 — 방장이 해당 게스트 연결을 끊음(onGuestDisconnected 가 정리)
@@ -566,12 +563,7 @@ export function createWaitingRoomAsGuestScreen(args: WaitingRoomAsGuestArgs): Sc
         playerCountEl.textContent = `${count} / ${max}명`;
         // 방장이 고른 게임/설정을 그대로(읽기 전용) 표시 — 방장 화면과 동일 UI.
         gameGridEl.innerHTML = buildGameTilesHTML(count, roomState.gameId, { enforceMin: false });
-        const selectedGame = roomState.gameId ? getGameById(roomState.gameId) : null;
-        const hasOptions = !!selectedGame && selectedGame.meta.roomOptions.length > 0;
-        gameOptionsEl.innerHTML = hasOptions
-          ? buildGameOptionsHTML(roomState.gameId, roomState.roomOptions)
-          : '';
-        gameOptionsEl.style.display = hasOptions ? '' : 'none';
+        gameOptionsEl.innerHTML = buildGameOptionsHTML(roomState.gameId, roomState.roomOptions);
         // 게스트는 설정을 못 바꿈 → 셀렉트 비활성화
         gameOptionsEl.querySelectorAll('select').forEach((s) => { s.disabled = true; });
 
