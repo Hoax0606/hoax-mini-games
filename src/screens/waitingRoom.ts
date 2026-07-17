@@ -38,8 +38,7 @@ function renderParticipantsHTML(
   myPeerId: string | null,
   showKick = false,
 ): string {
-  void maxPlayers; // 빈 자리는 더 이상 나열하지 않음(게임찾기처럼 실제 인원만). 정원은 상단 카운트로 표시.
-  return players.map((p) => {
+  const cells = players.map((p) => {
     const badgeText = p.isHost ? '방장' : '손님';
     const badgeCls = p.isHost ? '' : 'participant-badge-lavender';
     const hostCls = p.isHost ? 'participant-host' : 'participant-guest';
@@ -63,7 +62,17 @@ function renderParticipantsHTML(
         ${kickBtn}
       </div>
     `;
-  }).join('');
+  });
+  // 남은 정원만큼 점선 "빈 자리" 고스트 슬롯 — 왼쪽 여백을 채워 방이 채워질 공간을 암시
+  for (let i = players.length; i < maxPlayers; i++) {
+    cells.push(`
+      <div class="participant participant-empty">
+        <span class="participant-badge">빈 자리</span>
+        <span class="participant-name">친구를 기다리는 중</span>
+      </div>
+    `);
+  }
+  return cells.join('');
 }
 
 /** 현재 URL에 ?room=XXXXX 붙여 공유용 링크 생성 (base 경로/호스트 자동 유지) */
@@ -212,11 +221,11 @@ export function createWaitingRoomAsHostScreen(args: WaitingRoomAsHostArgs): Scre
 
         // 게임 타일 그리드 (항상 노출, 인원 초과 게임은 잠금) + 선택 게임 옵션
         gameGridEl.innerHTML = buildGameTilesHTML(players.length, gameId, { enforceMin: false });
-        // 옵션은 우측 타일 그리드 아래 고정 바. 크기 고정이라 옵션 유무와 무관하게 그리드 높이 안 변함.
-        // 옵션 없는 게임/미선택이면 빈 크림 박스만 그대로 둔다(숨기지 않음).
+        // 선택 게임에 옵션이 있을 때만 옵션 박스 노출. 없거나 미선택이면 빈 크림 박스가 떠 보이므로 숨김.
         const selectedGame = gameId ? getGameById(gameId) : null;
         const hasOptions = !!selectedGame && selectedGame.meta.roomOptions.length > 0;
         gameOptionsEl.innerHTML = hasOptions ? buildGameOptionsHTML(gameId, roomOptions) : '';
+        gameOptionsEl.style.display = hasOptions ? '' : 'none';
         wireGameArea();
 
         // 강퇴 버튼 배선 — 방장이 해당 게스트 연결을 끊음(onGuestDisconnected 가 정리)
@@ -563,6 +572,7 @@ export function createWaitingRoomAsGuestScreen(args: WaitingRoomAsGuestArgs): Sc
         gameOptionsEl.innerHTML = hasOptions
           ? buildGameOptionsHTML(roomState.gameId, roomState.roomOptions)
           : '';
+        gameOptionsEl.style.display = hasOptions ? '' : 'none';
         // 게스트는 설정을 못 바꿈 → 셀렉트 비활성화
         gameOptionsEl.querySelectorAll('select').forEach((s) => { s.disabled = true; });
 
