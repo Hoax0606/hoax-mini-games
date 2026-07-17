@@ -67,7 +67,6 @@ function renderParticipantsHTML(
   for (let i = players.length; i < maxPlayers; i++) {
     cells.push(`
       <div class="participant participant-empty">
-        <span class="participant-badge">빈 자리</span>
         <span class="participant-name">친구를 기다리는 중</span>
       </div>
     `);

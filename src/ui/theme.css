@@ -1190,7 +1190,9 @@ input {
 .participant-empty {
   border-style: dashed;
   opacity: 0.65;
+  justify-content: center; /* "친구를 기다리는 중" 가운데 정렬 (빈 자리 배지 없음) */
 }
+.participant-empty .participant-name { text-align: center; }
 
 .participant-badge {
   font-size: 11px;
@@ -1996,9 +1998,9 @@ input {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 10px 14px;
-  background: var(--pink-50);
-  border-bottom: 1px solid var(--pink-100);
+  padding: 14px 16px;
+  background: var(--bg-card);
+  border-bottom: 1px solid var(--border-soft);
 }
 .chat-title {
   font-weight: 800;
@@ -2019,11 +2021,11 @@ input {
 .chat-stream {
   flex: 1;
   overflow-y: auto;
-  padding: 10px 12px;
+  padding: 14px;
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  background: var(--bg-subtle);
+  gap: 10px;
+  background: var(--bg-card);
 }
 .chat-row {
   display: flex;
@@ -2049,56 +2051,59 @@ input {
   padding: 0 4px;
 }
 .chat-row-bubble {
-  background: #fff;
-  border: 1px solid var(--pink-100);
-  /* 메신저식 꼬리 — 보내는 쪽 아래 모서리만 각지게. 상대(왼쪽 정렬)는 좌하단 각짐 */
-  border-radius: 14px 14px 14px 4px;
-  padding: 7px 11px;
-  font-size: 13px;
+  background: var(--pink-50);
+  border: 1.5px solid var(--border-soft);
+  border-radius: 14px;
+  padding: 8px 12px;
+  font-size: 13.5px;
   color: var(--text-main);
-  line-height: 1.35;
+  line-height: 1.4;
   word-break: break-word;
   white-space: pre-wrap;
-  box-shadow: 0 1px 3px rgba(180, 150, 170, 0.18);
 }
+/* 내 메시지 — 핑크 버블 (목업과 동일, 꼬리 없이 전체 라운드) */
 .chat-row.is-me .chat-row-bubble {
-  background: #fff;
-  border-color: var(--pink-100);
+  background: linear-gradient(135deg, var(--pink-100), var(--pink-50));
+  border-color: var(--pink-200);
   color: var(--text-main);
-  /* 내 벌룬(오른쪽 정렬)은 우하단 모서리 각짐 */
-  border-radius: 14px 14px 4px 14px;
 }
 
 .chat-form {
   display: flex;
-  gap: 6px;
-  padding: 8px;
-  border-top: 1px solid var(--pink-100);
+  gap: 8px;
+  padding: 12px;
+  border-top: 1px solid var(--border-soft);
   background: var(--bg-card);
+  align-items: center;
 }
+/* 입력창 — 알약형 (목업과 동일) */
 .chat-input {
   flex: 1;
-  padding: 8px 10px;
-  border: 1.5px solid var(--pink-100);
-  border-radius: 10px;
-  font-size: 13px;
+  padding: 10px 14px;
+  border: 1.5px solid var(--pink-200);
+  border-radius: var(--radius-full);
+  font-size: 13.5px;
   outline: none;
-  background: #fff;
+  background: var(--bg-inset, #fff7fb);
   color: var(--text-main);
 }
-.chat-input:focus { border-color: var(--pink-300); }
+.chat-input:focus { border-color: var(--pink-400); }
+/* 전송 — 핑크 원형 (목업과 동일) */
 .chat-send-btn {
-  width: 36px;
+  width: 40px;
+  height: 40px;
+  flex-shrink: 0;
   border: 0;
-  border-radius: 10px;
-  background: var(--pink-300);
+  border-radius: 50%;
+  background: var(--pink-500);
   color: #fff;
   font-weight: 800;
   cursor: pointer;
   font-size: 16px;
+  transition: transform 0.1s, background 0.12s;
 }
 .chat-send-btn:hover { background: var(--pink-400); }
-.chat-send-btn:active { transform: translateY(1px); }
+.chat-send-btn:active { transform: scale(0.92); }
 
 /* ============================================
    게임 시작 카운트다운 (3 → 2 → 1 → 시작!)
