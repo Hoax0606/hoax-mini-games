@@ -256,15 +256,15 @@ export class AppleRenderer {
         // 꼭지/잎 공간 위해 몸통 살짝 아래로
         const cy = y + 2;
 
-        // 몸통 — 진짜 사과 실루엣: 상단 중앙 살짝 파임(꼭지 자리) + 하단 두 봉우리(엉덩이 모양 dip).
+        // 몸통 — 애플 로고식 매끈한 사과: 상단 중앙만 살짝 옴폭(꼭지 자리), 옆·아래는 부드럽게 둥근 형태(안 파임).
         const R = bodyRadius;
         ctx.fillStyle = COLORS.appleFill;
         ctx.beginPath();
-        ctx.moveTo(x, cy - R * 0.5);
-        ctx.bezierCurveTo(x - R * 0.55, cy - R * 1.12, x - R * 1.12, cy - R * 0.35, x - R * 0.98, cy + R * 0.3);
-        ctx.bezierCurveTo(x - R * 0.85, cy + R * 0.92, x - R * 0.34, cy + R * 1.0, x, cy + R * 0.6);   // 왼→바닥 dip
-        ctx.bezierCurveTo(x + R * 0.34, cy + R * 1.0, x + R * 0.85, cy + R * 0.92, x + R * 0.98, cy + R * 0.3);
-        ctx.bezierCurveTo(x + R * 1.12, cy - R * 0.35, x + R * 0.55, cy - R * 1.12, x, cy - R * 0.5);
+        ctx.moveTo(x, cy - R * 0.72);                                                            // 상단 중앙(살짝 들어감)
+        ctx.bezierCurveTo(x - R * 0.34, cy - R * 1.06, x - R * 1.05, cy - R * 0.82, x - R * 1.02, cy - R * 0.02); // 좌 어깨
+        ctx.bezierCurveTo(x - R * 1.0,  cy + R * 0.74, x - R * 0.44, cy + R * 1.08, x, cy + R * 1.06);            // 좌 하단(둥글게)
+        ctx.bezierCurveTo(x + R * 0.44, cy + R * 1.08, x + R * 1.0,  cy + R * 0.74, x + R * 1.02, cy - R * 0.02); // 우 하단
+        ctx.bezierCurveTo(x + R * 1.05, cy - R * 0.82, x + R * 0.34, cy - R * 1.06, x, cy - R * 0.72);            // 우 어깨→상단
         ctx.closePath();
         ctx.fill();
         ctx.strokeStyle = COLORS.appleStroke;
@@ -276,13 +276,13 @@ export class AppleRenderer {
         ctx.lineWidth = 1.5;
         ctx.lineCap = 'round';
         ctx.beginPath();
-        ctx.moveTo(x, cy - R * 0.5);
-        ctx.lineTo(x + 1.4, cy - R * 0.5 - 4);
+        ctx.moveTo(x, cy - R * 0.72);
+        ctx.lineTo(x + 1.4, cy - R * 0.72 - 4);
         ctx.stroke();
 
         // 잎 — 꼭지 오른쪽 위. 물방울 + 잎맥. (몸통에 맞춰 아담하게)
         ctx.save();
-        ctx.translate(x + 1, cy - R * 0.5 - 2.5);
+        ctx.translate(x + 1, cy - R * 0.72 - 2.5);
         ctx.rotate(-Math.PI / 6);
         ctx.fillStyle = COLORS.appleLeaf;
         ctx.beginPath();
