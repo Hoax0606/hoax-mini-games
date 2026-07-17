@@ -243,7 +243,7 @@ export class AppleRenderer {
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
 
-    const bodyRadius = APPLE_RADIUS - 0.8;
+    const bodyRadius = APPLE_RADIUS + 1; // 몸통 키움 (셀 꽉 차게)
 
     for (let r = 0; r < BOARD_ROWS; r++) {
       const row = board[r];
@@ -253,10 +253,10 @@ export class AppleRenderer {
         if (v === null || v === undefined) continue;
         const { x, y } = this.cellCenter(c, r);
 
-        // 몸통을 살짝 아래로 (꼭지/잎이 셀 안에 들어오도록)
-        const cy = y + 1.5;
+        // 꼭지/잎 공간 위해 몸통 살짝 아래로
+        const cy = y + 2;
 
-        // 몸통 — 약간 가로로 납작한 타원(실제 사과 비율 느낌)
+        // 몸통 — 약간 통통한 타원(사과 비율)
         ctx.fillStyle = COLORS.appleFill;
         ctx.beginPath();
         ctx.ellipse(x, cy, bodyRadius, bodyRadius - 0.5, 0, 0, Math.PI * 2);
@@ -265,11 +265,16 @@ export class AppleRenderer {
         ctx.lineWidth = 1;
         ctx.stroke();
 
-        // 상단 중앙 움푹 들어간 느낌 — 몸통 색보다 살짝 어두운 작은 호
-        ctx.fillStyle = COLORS.appleStroke;
-        ctx.globalAlpha = 0.18;
+        // 위쪽 홈(cleft) — 보드 배경색으로 상단 중앙을 살짝 파서 "두 봉우리" 사과 실루엣
+        ctx.fillStyle = COLORS.boardBg;
         ctx.beginPath();
-        ctx.ellipse(x, cy - bodyRadius + 0.8, 2.6, 1.3, 0, 0, Math.PI * 2);
+        ctx.ellipse(x, cy - bodyRadius + 0.6, 3.4, 2.6, 0, 0, Math.PI * 2);
+        ctx.fill();
+        // 홈 안쪽 옅은 그늘 (깊이감)
+        ctx.fillStyle = COLORS.appleStroke;
+        ctx.globalAlpha = 0.14;
+        ctx.beginPath();
+        ctx.ellipse(x, cy - bodyRadius + 2.4, 2.4, 1.1, 0, 0, Math.PI * 2);
         ctx.fill();
         ctx.globalAlpha = 1;
 
@@ -356,39 +361,53 @@ export class AppleRenderer {
 
   private drawLeftPanel(state: RenderState): void {
     const ctx = this.ctx;
+    const cardX = 12;
+    const cardW = 120;
 
-    // 타이머 라벨
-    ctx.fillStyle = COLORS.textMuted;
-    ctx.font = `700 11px ${FONT}`;
+    // 공통 카드 배경 그리기 헬퍼
+    const card = (cy: number, h: number): void => {
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.72)';
+      ctx.strokeStyle = 'rgba(255, 201, 221, 0.9)';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.roundRect(cardX, cy, cardW, h, 14);
+      ctx.fill();
+      ctx.stroke();
+    };
+    const labelX = cardX + 14;
+
+    // ── 남은 시간 카드 ──
+    card(PANEL_Y - 8, 66);
     ctx.textAlign = 'left';
     ctx.textBaseline = 'alphabetic';
-    ctx.fillText('⏱ 남은 시간', LEFT_PANEL_X, PANEL_Y);
-
-    // 타이머 값 — mm:ss
+    ctx.fillStyle = COLORS.textMuted;
+    ctx.font = `700 11px ${FONT}`;
+    ctx.fillText('남은 시간', labelX, PANEL_Y + 12);
     const urgent = state.remainingMs <= 30_000 && state.remainingMs > 0;
     ctx.fillStyle = urgent ? COLORS.timerUrgent : COLORS.textMain;
-    ctx.font = `800 32px ${FONT}`;
-    ctx.fillText(formatMs(state.remainingMs), LEFT_PANEL_X, PANEL_Y + 36);
+    ctx.font = `800 30px ${FONT}`;
+    ctx.fillText(formatMs(state.remainingMs), labelX, PANEL_Y + 46);
 
-    // 내 점수 (관전자는 "관전 중" 대체)
+    // ── 점수 / 관전 카드 ──
+    card(PANEL_Y + 74, 66);
     ctx.fillStyle = COLORS.textMuted;
     ctx.font = `700 11px ${FONT}`;
     if (state.isSpectator) {
-      ctx.fillText('MODE', LEFT_PANEL_X, PANEL_Y + 90);
+      ctx.fillText('모드', labelX, PANEL_Y + 94);
       ctx.fillStyle = COLORS.accent;
       ctx.font = `800 22px ${FONT}`;
-      ctx.fillText('👀 관전 중', LEFT_PANEL_X, PANEL_Y + 120);
+      ctx.fillText('👀 관전', labelX, PANEL_Y + 126);
     } else {
-      ctx.fillText('내 점수', LEFT_PANEL_X, PANEL_Y + 90);
-      ctx.fillStyle = COLORS.textMain;
-      ctx.font = `800 36px ${FONT}`;
-      ctx.fillText(String(state.myScore), LEFT_PANEL_X, PANEL_Y + 130);
+      ctx.fillText('내 점수', labelX, PANEL_Y + 94);
+      ctx.fillStyle = COLORS.accent;
+      ctx.font = `900 32px ${FONT}`;
+      ctx.fillText(String(state.myScore), labelX, PANEL_Y + 128);
 
-      // 힌트
+      // 힌트 (카드 밖, 아래)
       ctx.fillStyle = COLORS.textMuted;
       ctx.font = `500 11px ${FONT}`;
-      ctx.fillText('드래그해서 합이 10인', LEFT_PANEL_X, PANEL_Y + 170);
-      ctx.fillText('사과들을 묶어보세요', LEFT_PANEL_X, PANEL_Y + 186);
+      ctx.fillText('드래그해서 합이 10인', cardX, PANEL_Y + 172);
+      ctx.fillText('사과를 묶어보세요', cardX, PANEL_Y + 188);
     }
   }
 
@@ -432,10 +451,11 @@ export class AppleRenderer {
       ctx.stroke();
 
       ctx.fillStyle = COLORS.textMain;
-      ctx.font = `700 13px ${FONT}`;
+      ctx.font = `700 12px ${FONT}`;
       ctx.textAlign = 'left';
       ctx.textBaseline = 'middle';
-      const label = truncate(row.nickname, 7) + (row.isMe ? ' (나)' : '');
+      // 이름 잘림 완화 — '(나)' 자리 감안해 길이 조정(나=8자, 남=10자)
+      const label = truncate(row.nickname, row.isMe ? 8 : 10) + (row.isMe ? ' (나)' : '');
       ctx.fillText(label, RIGHT_PANEL_X + 10, y + rowH / 2);
     }
 
