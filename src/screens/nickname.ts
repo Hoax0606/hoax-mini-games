@@ -24,6 +24,7 @@ export function createNicknameScreen(options?: {
       const el = document.createElement('div');
       el.className = 'screen';
       el.innerHTML = `
+        ${backToMenu ? `<button class="back-btn" id="back-btn" title="뒤로">←</button>` : ''}
         <div class="card pop-in" style="min-width: 380px;">
           <div class="card-title">${icon('pen', { size: 24, hue: '#ff9838' })} 닉네임을 알려주세요</div>
           <div class="card-subtitle">친구와 함께할 때 보일 이름이에요</div>
@@ -42,18 +43,12 @@ export function createNicknameScreen(options?: {
           <button class="btn btn-primary btn-block btn-lg" id="confirm-btn">
             시작하기
           </button>
-
-          ${backToMenu ? `
-            <button class="btn btn-ghost btn-block" id="cancel-btn" style="margin-top: 8px;">
-              취소
-            </button>
-          ` : ''}
         </div>
       `;
 
       const input = el.querySelector<HTMLInputElement>('#nickname-input')!;
       const confirmBtn = el.querySelector<HTMLButtonElement>('#confirm-btn')!;
-      const cancelBtn = el.querySelector<HTMLButtonElement>('#cancel-btn');
+      const backBtn = el.querySelector<HTMLButtonElement>('#back-btn');
 
       // 기존 닉네임이 있으면 채워두기
       input.value = storage.getNickname();
@@ -86,7 +81,7 @@ export function createNicknameScreen(options?: {
         input.style.borderColor = '';
       });
 
-      cancelBtn?.addEventListener('click', () => router.back());
+      backBtn?.addEventListener('click', () => router.back());
 
       return el;
     },

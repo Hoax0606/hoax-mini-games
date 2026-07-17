@@ -29,7 +29,7 @@ export function createPublicRoomsScreen(): Screen {
         <button class="back-btn" id="back-btn" title="뒤로">←</button>
 
         <div style="text-align: center; width: 100%; max-width: 880px;">
-          <div class="screen-title">${icon('search', { size: 26, hue: '#5b9dff' })} 방 찾기</div>
+          <div class="screen-title">${icon('search', { size: 24, hue: '#5b9dff' })} 방 찾기</div>
           <div class="screen-subtitle">지금 열려있는 방에 바로 들어가요</div>
 
           <div class="public-rooms-list" id="public-rooms-list">

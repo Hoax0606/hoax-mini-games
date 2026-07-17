@@ -30,8 +30,8 @@ export function createStatsScreen(): Screen {
         <button class="back-btn" id="back-btn" title="뒤로">←</button>
 
         <div style="width: 100%; max-width: 720px;">
-          <div class="screen-title" style="text-align: center;">${icon('chart', { size: 26, hue: '#2eb872' })} 전체 통계</div>
-          <div class="screen-subtitle" style="text-align: center;">이 컴퓨터에 기록된 누적 전적이에요</div>
+          <div class="screen-title">${icon('chart', { size: 24, hue: '#2eb872' })} 전체 통계</div>
+          <div class="screen-subtitle">이 컴퓨터에 기록된 누적 전적이에요</div>
 
           <div class="stats-grid">
             ${cardsHTML}

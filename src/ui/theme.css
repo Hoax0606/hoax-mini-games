@@ -150,20 +150,7 @@ input {
   max-width: 560px;
 }
 
-.card-title {
-  font-size: 28px;
-  font-weight: 700;
-  color: var(--text-main);
-  text-align: center;
-  margin-bottom: 8px;
-}
-
-.card-subtitle {
-  font-size: 14px;
-  color: var(--text-muted);
-  text-align: center;
-  margin-bottom: 32px;
-}
+/* .card-title / .card-subtitle 은 아래 .screen-* 통합 규칙에서 정의됨 (페이지·카드 제목 통일) */
 
 /* 로고 — 텍스트 그라데이션 (메인 메뉴) */
 .logo {
@@ -452,17 +439,27 @@ input {
 }
 
 /* 화면 제목 (카드 밖에서 쓰는 큰 타이틀) */
-.screen-title {
-  font-size: 32px;
+/* 페이지 제목 / 카드 제목 동일 규격으로 통일 (아이콘+텍스트 가운데 정렬) */
+.screen-title,
+.card-title {
+  font-size: 28px;
   font-weight: 700;
   color: var(--text-main);
-  margin-bottom: 6px;
+  margin-bottom: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
 }
+.screen-title svg,
+.card-title svg { flex-shrink: 0; }
 
-.screen-subtitle {
+.screen-subtitle,
+.card-subtitle {
   font-size: 14px;
   color: var(--text-muted);
-  margin-bottom: 36px;
+  text-align: center;
+  margin-bottom: 32px;
 }
 
 /* 게임 카드 그리드 */
