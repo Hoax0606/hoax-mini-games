@@ -37,10 +37,7 @@ const BOARD_Y = Math.round((CANVAS_H - BOARD_PX_H) / 2);  // 50
 const APPLE_RADIUS = CELL / 2 - 3; // 12
 
 const LEFT_PANEL_X = 18;
-const RIGHT_PANEL_X = 665;
 const PANEL_Y = 40;
-/** 우측 랭킹 row 너비 — 좁아진 우측 패널에 맞춤 */
-const RANK_ROW_W = 132;
 
 const COLORS = {
   bg: '#fff9fd',
@@ -177,9 +174,8 @@ export class AppleRenderer {
       this.drawSpectatorOverlay();
     }
 
-    // 좌우 패널
+    // 좌측 패널만 (남은시간/점수). 우측 플레이어 목록은 제거(불필요).
     this.drawLeftPanel(state);
-    this.drawRightPanel(state);
 
     // 게임 종료 오버레이
     if (state.gameEnded) {
@@ -394,79 +390,7 @@ export class AppleRenderer {
       ctx.fillStyle = COLORS.accent;
       ctx.font = `900 32px ${FONT}`;
       ctx.fillText(String(state.myScore), labelX, topY + 134);
-
-      // 힌트 (카드 밖, 아래)
-      ctx.fillStyle = COLORS.textMuted;
-      ctx.font = `500 11px ${FONT}`;
-      ctx.fillText('드래그해서 합이 10인', cardX, topY + 180);
-      ctx.fillText('사과를 묶어보세요', cardX, topY + 196);
     }
-  }
-
-  // ============================================
-  // 우측 패널 — 플레이어 이름만 (점수는 게임 중 비노출)
-  // ============================================
-
-  private drawRightPanel(state: RenderState): void {
-    const ctx = this.ctx;
-
-    ctx.fillStyle = COLORS.textMuted;
-    ctx.font = `700 11px ${FONT}`;
-    ctx.textAlign = 'left';
-    ctx.textBaseline = 'alphabetic';
-    ctx.fillText('👥 플레이어', RIGHT_PANEL_X, PANEL_Y);
-
-    // 이름 리스트 (나 + 상대). 관전자는 자기 자신은 목록에서 제외.
-    const names: Array<{ nickname: string; isMe: boolean }> = [];
-    if (!state.isSpectator) {
-      names.push({ nickname: state.myNickname, isMe: true });
-    }
-    for (const p of state.otherPlayers) {
-      names.push({ nickname: p.nickname, isMe: false });
-    }
-
-    const maxShow = 6;
-    const top = names.slice(0, maxShow);
-    const rowH = 32;
-    const rowGap = 4;
-
-    for (let i = 0; i < top.length; i++) {
-      const row = top[i]!;
-      const y = PANEL_Y + 16 + i * (rowH + rowGap);
-
-      ctx.fillStyle = row.isMe ? '#ffe4ee' : '#faf5ff';
-      ctx.strokeStyle = row.isMe ? '#ff6b9e' : '#d9c7ff';
-      ctx.lineWidth = 1.5;
-      ctx.beginPath();
-      ctx.roundRect(RIGHT_PANEL_X, y, RANK_ROW_W, rowH, 10);
-      ctx.fill();
-      ctx.stroke();
-
-      ctx.fillStyle = COLORS.textMain;
-      ctx.font = `700 12px ${FONT}`;
-      ctx.textAlign = 'left';
-      ctx.textBaseline = 'middle';
-      // 이름 잘림 완화 — 넓힌 행 + 길이 확대 ('나' 자리 감안: 나=11자, 남=13자). 닉네임 최대 12자라 대부분 다 보임.
-      const label = truncate(row.nickname, row.isMe ? 11 : 13) + (row.isMe ? ' (나)' : '');
-      ctx.fillText(label, RIGHT_PANEL_X + 9, y + rowH / 2);
-    }
-
-    if (names.length > maxShow) {
-      ctx.fillStyle = COLORS.textMuted;
-      ctx.font = `500 11px ${FONT}`;
-      ctx.textAlign = 'left';
-      ctx.textBaseline = 'alphabetic';
-      ctx.fillText(`외 ${names.length - maxShow}명`, RIGHT_PANEL_X, PANEL_Y + 16 + maxShow * (rowH + rowGap) + 14);
-    }
-
-    // 안내 문구 — 점수가 끝에 공개된다는 걸 알려줌
-    ctx.fillStyle = COLORS.textMuted;
-    ctx.font = `500 10px ${FONT}`;
-    ctx.textAlign = 'left';
-    ctx.textBaseline = 'alphabetic';
-    const noticeY = PANEL_Y + 16 + Math.min(names.length, maxShow) * (rowH + rowGap) + (names.length > maxShow ? 26 : 12);
-    ctx.fillText('점수는 게임이 끝나면', RIGHT_PANEL_X, noticeY);
-    ctx.fillText('공개돼요', RIGHT_PANEL_X, noticeY + 14);
   }
 
   // ============================================
@@ -495,10 +419,6 @@ function formatMs(ms: number): string {
   const m = Math.floor(totalSec / 60);
   const s = totalSec % 60;
   return `${m}:${s.toString().padStart(2, '0')}`;
-}
-
-function truncate(s: string, max: number): string {
-  return s.length > max ? s.slice(0, max) + '…' : s;
 }
 
 function clampInt(v: number, lo: number, hi: number): number {
