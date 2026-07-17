@@ -47,8 +47,8 @@ const COLORS = {
   boardBg: '#fff5ee',
   boardBorder: '#ffc9dd',
   gridLine: 'rgba(255, 201, 221, 0.4)',
-  appleFill: '#ff6b8a',          // 살짝 더 진한 핑크 — 숫자 대비 ↑
-  appleStroke: '#a8334e',        // stroke 도 톤 맞춰 진하게
+  appleFill: '#ff7d95',          // 밝고 친근한 사과 핑크 (너무 진하면 폭탄처럼 보임)
+  appleStroke: '#e0607d',        // 테두리도 톤 맞춰 부드럽게
   appleHighlight: 'rgba(255, 255, 255, 0.45)',
   appleNumber: '#fff',
   appleNumberOutline: 'rgba(120, 28, 50, 0.55)', // 숫자 외곽선 — 부드럽게(과한 와인색 대신)
@@ -265,47 +265,32 @@ export class AppleRenderer {
         ctx.lineWidth = 1;
         ctx.stroke();
 
-        // 위쪽 홈(cleft) — 보드 배경색으로 상단 중앙을 살짝 파서 "두 봉우리" 사과 실루엣
-        ctx.fillStyle = COLORS.boardBg;
+        // 꼭지 — 짧고 살짝 기운 갈색(길게 세우면 폭탄 도화선처럼 보여서 짧게).
+        ctx.strokeStyle = COLORS.appleStem;
+        ctx.lineWidth = 1.8;
+        ctx.lineCap = 'round';
         ctx.beginPath();
-        ctx.ellipse(x, cy - bodyRadius + 0.6, 3.4, 2.6, 0, 0, Math.PI * 2);
-        ctx.fill();
-        // 홈 안쪽 옅은 그늘 (깊이감)
-        ctx.fillStyle = COLORS.appleStroke;
-        ctx.globalAlpha = 0.14;
-        ctx.beginPath();
-        ctx.ellipse(x, cy - bodyRadius + 2.4, 2.4, 1.1, 0, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.globalAlpha = 1;
+        ctx.moveTo(x - 0.5, cy - bodyRadius + 1);
+        ctx.lineTo(x + 2, cy - bodyRadius - 2.5);
+        ctx.stroke();
 
-        // 꼭지(줄기) — 상단 중앙 짧은 갈색 막대
-        ctx.fillStyle = COLORS.appleStem;
-        ctx.beginPath();
-        ctx.moveTo(x - 0.9, cy - bodyRadius - 2.8);
-        ctx.lineTo(x + 0.9, cy - bodyRadius - 2.8);
-        ctx.lineTo(x + 0.6, cy - bodyRadius + 0.6);
-        ctx.lineTo(x - 0.6, cy - bodyRadius + 0.6);
-        ctx.closePath();
-        ctx.fill();
-
-        // 잎 — 꼭지 옆 물방울 모양(teardrop) + 잎맥. 대각으로 살짝 기울임.
+        // 잎 — 크게, 꼭지 오른쪽 위. 물방울 + 잎맥. (잎을 앞세워 '사과'로 명확히)
         ctx.save();
-        ctx.translate(x + 2.5, cy - bodyRadius - 1.5);
-        ctx.rotate(-Math.PI / 4);
+        ctx.translate(x + 1.5, cy - bodyRadius - 1);
+        ctx.rotate(-Math.PI / 6);
         ctx.fillStyle = COLORS.appleLeaf;
         ctx.beginPath();
         ctx.moveTo(0, 0);
-        ctx.quadraticCurveTo(4.5, -3.4, 8.5, 0);
-        ctx.quadraticCurveTo(4.5, 3.4, 0, 0);
+        ctx.quadraticCurveTo(6, -4.5, 11, 0);
+        ctx.quadraticCurveTo(6, 4.5, 0, 0);
         ctx.fill();
         ctx.strokeStyle = COLORS.appleLeafStroke;
-        ctx.lineWidth = 0.7;
+        ctx.lineWidth = 0.8;
         ctx.stroke();
-        // 잎맥
         ctx.beginPath();
-        ctx.moveTo(1, 0);
-        ctx.lineTo(7.5, 0);
-        ctx.lineWidth = 0.5;
+        ctx.moveTo(1.5, 0);
+        ctx.lineTo(9.5, 0);
+        ctx.lineWidth = 0.6;
         ctx.stroke();
         ctx.restore();
 
@@ -363,6 +348,7 @@ export class AppleRenderer {
     const ctx = this.ctx;
     const cardX = 12;
     const cardW = 120;
+    const topY = BOARD_Y; // 보드(사과 박스) 상단과 수평 정렬
 
     // 공통 카드 배경 그리기 헬퍼
     const card = (cy: number, h: number): void => {
@@ -376,38 +362,38 @@ export class AppleRenderer {
     };
     const labelX = cardX + 14;
 
-    // ── 남은 시간 카드 ──
-    card(PANEL_Y - 8, 66);
+    // ── 남은 시간 카드 (보드 상단과 수평) ──
+    card(topY, 66);
     ctx.textAlign = 'left';
     ctx.textBaseline = 'alphabetic';
     ctx.fillStyle = COLORS.textMuted;
     ctx.font = `700 11px ${FONT}`;
-    ctx.fillText('남은 시간', labelX, PANEL_Y + 12);
+    ctx.fillText('남은 시간', labelX, topY + 22);
     const urgent = state.remainingMs <= 30_000 && state.remainingMs > 0;
     ctx.fillStyle = urgent ? COLORS.timerUrgent : COLORS.textMain;
     ctx.font = `800 30px ${FONT}`;
-    ctx.fillText(formatMs(state.remainingMs), labelX, PANEL_Y + 46);
+    ctx.fillText(formatMs(state.remainingMs), labelX, topY + 54);
 
     // ── 점수 / 관전 카드 ──
-    card(PANEL_Y + 74, 66);
+    card(topY + 78, 66);
     ctx.fillStyle = COLORS.textMuted;
     ctx.font = `700 11px ${FONT}`;
     if (state.isSpectator) {
-      ctx.fillText('모드', labelX, PANEL_Y + 94);
+      ctx.fillText('모드', labelX, topY + 100);
       ctx.fillStyle = COLORS.accent;
       ctx.font = `800 22px ${FONT}`;
-      ctx.fillText('👀 관전', labelX, PANEL_Y + 126);
+      ctx.fillText('👀 관전', labelX, topY + 132);
     } else {
-      ctx.fillText('내 점수', labelX, PANEL_Y + 94);
+      ctx.fillText('내 점수', labelX, topY + 100);
       ctx.fillStyle = COLORS.accent;
       ctx.font = `900 32px ${FONT}`;
-      ctx.fillText(String(state.myScore), labelX, PANEL_Y + 128);
+      ctx.fillText(String(state.myScore), labelX, topY + 134);
 
       // 힌트 (카드 밖, 아래)
       ctx.fillStyle = COLORS.textMuted;
       ctx.font = `500 11px ${FONT}`;
-      ctx.fillText('드래그해서 합이 10인', cardX, PANEL_Y + 172);
-      ctx.fillText('사과를 묶어보세요', cardX, PANEL_Y + 188);
+      ctx.fillText('드래그해서 합이 10인', cardX, topY + 180);
+      ctx.fillText('사과를 묶어보세요', cardX, topY + 196);
     }
   }
 
