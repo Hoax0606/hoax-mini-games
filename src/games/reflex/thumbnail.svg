@@ -9,6 +9,8 @@
       <stop offset="0" stop-color="#a8f5c8"/>
       <stop offset="1" stop-color="#5dc9a7"/>
     </radialGradient>
+    <!-- 소프트 입체: 중앙 일러스트 드롭섀도 -->
+    <filter id="lift" x="-35%" y="-35%" width="170%" height="170%"><feDropShadow dx="0" dy="5" stdDeviation="5" flood-color="#8a5a78" flood-opacity="0.26"/></filter>
   </defs>
 
   <rect width="320" height="200" rx="22" fill="url(#bg)"/>
@@ -25,6 +27,8 @@
   <path d="M 270 140 L 272 145 L 277 145 L 273 148 L 275 153 L 270 150 L 265 153 L 267 148 L 263 145 L 268 145 Z"
         fill="#b8f5e0" opacity="0.8"/>
 
+  <!-- 소프트 입체: 중앙 일러스트 드롭섀도 -->
+  <g filter="url(#lift)">
   <!-- 중앙 큰 초록 원 (GO 상태) -->
   <g transform="translate(160 100)">
     <!-- 펄스 링 -->
@@ -53,5 +57,6 @@
           fill="#fff" stroke="#9c7aeb" stroke-width="1.4"/>
     <text x="0" y="5" text-anchor="middle" font-family="Pretendard, system-ui, sans-serif"
           font-size="12" font-weight="900" fill="#9c7aeb">182ms</text>
+  </g>
   </g>
 </svg>

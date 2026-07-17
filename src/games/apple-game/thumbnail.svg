@@ -13,6 +13,8 @@
       <stop offset="0" stop-color="#ffb0b8"/>
       <stop offset="1" stop-color="#ec7080"/>
     </radialGradient>
+    <!-- 소프트 입체: 중앙 일러스트 드롭섀도 -->
+    <filter id="lift" x="-35%" y="-35%" width="170%" height="170%"><feDropShadow dx="0" dy="5" stdDeviation="5" flood-color="#8a5a78" flood-opacity="0.26"/></filter>
   </defs>
 
   <rect width="320" height="200" rx="22" fill="url(#bgGrad)"/>
@@ -29,6 +31,8 @@
   <path d="M 268 128 L 270 133 L 275 133 L 271 136.2 L 272.5 141 L 268 138 L 263.5 141 L 265 136.2 L 261 133 L 266 133 Z"
         fill="#c5e8d8" opacity="0.85"/>
 
+  <!-- 소프트 입체: 중앙 일러스트 드롭섀도 -->
+  <g filter="url(#lift)">
   <!-- 선택 박스 암시 (드래그로 묶음을 보여주는 점선 사각형) -->
   <rect x="92" y="70" width="136" height="72" rx="6"
         fill="rgba(255,106,158,0.08)" stroke="#ff6b9e" stroke-width="1.8"
@@ -80,5 +84,6 @@
           fill="#ff6b9e" stroke="#a82a5c" stroke-width="1.2"/>
     <text x="0" y="4" text-anchor="middle" font-family="Pretendard, system-ui, sans-serif"
           font-size="13" font-weight="900" fill="#fff">=10</text>
+  </g>
   </g>
 </svg>

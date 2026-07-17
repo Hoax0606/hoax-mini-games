@@ -4,6 +4,8 @@
       <stop offset="0%" stop-color="#ffe4ee"/>
       <stop offset="100%" stop-color="#e0fff4"/>
     </linearGradient>
+    <!-- 소프트 입체: 중앙 일러스트 드롭섀도 -->
+    <filter id="lift" x="-35%" y="-35%" width="170%" height="170%"><feDropShadow dx="0" dy="5" stdDeviation="5" flood-color="#8a5a78" flood-opacity="0.26"/></filter>
   </defs>
 
   <!-- 배경 -->
@@ -23,6 +25,8 @@
 
   <!-- 컷 릴레이: 세 장면이 이어지는 만화 컷 (스토리가 자라남) -->
 
+  <!-- 소프트 입체: 중앙 일러스트 드롭섀도 -->
+  <g filter="url(#lift)">
   <!-- 컷 1 — 씨앗에서 새싹 -->
   <g transform="translate(60, 100) rotate(-3)">
     <rect x="-36" y="-42" width="72" height="84" rx="9" fill="#ffffff" stroke="#d9c7ff" stroke-width="2.5"/>
@@ -74,5 +78,6 @@
     <path d="M -5 12 l 5 13 5 -13 z" fill="#fdf6ec" stroke="#c49a1f" stroke-width="1.5"/>
     <path d="M -1.8 20 l 1.8 5 1.8 -5 z" fill="#1c1820"/>
     <rect x="-5" y="-39" width="10" height="7" rx="2" fill="#ff82ac"/>
+  </g>
   </g>
 </svg>

@@ -9,6 +9,8 @@
       <stop offset="0" stop-color="#d1ecff"/>
       <stop offset="1" stop-color="#b8dfff"/>
     </linearGradient>
+    <!-- 소프트 입체: 중앙 일러스트 드롭섀도 -->
+    <filter id="lift" x="-35%" y="-35%" width="170%" height="170%"><feDropShadow dx="0" dy="5" stdDeviation="5" flood-color="#8a5a78" flood-opacity="0.26"/></filter>
   </defs>
   <rect width="320" height="200" rx="22" fill="url(#bg)"/>
 
@@ -26,6 +28,8 @@
   <path d="M 270,150 L 272,155 L 277,155 L 273,158 L 275,163 L 270,160 L 265,163 L 267,158 L 263,155 L 268,155 Z"
         fill="#b8f5e0" opacity="0.7"/>
 
+  <!-- 소프트 입체: 중앙 일러스트 드롭섀도 -->
+  <g filter="url(#lift)">
   <!-- 에어하키 테이블 -->
   <rect x="60" y="55" width="200" height="90" rx="14"
         fill="url(#tableGrad)" stroke="#86c9ff" stroke-width="2"/>
@@ -70,4 +74,5 @@
 
   <!-- 퍽 움직임 라인 (속도감) -->
   <path d="M 140,100 Q 150,100 156,100" stroke="#ffa8c7" stroke-width="2" stroke-linecap="round" opacity="0.6" stroke-dasharray="2 3"/>
+  </g>
 </svg>

@@ -8,6 +8,8 @@
       <stop offset="0%" stop-color="#d8b89a"/>
       <stop offset="100%" stop-color="#b8946e"/>
     </linearGradient>
+    <!-- 소프트 입체: 중앙 일러스트 드롭섀도 -->
+    <filter id="lift" x="-35%" y="-35%" width="170%" height="170%"><feDropShadow dx="0" dy="5" stdDeviation="5" flood-color="#8a5a78" flood-opacity="0.26"/></filter>
   </defs>
 
   <!-- 하늘 배경 -->
@@ -22,6 +24,8 @@
   <path d="M 250 42 l 1.5 3.8 4.1 0.35 -3.2 2.6 0.95 4 -3.35 -2.25 -3.35 2.25 0.95 -4 -3.2 -2.6 4.1 -0.35 z"
         fill="#ff82ac" opacity="0.7"/>
 
+  <!-- 소프트 입체: 중앙 일러스트 드롭섀도 -->
+  <g filter="url(#lift)">
   <!-- 지형 (언덕) — clip 으로 라운드 유지 -->
   <clipPath id="frClip"><rect x="0" y="0" width="320" height="200" rx="22"/></clipPath>
   <g clip-path="url(#frClip)">
@@ -54,5 +58,6 @@
   <g transform="translate(160, 26)" opacity="0.7">
     <text x="0" y="0" text-anchor="middle" dominant-baseline="middle"
           font-family="sans-serif" font-size="13" fill="#5b9cff">💨 ▶</text>
+  </g>
   </g>
 </svg>

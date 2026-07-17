@@ -5,6 +5,8 @@
       <stop offset="0" stop-color="#ffe4ee"/>
       <stop offset="1" stop-color="#e0fff4"/>
     </linearGradient>
+    <!-- 소프트 입체: 중앙 일러스트 드롭섀도 -->
+    <filter id="lift" x="-35%" y="-35%" width="170%" height="170%"><feDropShadow dx="0" dy="5" stdDeviation="5" flood-color="#8a5a78" flood-opacity="0.26"/></filter>
   </defs>
   <rect width="320" height="200" rx="22" fill="url(#bg)"/>
 
@@ -22,6 +24,8 @@
   <path d="M 270,150 L 272,154 L 277,154 L 273,157 L 275,162 L 270,159 L 265,162 L 267,157 L 263,154 L 268,154 Z"
         fill="#b8f5e0" opacity="0.7"/>
 
+  <!-- 소프트 입체: 중앙 일러스트 드롭섀도 -->
+  <g filter="url(#lift)">
   <!-- 중앙 미니 필드 (테트리스 보드 느낌) -->
   <g transform="translate(108, 28)">
     <!-- 필드 외곽 -->
@@ -97,5 +101,6 @@
     <rect x="27" y="0"  width="13" height="13" rx="2" fill="#86e8c4" stroke="#5dc9a7" stroke-width="1.2"/>
     <rect x="0"  y="13" width="13" height="13" rx="2" fill="#86e8c4" stroke="#5dc9a7" stroke-width="1.2"/>
     <rect x="14" y="13" width="13" height="13" rx="2" fill="#86e8c4" stroke="#5dc9a7" stroke-width="1.2"/>
+  </g>
   </g>
 </svg>

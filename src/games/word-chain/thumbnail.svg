@@ -4,6 +4,8 @@
       <stop offset="0%" stop-color="#ffe4ee"/>
       <stop offset="100%" stop-color="#e0fff4"/>
     </linearGradient>
+    <!-- 소프트 입체: 중앙 일러스트 드롭섀도 -->
+    <filter id="lift" x="-35%" y="-35%" width="170%" height="170%"><feDropShadow dx="0" dy="5" stdDeviation="5" flood-color="#8a5a78" flood-opacity="0.26"/></filter>
   </defs>
 
   <!-- 배경 -->
@@ -23,6 +25,8 @@
 
   <!-- 5장 카드 zig-zag 체인: 사과(핑크) → 과학(민트) → 학교(라벤더) → 교실(노랑) → 실내(하늘) -->
 
+  <!-- 소프트 입체: 중앙 일러스트 드롭섀도 -->
+  <g filter="url(#lift)">
   <!-- 카드 1: 사과 (핑크) -->
   <g transform="translate(40, 68) rotate(-8)">
     <rect x="-26" y="-18" width="52" height="36" rx="8" fill="#fff" stroke="#ff82ac" stroke-width="1.8"/>
@@ -77,5 +81,6 @@
     <text x="0" y="1" text-anchor="middle" dominant-baseline="middle"
           font-family="'Pretendard', 'Apple SD Gothic Neo', sans-serif"
           font-size="12" font-weight="800" fill="#4a3a4a">내일</text>
+  </g>
   </g>
 </svg>

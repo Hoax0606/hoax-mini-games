@@ -4,6 +4,8 @@
       <stop offset="0" stop-color="#ffe4ee"/>
       <stop offset="1" stop-color="#e0fff4"/>
     </linearGradient>
+    <!-- 소프트 입체: 중앙 일러스트 드롭섀도 -->
+    <filter id="lift" x="-35%" y="-35%" width="170%" height="170%"><feDropShadow dx="0" dy="5" stdDeviation="5" flood-color="#8a5a78" flood-opacity="0.26"/></filter>
   </defs>
   <rect width="320" height="200" rx="22" fill="url(#ocBg)"/>
 
@@ -15,6 +17,8 @@
   <path d="M 54 60 L 56 66 L 62 66 L 57 70 L 59 76 L 54 72 L 49 76 L 51 70 L 46 66 L 52 66 Z" fill="#ffd0dc" opacity="0.85"/>
   <path d="M 270 130 L 272 135 L 277 135 L 273 138 L 274 143 L 270 140 L 266 143 L 267 138 L 263 135 L 268 135 Z" fill="#c5e8d8" opacity="0.85"/>
 
+  <!-- 소프트 입체: 중앙 일러스트 드롭섀도 -->
+  <g filter="url(#lift)">
   <!-- 부채꼴 카드 5장 -->
   <g transform="translate(160 120)">
     <g transform="rotate(-28) translate(0 -6)">
@@ -44,5 +48,6 @@
       <rect x="-21" y="-2" width="20" height="33" rx="3" fill="#57c777"/>
       <rect x="1" y="-2" width="20" height="33" rx="3" fill="#f2c94c"/>
     </g>
+  </g>
   </g>
 </svg>

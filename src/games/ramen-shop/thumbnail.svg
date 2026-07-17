@@ -9,6 +9,8 @@
       <stop offset="0" stop-color="#ffdf9e"/>
       <stop offset="1" stop-color="#e8b96a"/>
     </radialGradient>
+    <!-- 소프트 입체: 중앙 일러스트 드롭섀도 -->
+    <filter id="lift" x="-35%" y="-35%" width="170%" height="170%"><feDropShadow dx="0" dy="5" stdDeviation="5" flood-color="#8a5a78" flood-opacity="0.26"/></filter>
   </defs>
 
   <rect width="320" height="200" rx="22" fill="url(#rsBg)"/>
@@ -25,6 +27,8 @@
   <path d="M 270 126 L 272 131 L 277 131 L 273 134.2 L 274.5 139 L 270 136 L 265.5 139 L 267 134.2 L 263 131 L 268 131 Z"
         fill="#c5e8d8" opacity="0.85"/>
 
+  <!-- 소프트 입체: 중앙 일러스트 드롭섀도 -->
+  <g filter="url(#lift)">
   <!-- 김 (모락모락) -->
   <g stroke="#ffffff" stroke-width="4" fill="none" opacity="0.75" stroke-linecap="round">
     <path d="M 140 66 q -8 -10 0 -20 q 8 -10 0 -20"/>
@@ -73,5 +77,6 @@
           fill="#2e9e6b" stroke="#1f6a4a" stroke-width="1.4"/>
     <text x="0" y="5" text-anchor="middle" font-family="Pretendard, system-ui, sans-serif"
           font-size="13" font-weight="900" fill="#fff">💰＋</text>
+  </g>
   </g>
 </svg>

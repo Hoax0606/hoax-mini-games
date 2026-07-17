@@ -8,6 +8,8 @@
       <stop offset="0" stop-color="#5c5468"/>
       <stop offset="1" stop-color="#2e2838"/>
     </radialGradient>
+    <!-- 소프트 입체: 중앙 일러스트 드롭섀도 -->
+    <filter id="lift" x="-35%" y="-35%" width="170%" height="170%"><feDropShadow dx="0" dy="5" stdDeviation="5" flood-color="#8a5a78" flood-opacity="0.26"/></filter>
   </defs>
 
   <rect width="320" height="200" rx="22" fill="url(#bwBg)"/>
@@ -24,6 +26,8 @@
   <path d="M 272 132 L 274 137 L 279 137 L 275 140.2 L 276.5 145 L 272 142 L 267.5 145 L 269 140.2 L 265 137 L 270 137 Z"
         fill="#c5e8d8" opacity="0.85"/>
 
+  <!-- 소프트 입체: 중앙 일러스트 드롭섀도 -->
+  <g filter="url(#lift)">
   <!-- 단어 말풍선들 (돌아가는 끝말잇기 암시) -->
   <g font-family="Pretendard, system-ui, sans-serif" font-weight="800">
     <g transform="translate(64 96)">
@@ -54,5 +58,6 @@
     <rect x="-5" y="-40" width="10" height="10" rx="2" fill="#2e2838"/>
     <!-- 하이라이트 -->
     <ellipse cx="-11" cy="-11" rx="7" ry="9" fill="rgba(255,255,255,0.28)"/>
+  </g>
   </g>
 </svg>

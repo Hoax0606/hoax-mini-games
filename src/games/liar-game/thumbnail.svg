@@ -4,6 +4,8 @@
       <stop offset="0" stop-color="#ffe4ee"/>
       <stop offset="1" stop-color="#e0fff4"/>
     </linearGradient>
+    <!-- 소프트 입체: 중앙 일러스트 드롭섀도 -->
+    <filter id="lift" x="-35%" y="-35%" width="170%" height="170%"><feDropShadow dx="0" dy="5" stdDeviation="5" flood-color="#8a5a78" flood-opacity="0.26"/></filter>
   </defs>
   <rect x="0" y="0" width="320" height="200" rx="22" fill="url(#lgBg)"/>
 
@@ -17,6 +19,8 @@
   <path d="M250 54 l3 7 7 1 -5 5 1 7 -6 -3 -6 3 1 -7 -5 -5 7 -1 z" fill="#ffd454" opacity="0.85"/>
   <path d="M64 120 l2.4 5.6 5.6 0.8 -4 4 1 5.6 -5 -2.4 -5 2.4 1 -5.6 -4 -4 5.6 -0.8 z" fill="#b89aff" opacity="0.8"/>
 
+  <!-- 소프트 입체: 중앙 일러스트 드롭섀도 -->
+  <g filter="url(#lift)">
   <!-- 시민 토큰 2개 (민트) + 라이어 토큰 1개(핑크, 가면) -->
   <!-- 시민 -->
   <circle cx="118" cy="112" r="26" fill="#86e8c4" stroke="#2e8a70" stroke-width="3"/>
@@ -37,5 +41,6 @@
     <rect x="222" y="58" width="52" height="42" rx="14" fill="#ffffff" stroke="#ffa8c7" stroke-width="3"/>
     <path d="M236 98 l-6 12 16 -8 z" fill="#ffffff" stroke="#ffa8c7" stroke-width="3"/>
     <text x="248" y="88" text-anchor="middle" font-family="system-ui, sans-serif" font-size="28" font-weight="800" fill="#ff5a92">?</text>
+  </g>
   </g>
 </svg>
