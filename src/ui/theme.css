@@ -1093,6 +1093,31 @@ input {
   text-overflow: ellipsis;
 }
 
+/* 에어하키 스코어보드 — 하키 테이블과 메뉴바 사이(캔버스 위), 프로스티드 알약. 호스트 민트/게스트 노랑. */
+.ah-scoreboard {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 18px;
+  border-radius: var(--radius-full);
+  background: rgba(255, 255, 255, 0.6);
+  backdrop-filter: blur(14px) saturate(160%);
+  -webkit-backdrop-filter: blur(14px) saturate(160%);
+  border: 1.5px solid rgba(255, 255, 255, 0.75);
+  box-shadow: var(--shadow-sm);
+  font-family: var(--font-mono);
+  font-weight: 900;
+  font-variant-numeric: tabular-nums;
+}
+.ah-scoreboard .ah-num { font-size: 26px; line-height: 1; }
+.ah-scoreboard .ah-num-host { color: #2e8a70; }
+.ah-scoreboard .ah-num-guest { color: #c49a1f; }
+.ah-scoreboard .ah-sep { font-size: 18px; color: rgba(74, 58, 74, 0.3); }
+.ah-scoreboard .ah-dot { width: 9px; height: 9px; border-radius: 50%; }
+.ah-scoreboard .ah-dot-host { background: #6ed9b3; }
+.ah-scoreboard .ah-dot-guest { background: #ffd454; }
+
 /* 헤더 스코어보드 — 경기장 밖(툴바)에 프로스티드 알약. 게임명 아래 컴팩트하게. */
 .game-score {
   display: inline-flex;

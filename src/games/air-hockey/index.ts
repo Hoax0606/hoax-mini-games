@@ -60,6 +60,8 @@ class AirHockeyGame implements GameModule {
   private lastInput: 'mouse' | 'keyboard' = 'mouse';
 
   private rafId: number | null = null;
+  /** 게스트: 마지막 host state 수신 시각 — 스냅샷 사이 퍽/말렛 외삽(부드럽게)용 */
+  private lastStateAt = 0;
   /** 고정 스텝 물리 누적기 — 프레임레이트와 무관하게 60Hz 시뮬 유지 */
   private physAccum = 0;
   private lastPhysTime = 0;
@@ -67,6 +69,9 @@ class AirHockeyGame implements GameModule {
   private gameEnded = false;
   /** 일시정지 — gameScreen 의 setPaused 호출로 토글. true 면 물리/입력 송신 스킵, 렌더만 */
   private paused = false;
+  /** 스코어보드 DOM (하키 테이블과 메뉴바 사이 = 캔버스 위) + 마지막 표시 점수 */
+  private scoreEl: HTMLDivElement | null = null;
+  private shownScore = '';
 
   // ============================================
   // GameModule interface
@@ -90,6 +95,19 @@ class AirHockeyGame implements GameModule {
     this.opponentTarget = { ...oppInitial };
 
     this.renderer = new Renderer({ canvas: this.canvas });
+
+    // 스코어보드 — 하키 테이블(캔버스)과 상단 메뉴바 사이에 삽입 (경기장 밖, 프로스티드 알약).
+    this.scoreEl = document.createElement('div');
+    this.scoreEl.className = 'ah-scoreboard';
+    this.scoreEl.innerHTML =
+      `<span class="ah-dot ah-dot-host"></span>` +
+      `<span class="ah-num ah-num-host">0</span>` +
+      `<span class="ah-sep">:</span>` +
+      `<span class="ah-num ah-num-guest">0</span>` +
+      `<span class="ah-dot ah-dot-guest"></span>`;
+    const wrap = this.canvas.parentElement;
+    if (wrap) wrap.insertBefore(this.scoreEl, this.canvas);
+    this.updateScoreboard();
 
     // 관전자는 입력 송신이 필요 없음 — 마우스/키보드 리스너 자체를 붙이지 않는다.
     // 호스트의 ah:state broadcast 만 받아서 renderer 로 그대로 표시.
@@ -116,6 +134,7 @@ class AirHockeyGame implements GameModule {
     const snap = decodeState(msg);
     if (snap) {
       this.state = snap.state;
+      this.lastStateAt = performance.now(); // 외삽 기준 시각
       if (snap.events.length > 0) {
         this.pendingEvents.push(...snap.events);
       }
@@ -141,6 +160,8 @@ class AirHockeyGame implements GameModule {
       this.rafId = null;
     }
     this.detachInput();
+    this.scoreEl?.remove();
+    this.scoreEl = null;
     this.renderer?.destroy();
     sound.stopBgm();
   }
@@ -190,6 +211,7 @@ class AirHockeyGame implements GameModule {
     } else {
       this.guestTick();
     }
+    this.updateScoreboard();
   };
 
   private hostTick(): void {
@@ -231,29 +253,44 @@ class AirHockeyGame implements GameModule {
   }
 
   private publishStatus(): void {
-    // 점수는 경기장 밖(상단 헤더 스코어보드)에서 표시.
-    this.ctx.onStatusUpdate?.({
-      hostScore: this.state.score.host,
-      guestScore: this.state.score.guest,
-      phase: this.state.phase,
-    });
+    // 점수는 캔버스 위 자체 스코어보드가 표시 → 헤더엔 점수 안 보냄(게임명만).
+    this.ctx.onStatusUpdate?.({ phase: this.state.phase });
+  }
+
+  /** 캔버스 위 스코어보드 갱신 (점수 바뀔 때만 DOM 터치) */
+  private updateScoreboard(): void {
+    if (!this.scoreEl) return;
+    const key = `${this.state.score.host}:${this.state.score.guest}`;
+    if (key === this.shownScore) return;
+    this.shownScore = key;
+    const h = this.scoreEl.querySelector<HTMLElement>('.ah-num-host');
+    const g = this.scoreEl.querySelector<HTMLElement>('.ah-num-guest');
+    if (h) h.textContent = String(this.state.score.host);
+    if (g) g.textContent = String(this.state.score.guest);
   }
 
   private guestTick(): void {
     // 1) 자기 입력을 호스트에 송신
     this.ctx.sendToPeer(encodeInput(this.myTarget));
 
-    // 2) 로컬 예측: 받은 state를 그대로 렌더하되 자기 말렛만 로컬 target으로 덮어씀
-    // (렌더 전용 사본을 만들어 원본 state는 건드리지 않음 — 다음 메시지 도착 시 일관성 유지)
+    // 2) 로컬 예측 + 외삽으로 부드럽게:
+    //    - 내 말렛: 로컬 target 으로 즉시(1:1) 덮어씀 (입력 지연 0)
+    //    - 퍽 & 상대 말렛: 마지막 스냅샷 이후 경과시간만큼 속도로 외삽(dead-reckoning)
+    //      → 스냅샷이 지터로 띄엄띄엄 와도 60fps 로 매끄럽게 미끄러짐(프리즈→텔레포트 방지).
+    const elapsed = Math.min(0.09, (performance.now() - this.lastStateAt) / 1000);
+    const p = this.state.puck;
+    const pr = FIELD.PUCK_RADIUS;
+    const oppM = this.state.mallets.host;
     const renderState: GameState = {
       ...this.state,
+      puck: {
+        ...p,
+        x: clampNum(p.x + p.vx * elapsed, pr, FIELD.WIDTH - pr),
+        y: clampNum(p.y + p.vy * elapsed, pr, FIELD.HEIGHT - pr),
+      },
       mallets: {
-        ...this.state.mallets,
-        guest: {
-          ...this.state.mallets.guest,
-          x: this.myTarget.x,
-          y: this.myTarget.y,
-        },
+        host: { ...oppM, x: oppM.x + oppM.vx * elapsed, y: oppM.y + oppM.vy * elapsed },
+        guest: { ...this.state.mallets.guest, x: this.myTarget.x, y: this.myTarget.y },
       },
     };
 
@@ -395,4 +432,9 @@ function clamp(v: number, lo: number, hi: number): number {
  */
 export function createAirHockeyGame(): GameModule {
   return new AirHockeyGame();
+}
+
+/** 값 범위 클램프 (게스트 퍽 외삽이 벽 밖으로 안 나가게) */
+function clampNum(v: number, lo: number, hi: number): number {
+  return v < lo ? lo : v > hi ? hi : v;
 }
