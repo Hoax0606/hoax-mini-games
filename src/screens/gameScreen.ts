@@ -92,15 +92,14 @@ function playStartCountdown(parent: HTMLElement, seconds: number): Promise<void>
 }
 
 function buildHeaderHTML(args: {
-  hostNickname: string;
-  guestNickname: string;
+  players: Player[];
+  myPeerId: string;
   optionSummary: string;
   /** 관전자 뷰면 점수판 대신 "관전 중" 배지 표시 */
   spectator?: boolean;
 }): string {
   // 점수판은 기본 숨김 — 실제로 점수를 쓰는 게임(에어하키 등)이 onStatusUpdate 로
-  //   hostScore/guestScore 를 보낼 때만 표시. 알까기·끝말·그림처럼 자체 UI 로
-  //   점수/상태를 그리는 게임엔 "0:0" 이 뜨지 않게.
+  //   hostScore/guestScore 를 보낼 때만 표시.
   const centerHTML = args.spectator
     ? `<div class="game-score game-score-spectator">👀 관전 중</div>`
     : `
@@ -111,21 +110,25 @@ function buildHeaderHTML(args: {
       </div>
     `;
 
+  // 플레이어 전원을 컴팩트 칩으로 (방장 강조 + 나 표시) — 2명만 넓게 퍼지던 것 대체, N인 대응.
+  const chips = args.players.map((p) => {
+    const isMe = p.peerId === args.myPeerId;
+    const meTag = isMe ? ` <span class="game-chip-me">나</span>` : '';
+    return `<span class="game-player-chip${p.isHost ? ' is-host' : ''}">
+      <span class="game-chip-dot"></span>${escapeHtml(p.nickname)}${meTag}
+    </span>`;
+  }).join('');
+
   return `
     <div class="game-header">
-      <button class="back-btn-inline" id="leave-btn" title="나가기">×</button>
-
-      <div class="game-header-player game-header-player-host">
-        <span class="participant-badge">방장</span>
-        <span class="game-player-name">${escapeHtml(args.hostNickname)}</span>
+      <div class="game-header-left">
+        <button class="game-leave-btn" id="leave-btn" title="나가기" aria-label="나가기">
+          ${icon('exit', { size: 16, hue: '#ff5a92' })}<span>나가기</span>
+        </button>
+        <div class="game-players">${chips}</div>
       </div>
 
       ${centerHTML}
-
-      <div class="game-header-player game-header-player-guest">
-        <span class="game-player-name">${escapeHtml(args.guestNickname)}</span>
-        <span class="participant-badge participant-badge-lavender">손님</span>
-      </div>
 
       <div class="game-room-info">
         <span class="game-room-info-text">${escapeHtml(args.optionSummary)}</span>
@@ -441,7 +444,7 @@ export function createGameScreenAsHostScreen(args: GameScreenAsHostArgs): Screen
 
       const el = document.createElement('div');
       el.className = 'game-screen';
-      el.innerHTML = buildHeaderHTML({ hostNickname, guestNickname, optionSummary });
+      el.innerHTML = buildHeaderHTML({ players: roomState.players, myPeerId: host.myPeerId, optionSummary });
 
       const canvas = el.querySelector<HTMLCanvasElement>('#game-canvas')!;
       const scoreHome = el.querySelector<HTMLSpanElement>('#score-home')!;
@@ -846,7 +849,7 @@ export function createGameScreenAsGuestScreen(args: GameScreenAsGuestArgs): Scre
 
       const el = document.createElement('div');
       el.className = 'game-screen';
-      el.innerHTML = buildHeaderHTML({ hostNickname, guestNickname, optionSummary, spectator: isSpectator });
+      el.innerHTML = buildHeaderHTML({ players: roomState.players, myPeerId: guest.myPeerId, optionSummary, spectator: isSpectator });
 
       const canvas = el.querySelector<HTMLCanvasElement>('#game-canvas')!;
       // 관전자 뷰는 점수판 대신 "관전 중" 배지라 score-home/away 엘리먼트가 없다.
