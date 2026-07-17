@@ -127,10 +127,11 @@ input {
 
 /* 채팅 패널이 있는 화면(대기실/결과)에선 콘텐츠가 채팅 영역을 침범 안 하게 우측 패딩.
  * 채팅 접힘 상태에선 거의 안 보이는 아이콘 폭만 비움. */
-.screen:has(.chat-panel:not(.is-collapsed)) {
+/* 대기실은 카드+채팅을 나란히 가운데 두므로 우측 패딩 제외(:not(:has(.waiting-card))) */
+.screen:has(.chat-panel:not(.is-collapsed)):not(:has(.waiting-card)) {
   padding-right: 312px;
 }
-.screen:has(.chat-panel.is-collapsed) {
+.screen:has(.chat-panel.is-collapsed):not(:has(.waiting-card)) {
   padding-right: 80px;
 }
 
