@@ -1219,21 +1219,27 @@ input {
 }
 
 /* 강퇴 버튼 — 방장 화면 참가자 행 우측 */
+/* 강퇴 버튼 — 깔끔한 원형. 평소 옅고 hover 시 핑크 배경 + 진해짐 */
 .participant-kick {
   margin-left: auto;
+  width: 26px;
+  height: 26px;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   border: none;
   background: transparent;
   cursor: pointer;
-  font-size: 13px;
-  line-height: 1;
-  padding: 4px 6px;
-  border-radius: var(--radius-sm);
-  opacity: 0.55;
-  transition: opacity 0.15s, background 0.15s;
+  border-radius: 50%;
+  color: var(--text-muted);
+  opacity: 0.45;
+  transition: opacity 0.15s, background 0.15s, color 0.15s;
 }
 .participant-kick:hover {
   opacity: 1;
-  background: var(--pink-50);
+  background: var(--pink-100);
+  color: var(--pink-500);
 }
 
 .participant-you {
@@ -1243,15 +1249,19 @@ input {
   margin-left: 4px;
 }
 
-/* 게스트 준비 상태 배지 — 이름 오른쪽으로 밀어 정렬. 준비완료면 초록(#2e8a70, ping-good 과 동일) */
+/* 게스트 준비 배지 — 이름 오른쪽으로 밀어 정렬. 민트 pill(손님 배지와 동일 톤 규격) */
 .participant-ready {
   margin-left: auto;
-  font-size: 12px;
-  font-weight: 700;
-  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 800;
+  color: #2e8a70;
+  background: var(--mint-100);
+  padding: 3px 10px;
+  border-radius: var(--radius-full);
   white-space: nowrap;
+  flex-shrink: 0;
 }
-.participant-ready.is-ready { color: #2e8a70; }
+.participant-ready.is-ready { color: #2e8a70; background: var(--mint-100); }
 /* 준비 배지 뒤에 강퇴 버튼이 오면 그 사이 간격만 */
 .participant-ready + .participant-kick { margin-left: 6px; }
 
@@ -1849,11 +1859,18 @@ input {
 /* ============================================
    공개방 찾기 화면
    ============================================ */
+/* 목록형 화면(방 찾기 등)은 세로 가운데 대신 상단 정렬 — 콘텐츠 적어도 제목이 위에 오게 */
+.screen.screen-top {
+  justify-content: flex-start;
+  padding-top: 64px;
+}
+
 .public-rooms-list {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  grid-template-columns: repeat(auto-fill, 240px);
+  justify-content: center;
   gap: 14px;
-  margin-top: 18px;
+  margin-top: 28px;
 }
 .public-rooms-empty {
   grid-column: 1 / -1;
@@ -1882,12 +1899,19 @@ input {
   gap: 8px;
   padding: 16px;
   background: var(--bg-card);
-  border: 1.5px solid var(--pink-100);
-  border-radius: 14px;
+  border: 2px solid var(--border-soft);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
   cursor: pointer;
   text-align: left;
-  transition: transform 0.12s ease, border-color 0.12s ease, box-shadow 0.12s ease;
+  transition: transform 0.14s cubic-bezier(.2,.9,.25,1), border-color 0.14s ease, box-shadow 0.14s ease;
 }
+.public-room-card:hover:not(.is-full) {
+  transform: translateY(-3px);
+  border-color: var(--pink-200);
+  box-shadow: var(--shadow-md);
+}
+.public-room-card:active:not(.is-full) { transform: scale(0.98); }
 .public-room-card:hover:not(:disabled) {
   transform: translateY(-2px);
   border-color: var(--pink-300);

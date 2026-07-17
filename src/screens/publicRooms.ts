@@ -24,7 +24,7 @@ export function createPublicRoomsScreen(): Screen {
   return {
     render() {
       const el = document.createElement('div');
-      el.className = 'screen';
+      el.className = 'screen screen-top';
       el.innerHTML = `
         <button class="back-btn" id="back-btn" title="뒤로">←</button>
 
