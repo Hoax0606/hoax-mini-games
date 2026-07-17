@@ -56,14 +56,19 @@ export function buildGameTilesHTML(
     const playerLabel = g.meta.minPlayers === g.meta.maxPlayers
       ? `${g.meta.minPlayers}인 전용`
       : `${g.meta.minPlayers}~${g.meta.maxPlayers}인`;
-    const reason = fits ? playerLabel : `${playerLabel} (현재 ${playerCount}명)`;
     const isCurrent = g.meta.id === currentGameId;
+    // 메인 화면(도감) 카드와 동일 구조: 썸네일 + 이름 + 인원 뱃지. 잠긴 게임만 현재 인원 사유 표시.
+    const note = fits
+      ? (isCurrent ? escapeHtml(currentSuffix) : '')
+      : `현재 ${playerCount}명`;
     return `
       <button class="change-game-card${fits ? '' : ' is-disabled'}${isCurrent ? ' is-current' : ''}"
               data-game-id="${escapeAttr(g.meta.id)}" ${fits ? '' : 'disabled'}>
         <img class="change-game-card-thumb" src="${escapeAttr(g.meta.thumbnail)}" alt="" />
-        <div class="change-game-card-name">${escapeHtml(g.meta.name)}</div>
-        <div class="change-game-card-meta">${escapeHtml(reason)}${isCurrent ? ` · ${escapeHtml(currentSuffix)}` : ''}</div>
+        <div class="change-game-card-name">${escapeHtml(g.meta.name)}
+          <span class="change-game-card-players">${escapeHtml(playerLabel)}</span>
+        </div>
+        ${note ? `<div class="change-game-card-meta">${escapeHtml(note)}</div>` : ''}
       </button>
     `;
   }).join('');

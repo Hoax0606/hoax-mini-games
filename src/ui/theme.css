@@ -134,6 +134,16 @@ input {
   padding-right: 80px;
 }
 
+/* 대기실: 카드 + 채팅을 붙여서 가운데 배치 (우측 고정 사이드바로 멀리 떨어지지 않게 — 목업 레이아웃) */
+.screen:has(.waiting-card) {
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  flex-wrap: wrap;
+  padding-right: 20px;
+}
+
 @keyframes screenIn {
   from { opacity: 0; transform: translateY(12px); }
   to   { opacity: 1; transform: translateY(0); }
@@ -1431,13 +1441,26 @@ input {
 .reaction-toggle:hover { transform: scale(1.12); border-color: var(--accent-soft); }
 .reaction-toggle:active { transform: scale(0.95); }
 
-/* 이모지 목록 — 기본 접힘. .is-open 일 때만 표시 */
+/* 이모지 목록 — 기본 접힘. .is-open 일 때만 표시.
+   떠있는 팝업(absolute)이라 열려도 참가자 목록/카드 크기에 영향 없음. 이모지 많으니 세로 스크롤. */
 .reaction-picker {
   display: none;
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%);
   flex-wrap: wrap;
   justify-content: center;
   gap: 6px;
-  max-width: 300px;
+  width: 264px;
+  max-height: 200px;
+  overflow-y: auto;
+  background: var(--bg-card);
+  border: 1.5px solid var(--pink-200);
+  border-radius: 14px;
+  box-shadow: var(--shadow-md);
+  padding: 10px;
+  z-index: 200;
 }
 .reaction-bar.is-open .reaction-picker { display: flex; }
 
@@ -1936,13 +1959,16 @@ input {
   overflow: hidden;
   transition: width 0.18s ease, height 0.18s ease;
 }
-/* 대기실에선 채팅 패널 높이를 대기실 카드(min(86vh,700px))와 맞추고 세로 가운데 —
-   게임화면처럼 전체높이 사이드바로 뜨면 텅 비어 보여서 목업처럼 카드 옆 아담한 패널로. */
+/* 대기실 채팅: 고정 사이드바 대신 카드 옆 정상 흐름(static) 패널로 — 카드 높이에 맞춤.
+   (게임화면 채팅은 그대로 fixed 전체높이) */
 .screen:has(.waiting-card) .chat-panel:not(.is-collapsed) {
-  top: 50%;
+  position: static;
+  transform: none;
+  top: auto;
   bottom: auto;
-  transform: translateY(-50%);
+  right: auto;
   height: min(86vh, 700px);
+  flex: 0 0 300px;
 }
 .chat-panel.is-collapsed {
   width: 48px;
@@ -2600,18 +2626,37 @@ input {
   .waiting-left { flex: none; }
 }
 
+/* 대기실 게임 타일 = 메인 화면(도감 .game-card) 카드와 동일 룩 (통일) */
 .change-game-card {
   position: relative;
-  background: #fff;
-  border: 1.5px solid var(--pink-100);
-  border-radius: 14px;
-  padding: 10px 10px 12px;
+  background: var(--bg-card);
+  border: 2px solid var(--border-soft);
+  border-radius: var(--radius-lg);
+  padding: 14px;
   cursor: pointer;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 6px;
+  gap: 10px;
+  box-shadow: var(--shadow-sm);
   transition: transform 0.14s cubic-bezier(.2,.9,.25,1), border-color 0.14s ease, box-shadow 0.14s ease;
+}
+/* 이름 + 인원 뱃지 (도감과 동일) */
+.change-game-card-name {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.change-game-card-players {
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--text-inverse);
+  background: var(--lavender-300);
+  padding: 2px 7px;
+  border-radius: var(--radius-full);
+  letter-spacing: 0.3px;
 }
 .change-game-card:hover:not(:disabled) {
   transform: translateY(-3px);
