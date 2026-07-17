@@ -50,14 +50,15 @@ export interface PieceState {
 // 색상 팔레트 (파스텔, 에어하키와 통일)
 // ============================================
 
+// 파스텔이되 또렷하게 (너무 옅으면 흐릿). stroke는 fill보다 진하게 잡아 칸 경계를 확실히.
 const COLORS: Record<PieceId, { fill: string; stroke: string }> = {
-  I: { fill: '#86d4ee', stroke: '#5dafd2' }, // 시안
-  O: { fill: '#ffd876', stroke: '#c9a01f' }, // 노랑
-  T: { fill: '#b89aff', stroke: '#9c7aeb' }, // 라벤더
-  L: { fill: '#ffb386', stroke: '#e08047' }, // 오렌지
-  J: { fill: '#86a5ee', stroke: '#5a7fd1' }, // 파랑
-  S: { fill: '#86e8c4', stroke: '#5dc9a7' }, // 민트
-  Z: { fill: '#ff82ac', stroke: '#ff5a92' }, // 핑크
+  I: { fill: '#5ecdec', stroke: '#2ea6cb' }, // 시안
+  O: { fill: '#ffcf5c', stroke: '#d6a01f' }, // 노랑
+  T: { fill: '#a685f5', stroke: '#7d54e0' }, // 라벤더
+  L: { fill: '#ffa863', stroke: '#e07d2e' }, // 오렌지
+  J: { fill: '#7c98ee', stroke: '#4c6cd6' }, // 파랑
+  S: { fill: '#5fdca8', stroke: '#2eb37e' }, // 민트
+  Z: { fill: '#ff7ba1', stroke: '#e84e7c' }, // 핑크
 };
 
 // ============================================

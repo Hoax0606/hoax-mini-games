@@ -47,12 +47,12 @@ import {
 /** 내 상태를 이 간격으로 broadcast (ms) — 10Hz */
 const STATE_BROADCAST_MS = 100;
 
-/** 키 반복 시작까지 지연 (DAS) — 좌우/아래 이동만 반복 */
-const DAS_DELAY_MS = 150;
-/** 좌우 이동 반복 간격 (ARR) — 작을수록 좌우 이동이 매끄럽고 가볍게 느껴짐 */
-const DAS_INTERVAL_MS = 30;
-/** 소프트드롭(↓) 반복 간격 — 좌우보다 훨씬 빠르게. 대략 65칸/초 */
-const SOFT_DROP_INTERVAL_MS = 15;
+/** 키 반복 시작까지 지연 (DAS) — 좌우/아래 이동만 반복. 낮출수록 꾹 눌렀을 때 반응이 빠릿 */
+const DAS_DELAY_MS = 100;
+/** 좌우 이동 반복 간격 (ARR) — 작을수록 좌우로 쭉 미끄러져 가볍게 느껴짐 */
+const DAS_INTERVAL_MS = 20;
+/** 소프트드롭(↓) 반복 간격 — 좌우보다 훨씬 빠르게. 대략 125칸/초 */
+const SOFT_DROP_INTERVAL_MS = 8;
 
 // ============================================
 // 옵션 파싱 (방 만들기 화면에서 선택된 값)
@@ -348,11 +348,14 @@ class BattleTetrisGame implements GameModule {
         case 'garbage_injected':
           this.garbageReceivedTotal += ev.count;
           sound.play('tetris_garbage');
+          // 방금 바닥에서 올라온 방해줄 강조 플래시
+          this.renderer.flashGarbage(ev.count);
           break;
 
         case 'unbreakable_injected':
           // 시간 경과로 자동 푸시된 안 깨지는 줄 — 가비지와 같은 사운드 재활용
           sound.play('tetris_garbage');
+          this.renderer.flashGarbage(1);
           break;
       }
     }
