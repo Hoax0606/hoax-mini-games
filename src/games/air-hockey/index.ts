@@ -41,8 +41,6 @@ import {
 } from './netSync';
 import { sound } from '../../core/sound';
 
-const KEYBOARD_SPEED = 9; // 키보드 조작 시 프레임당 이동 픽셀 (논리 좌표)
-
 class AirHockeyGame implements GameModule {
   private ctx!: GameContext;
   private canvas!: HTMLCanvasElement;
@@ -52,12 +50,6 @@ class AirHockeyGame implements GameModule {
 
   private myTarget: Vec2 = { x: 0, y: 0 };
   private opponentTarget: Vec2 = { x: 0, y: 0 };
-
-  // 키보드 조작용 누적 위치 (마우스는 즉시 위치, 키보드는 누적)
-  private keyboardTarget: Vec2 = { x: 0, y: 0 };
-  private keys = { up: false, down: false, left: false, right: false };
-  /** 가장 최근에 쓴 입력 장치 — 마우스 쓰면 keyboard 값 무시, 키보드 쓰면 마우스 값 무시 */
-  private lastInput: 'mouse' | 'keyboard' = 'mouse';
 
   private rafId: number | null = null;
   /** 게스트: 마지막 host state 수신 시각 — 스냅샷 사이 퍽/말렛 외삽(부드럽게)용 */
@@ -91,7 +83,6 @@ class AirHockeyGame implements GameModule {
       : { x: FIELD.WIDTH * 0.20, y: FIELD.HEIGHT / 2 };
 
     this.myTarget = { ...myInitial };
-    this.keyboardTarget = { ...myInitial };
     this.opponentTarget = { ...oppInitial };
 
     this.renderer = new Renderer({ canvas: this.canvas });
@@ -202,9 +193,6 @@ class AirHockeyGame implements GameModule {
       this.publishStatus();
       return;
     }
-
-    // 입력 확정 (키보드는 매 프레임 누적 이동 반영)
-    this.applyKeyboardInput();
 
     if (this.ctx.role === 'host') {
       this.hostTick();
@@ -342,17 +330,12 @@ class AirHockeyGame implements GameModule {
   // ============================================
 
   private attachInput(): void {
+    // 마우스 전용 (키보드 이동 제거).
     this.canvas.addEventListener('mousemove', this.onMouseMove);
-    window.addEventListener('keydown', this.onKeyDown);
-    window.addEventListener('keyup', this.onKeyUp);
-    // 캔버스를 벗어나도 마우스 추적이 유지되도록 (버튼 누른 상태에서 빠져나가는 케이스 대비는 아니지만
-    // 마우스무브가 캔버스 밖에서도 잡히면 튀는 UX 개선)
   }
 
   private detachInput(): void {
     this.canvas.removeEventListener('mousemove', this.onMouseMove);
-    window.removeEventListener('keydown', this.onKeyDown);
-    window.removeEventListener('keyup', this.onKeyUp);
   }
 
   private onMouseMove = (e: MouseEvent): void => {
@@ -363,46 +346,8 @@ class AirHockeyGame implements GameModule {
     );
     // 자기 진영으로 clamp. physics.ts의 updateMallet도 같은 제약을 걸지만
     // 게스트의 로컬 예측(guestTick)에서도 올바르게 그려지도록 입력 단계에서 막아둠.
-    const constrained = this.constrainToMyHalf(logical);
-    this.myTarget = constrained;
-    // 키보드 조작으로 돌아갔을 때를 위해 키보드 누적 위치도 맞춰둠
-    this.keyboardTarget = { ...constrained };
-    this.lastInput = 'mouse';
+    this.myTarget = this.constrainToMyHalf(logical);
   };
-
-  private onKeyDown = (e: KeyboardEvent): void => {
-    switch (e.key) {
-      case 'ArrowUp':    case 'w': case 'W': this.keys.up = true; break;
-      case 'ArrowDown':  case 's': case 'S': this.keys.down = true; break;
-      case 'ArrowLeft':  case 'a': case 'A': this.keys.left = true; break;
-      case 'ArrowRight': case 'd': case 'D': this.keys.right = true; break;
-      default: return;
-    }
-    this.lastInput = 'keyboard';
-    e.preventDefault();
-  };
-
-  private onKeyUp = (e: KeyboardEvent): void => {
-    switch (e.key) {
-      case 'ArrowUp':    case 'w': case 'W': this.keys.up = false; break;
-      case 'ArrowDown':  case 's': case 'S': this.keys.down = false; break;
-      case 'ArrowLeft':  case 'a': case 'A': this.keys.left = false; break;
-      case 'ArrowRight': case 'd': case 'D': this.keys.right = false; break;
-    }
-  };
-
-  private applyKeyboardInput(): void {
-    if (this.lastInput !== 'keyboard') return;
-
-    if (this.keys.up)    this.keyboardTarget.y -= KEYBOARD_SPEED;
-    if (this.keys.down)  this.keyboardTarget.y += KEYBOARD_SPEED;
-    if (this.keys.left)  this.keyboardTarget.x -= KEYBOARD_SPEED;
-    if (this.keys.right) this.keyboardTarget.x += KEYBOARD_SPEED;
-
-    // 자기 진영 + 필드 안쪽으로 clamp (키보드 입력은 눌러둔 만큼 값이 계속 쌓이므로 필수)
-    this.keyboardTarget = this.constrainToMyHalf(this.keyboardTarget);
-    this.myTarget = { ...this.keyboardTarget };
-  }
 
   /**
    * 입력 좌표를 내 진영(중앙선 안 넘기) + 필드 안쪽으로 제한.
