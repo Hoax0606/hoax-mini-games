@@ -92,49 +92,34 @@ function playStartCountdown(parent: HTMLElement, seconds: number): Promise<void>
 }
 
 function buildHeaderHTML(args: {
-  players: Player[];
-  myPeerId: string;
   gameName: string;
   optionSummary: string;
   /** 관전자 뷰면 "관전 중" 표시 */
   spectator?: boolean;
 }): string {
-  // 중앙 = 게임명(+옵션 요약). 점수판(id=game-score)은 기본 숨김 — 점수 쓰는 게임(에어하키 등)이
-  //   onStatusUpdate 로 값 보낼 때만 표시(위치는 추후 개선 논의). 관전자는 '관전 중' 표기.
-  const centerHTML = `
-    <div class="game-title-center">
-      ${args.spectator ? `<span class="game-title-spectator">👀 관전 중</span>` : ''}
-      <span class="game-title-name">${escapeHtml(args.gameName)}</span>
-      ${args.optionSummary ? `<span class="game-title-opt">${escapeHtml(args.optionSummary)}</span>` : ''}
-      <div class="game-score" id="game-score" style="display:none">
-        <span class="game-score-home" id="score-home">0</span>
-        <span class="game-score-sep">:</span>
-        <span class="game-score-away" id="score-away">0</span>
-      </div>
-    </div>`;
-
-  // 플레이어 전원을 컴팩트 칩으로 (방장 강조 + 나 표시) — 2명만 넓게 퍼지던 것 대체, N인 대응.
-  const chips = args.players.map((p) => {
-    const isMe = p.peerId === args.myPeerId;
-    const meTag = isMe ? ` <span class="game-chip-me">나</span>` : '';
-    return `<span class="game-player-chip${p.isHost ? ' is-host' : ''}">
-      <span class="game-chip-dot"></span>${escapeHtml(p.nickname)}${meTag}
-    </span>`;
-  }).join('');
-
+  // 헤더는 심플하게: [나가기] · [게임명(+옵션)] · [설정]. 플레이어/핑은 안 넣음
+  //   (10인 긴 이름이면 지저분 + 게임 중엔 각 게임 HUD·대기실에서 이미 보임).
+  //   점수판(id=game-score)은 기본 숨김 — 점수 쓰는 게임이 값 보낼 때만 표시(위치 추후 논의).
   return `
     <div class="game-header">
       <div class="game-header-left">
         <button class="game-leave-btn" id="leave-btn" title="나가기" aria-label="나가기">
           ${icon('exit', { size: 16, hue: '#ff5a92' })}<span>나가기</span>
         </button>
-        <div class="game-players">${chips}</div>
       </div>
 
-      ${centerHTML}
+      <div class="game-title-center">
+        ${args.spectator ? `<span class="game-title-spectator">👀 관전 중</span>` : ''}
+        <span class="game-title-name">${escapeHtml(args.gameName)}</span>
+        ${args.optionSummary ? `<span class="game-title-opt">${escapeHtml(args.optionSummary)}</span>` : ''}
+        <div class="game-score" id="game-score" style="display:none">
+          <span class="game-score-home" id="score-home">0</span>
+          <span class="game-score-sep">:</span>
+          <span class="game-score-away" id="score-away">0</span>
+        </div>
+      </div>
 
       <div class="game-room-info">
-        <span class="ping-badge ping-pending" id="ping-badge">측정 중</span>
         <button class="game-menu-btn" id="game-menu-btn" title="게임 설정 (Esc)" aria-label="게임 설정">${icon('settings', { size: 18, hue: '#9a86c0' })}</button>
       </div>
     </div>
@@ -356,20 +341,6 @@ function flashScore(el: HTMLElement): void {
 }
 
 /** ping(ms)를 배지 엘리먼트에 반영. null = 끊김/측정불가 */
-function updatePingBadge(el: HTMLElement, ms: number | null): void {
-  if (ms === null) {
-    el.textContent = '⚠️ 끊김';
-    el.className = 'ping-badge ping-dead';
-    return;
-  }
-  let cls: string;
-  let icon: string;
-  if (ms < 60)       { cls = 'ping-good'; icon = '🟢'; }
-  else if (ms < 150) { cls = 'ping-ok';   icon = '🟡'; }
-  else               { cls = 'ping-slow'; icon = '🔴'; }
-  el.textContent = `${icon} ${ms}ms`;
-  el.className = `ping-badge ${cls}`;
-}
 
 // ============================================
 // 호스트 게임 화면
@@ -446,7 +417,7 @@ export function createGameScreenAsHostScreen(args: GameScreenAsHostArgs): Screen
 
       const el = document.createElement('div');
       el.className = 'game-screen';
-      el.innerHTML = buildHeaderHTML({ players: roomState.players, myPeerId: host.myPeerId, gameName: game.meta.name, optionSummary });
+      el.innerHTML = buildHeaderHTML({ gameName: game.meta.name, optionSummary });
 
       const canvas = el.querySelector<HTMLCanvasElement>('#game-canvas')!;
       const scoreHome = el.querySelector<HTMLSpanElement>('#score-home')!;
@@ -737,16 +708,7 @@ export function createGameScreenAsHostScreen(args: GameScreenAsHostArgs): Screen
         },
       });
 
-      // Ping 배지: 여러 게스트 중 "가장 느린" 쪽을 대표로 표시 (호스트 시점 가장 나쁜 연결)
-      const pingBadgeEl = el.querySelector<HTMLSpanElement>('#ping-badge')!;
-      host.onPingChanged = (pings) => {
-        if (pings.size === 0) {
-          updatePingBadge(pingBadgeEl, null);
-          return;
-        }
-        const worstPing = Math.max(...pings.values());
-        updatePingBadge(pingBadgeEl, worstPing);
-      };
+      // (핑 배지는 헤더에서 제거됨 — 연결 상태는 재연결 오버레이/끊김 안내로 처리)
 
       // 게임 모듈 lazy 로드 + 시작
       (async () => {
@@ -851,7 +813,7 @@ export function createGameScreenAsGuestScreen(args: GameScreenAsGuestArgs): Scre
 
       const el = document.createElement('div');
       el.className = 'game-screen';
-      el.innerHTML = buildHeaderHTML({ players: roomState.players, myPeerId: guest.myPeerId, gameName: game.meta.name, optionSummary, spectator: isSpectator });
+      el.innerHTML = buildHeaderHTML({ gameName: game.meta.name, optionSummary, spectator: isSpectator });
 
       const canvas = el.querySelector<HTMLCanvasElement>('#game-canvas')!;
       // 관전자 뷰는 점수판 대신 "관전 중" 배지라 score-home/away 엘리먼트가 없다.
@@ -1043,8 +1005,7 @@ export function createGameScreenAsGuestScreen(args: GameScreenAsGuestArgs): Scre
       });
 
       // Ping 배지 — 호스트가 보고해주는 내 편도 지연 표시
-      const pingBadgeEl = el.querySelector<HTMLSpanElement>('#ping-badge')!;
-      guest.onPingChanged = (ms) => updatePingBadge(pingBadgeEl, ms);
+      // (핑 배지 제거됨)
 
       (async () => {
         try {
