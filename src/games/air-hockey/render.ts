@@ -184,19 +184,26 @@ export class Renderer {
     ctx.fill();
     ctx.stroke();
 
+    // 말렛 색과 일치 — 호스트 민트 / 게스트 노랑 (짙은 톤으로 가독성)
+    const hostCol = '#2e8a70';
+    const guestCol = '#c49a1f';
+    // 좌우 점(말렛 색) — 누가 어느 색인지 즉시 매칭
+    ctx.beginPath(); ctx.arc(cx - 46, y, 4.5, 0, Math.PI * 2); ctx.fillStyle = '#6ed9b3'; ctx.fill();
+    ctx.beginPath(); ctx.arc(cx + 46, y, 4.5, 0, Math.PI * 2); ctx.fillStyle = '#ffd454'; ctx.fill();
+
     ctx.textBaseline = 'middle';
     ctx.font = `900 30px ${FONT_SANS}`;
-    // 호스트(핑크) 좌
-    ctx.fillStyle = COLORS.hostStroke;
+    // 호스트(민트) 좌
+    ctx.fillStyle = hostCol;
     ctx.textAlign = 'right';
     ctx.fillText(hs, cx - 18, y + 1);
     // 콜론
-    ctx.fillStyle = 'rgba(74, 58, 74, 0.35)';
+    ctx.fillStyle = 'rgba(74, 58, 74, 0.32)';
     ctx.textAlign = 'center';
     ctx.font = `800 22px ${FONT_SANS}`;
     ctx.fillText(':', cx, y);
-    // 게스트(라벤더) 우
-    ctx.fillStyle = COLORS.guestStroke;
+    // 게스트(노랑) 우
+    ctx.fillStyle = guestCol;
     ctx.textAlign = 'left';
     ctx.font = `900 30px ${FONT_SANS}`;
     ctx.fillText(gs, cx + 18, y + 1);
@@ -368,20 +375,32 @@ export class Renderer {
     ctx.lineWidth = 3;
     ctx.strokeRect(1.5, 1.5, FIELD.WIDTH - 3, FIELD.HEIGHT - 3);
 
-    // 골 영역 하이라이트 (양쪽)
-    ctx.fillStyle = COLORS.goalZone;
+    // 골 영역 — 팀 색으로 구분 (좌=호스트 민트, 우=게스트 노랑). 소유/방어 골대가 한눈에.
+    ctx.fillStyle = 'rgba(110, 217, 179, 0.26)';
     ctx.fillRect(0, GOAL_Y_MIN, 12, GOAL_Y_MAX - GOAL_Y_MIN);
+    ctx.fillStyle = 'rgba(255, 212, 84, 0.28)';
     ctx.fillRect(FIELD.WIDTH - 12, GOAL_Y_MIN, 12, GOAL_Y_MAX - GOAL_Y_MIN);
 
-    // 골 라인 (핑크 굵은 세로선)
-    ctx.strokeStyle = COLORS.goalLine;
+    // 골 라인 — 팀 색 굵은 세로선 + 은은한 글로우
+    ctx.save();
     ctx.lineWidth = 4;
+    ctx.lineCap = 'round';
+    ctx.shadowBlur = 10;
+    // 좌(호스트 민트)
+    ctx.strokeStyle = '#2e8a70';
+    ctx.shadowColor = '#6ed9b3';
     ctx.beginPath();
     ctx.moveTo(2, GOAL_Y_MIN);
     ctx.lineTo(2, GOAL_Y_MAX);
+    ctx.stroke();
+    // 우(게스트 노랑)
+    ctx.strokeStyle = '#c49a1f';
+    ctx.shadowColor = '#ffd454';
+    ctx.beginPath();
     ctx.moveTo(FIELD.WIDTH - 2, GOAL_Y_MIN);
     ctx.lineTo(FIELD.WIDTH - 2, GOAL_Y_MAX);
     ctx.stroke();
+    ctx.restore();
 
     // 센터라인 (점선)
     ctx.strokeStyle = COLORS.centerLine;
