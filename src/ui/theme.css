@@ -151,12 +151,15 @@ input {
 }
 
 /* 카드 */
+/* 카드 = 프로스티드 글래스(메인 메뉴 톤으로 전체 통일). 그림자는 크기별 계층 유지. */
 .card {
-  background: var(--bg-card);
+  background: rgba(255, 255, 255, 0.6);
+  backdrop-filter: blur(18px) saturate(160%);
+  -webkit-backdrop-filter: blur(18px) saturate(160%);
   border-radius: var(--radius-lg);
   padding: 40px 48px;
   box-shadow: var(--shadow-md);
-  border: 2px solid var(--border-soft);
+  border: 1.5px solid rgba(255, 255, 255, 0.7);
   min-width: 420px;
   max-width: 560px;
 }
@@ -483,8 +486,10 @@ input {
 
 .game-card {
   width: 280px;
-  background: var(--bg-card);
-  border: 2px solid var(--border-soft);
+  background: rgba(255, 255, 255, 0.6);
+  backdrop-filter: blur(14px) saturate(160%);
+  -webkit-backdrop-filter: blur(14px) saturate(160%);
+  border: 1.5px solid rgba(255, 255, 255, 0.7);
   border-radius: var(--radius-lg);
   padding: 16px;
   box-shadow: var(--shadow-sm);
@@ -557,11 +562,13 @@ input {
   position: relative;
   /* fixed 인 chat-panel(z-index:100) 위에 오도록. 결과 카드 버튼이 채팅 영역에 가려져 클릭이 안 닿는 사고 방지. */
   z-index: 110;
-  background: var(--bg-card);
+  background: rgba(255, 255, 255, 0.62);
+  backdrop-filter: blur(18px) saturate(160%);
+  -webkit-backdrop-filter: blur(18px) saturate(160%);
   border-radius: var(--radius-lg);
   padding: 44px 48px 36px;
   box-shadow: var(--shadow-lg);
-  border: 2px solid var(--border-soft);
+  border: 1.5px solid rgba(255, 255, 255, 0.7);
   min-width: 440px;
   max-width: 520px;
   text-align: center;
@@ -1330,8 +1337,10 @@ input {
 }
 
 .stats-card {
-  background: var(--bg-card);
-  border: 2px solid var(--border-soft);
+  background: rgba(255, 255, 255, 0.6);
+  backdrop-filter: blur(14px) saturate(160%);
+  -webkit-backdrop-filter: blur(14px) saturate(160%);
+  border: 1.5px solid rgba(255, 255, 255, 0.7);
   border-radius: var(--radius-lg);
   padding: 16px 20px;
   box-shadow: var(--shadow-sm);
@@ -1902,8 +1911,10 @@ input {
   align-items: stretch;
   gap: 8px;
   padding: 16px;
-  background: var(--bg-card);
-  border: 2px solid var(--border-soft);
+  background: rgba(255, 255, 255, 0.6);
+  backdrop-filter: blur(14px) saturate(160%);
+  -webkit-backdrop-filter: blur(14px) saturate(160%);
+  border: 1.5px solid rgba(255, 255, 255, 0.7);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-sm);
   cursor: pointer;
@@ -1982,8 +1993,10 @@ input {
   width: 280px;
   display: flex;
   flex-direction: column;
-  background: var(--bg-card);
-  border: 1.5px solid var(--pink-200);
+  background: rgba(255, 255, 255, 0.62);
+  backdrop-filter: blur(18px) saturate(160%);
+  -webkit-backdrop-filter: blur(18px) saturate(160%);
+  border: 1.5px solid rgba(255, 255, 255, 0.7);
   border-radius: 16px;
   box-shadow: 0 6px 22px rgba(255, 142, 178, 0.18);
   z-index: 100;       /* pause-overlay(150) / 모달들보다 낮게 — 일시정지 시 가려짐 */
@@ -2028,8 +2041,8 @@ input {
   align-items: center;
   justify-content: space-between;
   padding: 14px 16px;
-  background: var(--bg-card);
-  border-bottom: 1px solid var(--border-soft);
+  background: transparent;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.5);
 }
 .chat-title {
   font-weight: 800;
@@ -2054,7 +2067,7 @@ input {
   display: flex;
   flex-direction: column;
   gap: 10px;
-  background: var(--bg-card);
+  background: transparent;
 }
 .chat-row {
   display: flex;
@@ -2101,8 +2114,8 @@ input {
   display: flex;
   gap: 8px;
   padding: 12px;
-  border-top: 1px solid var(--border-soft);
-  background: var(--bg-card);
+  border-top: 1px solid rgba(255, 255, 255, 0.5);
+  background: transparent;
   align-items: center;
 }
 /* 입력창 — 알약형 (목업과 동일) */
@@ -2664,8 +2677,11 @@ input {
 /* 대기실 게임 타일 = 메인 화면(도감 .game-card) 카드와 동일 룩 (통일) */
 .change-game-card {
   position: relative;
-  background: var(--bg-card);
-  border: 2px solid var(--border-soft);
+  /* 대기실 카드(프로스티드) 안에 들어가므로 겹침 방지 위해 불투명도 살짝 높이고 blur 약하게 */
+  background: rgba(255, 255, 255, 0.72);
+  backdrop-filter: blur(8px) saturate(150%);
+  -webkit-backdrop-filter: blur(8px) saturate(150%);
+  border: 1.5px solid rgba(255, 255, 255, 0.7);
   border-radius: var(--radius-lg);
   padding: 12px 10px 13px;
   cursor: pointer;
