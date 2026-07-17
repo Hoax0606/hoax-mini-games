@@ -45,10 +45,9 @@ export interface GamePickerOptions {
 export function buildGameTilesHTML(
   playerCount: number,
   currentGameId: string,
-  opts?: { enforceMin?: boolean; currentSuffix?: string },
+  opts?: { enforceMin?: boolean },
 ): string {
   const enforceMin = opts?.enforceMin ?? true;
-  const currentSuffix = opts?.currentSuffix ?? '지금 선택됨';
   return games.map((g) => {
     const overMax = playerCount > g.meta.maxPlayers;
     const underMin = enforceMin && playerCount < g.meta.minPlayers;
@@ -57,10 +56,9 @@ export function buildGameTilesHTML(
       ? `${g.meta.minPlayers}인 전용`
       : `${g.meta.minPlayers}~${g.meta.maxPlayers}인`;
     const isCurrent = g.meta.id === currentGameId;
-    // 메인 화면(도감) 카드와 동일 구조: 썸네일 + 이름 + 인원 뱃지. 잠긴 게임만 현재 인원 사유 표시.
-    const note = fits
-      ? (isCurrent ? escapeHtml(currentSuffix) : '')
-      : `현재 ${playerCount}명`;
+    // 썸네일 + 이름 + 인원 뱃지. 선택 표시는 ✓ 뱃지로만(텍스트 줄 추가 X → 카드 높이 균일).
+    // 잠긴 게임만 '현재 N명' 사유를 한 줄 표시.
+    const note = fits ? '' : `현재 ${playerCount}명`;
     return `
       <button class="change-game-card${fits ? '' : ' is-disabled'}${isCurrent ? ' is-current' : ''}"
               data-game-id="${escapeAttr(g.meta.id)}" ${fits ? '' : 'disabled'}>
@@ -91,7 +89,6 @@ export function buildGameOptionsHTML(gameId: string, current?: Record<string, st
 function buildOverlayHTML(o: GamePickerOptions): string {
   const cards = buildGameTilesHTML(o.playerCount, o.currentGameId, {
     enforceMin: o.enforceMin,
-    currentSuffix: o.currentSuffix,
   });
 
   return `
