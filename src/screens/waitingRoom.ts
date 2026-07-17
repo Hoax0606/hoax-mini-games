@@ -218,8 +218,11 @@ export function createWaitingRoomAsHostScreen(args: WaitingRoomAsHostArgs): Scre
         participantsEl.innerHTML = renderParticipantsHTML(players, max, hostPlayer.peerId, true);
         playerCountEl.textContent = `${players.length} / ${max}명`;
 
-        // 게임 타일 그리드 (항상 노출, 인원 초과 게임은 잠금) + 선택 게임 옵션
+        // 게임 타일 그리드 (항상 노출, 인원 초과 게임은 잠금). 재렌더 시 스크롤 위치 보존
+        //   (게임 고를 때마다 innerHTML 재생성돼 스크롤이 위로 튀던 문제 방지)
+        const gridScroll = gameGridEl.scrollTop;
         gameGridEl.innerHTML = buildGameTilesHTML(players.length, gameId, { enforceMin: false });
+        gameGridEl.scrollTop = gridScroll;
         // 옵션 박스는 항상 노출(통일성) — 옵션 있으면 셀렉트, 없으면 '설정 없음', 미선택이면 안내.
         gameOptionsEl.innerHTML = buildGameOptionsHTML(gameId, roomOptions);
         wireGameArea();
@@ -561,8 +564,10 @@ export function createWaitingRoomAsGuestScreen(args: WaitingRoomAsGuestArgs): Sc
         gameNameEl.textContent = guestGameName();
         participantsEl.innerHTML = renderParticipantsHTML(roomState.players, max, myPeerId);
         playerCountEl.textContent = `${count} / ${max}명`;
-        // 방장이 고른 게임/설정을 그대로(읽기 전용) 표시 — 방장 화면과 동일 UI.
+        // 방장이 고른 게임/설정을 그대로(읽기 전용) 표시 — 방장 화면과 동일 UI. 스크롤 위치 보존.
+        const gridScroll = gameGridEl.scrollTop;
         gameGridEl.innerHTML = buildGameTilesHTML(count, roomState.gameId, { enforceMin: false });
+        gameGridEl.scrollTop = gridScroll;
         gameOptionsEl.innerHTML = buildGameOptionsHTML(roomState.gameId, roomState.roomOptions);
         // 게스트는 설정을 못 바꿈 → 셀렉트 비활성화
         gameOptionsEl.querySelectorAll('select').forEach((s) => { s.disabled = true; });
