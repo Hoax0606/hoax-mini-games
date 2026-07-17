@@ -1118,15 +1118,40 @@ input {
   letter-spacing: 0.5px;
 }
 
+/* 우측 = 핑 + 설정, 한 줄 가로 정렬 (세로로 쌓이던 것 수정) */
 .game-room-info {
-  font-size: 12px;
-  color: var(--text-muted);
-  text-align: right;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
   white-space: nowrap;
+}
+/* 중앙 = 게임명 (+옵션 요약). 점수판은 필요 시 그 아래 표시. */
+.game-title-center {
   display: flex;
   flex-direction: column;
-  align-items: flex-end;
-  gap: 4px;
+  align-items: center;
+  gap: 2px;
+  min-width: 0;
+}
+.game-title-name {
+  font-size: 17px;
+  font-weight: 800;
+  color: var(--text-main);
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+}
+.game-title-opt {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+.game-title-spectator {
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--lavender-300);
 }
 
 /* Ping 배지 — 헤더 우측에 작고 조용히 */
