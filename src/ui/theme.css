@@ -2630,6 +2630,7 @@ input {
   flex: 1 1 auto;
   min-height: 0;
   overflow-y: auto;
+  overflow-x: hidden; /* overflow-y:auto 만 두면 브라우저가 x도 auto 로 강제 → 세로바 뜰 때 가로 스크롤 튐. 명시적으로 막음 */
   align-content: start;
   padding: 4px 4px 0;
   /* 스크롤 하단 edge fade (하드 스크롤 경계 대신 부드럽게) */
