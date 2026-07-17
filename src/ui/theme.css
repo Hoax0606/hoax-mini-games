@@ -497,9 +497,9 @@ input {
 }
 
 .game-card:hover {
-  transform: translateY(-4px);
-  box-shadow: var(--shadow-lg);
-  border-color: var(--accent-soft);
+  transform: translateY(-3px);
+  box-shadow: var(--shadow-md);
+  border-color: var(--pink-200);
 }
 
 /* 도감(게임 목록) 카드 — 클릭 없는 정보 표시용 */
@@ -2698,7 +2698,7 @@ input {
 .change-game-card:hover:not(:disabled) {
   transform: translateY(-3px);
   border-color: var(--pink-200);
-  box-shadow: 0 8px 20px rgba(255, 142, 178, 0.22);
+  box-shadow: var(--shadow-md);
 }
 .change-game-card:active:not(:disabled) { transform: scale(0.97); }
 
