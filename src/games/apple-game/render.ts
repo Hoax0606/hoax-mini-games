@@ -256,27 +256,33 @@ export class AppleRenderer {
         // 꼭지/잎 공간 위해 몸통 살짝 아래로
         const cy = y + 2;
 
-        // 몸통 — 약간 통통한 타원(사과 비율)
+        // 몸통 — 진짜 사과 실루엣: 상단 중앙 살짝 파임(꼭지 자리) + 하단 두 봉우리(엉덩이 모양 dip).
+        const R = bodyRadius;
         ctx.fillStyle = COLORS.appleFill;
         ctx.beginPath();
-        ctx.ellipse(x, cy, bodyRadius, bodyRadius - 0.5, 0, 0, Math.PI * 2);
+        ctx.moveTo(x, cy - R * 0.5);
+        ctx.bezierCurveTo(x - R * 0.55, cy - R * 1.12, x - R * 1.12, cy - R * 0.35, x - R * 0.98, cy + R * 0.3);
+        ctx.bezierCurveTo(x - R * 0.85, cy + R * 0.92, x - R * 0.34, cy + R * 1.0, x, cy + R * 0.6);   // 왼→바닥 dip
+        ctx.bezierCurveTo(x + R * 0.34, cy + R * 1.0, x + R * 0.85, cy + R * 0.92, x + R * 0.98, cy + R * 0.3);
+        ctx.bezierCurveTo(x + R * 1.12, cy - R * 0.35, x + R * 0.55, cy - R * 1.12, x, cy - R * 0.5);
+        ctx.closePath();
         ctx.fill();
         ctx.strokeStyle = COLORS.appleStroke;
         ctx.lineWidth = 1;
         ctx.stroke();
 
-        // 꼭지 — 짧고 살짝 기운 갈색(길게 세우면 폭탄 도화선처럼 보여서 짧게).
+        // 꼭지 — 상단 중앙 dip 에서 짧게 위로 (엉덩이 모양 사과의 꼭지).
         ctx.strokeStyle = COLORS.appleStem;
         ctx.lineWidth = 1.5;
         ctx.lineCap = 'round';
         ctx.beginPath();
-        ctx.moveTo(x - 0.4, cy - bodyRadius + 0.5);
-        ctx.lineTo(x + 1.5, cy - bodyRadius - 2);
+        ctx.moveTo(x, cy - R * 0.5);
+        ctx.lineTo(x + 1.4, cy - R * 0.5 - 4);
         ctx.stroke();
 
         // 잎 — 꼭지 오른쪽 위. 물방울 + 잎맥. (몸통에 맞춰 아담하게)
         ctx.save();
-        ctx.translate(x + 1.2, cy - bodyRadius - 0.5);
+        ctx.translate(x + 1, cy - R * 0.5 - 2.5);
         ctx.rotate(-Math.PI / 6);
         ctx.fillStyle = COLORS.appleLeaf;
         ctx.beginPath();
