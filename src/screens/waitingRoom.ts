@@ -110,6 +110,8 @@ export function createWaitingRoomAsHostScreen(args: WaitingRoomAsHostArgs): Scre
   let closeOnDispose = true;
   let cleanupChatHost: (() => void) | null = null;
   const hostNickname = storage.getNickname();
+  // 개발용 솔로 테스트 — 닉네임 'AlphaTest' 면 최소인원 무시하고 혼자 게임 시작 가능(인게임 UI 미리보기용).
+  const devSolo = hostNickname === 'AlphaTest';
 
   // 방 내부 상태 — guestPlayers는 방장 제외한 참가자들.
   // 결과 화면에서 되돌아온 경우 이미 연결된 게스트를 seed (준비는 리셋 → 다시 준비해야 시작 가능).
@@ -242,12 +244,13 @@ export function createWaitingRoomAsHostScreen(args: WaitingRoomAsHostArgs): Scre
 
         // 전원 준비돼야 시작 가능(방장은 항상 준비된 것으로 취급 → 게스트만 검사).
         const notReady = guestPlayers.filter((g) => !g.ready).length;
+        const needMin = devSolo ? 1 : minPlayers(); // AlphaTest = dev 솔로: 최소인원 무시(혼자 시작)
         if (!gameId) {
           startBtn.disabled = true;
           startBtn.textContent = '게임을 먼저 골라주세요';
-        } else if (players.length < minPlayers()) {
+        } else if (players.length < needMin) {
           startBtn.disabled = true;
-          startBtn.textContent = `${minPlayers() - players.length}명 더 필요해요`;
+          startBtn.textContent = `${needMin - players.length}명 더 필요해요`;
         } else if (notReady > 0) {
           startBtn.disabled = true;
           startBtn.textContent = `준비 대기 중 (${notReady}명)`;
@@ -432,7 +435,7 @@ export function createWaitingRoomAsHostScreen(args: WaitingRoomAsHostArgs): Scre
       // ---- 시작 버튼 ----
       startBtn.addEventListener('click', () => {
         const players = [hostPlayer, ...guestPlayers];
-        if (!gameId || players.length < minPlayers()) return;
+        if (!gameId || players.length < (devSolo ? 1 : minPlayers())) return;
 
         host.send({ type: 'game_start' });
 
