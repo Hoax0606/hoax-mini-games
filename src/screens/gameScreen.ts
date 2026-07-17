@@ -116,7 +116,7 @@ function buildHeaderHTML(args: {
       <button class="back-btn-inline" id="leave-btn" title="나가기">×</button>
 
       <div class="game-header-player game-header-player-host">
-        <span class="participant-badge">🐱 방장</span>
+        <span class="participant-badge">방장</span>
         <span class="game-player-name">${escapeHtml(args.hostNickname)}</span>
       </div>
 
@@ -124,13 +124,13 @@ function buildHeaderHTML(args: {
 
       <div class="game-header-player game-header-player-guest">
         <span class="game-player-name">${escapeHtml(args.guestNickname)}</span>
-        <span class="participant-badge participant-badge-lavender">🐻 손님</span>
+        <span class="participant-badge participant-badge-lavender">손님</span>
       </div>
 
       <div class="game-room-info">
         <span class="game-room-info-text">${escapeHtml(args.optionSummary)}</span>
-        <span class="ping-badge ping-pending" id="ping-badge">⏳ 측정 중</span>
-        <button class="game-menu-btn" id="game-menu-btn" title="게임 설정 (Esc)">⚙️</button>
+        <span class="ping-badge ping-pending" id="ping-badge">측정 중</span>
+        <button class="game-menu-btn" id="game-menu-btn" title="게임 설정 (Esc)" aria-label="게임 설정">${icon('settings', { size: 18, hue: '#9a86c0' })}</button>
       </div>
     </div>
 
