@@ -30,10 +30,11 @@ import {
 
 // Canvas는 CSS 변수 직접 못 쓰므로 팔레트를 여기에 박음 (theme.css와 동기)
 const COLORS = {
-  tableBg: '#d1ecff',
-  tableBgGradientEnd: '#b8dfff',
-  tableBorder: '#86c9ff',
-  centerLine: '#86c9ff',
+  // 더 옅은 파스텔 (앱 전체 톤과 어울리게)
+  tableBg: '#eef7ff',
+  tableBgGradientEnd: '#e3f0fb',
+  tableBorder: '#cfe6fb',
+  centerLine: '#c3ddf5',
   goalZone: 'rgba(255, 168, 199, 0.25)',
   goalLine: '#ff82ac',
 
@@ -162,52 +163,8 @@ export class Renderer {
     this.drawPuckTrail(ctx);
     this.drawPuck(ctx, state.puck);
     this.drawParticles(ctx);
-    this.drawScoreboard(ctx, state);
     this.drawPhaseOverlay(ctx, state);
-  }
-
-  /** 상단 중앙 스코어보드 — 점수를 캔버스 HUD 로(헤더 대신). 호스트 핑크 : 게스트 라벤더. */
-  private drawScoreboard(ctx: CanvasRenderingContext2D, state: GameState): void {
-    const cx = FIELD.WIDTH / 2;
-    const y = 30;
-    const hs = String(state.score.host);
-    const gs = String(state.score.guest);
-
-    ctx.save();
-    // 프로스티드 배경 알약 (반투명 — 퍽이 지나가도 비침)
-    const bw = 128, bh = 48;
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.62)';
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.8)';
-    ctx.lineWidth = 1.5;
-    ctx.beginPath();
-    ctx.roundRect(cx - bw / 2, y - bh / 2, bw, bh, 16);
-    ctx.fill();
-    ctx.stroke();
-
-    // 말렛 색과 일치 — 호스트 민트 / 게스트 노랑 (짙은 톤으로 가독성)
-    const hostCol = '#2e8a70';
-    const guestCol = '#c49a1f';
-    // 좌우 점(말렛 색) — 누가 어느 색인지 즉시 매칭
-    ctx.beginPath(); ctx.arc(cx - 46, y, 4.5, 0, Math.PI * 2); ctx.fillStyle = '#6ed9b3'; ctx.fill();
-    ctx.beginPath(); ctx.arc(cx + 46, y, 4.5, 0, Math.PI * 2); ctx.fillStyle = '#ffd454'; ctx.fill();
-
-    ctx.textBaseline = 'middle';
-    ctx.font = `900 30px ${FONT_SANS}`;
-    // 호스트(민트) 좌
-    ctx.fillStyle = hostCol;
-    ctx.textAlign = 'right';
-    ctx.fillText(hs, cx - 18, y + 1);
-    // 콜론
-    ctx.fillStyle = 'rgba(74, 58, 74, 0.32)';
-    ctx.textAlign = 'center';
-    ctx.font = `800 22px ${FONT_SANS}`;
-    ctx.fillText(':', cx, y);
-    // 게스트(노랑) 우
-    ctx.fillStyle = guestCol;
-    ctx.textAlign = 'left';
-    ctx.font = `900 30px ${FONT_SANS}`;
-    ctx.fillText(gs, cx + 18, y + 1);
-    ctx.restore();
+    // 점수는 경기장 밖(상단 헤더)에서 표시 — index 의 publishStatus → gameScreen 헤더 스코어보드.
   }
 
   // ============================================

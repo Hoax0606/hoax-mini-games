@@ -231,8 +231,12 @@ class AirHockeyGame implements GameModule {
   }
 
   private publishStatus(): void {
-    // 점수는 이제 캔버스 상단 스코어보드가 표시 → 헤더 점수판(hostScore/guestScore) 은 안 보냄(중복 방지).
-    this.ctx.onStatusUpdate?.({ phase: this.state.phase });
+    // 점수는 경기장 밖(상단 헤더 스코어보드)에서 표시.
+    this.ctx.onStatusUpdate?.({
+      hostScore: this.state.score.host,
+      guestScore: this.state.score.guest,
+      phase: this.state.phase,
+    });
   }
 
   private guestTick(): void {

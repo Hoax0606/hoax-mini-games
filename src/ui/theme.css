@@ -1093,17 +1093,25 @@ input {
   text-overflow: ellipsis;
 }
 
+/* 헤더 스코어보드 — 경기장 밖(툴바)에 프로스티드 알약. 게임명 아래 컴팩트하게. */
 .game-score {
-  display: flex;
-  gap: 10px;
-  align-items: baseline;
-  font-family: var(--font-mono);
-  font-weight: 700;
-  min-width: 140px;
+  display: inline-flex;
+  gap: 8px;
+  align-items: center;
   justify-content: center;
+  font-family: var(--font-mono);
+  font-weight: 900;
+  margin-top: 3px;
+  padding: 3px 14px;
+  border-radius: var(--radius-full);
+  background: rgba(255, 255, 255, 0.6);
+  border: 1.5px solid rgba(255, 255, 255, 0.75);
+  font-variant-numeric: tabular-nums;
 }
-.game-score-home { color: var(--accent-hover); font-size: 36px; }
-.game-score-away { color: var(--lavender-300); font-size: 36px; }
+/* 호스트 민트 / 게스트 노랑 (말렛·골대 색과 통일) */
+.game-score-home { color: #2e8a70; font-size: 22px; }
+.game-score-away { color: #c49a1f; font-size: 22px; }
+.game-score-sep { color: rgba(74, 58, 74, 0.3); font-size: 16px; }
 .game-score-sep  { color: var(--text-muted); font-size: 24px; }
 
 /* 관전 중 배지 — 점수판 대체 */
