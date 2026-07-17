@@ -51,7 +51,7 @@ const COLORS = {
   appleStroke: '#a8334e',        // stroke 도 톤 맞춰 진하게
   appleHighlight: 'rgba(255, 255, 255, 0.45)',
   appleNumber: '#fff',
-  appleNumberOutline: '#3d1018', // 숫자 외곽선 (가독성용)
+  appleNumberOutline: 'rgba(120, 28, 50, 0.55)', // 숫자 외곽선 — 부드럽게(과한 와인색 대신)
   appleStem: '#8b5a2b',    // 꼭지(줄기) 갈색
   appleLeaf: '#86e8c4',    // 잎 민트 (썸네일과 통일)
   appleLeafStroke: '#5dc9a7',
@@ -239,7 +239,7 @@ export class AppleRenderer {
 
   private drawApples(board: Board): void {
     const ctx = this.ctx;
-    ctx.font = `800 16px ${FONT}`;
+    ctx.font = `900 17px ${FONT}`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
 
@@ -283,16 +283,24 @@ export class AppleRenderer {
         ctx.closePath();
         ctx.fill();
 
-        // 잎 — 꼭지 옆 대각 타원 (민트)
+        // 잎 — 꼭지 옆 물방울 모양(teardrop) + 잎맥. 대각으로 살짝 기울임.
         ctx.save();
-        ctx.translate(x + 3, cy - bodyRadius - 1);
-        ctx.rotate(-Math.PI / 5); // 좌상 방향으로 살짝 기울어진 잎
+        ctx.translate(x + 2.5, cy - bodyRadius - 1.5);
+        ctx.rotate(-Math.PI / 4);
         ctx.fillStyle = COLORS.appleLeaf;
         ctx.beginPath();
-        ctx.ellipse(0, 0, 3.8, 1.6, 0, 0, Math.PI * 2);
+        ctx.moveTo(0, 0);
+        ctx.quadraticCurveTo(4.5, -3.4, 8.5, 0);
+        ctx.quadraticCurveTo(4.5, 3.4, 0, 0);
         ctx.fill();
         ctx.strokeStyle = COLORS.appleLeafStroke;
         ctx.lineWidth = 0.7;
+        ctx.stroke();
+        // 잎맥
+        ctx.beginPath();
+        ctx.moveTo(1, 0);
+        ctx.lineTo(7.5, 0);
+        ctx.lineWidth = 0.5;
         ctx.stroke();
         ctx.restore();
 
@@ -308,8 +316,8 @@ export class AppleRenderer {
         );
         ctx.fill();
 
-        // 숫자 — 외곽선(어두운 와인) + 흰 채움으로 사과 위에서도 또렷하게
-        ctx.lineWidth = 2.2;
+        // 숫자 — 얇고 부드러운 외곽선(과하지 않게) + 흰 채움. 사과 위에서도 또렷.
+        ctx.lineWidth = 1.6;
         ctx.lineJoin = 'round';
         ctx.strokeStyle = COLORS.appleNumberOutline;
         ctx.strokeText(String(v), x, cy + 1);
@@ -417,9 +425,11 @@ export class AppleRenderer {
 
       ctx.fillStyle = row.isMe ? '#ffe4ee' : '#faf5ff';
       ctx.strokeStyle = row.isMe ? '#ff6b9e' : '#d9c7ff';
-      ctx.lineWidth = 1;
-      ctx.fillRect(RIGHT_PANEL_X, y, RANK_ROW_W, rowH);
-      ctx.strokeRect(RIGHT_PANEL_X, y, RANK_ROW_W, rowH);
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.roundRect(RIGHT_PANEL_X, y, RANK_ROW_W, rowH, 10);
+      ctx.fill();
+      ctx.stroke();
 
       ctx.fillStyle = COLORS.textMain;
       ctx.font = `700 13px ${FONT}`;
