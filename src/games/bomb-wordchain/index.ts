@@ -359,7 +359,7 @@ class BombWordChainModule implements GameModule {
         hint.textContent = `${cur?.nickname ?? '?'} 님이 폭탄을 들고 있어요`;
       } else {
         // 요구 글자는 캔버스 히어로에 크게 나오므로 여기선 긴장감만
-        hint.textContent = '서둘러요! 폭탄이 터지기 전에';
+        hint.textContent = '';
       }
     }
     if (enabled) window.setTimeout(() => this.inputEl?.focus(), 10);

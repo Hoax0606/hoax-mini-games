@@ -412,7 +412,7 @@ export class AlgagiRenderer {
       ctx.font = `800 16px ${FONT}`;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      ctx.fillText('🏁 게임 종료', PANEL_X + PANEL_W / 2, turnCardY + turnCardH / 2);
+      ctx.fillText('게임 종료', PANEL_X + PANEL_W / 2, turnCardY + turnCardH / 2);
     } else {
       const cur = game.players.find((p) => p.index === game.currentTurn);
       const isMine = cur?.peerId === state.myPeerId;
@@ -420,7 +420,7 @@ export class AlgagiRenderer {
       ctx.font = `700 13px ${FONT}`;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      ctx.fillText('🎯 현재 차례', PANEL_X + PANEL_W / 2, turnCardY + 22);
+      ctx.fillText('현재 차례', PANEL_X + PANEL_W / 2, turnCardY + 22);
 
       ctx.font = `900 22px ${FONT}`;
       const label = isMine ? `${cur?.nickname ?? '?'} (나)` : (cur?.nickname ?? '?');
@@ -449,14 +449,11 @@ export class AlgagiRenderer {
     ctx.textAlign = 'center';
     ctx.textBaseline = 'top';
     if (state.isSpectator) {
-      ctx.fillText('👀 관전 중', PANEL_X + PANEL_W / 2, hintY);
+      ctx.fillText('관전 중', PANEL_X + PANEL_W / 2, hintY);
     } else if (game.phase === 'aiming') {
       const cur = game.players.find((p) => p.index === game.currentTurn);
-      if (cur?.peerId === state.myPeerId) {
-        ctx.fillText('자기 알을 클릭하고 드래그해서 튕겨요', PANEL_X + PANEL_W / 2, hintY);
-        ctx.fillText('(반대 방향으로 발사)', PANEL_X + PANEL_W / 2, hintY + 16);
-      } else {
-        ctx.fillText('상대 차례 — 잠시 기다려요', PANEL_X + PANEL_W / 2, hintY);
+      if (cur?.peerId !== state.myPeerId) {
+        ctx.fillText('상대 차례', PANEL_X + PANEL_W / 2, hintY);
       }
     } else if (game.phase === 'resolving') {
       ctx.fillText('굴러가는 중', PANEL_X + PANEL_W / 2, hintY);

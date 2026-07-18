@@ -26,6 +26,9 @@ const C = {
   text: '#4a3a4a',
   muted: '#9a8a9a',
   turnHi: '#ff5a92',
+  mint: '#5cc9a2',
+  frost: 'rgba(255,255,255,0.66)',
+  frostLine: 'rgba(216,199,255,0.8)',
   panel: '#faf5ff',
   panelBorder: '#e0d0f0',
   drawPile: '#9c7aeb',
@@ -166,25 +169,35 @@ export class OneCardRenderer {
       ctx.font = `700 12px ${FONT}`;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      ctx.fillText('🏳 기권', s.x + s.w / 2, s.y + s.h / 2);
+      ctx.fillText('기권', s.x + s.w / 2, s.y + s.h / 2);
     }
 
     if (state.wildPickIndex >= 0) this.drawWildPicker(ctx);
     if (pub.phase === 'ended') this.drawEnd(ctx, state);
   }
 
-  // ── 상대들 (상단 가로) ──
+  // ── 상대들 (상단 가로, 턴 순서대로 · 지금/다음 강조) ──
   private drawOpponents(ctx: CanvasRenderingContext2D, state: RenderState): void {
     const pub = state.pub;
-    const others = pub.order.filter((pid) => pid !== state.myPeerId);
-    const n = others.length;
-    if (n === 0) return;
-    // 내 앞/다음 플레이어 계산 (진행 방향 + 완료자 건너뜀) → 태그로 명확히 표시
-    const fin = new Set(pub.finished);
+    const len = pub.order.length;
     const myIdx = pub.order.indexOf(state.myPeerId);
+
+    // 상대를 "내 다음부터" 진행 방향 순서로 나열 → 왼→오 = 턴 순서
+    let ordered: string[];
+    if (myIdx >= 0) {
+      ordered = [];
+      for (let c = 1; c < len; c++) {
+        ordered.push(pub.order[(((myIdx + c * pub.direction) % len) + len) % len]!);
+      }
+    } else {
+      ordered = pub.order.filter((pid) => pid !== state.myPeerId);
+    }
+    const n = ordered.length;
+    if (n === 0) return;
+
+    // 지금 차례 / 다음 차례(진행방향 + 완료자 건너뜀) 계산
+    const fin = new Set(pub.finished);
     const stepActive = (from: number, dir: number): string => {
-      if (from < 0) return '';
-      const len = pub.order.length;
       let idx = from;
       for (let c = 0; c < len; c++) {
         idx = (idx + dir + len) % len;
@@ -192,51 +205,95 @@ export class OneCardRenderer {
       }
       return '';
     };
-    const nextPid = stepActive(myIdx, pub.direction);
-    const prevPid = stepActive(myIdx, -pub.direction);
-    const cw = Math.min(120, (W - 40) / n);
-    const total = n * cw;
+    const curPid = pub.phase === 'playing' ? pub.order[pub.currentTurn] ?? '' : '';
+    const nextPid = pub.phase === 'playing' ? stepActive(pub.currentTurn, pub.direction) : '';
+
+    const cw = Math.min(92, (W - 28) / n);
+    const gap = Math.min(10, cw * 0.12);
+    const cardW = cw - gap;
+    const total = n * cw - gap;
     const startX = (W - total) / 2;
     const y = 14;
+    const ch = 78;
+
     for (let i = 0; i < n; i++) {
-      const pid = others[i]!;
+      const pid = ordered[i]!;
       const p = pub.players.find((pp) => pp.peerId === pid);
-      const cx = startX + i * cw + cw / 2;
-      const isTurn = pub.phase === 'playing' && pub.order[pub.currentTurn] === pid;
+      const x = startX + i * cw;
+      const cx = x + cardW / 2;
+      const isTurn = pid === curPid;
+      const isNext = pid === nextPid && pid !== curPid;
       const finRank = pub.finished.indexOf(pid);
       const isOut = pub.outPeers.includes(pid);
+      const done = finRank >= 0 || isOut;
 
-      // 카드 뒷면 아이콘 + 장수
-      ctx.fillStyle = (finRank >= 0 || isOut) ? C.muted : C.cardBack;
-      this.roundRect(ctx, cx - 16, y, 32, 22, 5);
+      // 카드 배경 (프로스티드 / 지금=핑크 채움)
+      ctx.save();
+      ctx.shadowColor = isTurn ? 'rgba(255,90,146,0.28)' : 'rgba(120,80,140,0.1)';
+      ctx.shadowBlur = isTurn ? 12 : 5;
+      ctx.shadowOffsetY = isTurn ? 4 : 2;
+      this.roundRect(ctx, x, y, cardW, ch, 14);
+      ctx.fillStyle = isTurn ? C.turnHi : C.frost;
       ctx.fill();
-      ctx.fillStyle = '#fff';
-      ctx.font = `800 13px ${FONT}`;
+      ctx.restore();
+      if (!isTurn) {
+        this.roundRect(ctx, x, y, cardW, ch, 14);
+        ctx.strokeStyle = isNext ? C.mint : C.frostLine;
+        ctx.lineWidth = isNext ? 2 : 1;
+        ctx.stroke();
+      }
+
+      // 남은 카드 수 뱃지
+      const bw = Math.min(34, cardW * 0.5);
+      ctx.fillStyle = isTurn ? 'rgba(255,255,255,0.9)' : done ? C.muted : C.cardBack;
+      this.roundRect(ctx, cx - bw / 2, y + 8, bw, 20, 5);
+      ctx.fill();
+      ctx.fillStyle = isTurn ? C.turnHi : '#fff';
+      ctx.font = `800 12px ${FONT}`;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      ctx.fillText(String(pub.handCounts[pid] ?? 0), cx, y + 11);
+      ctx.fillText(`${pub.handCounts[pid] ?? 0}장`, cx, y + 18);
 
-      // 닉네임
-      ctx.fillStyle = isTurn ? C.turnHi : C.text;
-      ctx.font = `${isTurn ? 800 : 600} 13px ${FONT}`;
-      const nick = (p?.nickname ?? '?').slice(0, 6);
-      ctx.fillText((isTurn ? '▶ ' : '') + nick, cx, y + 36);
+      // 닉네임 (폭 맞춰 말줄임)
+      ctx.fillStyle = isTurn ? '#fff' : done ? C.muted : C.text;
+      ctx.font = `${isTurn ? 800 : 600} 12px ${FONT}`;
+      ctx.fillText(this.ellipsize(ctx, p?.nickname ?? '?', cardW - 10), cx, y + 42);
 
+      // 상태 태그 (지금 / 다음만 · 완료·기권)
+      ctx.font = `800 11px ${FONT}`;
       if (finRank >= 0) {
         ctx.fillStyle = C.muted;
         ctx.font = `700 11px ${FONT}`;
-        ctx.fillText(`${finRank + 1}등 완료`, cx, y + 52);
+        ctx.fillText(`${finRank + 1}등`, cx, y + 62);
       } else if (isOut) {
         ctx.fillStyle = C.muted;
         ctx.font = `700 11px ${FONT}`;
-        ctx.fillText('🏳 기권', cx, y + 52);
-      } else if (pid === nextPid || pid === prevPid) {
-        // 내 앞/다음 명확히 (진행방향 기준). 다음 = 내가 공격카드 넘길 대상
-        ctx.fillStyle = C.turnHi;
-        ctx.font = `800 11px ${FONT}`;
-        ctx.fillText(pid === nextPid ? '⬅ 내 다음' : '내 앞 ➡', cx, y + 52);
+        ctx.fillText('기권', cx, y + 62);
+      } else if (isTurn) {
+        ctx.fillStyle = '#fff';
+        ctx.fillText('지금 차례', cx, y + 62);
+      } else if (isNext) {
+        ctx.fillStyle = C.mint;
+        ctx.fillText('다음', cx, y + 62);
+      }
+
+      // 진행 화살표 (카드 사이)
+      if (i < n - 1) {
+        ctx.fillStyle = 'rgba(154,138,154,0.6)';
+        ctx.font = `700 14px ${FONT}`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText('›', x + cardW + gap / 2, y + ch / 2);
       }
     }
+  }
+
+  /** 폭 맞춰 말줄임 (현재 ctx.font 기준) */
+  private ellipsize(ctx: CanvasRenderingContext2D, text: string, maxW: number): string {
+    if (ctx.measureText(text).width <= maxW) return text;
+    let t = text;
+    while (t.length > 1 && ctx.measureText(t + '…').width > maxW) t = t.slice(0, -1);
+    return t + '…';
   }
 
   private drawDrawPile(ctx: CanvasRenderingContext2D, pub: OneCardPublic): void {
@@ -267,11 +324,19 @@ export class OneCardRenderer {
   }
 
   private drawDirection(ctx: CanvasRenderingContext2D, pub: OneCardPublic): void {
-    ctx.fillStyle = C.muted;
-    ctx.font = `800 26px ${FONT}`;
+    const bx = 560, by = 196;
+    ctx.fillStyle = 'rgba(156,122,235,0.14)';
+    ctx.beginPath();
+    ctx.arc(bx, by, 26, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = C.drawPile;
+    ctx.font = `800 30px ${FONT}`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillText(pub.direction === 1 ? '↻' : '↺', 540, 200);
+    ctx.fillText(pub.direction === 1 ? '↻' : '↺', bx, by + 1);
+    ctx.fillStyle = C.muted;
+    ctx.font = `700 11px ${FONT}`;
+    ctx.fillText(pub.direction === 1 ? '시계 방향' : '반시계 방향', bx, by + 36);
   }
 
   // ── 내 손패 (하단, 클릭) ──
@@ -282,7 +347,7 @@ export class OneCardRenderer {
       ctx.font = `700 15px ${FONT}`;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      ctx.fillText('👀 관전 중', W / 2, HAND_Y + HAND_CARD_H / 2);
+      ctx.fillText('관전 중', W / 2, HAND_Y + HAND_CARD_H / 2);
       return;
     }
     const hand = state.myHand;
@@ -326,14 +391,11 @@ export class OneCardRenderer {
     ctx.textBaseline = 'middle';
     let msg: string;
     if (pub.pendingDraw > 0) {
-      const stackTxt = pub.pendingKind === 'wild4' ? '+4' : '+2';
-      msg = mine
-        ? `💥 누적 ${pub.pendingDraw}장! ${stackTxt} 로 받아치거나 뽑기더미 클릭해 받기`
-        : `💥 ${curNick} — 누적 ${pub.pendingDraw}장 대응 중`;
+      msg = mine ? `누적 ${pub.pendingDraw}장` : `${curNick} · 누적 ${pub.pendingDraw}장`;
     } else {
-      msg = mine ? '🃏 내 차례! 카드를 내거나 뽑기' : `⏳ ${curNick} 차례`;
+      msg = mine ? '내 차례' : `${curNick} 차례`;
     }
-    ctx.fillText(msg, W / 2, 108);
+    ctx.fillText(msg, W / 2, 118);
   }
 
   private drawWildPicker(ctx: CanvasRenderingContext2D): void {

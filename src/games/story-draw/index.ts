@@ -572,7 +572,7 @@ class StoryDrawGameModule implements GameModule {
       : `<div class="sd-gwait">호스트가 마무리하면 로비로 돌아가요</div>`;
     this.galleryEl.innerHTML = `
       <div class="sd-gtitle">완성! 이야기 감상</div>
-      <div class="sd-gsub">보고 싶은 사람의 책을 골라보세요 — 그림이 어떻게 변했을까요?</div>
+      <div class="sd-gsub">책을 골라보세요</div>
       <div class="sd-gbooks">${cards}</div>
       ${endBtn}`;
     this.galleryEl.querySelectorAll<HTMLElement>('.sd-book').forEach((el) => {
@@ -657,7 +657,6 @@ class StoryDrawGameModule implements GameModule {
           <div class="sd-cover-box">
             <div class="sd-cover-who">${escapeHtml(book.ownerNickname)} 님의 이야기</div>
             <div class="sd-cover-ttl">"${escapeHtml(book.prompt)}"</div>
-            <div class="sd-cover-hint">과연 어떻게 변했을까요?</div>
           </div>
         </div>`;
       } else {

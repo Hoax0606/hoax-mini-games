@@ -553,12 +553,6 @@ export class FortressRenderer {
     ctx.moveTo(t.x, t.y - 24); ctx.lineTo(t.x, t.y - 8);
     ctx.moveTo(t.x, t.y + 8); ctx.lineTo(t.x, t.y + 24);
     ctx.stroke();
-    // 안내 문구
-    ctx.fillStyle = COLORS.accentPink;
-    ctx.font = `700 12px ${FONT}`;
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'bottom';
-    ctx.fillText('다시 클릭하면 발사', t.x, t.y - 26);
     ctx.restore();
   }
 
@@ -632,7 +626,7 @@ export class FortressRenderer {
     ctx.fillStyle = COLORS.textMain;
     ctx.font = `700 13px ${FONT}`;
     ctx.textAlign = 'left';
-    ctx.fillText(`🎯 ${turnLabel}`, boxX + 14, midY);
+    ctx.fillText(turnLabel, boxX + 14, midY);
 
     // 우: 바람 — "바람" 라벨 + 방향(▶/◀) 삼각형(핑크, 세기만큼)
     //   wind 가 undefined/NaN 이면 예전엔 화살표도 '무풍'도 안 그려져(게스트에서 아무것도 안 보임) → 0 으로 방어.
@@ -654,7 +648,7 @@ export class FortressRenderer {
       ctx.fillStyle = COLORS.textMuted;
       ctx.font = `600 12px ${FONT}`;
       ctx.textAlign = 'center';
-      ctx.fillText('👀 관전 중', logicalW / 2, 60);
+      ctx.fillText('관전 중', logicalW / 2, 60);
     }
   }
 

@@ -193,12 +193,9 @@ export class AppleRenderer {
     ctx.font = `900 36px ${FONT}`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillText('👀', cx, cy - 24);
+    ctx.fillText('관전', cx, cy - 24);
     ctx.font = `900 24px ${FONT}`;
     ctx.fillText('관전 중', cx, cy + 14);
-    ctx.fillStyle = COLORS.textMuted;
-    ctx.font = `500 12px ${FONT}`;
-    ctx.fillText('오른쪽 랭킹을 확인하세요', cx, cy + 42);
   }
 
   // ============================================
@@ -384,7 +381,7 @@ export class AppleRenderer {
       ctx.fillText('모드', labelX, topY + 100);
       ctx.fillStyle = COLORS.accent;
       ctx.font = `800 22px ${FONT}`;
-      ctx.fillText('👀 관전', labelX, topY + 132);
+      ctx.fillText('관전', labelX, topY + 132);
     } else {
       ctx.fillText('내 점수', labelX, topY + 100);
       ctx.fillStyle = COLORS.accent;

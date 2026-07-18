@@ -1020,11 +1020,6 @@ class DrawQuizGameModule implements GameModule {
           });
           wrap.appendChild(form);
 
-          const hint = document.createElement('div');
-          hint.className = 'dq-choose-hint';
-          hint.innerHTML = `${icon('clock', { size: 14, hue: '#8a7a8a' })}<span>안 고르면 자동 시작</span>`;
-          wrap.appendChild(hint);
-
           this.candidatesEl.innerHTML = '';
           this.candidatesEl.appendChild(wrap);
         }

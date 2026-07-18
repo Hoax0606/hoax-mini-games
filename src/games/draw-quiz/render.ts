@@ -422,7 +422,7 @@ export class DrawQuizRenderer {
     if (state.game.phase === 'ended') {
       ctx.fillStyle = '#fff';
       ctx.font = `700 15px ${FONT}`;
-      ctx.fillText('🏁 게임 종료!', cx, DRAW_H / 2 + 54);
+      ctx.fillText('게임 종료!', cx, DRAW_H / 2 + 54);
     }
   }
 
@@ -574,7 +574,7 @@ export class DrawQuizRenderer {
       ctx.fillStyle = COLORS.textMuted;
       ctx.font = `600 12px ${FONT}`;
       ctx.textAlign = 'center';
-      ctx.fillText('👀 관전 중', PANEL_X + PANEL_W / 2, CANVAS_H - 16);
+      ctx.fillText('관전 중', PANEL_X + PANEL_W / 2, CANVAS_H - 16);
     }
   }
 

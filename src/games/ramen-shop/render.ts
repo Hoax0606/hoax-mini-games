@@ -182,7 +182,7 @@ export class RamenRenderer {
       ctx.font = `800 20px ${FONT}`;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      ctx.fillText('👀 관전 중 — 각자 자기 가게를 운영해요', LOGICAL_W / 2, 268);
+      ctx.fillText('관전 중', LOGICAL_W / 2, 268);
     }
     this.drawPopups(ctx, state);
     // HUD 도 논리 좌표에 그린다(모든 요소가 함께 스케일 → 해상도 달라도 안 겹침/안 잘림).
@@ -341,11 +341,11 @@ export class RamenRenderer {
 
   private potHint(pot: Pot): string {
     switch (pot.state) {
-      case 'empty': return '클릭 → 물';
-      case 'water': return '클릭 → 면';
+      case 'empty': return '';
+      case 'water': return '';
       case 'cooking': return '끓는 중';
       case 'ready': return '토핑 후 배달';
-      case 'overcooked': return '클릭 → 버리기';
+      case 'overcooked': return '';
     }
   }
 

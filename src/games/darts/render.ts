@@ -460,7 +460,7 @@ export class DartsRenderer {
     ctx.font = `900 38px ${FONT}`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillText('💥 BUST!', cx, cy - 8);
+    ctx.fillText('BUST!', cx, cy - 8);
 
     ctx.fillStyle = 'rgba(255, 240, 240, 0.95)';
     ctx.font = `700 13px ${FONT}`;
@@ -845,7 +845,7 @@ export class DartsRenderer {
       ctx.font = `700 11px ${FONT}`;
       ctx.textAlign = 'left';
       ctx.textBaseline = 'alphabetic';
-      ctx.fillText('👥 다른 플레이어', innerX, y);
+      ctx.fillText('다른 플레이어', innerX, y);
       y += 14;
 
       const others: { p: PlayerDisplay; i: number }[] = [];
@@ -917,7 +917,7 @@ export class DartsRenderer {
     ctx.font = `900 18px ${FONT}`;
     ctx.textAlign = 'left';
     ctx.textBaseline = 'alphabetic';
-    ctx.fillText(`🎯 ${state.modeLabel}`, x + 12, y + 22);
+    ctx.fillText(state.modeLabel, x + 12, y + 22);
 
     const roundText = state.maxRounds
       ? `Round ${state.round} / ${state.maxRounds}`

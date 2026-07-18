@@ -160,7 +160,7 @@ class DartsGameModule implements GameModule {
       if (wrap) {
         this.hintEl = document.createElement('div');
         this.hintEl.className = 'darts-hint';
-        this.hintEl.textContent = '🎯 클릭 → 아래로 당겼다가 위로 휘둘러 던지기';
+        this.hintEl.textContent = '';
         wrap.appendChild(this.hintEl);
       }
     }

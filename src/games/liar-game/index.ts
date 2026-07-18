@@ -580,7 +580,7 @@ class LiarGameModule implements GameModule {
     guessForm.style.display = 'none';
     this.showMessage('');
 
-    if (this.isSpectator) { this.showMessage('👀 관전 중'); return; }
+    if (this.isSpectator) { this.showMessage('관전 중'); return; }
 
     if (g.phase === 'hint') this.votedThisRound = false; // 새 라운드 힌트 단계 = 투표 초기화
 
@@ -608,7 +608,7 @@ class LiarGameModule implements GameModule {
 
   private buildVoteButtons(box: HTMLDivElement, disabled: boolean): void {
     const g = this.game;
-    box.innerHTML = `<div class="lg-vote-title">🗳️ 라이어는 누구?</div>`;
+    box.innerHTML = `<div class="lg-vote-title">라이어는 누구?</div>`;
     const row = document.createElement('div');
     row.className = 'lg-vote-row';
     for (const p of g.players) {

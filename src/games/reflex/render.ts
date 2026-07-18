@@ -341,7 +341,7 @@ export class ReflexRenderer {
       case 'idle': {
         ctx.fillStyle = '#fff';
         ctx.font = `800 20px ${FONT}`;
-        ctx.fillText('클릭해서 시작', cx, cy);
+        ctx.fillText('시작', cx, cy);
         break;
       }
       case 'waiting': {
@@ -376,7 +376,7 @@ export class ReflexRenderer {
         ctx.fillText('너무 빨라요', cx, cy + 4);
         ctx.font = `700 12px ${FONT}`;
         ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
-        ctx.fillText('실격 · 초록을 기다려요', cx, cy + 30);
+        ctx.fillText('실격', cx, cy + 30);
         break;
       }
       case 'done': {

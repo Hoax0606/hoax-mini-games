@@ -146,19 +146,10 @@ export class DodgeRenderer {
 
     if (!s.isSpectator) this.drawHud(s);
 
-    // 시작 직후 조작 힌트
-    if (!s.isSpectator && s.phase === 'playing' && s.t < 2.5) {
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillStyle = COLORS.lavender;
-      ctx.font = `700 15px ${FONT}`;
-      ctx.fillText('← → 이동 · Space 대시', FIELD_W / 2, 74);
-    }
-
     // 오버레이
     if (s.isSpectator) this.drawCenterCard('spectate', '다들 피하는 중');
     else if (s.phase === 'dead') {
-      this.drawCenterCard('dead', `생존 ${(s.myAliveMs / 1000).toFixed(1)}초 · 다른 사람 기다리는 중`);
+      this.drawCenterCard('dead', `생존 ${(s.myAliveMs / 1000).toFixed(1)}초`);
     }
   }
 
@@ -325,11 +316,6 @@ export class DodgeRenderer {
     this.roundRect(bx, by, bw, bh, 4.5); ctx.fill();
     ctx.fillStyle = s.dashReady01 >= 1 ? COLORS.gaugeFill : COLORS.gaugeWarn;
     this.roundRect(bx, by, bw * s.dashReady01, bh, 4.5); ctx.fill();
-    ctx.fillStyle = COLORS.textMuted;
-    ctx.font = `600 11px ${FONT}`;
-    ctx.textAlign = 'left';
-    ctx.textBaseline = 'top';
-    ctx.fillText(s.dashReady01 >= 1 ? '대시 준비됨 (Space)' : '대시 충전 중', bx, by + bh + 4);
   }
 
   // ── 프로스티드 중앙 카드 (아웃 / 관전) ──

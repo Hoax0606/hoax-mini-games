@@ -387,9 +387,9 @@ class RamenShopGame implements GameModule {
   private buildUpgradeButtons(): void {
     if (!this.upgradeBar) return;
     this.upgradeBar.innerHTML =
-      this.upgradeBtnHTML('pots', '🍲 냄비') +
-      this.upgradeBtnHTML('firepower', '🔥 화력') +
-      this.upgradeBtnHTML('seats', '🪑 좌석');
+      this.upgradeBtnHTML('pots', '냄비') +
+      this.upgradeBtnHTML('firepower', '화력') +
+      this.upgradeBtnHTML('seats', '좌석');
     this.refreshUpgradeBar();
   }
 
