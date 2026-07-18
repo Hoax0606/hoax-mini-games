@@ -40,7 +40,8 @@ function winnerVisuals(myWinner: 'me' | 'opponent' | null): {
   title: string;
   titleClass: string;
 } {
-  if (myWinner === 'me')       return { emoji: '🏆', title: '승리!',   titleClass: 'result-title-win' };
+  // 승리 트로피는 Solar 아이콘으로(나머지 이모지와 톤 통일). 패배/무승부는 대응 아이콘이 없어 이모지 유지.
+  if (myWinner === 'me')       return { emoji: icon('trophy', { size: 68, hue: '#ffb020' }), title: '승리!',   titleClass: 'result-title-win' };
   if (myWinner === 'opponent') return { emoji: '💫', title: '패배', titleClass: 'result-title-lose' };
   return                              { emoji: '⚖️', title: '무승부',   titleClass: 'result-title-draw' };
 }
@@ -1219,7 +1220,7 @@ function buildDrawQuizResultHTML(args: {
     ? { emoji: '🎨', title: '그림 퀴즈 종료', titleClass: 'result-title-draw' }
     : winnerVisuals(myWinner);
   if (!isSpectator && summary.isCoWin && myWinner === 'me') {
-    visuals = { emoji: '🏆', title: '공동 우승!', titleClass: 'result-title-win' };
+    visuals = { emoji: icon('trophy', { size: 68, hue: '#ffb020' }), title: '공동 우승!', titleClass: 'result-title-win' };
   }
   const { emoji, title, titleClass } = visuals;
   const actionsHTML = buildActionsHTML(isHost);
@@ -1308,7 +1309,7 @@ function buildFortressResultHTML(args: {
     ? { emoji: '💥', title: '포트리스 종료', titleClass: 'result-title-draw' }
     : winnerVisuals(myWinner);
   if (!isSpectator && summary.isCoWin && myWinner === 'me') {
-    visuals = { emoji: '🏆', title: '공동 우승!', titleClass: 'result-title-win' };
+    visuals = { emoji: icon('trophy', { size: 68, hue: '#ffb020' }), title: '공동 우승!', titleClass: 'result-title-win' };
   }
   const { emoji, title, titleClass } = visuals;
   const actionsHTML = buildActionsHTML(isHost);
