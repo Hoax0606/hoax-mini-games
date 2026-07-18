@@ -1235,10 +1235,12 @@ input {
 }
 
 .game-canvas {
-  /* flex container 안에서 폭을 꽉 채우고 aspect-ratio로 높이 자동 계산.
-     height가 부모 초과 시 max-height로 축소되면서 폭도 비례 축소 (aspect-ratio 유지).
-     max-* 만 있으면 canvas의 intrinsic size(300x150)에서 더 안 키우니 width 필수. */
+  /* flex container 안에서 폭을 채우되 max-width 로 "고정 크기 카드"로 통일.
+     max-width 가 없으면 화면 폭·채팅 유무·게임마다 카드 크기가 제각각이 됨 →
+     모든 게임이 동일한 2:1 카드가 되도록 max-width 를 못 박는다.
+     height 는 aspect-ratio 로 자동(폭/2), 화면이 낮으면 max-height 로 축소. */
   width: 100%;
+  max-width: 1200px;
   height: auto;
   max-height: 100%;
   aspect-ratio: 2 / 1;
