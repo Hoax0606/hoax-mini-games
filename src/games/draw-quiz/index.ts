@@ -731,8 +731,8 @@ class DrawQuizGameModule implements GameModule {
           <input type="color" id="dq-color-picker" class="dq-color-picker" title="색 선택" />
           <div class="dq-swatches" id="dq-colors"></div>
         </div>
-        <button class="dq-tool-btn" id="dq-undo" type="button" title="실행 취소 (Ctrl+Z)">${icon('undo', { size: 19 })}</button>
-        <button class="dq-tool-btn" id="dq-clear" type="button" title="전체 지우기">${icon('trash', { size: 19 })}</button>
+        <button class="dq-tool-btn" id="dq-undo" type="button" title="실행 취소 (Ctrl+Z)">${icon('undo', { size: 19, hue: '#8b93a7' })}</button>
+        <button class="dq-tool-btn" id="dq-clear" type="button" title="전체 지우기">${icon('trash', { size: 19, hue: '#ff6b6b' })}</button>
       </div>
       <div class="dq-guessbar" id="dq-guessbar" style="display:none">
         <form class="dq-guess-form" id="dq-guess-form" autocomplete="off">
@@ -830,11 +830,11 @@ class DrawQuizGameModule implements GameModule {
     const wrap = root.querySelector('#dq-tools');
     if (!wrap) return;
     const tools: Array<{ id: DrawTool | 'eyedropper'; icon: string; title: string }> = [
-      { id: 'pen', icon: icon('pen', { size: 19 }), title: '펜' },
-      { id: 'marker', icon: icon('marker', { size: 19 }), title: '형광펜' },
-      { id: 'eraser', icon: icon('eraser', { size: 19 }), title: '지우개' },
-      { id: 'fill', icon: icon('fill', { size: 19 }), title: '채우기' },
-      { id: 'eyedropper', icon: icon('dropper', { size: 19 }), title: '스포이드 (색 추출)' },
+      { id: 'pen', icon: icon('pen', { size: 19, hue: '#ff5a92' }), title: '펜' },
+      { id: 'marker', icon: icon('marker', { size: 19, hue: '#ffb020' }), title: '형광펜' },
+      { id: 'eraser', icon: icon('eraser', { size: 19, hue: '#8b93a7' }), title: '지우개' },
+      { id: 'fill', icon: icon('fill', { size: 19, hue: '#3fb98f' }), title: '채우기' },
+      { id: 'eyedropper', icon: icon('dropper', { size: 19, hue: '#9c7aeb' }), title: '스포이드 (색 추출)' },
     ];
     tools.forEach((t) => {
       const b = document.createElement('button');
@@ -889,10 +889,10 @@ class DrawQuizGameModule implements GameModule {
     const wrap = root.querySelector('#dq-shapes');
     if (!wrap) return;
     const shapes: Array<{ id: ShapeKind; icon: string; title: string }> = [
-      { id: 'free', icon: icon('shape-free', { size: 19 }), title: '자유선' },
-      { id: 'line', icon: icon('shape-line', { size: 19 }), title: '직선' },
-      { id: 'rect', icon: icon('shape-rect', { size: 19 }), title: '사각형' },
-      { id: 'ellipse', icon: icon('shape-circle', { size: 19 }), title: '원' },
+      { id: 'free', icon: icon('shape-free', { size: 19, hue: '#5aa8ff' }), title: '자유선' },
+      { id: 'line', icon: icon('shape-line', { size: 19, hue: '#5aa8ff' }), title: '직선' },
+      { id: 'rect', icon: icon('shape-rect', { size: 19, hue: '#5aa8ff' }), title: '사각형' },
+      { id: 'ellipse', icon: icon('shape-circle', { size: 19, hue: '#5aa8ff' }), title: '원' },
     ];
     shapes.forEach((sh, i) => {
       const b = document.createElement('button');
