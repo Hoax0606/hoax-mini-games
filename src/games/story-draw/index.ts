@@ -3,17 +3,23 @@
  *
  * 흐름 (호스트 authoritative):
  *   drawing(턴 0..N-1) → 매 턴 전원이 동시에 그림, 시간 끝나면 책이 옆으로 회전 →
- *   totalTurns 후 reveal(슬라이드쇼로 책별 감상) → end(승패 없음).
+ *   totalTurns 후 reveal(각자 로컬로 갤러리 감상) → end(승패 없음).
  *
  * 그림은 실시간 공유하지 않음(반전 재미). 그리는 사람만 자기 컷을 로컬로 그리고,
  * 진행/제출을 호스트에게만 보낸다. 호스트가 컷을 모아 다음 턴의 "직전 컷 유령"으로 넘김.
  *
  * 타이머: 각 클라가 sd:turn 수신 시각 기준으로 로컬 카운트다운(cross-clock 오차 방지).
  *   호스트는 자기 시계로 durationMs+grace 지나면 강제 마감(제출 유실/이탈 대비).
+ *
+ * 감상(reveal): 호스트가 sd:reveal 로 모든 책을 뿌리면, 각 클라가 "각자 자기 페이스로"
+ *   HTML 갤러리에서 원하는 책을 골라 컷을 넘겨본다(갈틱폰 방식). 예전엔 호스트가 슬라이드를
+ *   자동으로 넘기며 전원 동기화했는데, 감상 리듬이 강제돼 답답했다 → 완전 로컬 상호작용으로 교체.
+ *   진행/그리기 HUD 도 캔버스가 아니라 HTML(상단 바)로 옮겨 그림을 가리지 않게 했다.
  */
 
 import type { GameModule, GameContext, GameMessage, GameResult, Player } from '../types';
 import { sound } from '../../core/sound';
+import { icon } from '../../ui/icons';
 import {
   createInitialGame, decideTotalTurns, assignmentFor, bookForSeat,
   type StoryDrawGame, type StoryBook, type StrokeData, type StrokePoint,
@@ -37,19 +43,12 @@ import {
 
 /** 호스트: 컷당 시간 + 이 유예 지나면 강제 마감 */
 const FINALIZE_GRACE_MS = 1500;
-/** 슬라이드쇼 한 컷 노출 시간 (다인원이면 슬라이드가 많아 살짝 빠르게) */
-const SLIDE_COVER_MS = 1500;
-const SLIDE_CUT_MS = 1900;
 /** 게스트: 미초기화/대기 상태로 이만큼 지나면 재동기 요청 */
 const RESYNC_MS = 2500;
 /** 호스트: 주기적 상태 재broadcast 간격 (드롭 복구) */
 const SYNC_INTERVAL_MS = 2500;
-
-interface Slide {
-  type: 'cover' | 'cut';
-  bookIndex: number;
-  cutIndex: number;
-}
+/** 타이머 경고(핑크) 임계 */
+const TIMER_WARN_MS = 10000;
 
 class StoryDrawGameModule implements GameModule {
   private ctx!: GameContext;
@@ -97,11 +96,18 @@ class StoryDrawGameModule implements GameModule {
   private lastHelloAt = 0;
   private waitingSince = 0;
 
-  // 슬라이드쇼
+  // 감상(reveal) — 로컬 인터랙티브 갤러리
   private revealBooks: StoryBook[] = [];
-  private slides: Slide[] = [];
-  private slideIdx = 0;
-  private slideStart = 0;
+  private revealEntered = false;
+  /** 내가 이미 열어본 책 인덱스 ("✓ 봤어요" 표시) */
+  private seenBooks = new Set<number>();
+  /**
+   * 컷 썸네일 dataURL 캐시. key = `${bookIndex}:${cutIndex}`.
+   * 갤러리/뷰어가 매번 re-render 되므로 stroke→이미지 변환을 매번 하면 무거움 → 한 번만 렌더 후 재사용.
+   */
+  private thumbCache = new Map<string, string>();
+  /** "전체 이야기" 자동 재생 몽타주 타이머 (rAF 루프와 별개). 슬라이드 이탈/닫기/파괴 시 반드시 해제. */
+  private montageTimer: number | null = null;
 
   // 그리기 도구
   private toolColor: string = PALETTE[0];
@@ -111,6 +117,20 @@ class StoryDrawGameModule implements GameModule {
 
   private uiRoot: HTMLDivElement | null = null;
   private toolbarEl: HTMLDivElement | null = null;
+  /** 그리기 상단 바 (진행/타이머/제시어) — 캔버스 위에 삽입 */
+  private topbarEl: HTMLDivElement | null = null;
+  /** 감상 갤러리 컨테이너 (uiRoot 안, reveal 때만 표시) */
+  private galleryEl: HTMLDivElement | null = null;
+  /** 열린 책 뷰어 오버레이 (body 에 append) */
+  private viewerEl: HTMLDivElement | null = null;
+  /** 상단 바 하위 참조 (매 프레임 갱신용) */
+  private tbCut: HTMLElement | null = null;
+  private tbFill: HTMLElement | null = null;
+  private tbSec: HTMLElement | null = null;
+  private tbSecNum: HTMLElement | null = null;
+  private tbRight: HTMLElement | null = null;
+  /** 상단 바 오른쪽(제시어/이어그리기)을 매 프레임 새로 안 그리게 마지막 상태 캐시 */
+  private lastTopRight = '';
 
   private paused = false;
   private pauseStart = 0;
@@ -210,7 +230,7 @@ class StoryDrawGameModule implements GameModule {
 
     const reveal = decodeReveal(msg);
     if (reveal) {
-      if (!this.isHost) this.startSlideshow(reveal.books);
+      if (!this.isHost) this.enterReveal(reveal.books);
       return;
     }
 
@@ -238,10 +258,9 @@ class StoryDrawGameModule implements GameModule {
       this.pauseStart = performance.now();
     } else if (this.pauseStart > 0) {
       const delta = performance.now() - this.pauseStart;
-      // 로컬/호스트 타이머 기준시각을 밀어 정지 시간만큼 보정
+      // 로컬/호스트 타이머 기준시각을 밀어 정지 시간만큼 보정 (감상 단계는 타이머 없음)
       this.turnLocalStart += delta;
       this.turnStartedAtHost += delta;
-      this.slideStart += delta;
       this.pauseStart = 0;
     }
   }
@@ -280,8 +299,8 @@ class StoryDrawGameModule implements GameModule {
           this.ctx.sendToPeer(encodeHello(this.myPeerId));
         }
       } else if (this.game.phase === 'reveal') {
-        this.advanceSlideshow(now);
-        // reveal 전환을 놓친 게스트가 감지하도록 경량 tick 유지
+        // 감상은 순수 로컬 HTML 갤러리 — 슬라이드 자동진행/동기화 없음.
+        // reveal 전환을 놓친 게스트가 감지하도록 경량 tick 만 유지.
         if (this.isHost && now - this.lastSyncAt > SYNC_INTERVAL_MS) {
           this.lastSyncAt = now;
           this.ctx.sendToPeer(encodeTick(this.game.turn, this.game.phase));
@@ -289,10 +308,14 @@ class StoryDrawGameModule implements GameModule {
       }
     }
 
-    try {
-      this.renderer.render(this.buildRenderState(now));
-    } catch (err) {
-      console.error('[story-draw] render 오류', err);
+    // 상단 바 갱신(그리기 단계). 감상 단계는 캔버스를 숨기므로 렌더 생략.
+    if (this.game && this.game.phase === 'drawing') this.syncTopbar(now);
+    if (!this.game || this.game.phase !== 'reveal') {
+      try {
+        this.renderer.render(this.buildRenderState());
+      } catch (err) {
+        console.error('[story-draw] render 오류', err);
+      }
     }
   };
 
@@ -302,50 +325,48 @@ class StoryDrawGameModule implements GameModule {
     return now - anchor > RESYNC_MS;
   }
 
-  private buildRenderState(now: number): RenderState {
-    if (!this.game) {
-      return { mode: 'draw', strokes: [], connecting: true } as RenderState;
-    }
-    if (this.game.phase === 'reveal') return this.buildRevealState();
-
-    // 일시정지 중엔 정지 시점 기준으로 표시(카운트다운 시각 드리프트 방지). 언포즈 시 turnLocalStart 보정됨.
-    const clock = this.paused && this.pauseStart > 0 ? this.pauseStart : now;
-    const left = Math.max(0, this.game.durationMs - (clock - this.turnLocalStart));
+  private buildRenderState(): RenderState {
+    if (!this.game) return { strokes: [], connecting: true };
     return {
-      mode: 'draw',
       strokes: this.strokes,
       liveStroke: this.liveStroke,
       ghost: this.ghost,
-      promptText: this.promptText,
-      turn: this.game.turn,
-      totalTurns: this.game.totalTurns,
-      timeLeftMs: left,
-      durationMs: this.game.durationMs,
       submitted: this.submitted || this.isSpectator,
       // 호스트만 정확한 제출 수 표시 (게스트는 숫자 없이 안내만)
       submittedCount: this.isHost ? this.hostSubmitted.size : undefined,
       totalPlayers: this.isHost ? this.game.seats.length : undefined,
       spectator: this.isSpectator,
-    } as RenderState;
+    };
   }
 
-  private buildRevealState(): RenderState {
-    const slide = this.slides[this.slideIdx];
-    if (!slide) return { mode: 'reveal', strokes: [], isCoverSlide: true, title: '', ownerNickname: '' };
-    const book = this.revealBooks[slide.bookIndex];
-    if (!book) return { mode: 'reveal', strokes: [], isCoverSlide: true, title: '', ownerNickname: '' };
-    if (slide.type === 'cover') {
-      return { mode: 'reveal', strokes: [], isCoverSlide: true, title: book.prompt, ownerNickname: book.ownerNickname };
+  /** 그리기 상단 바(HTML) 갱신 — 진행/타이머/제시어. 일시정지 중엔 정지 시점 기준으로 표시. */
+  private syncTopbar(now: number): void {
+    if (!this.topbarEl || !this.game) return;
+    if (this.topbarEl.hidden) this.topbarEl.hidden = false;
+
+    // 일시정지 중엔 정지 시점 기준(카운트다운 시각 드리프트 방지). 언포즈 시 turnLocalStart 보정됨.
+    const clock = this.paused && this.pauseStart > 0 ? this.pauseStart : now;
+    const dur = this.game.durationMs;
+    const left = Math.max(0, dur - (clock - this.turnLocalStart));
+    const frac = dur > 0 ? Math.max(0, Math.min(1, left / dur)) : 0;
+    const warn = left <= TIMER_WARN_MS;
+
+    if (this.tbCut) this.tbCut.textContent = `${this.game.turn + 1} / ${this.game.totalTurns} 컷`;
+    if (this.tbFill) {
+      this.tbFill.style.width = `${(frac * 100).toFixed(1)}%`;
+      this.tbFill.classList.toggle('warn', warn);
     }
-    const cut = book.cuts[slide.cutIndex];
-    return {
-      mode: 'reveal',
-      strokes: cut ? cut.strokes : [],
-      title: book.prompt,
-      drawerNickname: cut ? cut.drawerNickname : '',
-      cutIndex: slide.cutIndex + 1,
-      cutTotal: book.cuts.length,
-    };
+    if (this.tbSecNum) this.tbSecNum.textContent = `${Math.ceil(left / 1000)}초`;
+    if (this.tbSec) this.tbSec.classList.toggle('warn', warn);
+
+    // 오른쪽: 턴0=제시어 칩 / 그 외=이어그리기. 값이 바뀔 때만 innerHTML 갱신.
+    const right = this.promptText
+      ? `<span class="sd-prompt">제시어 · ${escapeHtml(this.promptText)}</span>`
+      : `<span class="sd-cont">${icon('pen', { size: 13 })} 이어 그리기</span>`;
+    if (this.tbRight && right !== this.lastTopRight) {
+      this.tbRight.innerHTML = right;
+      this.lastTopRight = right;
+    }
   }
 
   // ============================================
@@ -416,7 +437,7 @@ class StoryDrawGameModule implements GameModule {
     if (!this.game) return;
     this.game.phase = 'reveal';
     this.ctx.sendToPeer(encodeReveal(this.game.books));
-    this.startSlideshow(this.game.books);
+    this.enterReveal(this.game.books);
   }
 
   // ============================================
@@ -467,7 +488,7 @@ class StoryDrawGameModule implements GameModule {
     this.inited = true;
 
     if (game.phase === 'reveal') {
-      if (prevPhase !== 'reveal') this.startSlideshow(game.books);
+      if (prevPhase !== 'reveal') this.enterReveal(game.books);
       return;
     }
     // drawing — 내 로컬 턴과 다르면(뒤처짐/합류) 이번 턴을 셋업. 같으면 내 진행 유지.
@@ -497,33 +518,177 @@ class StoryDrawGameModule implements GameModule {
   }
 
   // ============================================
-  // 슬라이드쇼
+  // 감상(reveal) — 로컬 인터랙티브 갤러리
   // ============================================
 
-  private startSlideshow(books: StoryBook[]): void {
+  /** 감상 진입 — 캔버스/도구바 숨기고 HTML 갤러리 표시. 중복 진입 방지. */
+  private enterReveal(books: StoryBook[]): void {
     if (this.game) this.game.phase = 'reveal';
     this.revealBooks = books;
-    this.slides = [];
-    books.forEach((book, b) => {
-      this.slides.push({ type: 'cover', bookIndex: b, cutIndex: -1 });
-      book.cuts.forEach((_c, ci) => this.slides.push({ type: 'cut', bookIndex: b, cutIndex: ci }));
-    });
-    this.slideIdx = 0;
-    this.slideStart = performance.now();
-    this.refreshToolbar();
+    if (this.revealEntered) { this.buildGallery(); return; }
+    this.revealEntered = true;
+
+    // 감상은 순수 HTML — 그리기 캔버스/도구바/상단 바 숨김
+    this.ctx.canvas.style.display = 'none';
+    if (this.topbarEl) this.topbarEl.hidden = true;
+    if (this.toolbarEl) this.toolbarEl.style.display = 'none';
+    sound.play('tetris_clear');
+    this.buildGallery();
   }
 
-  private advanceSlideshow(now: number): void {
-    const slide = this.slides[this.slideIdx];
-    if (!slide) return;
-    const dur = slide.type === 'cover' ? SLIDE_COVER_MS : SLIDE_CUT_MS;
-    if (now - this.slideStart < dur) return;
-    if (this.slideIdx < this.slides.length - 1) {
-      this.slideIdx++;
-      this.slideStart = now;
-    } else if (this.isHost && !this.endScheduled) {
-      // 마지막 슬라이드까지 다 보여줌 → 종료 (호스트가 트리거)
-      this.endAsHost();
+  /** 컷 썸네일 dataURL (캐시). cutIndex 0 = 표지에도 쓰는 첫 컷. */
+  private cutThumb(bookIdx: number, cutIdx: number): string {
+    const key = `${bookIdx}:${cutIdx}`;
+    let url = this.thumbCache.get(key);
+    if (url === undefined) {
+      const cut = this.revealBooks[bookIdx]?.cuts[cutIdx];
+      url = this.renderer.renderThumbnail(cut ? cut.strokes : []);
+      this.thumbCache.set(key, url);
+    }
+    return url;
+  }
+
+  /** 책 갤러리 그리기 (열어본 책엔 ✓ 표시). */
+  private buildGallery(): void {
+    if (!this.galleryEl) return;
+    this.galleryEl.hidden = false;
+    const cards = this.revealBooks.map((b, i) => {
+      const cover = b.cuts.length > 0
+        ? `<img class="sd-cover-img" src="${this.cutThumb(i, 0)}" alt="">`
+        : icon('pen', { size: 28, hue: '#b89aff' });
+      const seen = this.seenBooks.has(i) ? '<span class="sd-seen">봤어요</span>' : '';
+      return `<button class="sd-book" type="button" data-i="${i}">
+        <span class="sd-cover">${cover}</span>
+        <span class="sd-meta">
+          <span class="sd-who">${escapeHtml(b.ownerNickname)} 님의 이야기</span>
+          <span class="sd-ttl">제시어 · ${escapeHtml(b.prompt)}</span>
+          ${seen}
+        </span>
+      </button>`;
+    }).join('');
+    // 호스트만: 모두 감상했다 싶으면 게임을 끝낸다(감상 리듬은 자유라 자동 종료가 없음).
+    const endBtn = this.isHost
+      ? `<button class="sd-end-btn" type="button" id="sd-end">감상 끝 · 로비로</button>`
+      : `<div class="sd-gwait">호스트가 마무리하면 로비로 돌아가요</div>`;
+    this.galleryEl.innerHTML = `
+      <div class="sd-gtitle">완성! 이야기 감상</div>
+      <div class="sd-gsub">보고 싶은 사람의 책을 골라보세요 — 그림이 어떻게 변했을까요?</div>
+      <div class="sd-gbooks">${cards}</div>
+      ${endBtn}`;
+    this.galleryEl.querySelectorAll<HTMLElement>('.sd-book').forEach((el) => {
+      el.addEventListener('click', () => this.openViewer(Number(el.dataset.i)));
+    });
+    this.galleryEl.querySelector('#sd-end')?.addEventListener('click', () => this.endAsHost());
+  }
+
+  /** 책 뷰어 오버레이 — 표지 → 컷 1..n → 전체 이야기. 로컬 상호작용(이전/다음/닫기). */
+  private openViewer(bookIdx: number): void {
+    const book = this.revealBooks[bookIdx];
+    if (!book) return;
+    let slide = 0;                    // 0=표지, 1..total=컷, last=전체 이야기
+    const total = book.cuts.length;
+    const last = total + 1;
+
+    const ov = document.createElement('div');
+    ov.className = 'sd-viewer';
+    document.body.appendChild(ov);
+    this.viewerEl = ov;
+
+    // "전체 이야기" 자동 재생: 현재 재생 중인 컷 인덱스(0-base)
+    let montageCut = 0;
+
+    const close = (): void => {
+      this.clearMontage();
+      this.seenBooks.add(bookIdx);
+      ov.remove();
+      if (this.viewerEl === ov) this.viewerEl = null;
+      this.buildGallery();
+    };
+
+    /** 컷 하나를 큰 화면으로 그림(수동 컷 뷰/몽타주 공용). cutIdx 는 0-base. */
+    const bigCut = (cutIdx: number): string => {
+      const cut = book.cuts[cutIdx];
+      return `<div class="sd-cut-top">제시어 · "${escapeHtml(book.prompt)}"</div>
+        <img class="sd-cut-img" src="${this.cutThumb(bookIdx, cutIdx)}" alt="">
+        <div class="sd-cut-badge">${icon('pen', { size: 14 })} ${escapeHtml(cut?.drawerNickname ?? '')} · ${cutIdx + 1}/${total}컷</div>`;
+    };
+
+    /** 몽타주 스테이지/진행 표시만 갱신(카드 전체 재생성 X → 핸들러 유지). */
+    const paintMontage = (): void => {
+      const stage = ov.querySelector('#sd-montage');
+      if (stage) stage.innerHTML = bigCut(montageCut);
+      const dots = ov.querySelectorAll('#sd-montage-dots i');
+      dots.forEach((d, k) => d.classList.toggle('on', k === montageCut));
+    };
+
+    const draw = (): void => {
+      // 슬라이드가 바뀔 때마다 몽타주 타이머부터 정리(중복 인터벌 방지).
+      this.clearMontage();
+
+      // 전체 이야기 = 컷을 자동으로 넘겨 보여주는 몽타주(무한 반복). 컷 수 상관없이 동작.
+      if (slide === last) {
+        const mdots = Array.from({ length: total }, (_v, k) => `<i class="${k === 0 ? 'on' : ''}"></i>`).join('');
+        ov.innerHTML = `<div class="sd-vcard">
+          <div class="sd-vtop"><span class="sd-vt">전체 이야기</span><button class="sd-vx" type="button" aria-label="닫기">${icon('xmark', { size: 18 })}</button></div>
+          <div class="sd-vstage cut" id="sd-montage"></div>
+          <div class="sd-vnav">
+            <button class="sd-vbtn ghost" type="button" data-act="prev">이전</button>
+            <span class="sd-montage-info"><span class="sd-montage-label">자동 재생</span><span class="sd-dots" id="sd-montage-dots">${mdots}</span></span>
+            <button class="sd-vbtn" type="button" data-act="close">갤러리로</button>
+          </div>
+        </div>`;
+        ov.querySelector('.sd-vx')?.addEventListener('click', close);
+        // 이전 = 마지막 컷으로 복귀(정상 흐름). draw() 안에서 clearMontage 됨.
+        ov.querySelector('[data-act="prev"]')?.addEventListener('click', () => { slide = total; draw(); });
+        ov.querySelector('[data-act="close"]')?.addEventListener('click', close);
+        montageCut = 0;
+        paintMontage();
+        // ~1.8초마다 다음 컷 → 끝에서 다시 처음으로 순환
+        this.montageTimer = window.setInterval(() => {
+          montageCut = total > 0 ? (montageCut + 1) % total : 0;
+          paintMontage();
+        }, 1800);
+        return;
+      }
+
+      let body: string;
+      if (slide === 0) {
+        body = `<div class="sd-vstage">
+          <div class="sd-cover-box">
+            <div class="sd-cover-who">${escapeHtml(book.ownerNickname)} 님의 이야기</div>
+            <div class="sd-cover-ttl">"${escapeHtml(book.prompt)}"</div>
+            <div class="sd-cover-hint">과연 어떻게 변했을까요?</div>
+          </div>
+        </div>`;
+      } else {
+        body = `<div class="sd-vstage cut">${bigCut(slide - 1)}</div>`;
+      }
+      const dots = Array.from({ length: last + 1 }, (_v, k) => `<i class="${k === slide ? 'on' : ''}"></i>`).join('');
+      const label = slide === 0 ? '표지' : `${slide}번째 컷`;
+      ov.innerHTML = `<div class="sd-vcard">
+        <div class="sd-vtop"><span class="sd-vt">${label}</span><button class="sd-vx" type="button" aria-label="닫기">${icon('xmark', { size: 18 })}</button></div>
+        ${body}
+        <div class="sd-vnav">
+          <button class="sd-vbtn ghost" type="button" data-act="prev" ${slide === 0 ? 'disabled' : ''}>이전</button>
+          <span class="sd-dots">${dots}</span>
+          <button class="sd-vbtn" type="button" data-act="next">다음</button>
+        </div>
+      </div>`;
+      ov.querySelector('.sd-vx')?.addEventListener('click', close);
+      ov.querySelector('[data-act="prev"]')?.addEventListener('click', () => { if (slide > 0) { slide--; draw(); } });
+      ov.querySelector('[data-act="next"]')?.addEventListener('click', () => { if (slide < last) { slide++; draw(); } });
+    };
+
+    // 배경(오버레이 여백) 클릭 시 닫기 — 카드 내부 클릭은 유지
+    ov.addEventListener('click', (e) => { if (e.target === ov) close(); });
+    draw();
+  }
+
+  /** 몽타주 인터벌 해제 — 누수 방지(슬라이드 이탈/닫기/파괴 시). */
+  private clearMontage(): void {
+    if (this.montageTimer !== null) {
+      clearInterval(this.montageTimer);
+      this.montageTimer = null;
     }
   }
 
@@ -674,6 +839,27 @@ class StoryDrawGameModule implements GameModule {
   private mountUI(): void {
     const parent = this.ctx.canvas.parentElement;
     if (!parent) return;
+
+    // 그리기 상단 바 — 캔버스 위에 삽입(HUD 를 종이 밖으로). 진행/타이머/제시어.
+    const topbar = document.createElement('div');
+    topbar.className = 'sd-topbar';
+    topbar.hidden = true;
+    topbar.innerHTML = `
+      <span class="sd-cut" id="sd-cut">1 / 1 컷</span>
+      <span class="sd-mid">
+        <span class="sd-tbar"><i id="sd-tbar-fill"></i></span>
+        <span class="sd-tsec" id="sd-tsec">${icon('clock', { size: 14 })}<span id="sd-tsec-num">60초</span></span>
+      </span>
+      <span class="sd-right" id="sd-right"></span>
+    `;
+    parent.insertBefore(topbar, this.ctx.canvas);
+    this.topbarEl = topbar;
+    this.tbCut = topbar.querySelector('#sd-cut');
+    this.tbFill = topbar.querySelector('#sd-tbar-fill');
+    this.tbSec = topbar.querySelector('#sd-tsec');
+    this.tbSecNum = topbar.querySelector('#sd-tsec-num');
+    this.tbRight = topbar.querySelector('#sd-right');
+
     const container = document.createElement('div');
     container.className = 'dq-ui';
     container.innerHTML = `
@@ -685,14 +871,16 @@ class StoryDrawGameModule implements GameModule {
           <input type="color" id="sd-color-picker" class="dq-color-picker" title="색 선택" />
           <div class="dq-swatches" id="sd-colors"></div>
         </div>
-        <button class="dq-tool-btn" id="sd-undo" type="button" title="실행 취소 (Ctrl+Z)">↶</button>
-        <button class="dq-tool-btn" id="sd-clear" type="button" title="전체 지우기">🗑️</button>
-        <button class="dq-submit-btn" id="sd-submit" type="button">완성 ✓</button>
+        <button class="dq-tool-btn" id="sd-undo" type="button" title="실행 취소 (Ctrl+Z)">${icon('undo', { size: 19 })}</button>
+        <button class="dq-tool-btn" id="sd-clear" type="button" title="전체 지우기">${icon('trash', { size: 19 })}</button>
+        <button class="dq-submit-btn" id="sd-submit" type="button">완성</button>
       </div>
+      <div class="sd-gallery" id="sd-gallery" hidden></div>
     `;
     parent.appendChild(container);
     this.uiRoot = container;
     this.toolbarEl = container.querySelector('#sd-toolbar');
+    this.galleryEl = container.querySelector('#sd-gallery');
 
     this.buildToolButtons(container);
     this.buildShapeButtons(container);
@@ -765,18 +953,18 @@ class StoryDrawGameModule implements GameModule {
     const wrap = root.querySelector('#sd-tools');
     if (!wrap) return;
     const tools: Array<{ id: DrawTool | 'eyedropper'; icon: string; title: string }> = [
-      { id: 'pen', icon: '✏️', title: '펜' },
-      { id: 'marker', icon: '🖍️', title: '형광펜' },
-      { id: 'eraser', icon: '🧽', title: '지우개' },
-      { id: 'fill', icon: '🪣', title: '채우기' },
-      { id: 'eyedropper', icon: '💧', title: '스포이드' },
+      { id: 'pen', icon: icon('pen', { size: 19 }), title: '펜' },
+      { id: 'marker', icon: icon('marker', { size: 19 }), title: '형광펜' },
+      { id: 'eraser', icon: icon('eraser', { size: 19 }), title: '지우개' },
+      { id: 'fill', icon: icon('fill', { size: 19 }), title: '채우기' },
+      { id: 'eyedropper', icon: icon('dropper', { size: 19 }), title: '스포이드' },
     ];
     tools.forEach((t) => {
       const b = document.createElement('button');
       b.type = 'button';
       b.className = 'dq-tool-btn' + (t.id === this.tool ? ' is-active' : '');
       b.dataset.tool = t.id;
-      b.textContent = t.icon;
+      b.innerHTML = t.icon;
       b.title = t.title;
       b.addEventListener('click', () => this.selectTool(t.id));
       wrap.appendChild(b);
@@ -823,16 +1011,16 @@ class StoryDrawGameModule implements GameModule {
     const wrap = root.querySelector('#sd-shapes');
     if (!wrap) return;
     const shapes: Array<{ id: ShapeKind; icon: string; title: string }> = [
-      { id: 'free', icon: '〰️', title: '자유선' },
-      { id: 'line', icon: '／', title: '직선' },
-      { id: 'rect', icon: '▭', title: '사각형' },
-      { id: 'ellipse', icon: '◯', title: '원' },
+      { id: 'free', icon: icon('shape-free', { size: 19 }), title: '자유선' },
+      { id: 'line', icon: icon('shape-line', { size: 19 }), title: '직선' },
+      { id: 'rect', icon: icon('shape-rect', { size: 19 }), title: '사각형' },
+      { id: 'ellipse', icon: icon('shape-circle', { size: 19 }), title: '원' },
     ];
     shapes.forEach((sh, i) => {
       const b = document.createElement('button');
       b.type = 'button';
       b.className = 'dq-tool-btn' + (i === 0 ? ' is-active' : '');
-      b.textContent = sh.icon;
+      b.innerHTML = sh.icon;
       b.title = sh.title;
       b.addEventListener('click', () => {
         this.toolShape = sh.id;
@@ -845,9 +1033,17 @@ class StoryDrawGameModule implements GameModule {
   }
 
   private unmountUI(): void {
+    this.clearMontage();
+    this.viewerEl?.remove();
+    this.viewerEl = null;
+    this.topbarEl?.remove();
+    this.topbarEl = null;
     this.uiRoot?.remove();
     this.uiRoot = null;
     this.toolbarEl = null;
+    this.galleryEl = null;
+    // 캔버스 표시 상태 원복(감상 중 숨겼을 수 있음)
+    if (this.ctx?.canvas) this.ctx.canvas.style.display = '';
   }
 }
 
@@ -857,6 +1053,13 @@ class StoryDrawGameModule implements GameModule {
 
 function clampToCanvas(x: number, y: number): StrokePoint {
   return { x: Math.max(0, Math.min(760, x)), y: Math.max(0, Math.min(480, y)) };
+}
+
+/** 닉네임/제시어는 외부 입력 → 갤러리/뷰어에 innerHTML 로 넣기 전 이스케이프 (XSS·깨짐 방지). */
+function escapeHtml(s: string): string {
+  return s.replace(/[&<>"']/g, (c) => (
+    c === '&' ? '&amp;' : c === '<' ? '&lt;' : c === '>' ? '&gt;' : c === '"' ? '&quot;' : '&#39;'
+  ));
 }
 
 function orderPlayersHostFirst(players: Player[]): Player[] {

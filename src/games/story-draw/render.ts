@@ -1,10 +1,12 @@
 /**
- * 스토리텔링 렌더러 — 전체 캔버스 1패널 그림 + 직전 컷 유령 + 슬라이드쇼.
+ * 스토리텔링 렌더러 — 전체 캔버스 1패널 그림 + 직전 컷 유령.
  *
  * 그림 엔진은 draw-quiz 개선판과 동일 구조(오프스크린 누적 레이어 + flood fill + 스포이드).
  * story-draw 는 도화지가 캔버스 전체라 좌표계가 단순(논리 = 레이어 = 종이).
- *   - draw 모드: 흰 종이 → 직전 컷(유령, 옅게) → 현재 컷(레이어) → 진행 중 stroke → HUD
- *   - reveal 모드: 컷 하나를 크게 + 제시어/그린이 표시 (슬라이드쇼)
+ *   - 흰 종이 → 직전 컷(유령, 옅게) → 현재 컷(레이어) → 진행 중 stroke
+ *   - 진행/타이머/제시어 HUD 는 캔버스가 아니라 HTML 상단 바(index.ts)가 담당한다.
+ *   - 감상(reveal)은 캔버스가 아니라 HTML 갤러리/뷰어(index.ts)가 담당 → 컷 stroke 를
+ *     renderThumbnail() 로 이미지화해서 보여준다.
  */
 
 import type { StrokeData } from './rules';
@@ -21,13 +23,8 @@ const COLORS = {
   bg: '#fff9fd',
   paper: '#ffffff',
   paperBorder: '#d9c7ff',
-  textMain: '#4a3a4a',
   textMuted: '#8a7a8a',
   accentPink: '#ff5a92',
-  accentLavender: '#9c7aeb',
-  barBg: '#f0e8ff',
-  barFill: '#ff82ac',
-  barWarn: '#ff5a92',
   dim: 'rgba(250, 245, 255, 0.86)',
 } as const;
 
@@ -49,19 +46,11 @@ export const WIDTHS = [2, 4, 7, 12, 20] as const;
 export const ERASE_WIDTH = 26;
 
 export interface RenderState {
-  mode: 'draw' | 'reveal';
-  /** draw: 현재 컷 stroke / reveal: 보여줄 컷 stroke */
+  /** 현재 컷 stroke */
   strokes: StrokeData[];
-  // ── draw 모드 ──
   liveStroke?: StrokeData | null;
   /** 직전 컷 (옅게 깔아줌). 턴 0 이면 없음 */
   ghost?: StrokeData[] | null;
-  /** 턴 0 제시어 (그 외엔 null) */
-  promptText?: string | null;
-  turn?: number;
-  totalTurns?: number;
-  timeLeftMs?: number;
-  durationMs?: number;
   /** 내가 제출하고 다른 사람 기다리는 중 */
   submitted?: boolean;
   submittedCount?: number;
@@ -70,14 +59,6 @@ export interface RenderState {
   spectator?: boolean;
   /** 아직 호스트 상태를 못 받은 연결 중 */
   connecting?: boolean;
-  // ── reveal 모드 ──
-  /** 표지 슬라이드 (제시어만 크게) */
-  isCoverSlide?: boolean;
-  title?: string;         // 책 제시어
-  ownerNickname?: string; // 책 주인
-  drawerNickname?: string;// 이 컷 그린 사람
-  cutIndex?: number;      // 1-base
-  cutTotal?: number;
 }
 
 export interface StoryRendererArgs {
@@ -148,8 +129,7 @@ export class StoryDrawRenderer {
     ctx.setTransform(scale * dpr, 0, 0, scale * dpr, this.offX * dpr, this.offY * dpr);
 
     if (state.connecting) { this.drawConnecting(); return; }
-    if (state.mode === 'reveal') this.drawReveal(state);
-    else this.drawDrawing(state);
+    this.drawDrawing(state);
   }
 
   private drawConnecting(): void {
@@ -202,51 +182,7 @@ export class StoryDrawRenderer {
     ctx.lineWidth = 2;
     ctx.strokeRect(1, 1, CANVAS_W - 2, CANVAS_H - 2);
 
-    this.drawHud(state);
     if (state.submitted) this.drawWaitingOverlay(state);
-  }
-
-  /** 상단 HUD — 진행/타이머 + 제시어 or 이어그리기 안내 */
-  private drawHud(state: RenderState): void {
-    const ctx = this.ctx;
-    // 타이머 바 (상단)
-    const dur = state.durationMs ?? 60000;
-    const left = Math.max(0, state.timeLeftMs ?? 0);
-    const frac = dur > 0 ? Math.max(0, Math.min(1, left / dur)) : 0;
-    const barW = 260, barH = 10, barX = (CANVAS_W - barW) / 2, barY = 14;
-    ctx.fillStyle = COLORS.barBg;
-    this.roundRect(barX, barY, barW, barH, 5); ctx.fill();
-    ctx.fillStyle = left <= 10000 ? COLORS.barWarn : COLORS.barFill;
-    this.roundRect(barX, barY, barW * frac, barH, 5); ctx.fill();
-
-    ctx.font = `600 13px ${FONT}`;
-    ctx.fillStyle = COLORS.textMuted;
-    ctx.textAlign = 'left';
-    ctx.textBaseline = 'middle';
-    ctx.fillText(`${(state.turn ?? 0) + 1} / ${state.totalTurns ?? 1} 컷`, barX, barY + barH + 14);
-    ctx.textAlign = 'right';
-    ctx.fillText(`${Math.ceil(left / 1000)}초`, barX + barW, barY + barH + 14);
-
-    // 제시어 배너 (턴 0) or 이어그리기 안내
-    ctx.textAlign = 'center';
-    if (state.promptText) {
-      const label = `제시어  “${state.promptText}”`;
-      ctx.font = `700 20px ${FONT}`;
-      const w = ctx.measureText(label).width + 36;
-      const bx = (CANVAS_W - w) / 2, by = 44, bh = 34;
-      ctx.fillStyle = '#fff0f6';
-      this.roundRect(bx, by, w, bh, 12); ctx.fill();
-      ctx.strokeStyle = COLORS.accentPink; ctx.lineWidth = 1.5;
-      this.roundRect(bx, by, w, bh, 12); ctx.stroke();
-      ctx.fillStyle = COLORS.accentPink;
-      ctx.textBaseline = 'middle';
-      ctx.fillText(label, CANVAS_W / 2, by + bh / 2 + 1);
-    } else {
-      ctx.font = `600 14px ${FONT}`;
-      ctx.fillStyle = COLORS.accentLavender;
-      ctx.textBaseline = 'middle';
-      ctx.fillText('✎ 옅게 보이는 직전 그림을 이어서 그려요', CANVAS_W / 2, 56);
-    }
   }
 
   private drawWaitingOverlay(state: RenderState): void {
@@ -257,7 +193,7 @@ export class StoryDrawRenderer {
     ctx.textBaseline = 'middle';
     ctx.fillStyle = COLORS.accentPink;
     ctx.font = `700 28px ${FONT}`;
-    ctx.fillText(state.spectator ? '관전 중 👀' : '제출 완료! ✅', CANVAS_W / 2, CANVAS_H / 2 - 16);
+    ctx.fillText(state.spectator ? '관전 중' : '제출 완료!', CANVAS_W / 2, CANVAS_H / 2 - 16);
     ctx.fillStyle = COLORS.textMuted;
     ctx.font = `500 16px ${FONT}`;
     // 제출 수는 호스트만 정확히 알아서 그때만 (게스트는 숫자 없이 안내만)
@@ -269,53 +205,33 @@ export class StoryDrawRenderer {
   }
 
   // ============================================
-  // reveal 모드 (슬라이드쇼)
+  // 컷 썸네일 (감상 갤러리/뷰어용)
   // ============================================
 
-  private drawReveal(state: RenderState): void {
-    const ctx = this.ctx;
-    ctx.fillStyle = COLORS.paper;
-    ctx.fillRect(0, 0, CANVAS_W, CANVAS_H);
+  /**
+   * 컷 하나의 stroke[] 를 논리 크기(CANVAS_W×CANVAS_H) 오프스크린에 그려 dataURL 로 반환.
+   * 감상(reveal)은 HTML 갤러리/뷰어라 캔버스를 안 쓰므로, 컷 그림은 이미지로 만들어 <img> 로 보여준다.
+   * 인게임 그리기와 100% 동일하게 보이도록 draw 모드와 같은 방식으로 합성한다:
+   *   투명 레이어에 stroke 를 commit(지우개는 destination-out) → 흰 종이 위에 얹기.
+   * (호출부에서 컷당 결과를 캐시하므로 매 프레임 재생성 안 함.)
+   */
+  renderThumbnail(strokes: StrokeData[]): string {
+    // 1) 투명 레이어에 stroke 누적 (지우개가 이전 stroke 를 진짜로 지우도록)
+    const layer = document.createElement('canvas');
+    layer.width = CANVAS_W; layer.height = CANVAS_H;
+    const lc = layer.getContext('2d');
+    if (!lc) return '';
+    for (const s of strokes) this.commitStroke(lc, s);
 
-    if (state.isCoverSlide) {
-      // 표지 — "OO님의 이야기" + 제시어
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillStyle = COLORS.textMuted;
-      ctx.font = `600 22px ${FONT}`;
-      ctx.fillText(`${state.ownerNickname ?? ''} 님의 이야기`, CANVAS_W / 2, CANVAS_H / 2 - 40);
-      ctx.fillStyle = COLORS.accentPink;
-      ctx.font = `800 40px ${FONT}`;
-      ctx.fillText(`“${state.title ?? ''}”`, CANVAS_W / 2, CANVAS_H / 2 + 12);
-      ctx.fillStyle = COLORS.textMuted;
-      ctx.font = `500 15px ${FONT}`;
-      ctx.fillText('과연 어떻게 변했을까요?', CANVAS_W / 2, CANVAS_H / 2 + 58);
-      this.drawPaperBorder();
-      return;
-    }
-
-    // 컷 그림
-    ctx.save();
-    ctx.beginPath(); ctx.rect(0, 0, CANVAS_W, CANVAS_H); ctx.clip();
-    this.syncLayer(state.strokes);
-    if (this.layer) ctx.drawImage(this.layer, 0, 0);
-    ctx.restore();
-    this.drawPaperBorder();
-
-    // 상단 제시어 (작게)
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'top';
-    ctx.fillStyle = COLORS.textMuted;
-    ctx.font = `600 14px ${FONT}`;
-    ctx.fillText(`제시어  “${state.title ?? ''}”`, CANVAS_W / 2, 12);
-
-    // 하단 그린이 + 진행
-    const cutIdx = state.cutIndex ?? 1;
-    const cutTot = state.cutTotal ?? 1;
-    ctx.textBaseline = 'bottom';
-    ctx.fillStyle = COLORS.accentLavender;
-    ctx.font = `700 16px ${FONT}`;
-    ctx.fillText(`✏️ ${state.drawerNickname ?? ''}  ·  ${cutIdx} / ${cutTot} 컷`, CANVAS_W / 2, CANVAS_H - 12);
+    // 2) 흰 종이 위에 레이어를 얹어 평탄화
+    const out = document.createElement('canvas');
+    out.width = CANVAS_W; out.height = CANVAS_H;
+    const oc = out.getContext('2d');
+    if (!oc) return '';
+    oc.fillStyle = COLORS.paper;
+    oc.fillRect(0, 0, CANVAS_W, CANVAS_H);
+    oc.drawImage(layer, 0, 0);
+    return out.toDataURL();
   }
 
   private drawPaperBorder(): void {
@@ -473,18 +389,6 @@ export class StoryDrawRenderer {
     const d = lc.getImageData(sx, sy, 1, 1).data;
     if (d[3]! < 10) return '#ffffff';
     return rgbToHex(d[0]!, d[1]!, d[2]!);
-  }
-
-  private roundRect(x: number, y: number, w: number, h: number, r: number): void {
-    const ctx = this.ctx;
-    const rr = Math.min(r, w / 2, h / 2);
-    ctx.beginPath();
-    ctx.moveTo(x + rr, y);
-    ctx.arcTo(x + w, y, x + w, y + h, rr);
-    ctx.arcTo(x + w, y + h, x, y + h, rr);
-    ctx.arcTo(x, y + h, x, y, rr);
-    ctx.arcTo(x, y, x + w, y, rr);
-    ctx.closePath();
   }
 }
 
