@@ -65,10 +65,11 @@ const COLORS = {
   lastMoveRing: '#ff5a92',
   winGlow: 'rgba(255, 90, 146, 0.45)',
 
-  cardBg: '#faf5ff',
-  cardBgActive: '#fff3c5',
-  cardBorder: '#d9c7ff',
-  cardBorderActive: '#c9a01f',
+  // 프로스티드풍 카드 — 반투명 흰색 위에 소프트 섀도. 활성은 골드 대신 핑크 링 + 리프트
+  cardBg: 'rgba(255, 255, 255, 0.55)',
+  cardBgActive: 'rgba(255, 255, 255, 0.82)',
+  cardBorder: 'rgba(216, 199, 255, 0.7)',
+  cardBorderActive: '#ff5a92',
 
   textMain: '#4a3a4a',
   textMuted: '#8a7a8a',
@@ -82,6 +83,38 @@ const COLORS = {
 } as const;
 
 const FONT = `'Pretendard', 'Apple SD Gothic Neo', 'Noto Sans KR', system-ui, sans-serif`;
+
+/** 돌 놓임 팝 지속시간(ms) — scale 0→오버슈트→1 */
+const POP_MS = 360;
+/** 마지막 수 링 그려지는 지속시간(ms) */
+const RING_DRAW_MS = 300;
+/** 게임오버 오버레이 materialize 지속시간(ms) */
+const OVERLAY_MS = 260;
+
+const prefersReducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
+
+/** easeOutBack — 착수 momentum 느낌의 살짝 오버슈트(스프링 팝). apple-design: 제스처가 momentum 을 실었을 때만 바운스 */
+function easeOutBack(t: number): number {
+  if (t >= 1) return 1;
+  const c1 = 1.70158;
+  const c3 = c1 + 1;
+  const x = t - 1;
+  return 1 + c3 * x * x * x + c1 * x * x;
+}
+
+const clamp01 = (v: number): number => (v < 0 ? 0 : v > 1 ? 1 : v);
+
+/** 라운드 사각형 경로 (프로스티드 카드/보드용) */
+function roundRectPath(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number): void {
+  const rr = Math.min(r, w / 2, h / 2);
+  ctx.beginPath();
+  ctx.moveTo(x + rr, y);
+  ctx.arcTo(x + w, y, x + w, y + h, rr);
+  ctx.arcTo(x + w, y + h, x, y + h, rr);
+  ctx.arcTo(x, y + h, x, y, rr);
+  ctx.arcTo(x, y, x + w, y, rr);
+  ctx.closePath();
+}
 
 // ============================================
 // 보드 좌표 변환
@@ -123,6 +156,8 @@ export interface RenderState {
   mySide: 'B' | 'W' | null;
   /** 마지막 놓인 수 (없으면 null) */
   lastMove: { x: number; y: number } | null;
+  /** 마지막 수가 놓인 로컬 시각(performance.now) — 돌 팝/링 그려짐 애니 전용. 0 이면 정착 상태로 렌더 */
+  lastMoveAt: number;
   /** 승리 라인 정보 (결정됐을 때) */
   winInfo: WinInfo | null;
   /** 현재 마우스 hover 교차점 — 내 차례 + 빈칸 + 합법일 때만 넣음 */
@@ -154,6 +189,8 @@ export class GomokuRenderer {
   private ctx: CanvasRenderingContext2D;
   private ro: ResizeObserver;
   private view: FitView = { scale: 1, offX: 0, offY: 0 };
+  /** 게임오버 오버레이가 처음 뜬 시각 — materialize(페이드+스케일)용. 렌더러가 자체 캡처 */
+  private gameOverShownAt = 0;
 
   constructor(args: GomokuRendererArgs) {
     this.canvas = args.canvas;
@@ -204,6 +241,7 @@ export class GomokuRenderer {
 
   render(state: RenderState): void {
     const ctx = this.ctx;
+    const now = performance.now();
     // 균일 스케일+레터박스 (비율 유지 → 안 찌부러짐)
     this.view = fitContain(ctx, this.canvas, CANVAS_W, CANVAS_H, COLORS.bg);
 
@@ -235,12 +273,12 @@ export class GomokuRenderer {
     this.drawGrid(state.boardSize);
     this.drawStarPoints(state.boardSize);
 
-    // 4) 돌들
-    this.drawStones(state.board, state.boardSize);
+    // 4) 돌들 (마지막 수는 스프링 팝)
+    this.drawStones(state.board, state.boardSize, state.lastMove, state.lastMoveAt, now);
 
-    // 5) 마지막 수 빨간 링
+    // 5) 마지막 수 빨간 링 (그려짐 애니 + 은은한 브리딩)
     if (state.lastMove) {
-      this.drawLastMoveRing(state.lastMove.x, state.lastMove.y, state.boardSize);
+      this.drawLastMoveRing(state.lastMove.x, state.lastMove.y, state.boardSize, state.lastMoveAt, now);
     }
 
     // 6) hover 프리뷰 (내 차례 때만)
@@ -259,9 +297,12 @@ export class GomokuRenderer {
       this.drawWinHighlight(state.winInfo, state.boardSize);
     }
 
-    // 8) 게임 종료 오버레이
+    // 8) 게임 종료 오버레이 (materialize: 페이드+스케일)
     if (state.gameOver) {
-      this.drawGameOverOverlay(state);
+      if (this.gameOverShownAt === 0) this.gameOverShownAt = now;
+      this.drawGameOverOverlay(state, now);
+    } else {
+      this.gameOverShownAt = 0; // 다시하기 대비 리셋
     }
   }
 
@@ -271,11 +312,19 @@ export class GomokuRenderer {
 
   private drawBoardFrame(): void {
     const ctx = this.ctx;
+    // 소프트 드롭섀도로 보드를 배경에서 살짝 띄움 (깊이감). fill 할 때만 그림자 켜고 stroke 전에 끔
+    ctx.save();
+    ctx.shadowColor = 'rgba(120, 80, 140, 0.22)';
+    ctx.shadowBlur = 18;
+    ctx.shadowOffsetY = 6;
+    roundRectPath(ctx, FRAME_X, FRAME_Y, FRAME_SIZE, FRAME_SIZE, 14);
     ctx.fillStyle = COLORS.boardFill;
-    ctx.fillRect(FRAME_X, FRAME_Y, FRAME_SIZE, FRAME_SIZE);
+    ctx.fill();
+    ctx.restore();
+    roundRectPath(ctx, FRAME_X, FRAME_Y, FRAME_SIZE, FRAME_SIZE, 14);
     ctx.strokeStyle = COLORS.boardBorder;
     ctx.lineWidth = 2;
-    ctx.strokeRect(FRAME_X, FRAME_Y, FRAME_SIZE, FRAME_SIZE);
+    ctx.stroke();
   }
 
   private drawGrid(size: BoardSize): void {
@@ -312,8 +361,19 @@ export class GomokuRenderer {
     }
   }
 
-  private drawStones(board: Board, size: BoardSize): void {
+  private drawStones(
+    board: Board,
+    size: BoardSize,
+    lastMove: { x: number; y: number } | null,
+    lastMoveAt: number,
+    now: number,
+  ): void {
     const layout = getLayout(size);
+    // 마지막 수 하나만 팝(scale 애니). 오목은 턴 간격이 초 단위라 이전 돌은 이미 정착 상태.
+    const popScale =
+      lastMove && lastMoveAt > 0 && !prefersReducedMotion
+        ? easeOutBack(clamp01((now - lastMoveAt) / POP_MS))
+        : 1;
     for (let y = 0; y < size; y++) {
       const row = board[y];
       if (!row) continue;
@@ -321,23 +381,34 @@ export class GomokuRenderer {
         const stone = row[x];
         if (!stone) continue;
         const { px, py } = cellToPixel(x, y, layout);
-        this.drawStone(px, py, stone, layout.stoneR);
+        const isLast = lastMove && lastMove.x === x && lastMove.y === y;
+        this.drawStone(px, py, stone, layout.stoneR, isLast ? popScale : 1);
       }
     }
   }
 
-  private drawStone(px: number, py: number, stone: 'B' | 'W', r: number): void {
+  private drawStone(px: number, py: number, stone: 'B' | 'W', r: number, scale = 1): void {
+    if (scale <= 0) return;
     const ctx = this.ctx;
     const fill = stone === 'B' ? COLORS.blackStone : COLORS.whiteStone;
     const stroke = stone === 'B' ? COLORS.blackStroke : COLORS.whiteStroke;
 
-    // 약간의 그림자 느낌
-    ctx.fillStyle = 'rgba(0, 0, 0, 0.15)';
+    // 팝: 돌 중심 기준으로 scale (오버슈트 잠깐 크게 → 정착)
+    const scaled = scale !== 1;
+    if (scaled) {
+      ctx.save();
+      ctx.translate(px, py);
+      ctx.scale(scale, scale);
+      ctx.translate(-px, -py);
+    }
+
+    // 접지 그림자 (아주 옅게 — 바둑판에 놓인 느낌)
+    ctx.fillStyle = 'rgba(80, 50, 80, 0.16)';
     ctx.beginPath();
-    ctx.arc(px + 0.7, py + 1.3, r, 0, Math.PI * 2);
+    ctx.arc(px + 0.6, py + 1.3, r, 0, Math.PI * 2);
     ctx.fill();
 
-    // 본체
+    // 본체 (솔리드 단색 — 단단한 바둑알)
     ctx.fillStyle = fill;
     ctx.strokeStyle = stroke;
     ctx.lineWidth = 1.1;
@@ -346,26 +417,39 @@ export class GomokuRenderer {
     ctx.fill();
     ctx.stroke();
 
-    // 상단 하이라이트 (광택)
-    if (stone === 'B') {
-      ctx.fillStyle = 'rgba(255, 255, 255, 0.18)';
-    } else {
-      ctx.fillStyle = 'rgba(255, 255, 255, 0.55)';
-    }
+    // 미세 스페큘러 1개 (기존 납작한 광택 타원 → 부드러운 방사 하이라이트로. 젤리 느낌 완화)
+    const hx = px - r * 0.3;
+    const hy = py - r * 0.34;
+    const g = ctx.createRadialGradient(hx, hy, r * 0.04, hx, hy, r * 0.95);
+    g.addColorStop(0, stone === 'B' ? 'rgba(255,255,255,0.20)' : 'rgba(255,255,255,0.80)');
+    g.addColorStop(1, 'rgba(255,255,255,0)');
+    ctx.fillStyle = g;
     ctx.beginPath();
-    ctx.ellipse(px - r * 0.28, py - r * 0.34, r * 0.42, r * 0.2, -0.35, 0, Math.PI * 2);
+    ctx.arc(px, py, r, 0, Math.PI * 2);
     ctx.fill();
+
+    if (scaled) ctx.restore();
   }
 
-  private drawLastMoveRing(x: number, y: number, size: BoardSize): void {
+  private drawLastMoveRing(x: number, y: number, size: BoardSize, lastMoveAt: number, now: number): void {
     const ctx = this.ctx;
     const layout = getLayout(size);
     const { px, py } = cellToPixel(x, y, layout);
+
+    // 그려짐 진행(0~1): 링이 위에서부터 한 바퀴 그려짐. 정착(lastMoveAt=0)/reduced-motion 이면 즉시 완성
+    const drawT =
+      lastMoveAt > 0 && !prefersReducedMotion ? clamp01((now - lastMoveAt) / RING_DRAW_MS) : 1;
+    // 은은한 브리딩(반경 미세 오실레이션) — 그려짐 끝난 뒤에만
+    const breathe = prefersReducedMotion || drawT < 1 ? 0 : (Math.sin(now / 500) * 0.5 + 0.5) * 1.6;
+
     ctx.strokeStyle = COLORS.lastMoveRing;
     ctx.lineWidth = 2;
+    ctx.globalAlpha = drawT;
     ctx.beginPath();
-    ctx.arc(px, py, layout.stoneR + 3, 0, Math.PI * 2);
+    const start = -Math.PI / 2;
+    ctx.arc(px, py, layout.stoneR + 3 + breathe, start, start + Math.PI * 2 * drawT);
     ctx.stroke();
+    ctx.globalAlpha = 1;
   }
 
   private drawHoverPreview(
@@ -428,17 +512,29 @@ export class GomokuRenderer {
     const ctx = this.ctx;
     const { x, nickname, stone, isMe, isActive, timerSeconds, timerRatio } = args;
 
-    // 카드 배경
+    // 활성 카드는 살짝 위로 리프트(apple-design: 활성 상태를 형태로도 표현)
+    const lift = isActive ? -4 : 0;
+    const cardY = CARD_Y + lift;
+
+    // 카드 배경 — 반투명 흰색 + 소프트 섀도(프로스티드풍). fill 때만 그림자
+    ctx.save();
+    ctx.shadowColor = isActive ? 'rgba(255, 90, 146, 0.22)' : 'rgba(120, 80, 140, 0.16)';
+    ctx.shadowBlur = isActive ? 16 : 10;
+    ctx.shadowOffsetY = isActive ? 7 : 4;
+    roundRectPath(ctx, x, cardY, CARD_W, CARD_H, 16);
     ctx.fillStyle = isActive ? COLORS.cardBgActive : COLORS.cardBg;
-    ctx.fillRect(x, CARD_Y, CARD_W, CARD_H);
+    ctx.fill();
+    ctx.restore();
+    // 테두리 (활성=핑크 링)
+    roundRectPath(ctx, x, cardY, CARD_W, CARD_H, 16);
     ctx.strokeStyle = isActive ? COLORS.cardBorderActive : COLORS.cardBorder;
-    ctx.lineWidth = isActive ? 2.5 : 1.5;
-    ctx.strokeRect(x, CARD_Y, CARD_W, CARD_H);
+    ctx.lineWidth = isActive ? 2.5 : 1.2;
+    ctx.stroke();
 
     // 돌 아이콘
     const stoneR = 22;
     const stoneCx = x + CARD_W / 2;
-    const stoneCy = CARD_Y + 42;
+    const stoneCy = cardY + 42;
     this.drawStone(stoneCx, stoneCy, stone, stoneR);
 
     // "흑 / 백" 라벨
@@ -446,23 +542,23 @@ export class GomokuRenderer {
     ctx.font = `700 11px ${FONT}`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'alphabetic';
-    ctx.fillText(stone === 'B' ? '흑 (선공)' : '백 (후공)', stoneCx, CARD_Y + 86);
+    ctx.fillText(stone === 'B' ? '흑 (선공)' : '백 (후공)', stoneCx, cardY + 86);
 
     // 닉네임 (+ "나" 표시)
     ctx.fillStyle = COLORS.textMain;
     ctx.font = `800 17px ${FONT}`;
     ctx.textAlign = 'center';
-    ctx.fillText(truncate(nickname, 9), stoneCx, CARD_Y + 116);
+    ctx.fillText(truncate(nickname, 9), stoneCx, cardY + 116);
 
     if (isMe) {
       ctx.fillStyle = COLORS.textMuted;
       ctx.font = `700 11px ${FONT}`;
-      ctx.fillText('(나)', stoneCx, CARD_Y + 134);
+      ctx.fillText('(나)', stoneCx, cardY + 134);
     }
 
     // 타이머 링
     const timerCx = stoneCx;
-    const timerCy = CARD_Y + 180;
+    const timerCy = cardY + 180;
     const timerR = 28;
     // 트랙
     ctx.strokeStyle = COLORS.timerTrack;
@@ -496,17 +592,26 @@ export class GomokuRenderer {
     ctx.font = `700 12px ${FONT}`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'alphabetic';
-    ctx.fillText(isActive ? (isMe ? '내 차례' : '상대 차례') : '대기', stoneCx, CARD_Y + 238);
+    ctx.fillText(isActive ? (isMe ? '내 차례' : '상대 차례') : '대기', stoneCx, cardY + 238);
   }
 
   // ============================================
   // 게임 종료 오버레이
   // ============================================
 
-  private drawGameOverOverlay(state: RenderState): void {
+  private drawGameOverOverlay(state: RenderState, now: number): void {
     const ctx = this.ctx;
-    ctx.fillStyle = COLORS.overlayBg;
-    ctx.fillRect(FRAME_X, FRAME_Y, FRAME_SIZE, FRAME_SIZE);
+
+    // materialize: 유리가 도착하듯 배경 페이드 + 텍스트 살짝 확대(0.92→1)
+    const raw = this.gameOverShownAt > 0 ? clamp01((now - this.gameOverShownAt) / OVERLAY_MS) : 1;
+    const t = prefersReducedMotion ? 1 : 1 - (1 - raw) * (1 - raw); // easeOut
+    const cx = FRAME_X + FRAME_SIZE / 2;
+    const cy = FRAME_Y + FRAME_SIZE / 2;
+
+    // 배경 딤 (알파를 진행도에 비례)
+    ctx.fillStyle = `rgba(255, 255, 255, ${0.75 * t})`;
+    roundRectPath(ctx, FRAME_X, FRAME_Y, FRAME_SIZE, FRAME_SIZE, 14);
+    ctx.fill();
 
     let title = '';
     let sub = '';
@@ -525,17 +630,26 @@ export class GomokuRenderer {
       }
     }
 
+    // 텍스트 그룹 스케일 + 페이드
+    const scale = prefersReducedMotion ? 1 : 0.92 + 0.08 * t;
+    ctx.save();
+    ctx.globalAlpha = t;
+    ctx.translate(cx, cy);
+    ctx.scale(scale, scale);
+    ctx.translate(-cx, -cy);
+
     ctx.fillStyle = COLORS.overlayTitle;
     ctx.font = `900 42px ${FONT}`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillText(title, FRAME_X + FRAME_SIZE / 2, FRAME_Y + FRAME_SIZE / 2 - 10);
+    ctx.fillText(title, cx, cy - 10);
 
     if (sub) {
       ctx.fillStyle = COLORS.textMuted;
       ctx.font = `600 16px ${FONT}`;
-      ctx.fillText(sub, FRAME_X + FRAME_SIZE / 2, FRAME_Y + FRAME_SIZE / 2 + 26);
+      ctx.fillText(sub, cx, cy + 26);
     }
+    ctx.restore();
   }
 }
 

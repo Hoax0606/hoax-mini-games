@@ -72,6 +72,9 @@ class GomokuGame implements GameModule {
   /** 현재 턴이 시작된 시각 (performance.now) */
   private turnStartedAt = 0;
   private lastMove: { x: number; y: number } | null = null;
+  /** 마지막 수가 놓인 로컬 시각 (performance.now) — 돌 팝/링 그려짐 애니 전용, 네트워크 동기화 X.
+   *  머신마다 시계가 달라 sync 로 보내면 안 되고 각자 로컬에서 "새 돌이 보인 순간"을 기록. */
+  private lastMoveAt = 0;
   private winInfo: WinInfo | null = null;
 
   /** 게임 종료 상태 (로컬 표시용 + 중복 처리 방어) */
@@ -187,6 +190,7 @@ class GomokuGame implements GameModule {
       this.currentTurn = sync.currentTurn;
       this.moveNumber = sync.moveNumber;
       this.lastMove = sync.lastMove;
+      this.lastMoveAt = 0; // 중간 합류 sync: 이미 놓인 돌이라 팝 없이 정착 상태로 표시
       this.turnStartedAt = performance.now() - sync.turnElapsedMs;
       return;
     }
@@ -267,6 +271,7 @@ class GomokuGame implements GameModule {
       currentTurn: this.currentTurn,
       mySide: this.mySide,
       lastMove: this.lastMove,
+      lastMoveAt: this.lastMoveAt,
       winInfo: this.winInfo,
       hoverCell: this.hoverCell,
       timerSeconds,
@@ -311,6 +316,7 @@ class GomokuGame implements GameModule {
     this.board[y]![x] = stone;
     this.moveNumber++;
     this.lastMove = { x, y };
+    this.lastMoveAt = performance.now(); // 팝 애니 시작점
 
     // 전체 broadcast (호스트 본인 로컬은 applyMove가 게스트/호스트 공통 경로라
     //  아래에서 같은 moveNumber 로 또 적용되지 않게 이미 board 는 써둠)
@@ -409,6 +415,7 @@ class GomokuGame implements GameModule {
     this.board[y]![x] = stone;
     this.moveNumber = moveNumber;
     this.lastMove = { x, y };
+    this.lastMoveAt = performance.now(); // 팝 애니 시작점
     this.currentTurn = stone === 'B' ? 'W' : 'B';
     this.turnStartedAt = performance.now();
 
