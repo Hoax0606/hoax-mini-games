@@ -476,8 +476,10 @@ class FortressGameModule implements GameModule {
     if (this.explosions.length) this.explosions = this.explosions.filter((e) => now - e.start < 480);
     if (this.damagePops.length) this.damagePops = this.damagePops.filter((d) => now - d.start < 900);
 
+    // 정지 중엔 render 시각을 pauseStart 로 얼려 턴 타이머 표시가 안 흐르게(모달 뒤 타이머 진행 방지)
+    const renderNow = this.paused && this.pauseStart > 0 ? this.pauseStart : now;
     try {
-      this.renderer.render(this.buildRenderState(now));
+      this.renderer.render(this.buildRenderState(renderNow));
     } catch (err) {
       console.error('[fortress] render 오류 (프레임 건너뜀)', err);
     }

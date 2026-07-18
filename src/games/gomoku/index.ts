@@ -253,7 +253,9 @@ class GomokuGame implements GameModule {
       }
     }
 
-    this.renderer.render(this.buildRenderState(now));
+    // 정지 중엔 render 시각을 pauseStart 로 얼려 타이머 표시가 안 흐르게(모달 뒤 타이머 진행 방지)
+    const renderNow = this.paused && this.pauseStart > 0 ? this.pauseStart : now;
+    this.renderer.render(this.buildRenderState(renderNow));
   };
 
   private buildRenderState(now: number): RenderState {

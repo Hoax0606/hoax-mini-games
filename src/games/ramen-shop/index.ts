@@ -187,7 +187,9 @@ class RamenShopGame implements GameModule {
     this.rafId = requestAnimationFrame(this.loop);
     if (this.destroyed) return;
     const now = performance.now();
-    const gameTime = now - this.startedAt;
+    // 정지 중엔 gameTime 을 pauseStart 기준으로 얼려 타이머/링 표시가 안 흐르게(모달 뒤 타이머 진행 방지)
+    const clock = this.paused && this.pauseStart > 0 ? this.pauseStart : now;
+    const gameTime = clock - this.startedAt;
     // 아직 개시 전(게스트가 호스트 clock 대기)이면 타이머는 full 로 표시(카운트 안 함)
     const remainingMs = this.clockSynced ? Math.max(0, this.durationMs - gameTime) : this.durationMs;
 

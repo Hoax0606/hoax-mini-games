@@ -181,9 +181,11 @@ class OneCardGame implements GameModule {
       this.timeoutCurrent();
     }
     if (!this.pub) return; // 아직 상태 못 받음
+    // 정지 중엔 표시 시각을 pauseStart 로 얼려 타이머 표시가 안 흐르게(모달 뒤 타이머 진행 방지)
+    const renderNow = this.paused && this.pauseStart > 0 ? this.pauseStart : now;
     // 표시용 턴 카운트다운 — currentTurn 바뀌면 로컬 시계로 리셋(cross-clock 회피)
-    if (this.pub.currentTurn !== this.dispTurn) { this.dispTurn = this.pub.currentTurn; this.dispTurnStart = now; }
-    const turnRemainMs = this.pub.phase === 'playing' ? Math.max(0, this.pub.turnMs - (now - this.dispTurnStart)) : 0;
+    if (this.pub.currentTurn !== this.dispTurn) { this.dispTurn = this.pub.currentTurn; this.dispTurnStart = renderNow; }
+    const turnRemainMs = this.pub.phase === 'playing' ? Math.max(0, this.pub.turnMs - (renderNow - this.dispTurnStart)) : 0;
     const rs: RenderState = {
       pub: this.pub,
       myPeerId: this.myPeerId,
@@ -191,7 +193,7 @@ class OneCardGame implements GameModule {
       isSpectator: this.isSpectator,
       wildPickIndex: this.wildPickIndex,
       turnRemainMs,
-      now,
+      now: renderNow,
     };
     try { this.renderer.render(rs); } catch (err) { console.error('[onecard] render', err); }
   };

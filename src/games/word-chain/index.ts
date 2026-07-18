@@ -259,12 +259,13 @@ class WordChainGameModule implements GameModule {
       }
     }
 
-    // 렌더
+    // 렌더 — 정지 중엔 render 시각을 pauseStart 로 얼려 타이머 표시가 안 흐르게(모달 뒤 타이머 진행 방지)
+    const renderNow = this.paused && this.pauseStart > 0 ? this.pauseStart : now;
     const renderState: RenderState = {
       game: this.game,
       myPeerId: this.myPeerId,
       isSpectator: this.isSpectator,
-      now,
+      now: renderNow,
     };
     this.renderer.render(renderState);
   };

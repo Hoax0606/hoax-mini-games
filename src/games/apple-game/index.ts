@@ -275,7 +275,9 @@ class AppleGame implements GameModule {
     if (this.destroyed) return;
 
     const now = performance.now();
-    const elapsed = now - this.startedAt;
+    // 정지 중엔 타이머 계산 시각을 pauseStart 로 얼려 카운트다운이 안 흐르게(모달 뒤 타이머 진행 방지)
+    const clock = this.paused && this.pauseStart > 0 ? this.pauseStart : now;
+    const elapsed = clock - this.startedAt;
     const remainingMs = Math.max(0, GAME_DURATION_MS - elapsed);
 
     if (!this.gameFinished) {

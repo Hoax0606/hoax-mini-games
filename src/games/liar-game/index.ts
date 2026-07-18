@@ -243,8 +243,10 @@ class LiarGameModule implements GameModule {
       const dur = this.phaseDurationMs(this.game.phase);
       this.displayDeadline = dur > 0 ? now + dur : 0;
     }
+    // 정지 중엔 표시 시각을 pauseStart 로 얼려 타이머 표시가 안 흐르게(모달 뒤 타이머 진행 방지)
+    const renderNow = this.paused && this.pauseStart > 0 ? this.pauseStart : now;
     const activeDeadline = this.isHost ? this.phaseDeadline : this.displayDeadline;
-    const remainMs = activeDeadline > 0 ? Math.max(0, activeDeadline - now) : 0;
+    const remainMs = activeDeadline > 0 ? Math.max(0, activeDeadline - renderNow) : 0;
 
     const rs: RenderState = {
       game: this.game,
@@ -253,7 +255,7 @@ class LiarGameModule implements GameModule {
       myRole: this.myRole,
       revealVotes: this.revealVotes,
       remainMs,
-      now,
+      now: renderNow,
     };
     try {
       this.renderer.render(rs);
