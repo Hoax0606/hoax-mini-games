@@ -501,7 +501,8 @@ export class DrawQuizRenderer {
     if (drawer && game.phase === 'drawing') {
       ctx.fillStyle = COLORS.drawerBadge;
       ctx.font = `700 12px ${FONT}`;
-      ctx.fillText(`✏️ ${drawer.nickname}`, ringCx, wordY + 50);
+      const badge = this.fitText(`✏️ ${drawer.nickname}`, PANEL_W - 24);
+      ctx.fillText(badge, ringCx, wordY + 50);
     }
 
     // 점수판 (하단)
@@ -544,16 +545,22 @@ export class DrawQuizRenderer {
       if (isDrawer && game.phase === 'drawing') marker = '✏️';
       else if (isCorrect) marker = '✅';
 
-      ctx.fillStyle = isMe ? COLORS.scoreMe : COLORS.textMain;
-      ctx.font = `${isMe ? 700 : 500} ${fontPx}px ${FONT}`;
-      ctx.textAlign = 'left';
-      const nick = p.nickname.length > 7 ? p.nickname.slice(0, 6) + '…' : p.nickname;
-      ctx.fillText(`${marker}${nick}`, rowX + 8, y);
-
+      // 점수(우측) 먼저 그려 폭 확보 → 닉네임은 남는 폭에 맞춰 표시(웬만하면 다 보임)
       ctx.fillStyle = COLORS.accentLavender;
       ctx.font = `800 ${fontPx}px ${FONT}`;
       ctx.textAlign = 'right';
-      ctx.fillText(String(p.score), rowX + rowW - 8, y);
+      const scoreText = String(p.score);
+      ctx.fillText(scoreText, rowX + rowW - 8, y);
+      const scoreW = ctx.measureText(scoreText).width;
+
+      ctx.fillStyle = isMe ? COLORS.scoreMe : COLORS.textMain;
+      ctx.font = `${isMe ? 700 : 500} ${fontPx}px ${FONT}`;
+      ctx.textAlign = 'left';
+      const markerStr = marker ? marker + ' ' : '';
+      const markerW = ctx.measureText(markerStr).width;
+      const nickMaxW = rowW - 16 - markerW - scoreW - 12; // 좌우 패딩 + 점수 공간 확보
+      const nick = this.fitText(p.nickname, nickMaxW);
+      ctx.fillText(`${markerStr}${nick}`, rowX + 8, y);
     }
 
     // 관전 표시
@@ -568,6 +575,15 @@ export class DrawQuizRenderer {
   // ============================================
   // 헬퍼
   // ============================================
+
+  /** 폭에 맞춰 텍스트 자르기 — 들어가면 그대로, 넘칠 때만 …. 호출 전 ctx.font 설정 필요 */
+  private fitText(text: string, maxW: number): string {
+    const ctx = this.ctx;
+    if (ctx.measureText(text).width <= maxW) return text;
+    let t = text;
+    while (t.length > 1 && ctx.measureText(t + '…').width > maxW) t = t.slice(0, -1);
+    return t + '…';
+  }
 
   private fillRoundRect(x: number, y: number, w: number, h: number, r: number): void {
     const ctx = this.ctx;
