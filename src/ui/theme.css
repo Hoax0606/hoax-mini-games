@@ -1240,7 +1240,7 @@ input {
      모든 게임이 동일한 2:1 카드가 되도록 max-width 를 못 박는다.
      height 는 aspect-ratio 로 자동(폭/2), 화면이 낮으면 max-height 로 축소. */
   width: 100%;
-  max-width: 1320px;
+  max-width: 1440px;
   height: auto;
   max-height: 100%;
   aspect-ratio: 2 / 1;
