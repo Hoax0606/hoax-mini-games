@@ -175,7 +175,12 @@ export function initialStonePositions(
 export function createInitialGame(
   players: Array<{ peerId: string; nickname: string }>,
 ): AlgagiGame {
-  const playerCount = players.length;
+  // 솔로(AlphaTest) UI 미리보기 — 1인이면 더미 상대 1명을 붙여 2인 배치로 만든다(보드가 보이게).
+  //  실제 대국은 시작 버튼에서 최소 2인이 강제되므로 여기 1인 케이스는 dev 프리뷰 전용.
+  const seats = players.length === 1
+    ? [...players, { peerId: '__preview_dummy__', nickname: '연습 상대' }]
+    : players;
+  const playerCount = seats.length;
   if (playerCount < 2 || playerCount > 4) {
     throw new Error(`알까기는 2~4인만 지원해요 (현재 ${playerCount}인)`);
   }
@@ -193,7 +198,7 @@ export function createInitialGame(
   }));
 
   const stonesPerPlayer = getStoneCountPerPlayer(pc);
-  const playerMetas: PlayerMeta[] = players.map((p, idx) => ({
+  const playerMetas: PlayerMeta[] = seats.map((p, idx) => ({
     peerId: p.peerId,
     nickname: p.nickname,
     index: idx as PlayerIndex,
