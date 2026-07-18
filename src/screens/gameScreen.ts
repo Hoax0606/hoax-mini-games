@@ -206,9 +206,11 @@ function buildExitChoiceHTML(): string {
     <div class="game-menu-overlay" id="exit-choice-overlay" hidden>
       <div class="game-menu-card">
         <div class="game-menu-title">${icon('exit', { size: 20, hue: '#ff5a92' })} 나가기</div>
-        <button class="btn btn-ghost btn-block" id="exit-lobby">${icon('sofa', { size: 18, hue: '#9c7aeb' })} 대기실로 이동</button>
-        <button class="btn btn-ghost btn-block" id="exit-room" style="margin-top: 4px;">${icon('home', { size: 18, hue: '#9c7aeb' })} 메인으로</button>
-        <button class="btn btn-ghost btn-block" id="exit-cancel" style="margin-top: 4px;">취소</button>
+        <div class="exit-choice-list">
+          <button class="btn exit-choice-btn" id="exit-lobby">${icon('sofa', { size: 20, hue: '#9c7aeb' })}<span>대기실로 이동</span></button>
+          <button class="btn exit-choice-btn" id="exit-room">${icon('home', { size: 20, hue: '#9c7aeb' })}<span>메인으로</span></button>
+        </div>
+        <button class="exit-cancel-round" id="exit-cancel" title="취소" aria-label="취소">${icon('xmark', { size: 22, hue: '#3a2a3a' })}</button>
       </div>
     </div>
   `;

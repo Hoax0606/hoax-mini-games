@@ -1950,14 +1950,52 @@ input {
   text-align: center;
   margin-bottom: 18px;
 }
-/* 나가기 모달 버튼 — 아이콘은 왼쪽 고정, 라벨은 진짜 중앙(아이콘이 라벨 중심을 안 밀게 → 취소와 정렬 통일) */
-#exit-choice-overlay .btn { position: relative; }
-#exit-choice-overlay .btn .ic {
-  position: absolute;
-  left: 22px;
-  top: 50%;
-  transform: translateY(-50%);
+/* 나가기 모달 — 액션시트식 행: 아이콘+라벨을 붙여 왼쪽 정렬한 카드형 버튼 */
+.exit-choice-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
+.exit-choice-btn {
+  width: 100%;
+  justify-content: flex-start;
+  gap: 12px;
+  padding: 15px 20px;
+  font-size: 16px;
+  font-weight: 800;
+  color: var(--text-main);
+  background: rgba(156, 122, 235, 0.06);
+  border: 1.5px solid var(--border-soft);
+  border-radius: 16px;
+}
+.exit-choice-btn:not(:disabled):hover {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+  transform: translateY(-1px);
+}
+.exit-choice-btn:not(:disabled):hover .ic { color: var(--accent-hover); }
+/* 취소 — 원형 아이콘 버튼(리스트 아래 가운데) */
+.exit-cancel-round {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 52px;
+  height: 52px;
+  margin: 16px auto 0;
+  border-radius: 50%;
+  background: #fff;
+  border: 1.5px solid var(--border-soft);
+  box-shadow: var(--shadow-sm);
+  cursor: pointer;
+  transition: transform 0.16s cubic-bezier(.34, 1.56, .64, 1), background 0.15s, border-color 0.15s;
+}
+.exit-cancel-round:hover {
+  background: var(--accent);
+  border-color: var(--accent);
+  transform: translateY(-1px);
+}
+.exit-cancel-round:hover .ic { color: #fff; }
+.exit-cancel-round:active { transform: scale(0.94); }
 
 /* 헤더 우측 상단 ⚙️ 토글 버튼 */
 .game-menu-btn {
