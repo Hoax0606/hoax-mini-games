@@ -12,7 +12,7 @@
 import type { GameModule, GameContext, GameMessage, GameResult, Player } from '../types';
 import { sound } from '../../core/sound';
 import {
-  createInitialGame, validateSubmission, applySubmission, allowedStartLetters, seedFromPeers,
+  createInitialGame, validateSubmission, applySubmission, seedFromPeers,
   type WordChainGame, type PlayerIndex,
 } from '../word-chain/rules';
 import { randomBombMs, startTurnFromPeers } from './rules';
@@ -351,16 +351,15 @@ class BombWordChainModule implements GameModule {
 
     if (hint) {
       if (this.isSpectator) {
-        hint.textContent = '👀 관전 중';
+        hint.textContent = '관전 중';
       } else if (this.game.phase === 'ended') {
-        hint.textContent = '💥 게임 끝';
+        hint.textContent = '게임 끝';
       } else if (!myTurn) {
         const cur = this.game.players.find((p) => p.index === this.game.currentTurn);
-        hint.textContent = `💣 ${cur?.nickname ?? '?'} 님이 폭탄을 들고 있어요`;
+        hint.textContent = `${cur?.nickname ?? '?'} 님이 폭탄을 들고 있어요`;
       } else {
-        const lastWord = this.game.history[this.game.history.length - 1]!.word;
-        const lastChar = lastWord[lastWord.length - 1]!;
-        hint.textContent = `🔥 빨리! "${[...allowedStartLetters(lastChar)].join(' / ')}" 로 시작`;
+        // 요구 글자는 캔버스 히어로에 크게 나오므로 여기선 긴장감만
+        hint.textContent = '서둘러요! 폭탄이 터지기 전에';
       }
     }
     if (enabled) window.setTimeout(() => this.inputEl?.focus(), 10);
