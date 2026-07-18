@@ -1,17 +1,17 @@
 /**
- * 끝말잇기 Canvas 렌더러
+ * 끝말잇기 Canvas 렌더러 (끄투 참조 재설계)
  *
  * 레이아웃 (800×400 논리 좌표):
- *   ┌──────────────────────────────┬────────────────────┐
- *   │                              │  🕒 30 (타이머 ring)│
- *   │  마지막 단어  →  ?(시작 글자) │  ─────────────────  │
- *   │  (큰 글씨)                    │  단어 히스토리      │
- *   │                              │  (최근 8개)         │
- *   ├──────────────────────────────┤                     │
- *   │  플레이어 카드 (생존/탈락)     │                     │
- *   └──────────────────────────────┴────────────────────┘
+ *   ┌──────────────────────────────────────────────────────┐
+ *   │ ▬▬▬▬▬▬▬▬ 타이머 가로 바 (줄어듦) ▬▬▬▬▬▬        24s   │
+ *   ├───────────┬──────────────────────────┬───────────────┤
+ *   │ 플레이어   │      공[원]  (이전 단어)  │  지나온 단어   │
+ *   │ 세로 리스트│         ↓                │  (프로스티드)  │
+ *   │ 현재차례   │      [ 원 · 역 ]  요구글자│               │
+ *   │ 핑크 채움  │      두음법칙 표식        │               │
+ *   └───────────┴──────────────────────────┴───────────────┘
  *
- *   HTML <input> 은 canvas 외부 (parentElement) 하단에 별도 마운트 — index.ts 가 담당.
+ *   HTML <input> 은 canvas 외부 하단에 별도 마운트 — index.ts 담당.
  */
 
 import {
@@ -24,33 +24,51 @@ import { fitContain } from '../_shared/canvasFit';
 const CANVAS_W = 800;
 const CANVAS_H = 400;
 
-const PANEL_X = 530;
-const PANEL_W = 250;
+// 3열 레이아웃 좌표
+const PLX = 18;                 // 좌: 플레이어 리스트
+const PLW = 176;
+const HX = PLX + PLW + 16;      // 중앙: 히어로 (210)
+const HW = 360;
+const RX = HX + HW + 14;        // 우: 히스토리 (584)
+const RW = CANVAS_W - RX - 18;  // 198
 
 const COLORS = {
   bg: '#fff9fd',
-  cardBg: '#faf5ff',
-  cardBorder: '#d9c7ff',
   textMain: '#4a3a4a',
   textMuted: '#8a7a8a',
-  accentPink: '#ff5a92',
-  accentLavender: '#9c7aeb',
-  accentMint: '#6ed9b3',
-  timerRingBg: '#f0e8ff',
-  timerRingFill: '#ff82ac',
-  timerRingWarn: '#ff5a92',
+  pink: '#ff5a92',
+  pinkSoft: '#ffa8c7',
+  lavender: '#9c7aeb',
+  timerTrack: '#f0e8ff',
 
-  playerActive: '#ff5a92',
-  playerAlive: '#b89aff',
-  playerDead: '#c8bccc',
+  // 프로스티드 카드(반투명)
+  cardFill: 'rgba(255, 255, 255, 0.62)',
+  cardLine: 'rgba(216, 199, 255, 0.7)',
+  cardActiveFill: 'rgba(255, 240, 246, 0.9)',
+  cardDeadFill: 'rgba(240, 236, 240, 0.5)',
 
-  historyAlt1: '#fff5f8',
-  historyAlt2: '#f0e8ff',
-
-  endOverlay: 'rgba(54, 36, 56, 0.7)',
+  endScrim: 'rgba(54, 36, 56, 0.62)',
 } as const;
 
 const FONT = `'Pretendard', 'Apple SD Gothic Neo', 'Noto Sans KR', system-ui, sans-serif`;
+
+// ============================================
+// 모션 헬퍼 (apple-design: 등장 팝 + 부드러운 전환)
+// ============================================
+
+const prefersReducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
+
+/** easeOutBack — 살짝 오버슈트(팝) */
+function easeOutBack(t: number): number {
+  if (t >= 1) return 1;
+  const c1 = 1.70158;
+  const c3 = c1 + 1;
+  const x = t - 1;
+  return 1 + c3 * x * x * x + c1 * x * x;
+}
+const clamp01 = (v: number): number => (v < 0 ? 0 : v > 1 ? 1 : v);
+
+const NEW_WORD_MS = 320; // 새 단어 등장 / 요구 글자 칩 전환
 
 // ============================================
 // Renderer
@@ -60,7 +78,7 @@ export interface RenderState {
   game: WordChainGame;
   myPeerId: string;
   isSpectator: boolean;
-  /** performance.now() — 타이머 ring 계산 */
+  /** performance.now() — 타이머/애니 계산 */
   now: number;
 }
 
@@ -72,6 +90,9 @@ export class WordChainRenderer {
   private canvas: HTMLCanvasElement;
   private ctx: CanvasRenderingContext2D;
   private ro: ResizeObserver;
+  /** 히스토리 길이가 바뀐(=새 단어) 로컬 시각 — 등장 팝 애니용. 렌더러 자체 감지 */
+  private lastHistLen = -1;
+  private addAt = 0;
 
   constructor(args: WordChainRendererArgs) {
     this.canvas = args.canvas;
@@ -97,234 +118,258 @@ export class WordChainRenderer {
 
   render(state: RenderState): void {
     const ctx = this.ctx;
+    const now = state.now;
 
-    // 균일 스케일+레터박스 (비율 유지 → 캔버스 비율 달라도 안 찌부러짐)
+    // 새 단어 감지 → 등장 팝 시작점
+    if (state.game.history.length !== this.lastHistLen) {
+      this.lastHistLen = state.game.history.length;
+      this.addAt = now;
+    }
+
     fitContain(ctx, this.canvas, CANVAS_W, CANVAS_H, COLORS.bg);
 
-    // 좌측: 마지막 단어 + 다음 시작 글자 (큰 글씨)
-    this.drawWordCenter(state);
+    this.drawTimerBar(state, now);
+    this.drawPlayers(state);
+    this.drawHero(state, now);
+    this.drawHistory(state, now);
 
-    // 좌측 하단: 플레이어 카드들
-    this.drawPlayerCards(state);
-
-    // 우측 패널: 타이머 + 히스토리
-    this.drawRightPanel(state);
-
-    // 종료 오버레이
     if (state.game.phase === 'ended') {
       this.drawEndOverlay(state);
     }
   }
 
   // ============================================
-  // 좌측: 마지막 단어 + 시작 글자
+  // 상단: 타이머 가로 바
   // ============================================
 
-  private drawWordCenter(state: RenderState): void {
+  private drawTimerBar(state: RenderState, now: number): void {
     const ctx = this.ctx;
-    const cx = (PANEL_X) / 2; // 좌측 영역 중앙
-    const cy = 130;
-
     const game = state.game;
-    const lastWord = game.history[game.history.length - 1]!;
+    const x = 20, y = 18, w = CANVAS_W - 40, h = 8;
 
-    // 마지막 단어 — 큰 글씨
-    ctx.fillStyle = COLORS.textMain;
-    ctx.font = `900 56px ${FONT}`;
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText(lastWord.word, cx, cy);
+    const turnTime = getTurnTimeMs(game.history.length);
+    const elapsed = game.phase === 'aiming' ? Math.max(0, now - game.turnStartedAt) : 0;
+    const remaining = Math.max(0, turnTime - elapsed);
+    const ratio = game.phase === 'aiming' ? remaining / turnTime : 1;
+    const sec = Math.ceil(remaining / 1000);
+    const warn = game.phase === 'aiming' && sec <= 5;
 
-    // 누가 냈는지 (작게, 단어 위)
-    ctx.fillStyle = COLORS.textMuted;
-    ctx.font = `600 13px ${FONT}`;
-    ctx.fillText(
-      lastWord.byPeerId === '' ? '🎲 시작 단어' : `${lastWord.byNickname} 님이 냈어요`,
-      cx,
-      cy - 50,
-    );
-
-    // 화살표 + 다음 시작 글자 후보
-    const lastChar = lastWord.word[lastWord.word.length - 1]!;
-    const allowed = [...allowedStartLetters(lastChar)];
-
-    ctx.fillStyle = COLORS.textMuted;
-    ctx.font = `700 16px ${FONT}`;
-    ctx.fillText('▼ 다음 시작', cx, cy + 50);
-
-    ctx.fillStyle = COLORS.accentPink;
-    ctx.font = `900 40px ${FONT}`;
-    ctx.fillText(allowed.join(' / '), cx, cy + 90);
+    // 트랙
+    this.roundRect(x, y, w, h, h / 2);
+    ctx.fillStyle = COLORS.timerTrack;
+    ctx.fill();
+    // 진행(남은 시간)
+    const fw = Math.max(h, w * ratio);
+    this.roundRect(x, y, fw, h, h / 2);
+    ctx.fillStyle = warn ? COLORS.pink : COLORS.pinkSoft;
+    ctx.fill();
+    // 남은 시간은 바 자체로 표시 — 숫자 없음
   }
 
   // ============================================
-  // 좌측 하단: 플레이어 카드 (생존/탈락)
+  // 좌: 플레이어 세로 리스트 (현재 차례 핑크 채움, 닉 전체 표시)
   // ============================================
 
-  private drawPlayerCards(state: RenderState): void {
+  private drawPlayers(state: RenderState): void {
     const ctx = this.ctx;
     const game = state.game;
-
-    // 좌측 영역(0~PANEL_X) 가로폭 안에 N 명 들어가야 함.
-    // 4명까지는 cardW 110 고정. 5~6명일 땐 동적 축소.
     const n = game.players.length;
-    const cardH = 60;
-    const gap = n <= 4 ? 12 : 8;
-    const availW = PANEL_X - 24; // 좌우 여유 12px씩
-    const maxCardW = 110;
-    const fitCardW = (availW - (n - 1) * gap) / n;
-    const cardW = Math.min(maxCardW, fitCardW);
-    const startY = 310;
-    const totalW = n * cardW + (n - 1) * gap;
-    const startX = (PANEL_X - totalW) / 2;
+
+    const top = 44, bottom = 388, gap = 6;
+    const rowH = Math.min(34, Math.max(24, (bottom - top - (n - 1) * gap) / n));
+    const fs = rowH < 28 ? 12 : 13;
 
     for (let i = 0; i < n; i++) {
       const p = game.players[i]!;
-      const x = startX + i * (cardW + gap);
-      const y = startY;
-      const isMyTurn = game.phase === 'aiming' && p.index === game.currentTurn;
+      const y = top + i * (rowH + gap);
+      const active = game.phase === 'aiming' && p.index === game.currentTurn && p.alive;
+      const dead = !p.alive;
       const isMe = p.peerId === state.myPeerId;
 
-      // 카드 배경
-      ctx.fillStyle = p.alive ? COLORS.cardBg : '#f3eef0';
-      this.fillRoundRect(x, y, cardW, cardH, 12);
+      // 행 배경 (프로스티드) — 현재 차례 = 핑크 채움
+      ctx.save();
+      ctx.shadowColor = active ? 'rgba(255, 90, 146, 0.25)' : 'rgba(120, 80, 140, 0.1)';
+      ctx.shadowBlur = active ? 10 : 5;
+      ctx.shadowOffsetY = active ? 4 : 2;
+      this.roundRect(PLX, y, PLW, rowH, rowH / 2.4);
+      ctx.fillStyle = active ? COLORS.pink : dead ? COLORS.cardDeadFill : COLORS.cardFill;
+      ctx.fill();
+      ctx.restore();
+      if (!active) {
+        this.roundRect(PLX, y, PLW, rowH, rowH / 2.4);
+        ctx.strokeStyle = COLORS.cardLine;
+        ctx.lineWidth = 1;
+        ctx.stroke();
+      }
 
-      // 외곽선
-      ctx.strokeStyle = !p.alive
-        ? COLORS.playerDead
-        : isMyTurn
-          ? COLORS.playerActive
-          : COLORS.playerAlive;
-      ctx.lineWidth = isMyTurn ? 2.5 : 1.5;
-      this.strokeRoundRect(x, y, cardW, cardH, 12);
+      // 현재 차례 흰 점
+      let tx = PLX + 12;
+      if (active) {
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.95)';
+        ctx.beginPath();
+        ctx.arc(PLX + 13, y + rowH / 2, 3.5, 0, Math.PI * 2);
+        ctx.fill();
+        tx = PLX + 23;
+      }
 
-      // 닉네임 — 카드 폭에 맞춰 3단계(일반/좁음/아주좁음)로 축약. 10인이면 tiny.
-      const tiny = cardW < 62;      // 8~10인
-      const isNarrow = cardW < 95;  // 6~7인
-      const maxNick = tiny ? 3 : isNarrow ? 4 : 6;
-      ctx.fillStyle = p.alive ? COLORS.textMain : COLORS.textMuted;
-      ctx.font = `700 ${tiny ? 11 : isNarrow ? 12 : 14}px ${FONT}`;
-      ctx.textAlign = 'center';
+      // 닉네임 (전체 표시)
+      ctx.fillStyle = active ? '#fff' : dead ? COLORS.textMuted : COLORS.textMain;
+      ctx.font = `800 ${fs}px ${FONT}`;
+      ctx.textAlign = 'left';
       ctx.textBaseline = 'middle';
-      const nick = p.nickname.length > maxNick ? p.nickname.slice(0, maxNick - 1) + '…' : p.nickname;
-      ctx.fillText(nick + (isMe && !tiny ? ' (나)' : ''), x + cardW / 2, y + 22);
+      ctx.fillText(p.nickname + (isMe ? ' (나)' : ''), tx, y + rowH / 2);
 
-      // 상태 — 좁으면 이모지만(글자 넘침 방지)
-      if (!p.alive) {
-        ctx.fillStyle = COLORS.textMuted;
-        ctx.font = `800 13px ${FONT}`;
-        ctx.fillText(tiny ? '💀' : '💀 탈락', x + cardW / 2, y + 42);
-      } else if (isMyTurn) {
-        ctx.fillStyle = COLORS.accentPink;
-        ctx.font = `800 13px ${FONT}`;
-        ctx.fillText(tiny ? '🎯' : '🎯 차례', x + cardW / 2, y + 42);
-      } else {
-        ctx.fillStyle = COLORS.textMuted;
-        ctx.font = `500 12px ${FONT}`;
-        ctx.fillText(tiny ? '·' : '대기', x + cardW / 2, y + 42);
+      // 탈락 = 가로줄
+      if (dead) {
+        ctx.strokeStyle = COLORS.textMuted;
+        ctx.lineWidth = 1.3;
+        ctx.beginPath();
+        ctx.moveTo(tx, y + rowH / 2);
+        ctx.lineTo(PLX + PLW - 12, y + rowH / 2);
+        ctx.stroke();
       }
     }
   }
 
   // ============================================
-  // 우측 패널: 타이머 + 히스토리
+  // 중앙: 이전 단어 → 요구 글자 (두음법칙 대안 포함)
   // ============================================
 
-  private drawRightPanel(state: RenderState): void {
+  private drawHero(state: RenderState, now: number): void {
     const ctx = this.ctx;
     const game = state.game;
+    const cx = HX + HW / 2;
 
-    // 타이머 ring (상단)
-    const ringCx = PANEL_X + PANEL_W / 2;
-    const ringCy = 60;
-    const ringR = 36;
-    const turnTime = getTurnTimeMs(game.history.length);
-    const elapsed = game.phase === 'aiming' ? Math.max(0, state.now - game.turnStartedAt) : 0;
-    const remaining = Math.max(0, turnTime - elapsed);
-    const ratio = remaining / turnTime;
-    const remainSec = Math.ceil(remaining / 1000);
+    const last = game.history[game.history.length - 1]!;
+    const word = last.word;
+    const head = word.slice(0, -1);
+    const tail = word[word.length - 1]!;
 
-    // 배경 ring
-    ctx.strokeStyle = COLORS.timerRingBg;
-    ctx.lineWidth = 7;
-    ctx.beginPath();
-    ctx.arc(ringCx, ringCy, ringR, 0, Math.PI * 2);
-    ctx.stroke();
+    // 새 단어 등장 팝(스케일)
+    const appT = prefersReducedMotion ? 1 : clamp01((now - this.addAt) / NEW_WORD_MS);
 
-    // 진행 ring (남은 시간 비율)
-    if (game.phase === 'aiming') {
-      ctx.strokeStyle = remainSec <= 5 ? COLORS.timerRingWarn : COLORS.timerRingFill;
-      ctx.lineWidth = 7;
-      ctx.lineCap = 'round';
-      ctx.beginPath();
-      ctx.arc(ringCx, ringCy, ringR, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * ratio);
-      ctx.stroke();
-      ctx.lineCap = 'butt';
-    }
+    // 이전 단어 (작게, 맥락) — 꼬리 음절 핑크
+    ctx.save();
+    const wordScale = 0.85 + 0.15 * easeOutBack(appT);
+    ctx.translate(cx, 108);
+    ctx.scale(wordScale, wordScale);
+    ctx.translate(-cx, -108);
+    ctx.font = `900 38px ${FONT}`;
+    ctx.textBaseline = 'middle';
+    const hw = ctx.measureText(head).width;
+    const tw = ctx.measureText(tail).width;
+    const tot = hw + tw;
+    ctx.textAlign = 'left';
+    ctx.fillStyle = COLORS.textMain;
+    ctx.fillText(head, cx - tot / 2, 108);
+    ctx.fillStyle = COLORS.pink;
+    ctx.fillText(tail, cx - tot / 2 + hw, 108);
+    ctx.restore();
 
-    // 남은 초 텍스트
-    ctx.fillStyle = remainSec <= 5 && game.phase === 'aiming' ? COLORS.accentPink : COLORS.textMain;
-    ctx.font = `900 22px ${FONT}`;
+    // 화살표
+    ctx.fillStyle = COLORS.pinkSoft;
+    ctx.font = `700 20px ${FONT}`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillText(String(remainSec), ringCx, ringCy);
+    ctx.fillText('↓', cx, 150);
 
-    ctx.fillStyle = COLORS.textMuted;
-    ctx.font = `600 11px ${FONT}`;
-    ctx.fillText('초 남음', ringCx, ringCy + 50);
+    // 요구 글자 칩 (두음법칙이면 대안 글자 포함)
+    const allowed = [...allowedStartLetters(tail)];
+    const reqTxt = allowed.join(' · ');
+    const chipSc = prefersReducedMotion ? 1 : 0.72 + 0.28 * easeOutBack(appT);
+    ctx.font = `900 40px ${FONT}`;
+    const rw = ctx.measureText(reqTxt).width;
+    const chipW = Math.max(80, rw + 52);
+    const chipH = 66;
+    const chipX = cx - chipW / 2;
+    const chipY = 182;
+    ctx.save();
+    ctx.translate(cx, chipY + chipH / 2);
+    ctx.scale(chipSc, chipSc);
+    ctx.translate(-cx, -(chipY + chipH / 2));
+    ctx.save();
+    ctx.shadowColor = 'rgba(255, 90, 146, 0.3)';
+    ctx.shadowBlur = 18;
+    ctx.shadowOffsetY = 6;
+    this.roundRect(chipX, chipY, chipW, chipH, chipH / 2);
+    ctx.fillStyle = COLORS.pink;
+    ctx.fill();
+    ctx.restore();
+    ctx.fillStyle = '#fff';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.font = `900 40px ${FONT}`;
+    ctx.fillText(reqTxt, cx, chipY + chipH / 2 + 1);
+    ctx.restore();
 
-    // 히스토리 헤더
-    const histY0 = 120;
-    ctx.fillStyle = COLORS.textMain;
-    ctx.font = `700 14px ${FONT}`;
-    ctx.textAlign = 'left';
-    ctx.textBaseline = 'top';
-    ctx.fillText(`📜 단어 (전체 ${game.history.length})`, PANEL_X + 10, histY0);
-
-    // 최근 8개만 (오래된 것이 위, 최근 것이 아래 — 또는 반대?)
-    // 채팅처럼: 오래된 위, 최근 아래.
-    const histX = PANEL_X + 10;
-    const histY = histY0 + 24;
-    const rowH = 28;
-    const maxRows = 8;
-    const visible = game.history.slice(-maxRows);
-
-    for (let i = 0; i < visible.length; i++) {
-      const entry = visible[i]!;
-      const y = histY + i * rowH;
-
-      // 줄 배경 (alt)
-      ctx.fillStyle = i % 2 === 0 ? COLORS.historyAlt1 : COLORS.historyAlt2;
-      this.fillRoundRect(histX, y, PANEL_W - 20, rowH - 4, 6);
-
-      // 단어
-      ctx.fillStyle = COLORS.textMain;
-      ctx.font = `700 14px ${FONT}`;
-      ctx.textAlign = 'left';
-      ctx.textBaseline = 'middle';
-      ctx.fillText(entry.word, histX + 10, y + (rowH - 4) / 2);
-
-      // 닉네임 (우측 작게)
+    // 두음법칙 표식 (대안이 2개 이상일 때만)
+    if (allowed.length > 1) {
       ctx.fillStyle = COLORS.textMuted;
-      ctx.font = `500 11px ${FONT}`;
-      ctx.textAlign = 'right';
-      const author = entry.byPeerId === '' ? '시작' : entry.byNickname;
-      const authorShown = author.length > 6 ? author.slice(0, 5) + '…' : author;
-      ctx.fillText(authorShown, histX + PANEL_W - 30, y + (rowH - 4) / 2);
+      ctx.font = `700 12px ${FONT}`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('두음법칙 · 둘 중 아무거나', cx, chipY + chipH + 18);
     }
-    // "더 있음" 개수는 헤더의 "(N)" 총계로 이미 표시되므로 별도 안내 X
-    //   (이전엔 "+N개 더" 를 히스토리 첫 줄 위에 겹쳐 그려 헤더/단어와 겹치는 문제가 있었음)
   }
 
   // ============================================
-  // 종료 오버레이
+  // 우: 지나온 단어 리스트
+  // ============================================
+
+  private drawHistory(state: RenderState, now: number): void {
+    const ctx = this.ctx;
+    const game = state.game;
+    const y0 = 54, rowH = 30, gap = 6, maxRows = 9;
+    const visible = game.history.slice(-maxRows);
+
+    // 총 개수 (작게)
+    ctx.fillStyle = COLORS.textMuted;
+    ctx.font = `700 11px ${FONT}`;
+    ctx.textAlign = 'right';
+    ctx.textBaseline = 'alphabetic';
+    ctx.fillText(`${game.history.length}단어`, RX + RW, y0 - 8);
+
+    for (let i = 0; i < visible.length; i++) {
+      const entry = visible[i]!;
+      const y = y0 + i * (rowH + gap);
+      const isLast = i === visible.length - 1;
+      const appT = isLast && !prefersReducedMotion ? clamp01((now - this.addAt) / NEW_WORD_MS) : 1;
+      const dx = (1 - appT) * 8;
+
+      ctx.save();
+      ctx.globalAlpha = appT;
+      this.roundRect(RX + dx, y, RW, rowH, 10);
+      ctx.fillStyle = isLast ? COLORS.cardActiveFill : COLORS.cardFill;
+      ctx.fill();
+      this.roundRect(RX + dx, y, RW, rowH, 10);
+      ctx.strokeStyle = isLast ? 'rgba(255, 90, 146, 0.5)' : COLORS.cardLine;
+      ctx.lineWidth = isLast ? 1.6 : 1;
+      ctx.stroke();
+
+      ctx.fillStyle = COLORS.textMain;
+      ctx.font = `800 14px ${FONT}`;
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(entry.word, RX + dx + 12, y + rowH / 2);
+
+      ctx.fillStyle = COLORS.textMuted;
+      ctx.font = `500 10px ${FONT}`;
+      ctx.textAlign = 'right';
+      const author = entry.byPeerId === '' ? '시작' : entry.byNickname;
+      const shown = author.length > 5 ? author.slice(0, 5) : author;
+      ctx.fillText(shown, RX + dx + RW - 10, y + rowH / 2);
+      ctx.restore();
+    }
+  }
+
+  // ============================================
+  // 종료 오버레이 (전체 스크림 + 중앙 결과)
   // ============================================
 
   private drawEndOverlay(state: RenderState): void {
     const ctx = this.ctx;
-    // 좌측 영역만 어둡게
-    ctx.fillStyle = COLORS.endOverlay;
-    ctx.fillRect(0, 0, PANEL_X, CANVAS_H);
+    ctx.fillStyle = COLORS.endScrim;
+    ctx.fillRect(0, 0, CANVAS_W, CANVAS_H);
 
     const winner = state.game.players.find((p) => p.peerId === state.game.winnerPeerId);
     const iWon = state.game.winnerPeerId === state.myPeerId;
@@ -332,41 +377,29 @@ export class WordChainRenderer {
 
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.font = `900 60px ${FONT}`;
+    ctx.font = `900 56px ${FONT}`;
     ctx.fillStyle = '#fff';
-    ctx.fillText(isDraw ? '⚖️' : '🏆', PANEL_X / 2, CANVAS_H / 2 - 30);
+    ctx.fillText(isDraw ? '⚖️' : '🏆', CANVAS_W / 2, CANVAS_H / 2 - 28);
 
-    ctx.font = `900 28px ${FONT}`;
-    ctx.fillStyle = iWon ? COLORS.accentPink : '#fff';
+    ctx.font = `900 30px ${FONT}`;
+    ctx.fillStyle = iWon ? COLORS.pink : '#fff';
     const title = isDraw ? '무승부' : iWon ? '승리!' : `${winner?.nickname ?? '?'} 승리`;
-    ctx.fillText(title, PANEL_X / 2, CANVAS_H / 2 + 28);
+    ctx.fillText(title, CANVAS_W / 2, CANVAS_H / 2 + 26);
   }
 
   // ============================================
   // 헬퍼
   // ============================================
 
-  private fillRoundRect(x: number, y: number, w: number, h: number, r: number): void {
+  private roundRect(x: number, y: number, w: number, h: number, r: number): void {
     const ctx = this.ctx;
+    const rr = Math.min(r, w / 2, h / 2);
     ctx.beginPath();
-    ctx.moveTo(x + r, y);
-    ctx.arcTo(x + w, y,     x + w, y + h, r);
-    ctx.arcTo(x + w, y + h, x,     y + h, r);
-    ctx.arcTo(x,     y + h, x,     y,     r);
-    ctx.arcTo(x,     y,     x + w, y,     r);
+    ctx.moveTo(x + rr, y);
+    ctx.arcTo(x + w, y, x + w, y + h, rr);
+    ctx.arcTo(x + w, y + h, x, y + h, rr);
+    ctx.arcTo(x, y + h, x, y, rr);
+    ctx.arcTo(x, y, x + w, y, rr);
     ctx.closePath();
-    ctx.fill();
-  }
-
-  private strokeRoundRect(x: number, y: number, w: number, h: number, r: number): void {
-    const ctx = this.ctx;
-    ctx.beginPath();
-    ctx.moveTo(x + r, y);
-    ctx.arcTo(x + w, y,     x + w, y + h, r);
-    ctx.arcTo(x + w, y + h, x,     y + h, r);
-    ctx.arcTo(x,     y + h, x,     y,     r);
-    ctx.arcTo(x,     y,     x + w, y,     r);
-    ctx.closePath();
-    ctx.stroke();
   }
 }

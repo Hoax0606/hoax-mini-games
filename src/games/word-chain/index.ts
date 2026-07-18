@@ -25,7 +25,6 @@ import {
   validateSubmission,
   applySubmission,
   eliminatePlayer,
-  allowedStartLetters,
   getTurnTimeMs,
   seedFromPeers,
   TIMEOUT_GRACE_MS,
@@ -479,19 +478,17 @@ class WordChainGameModule implements GameModule {
 
     if (hint) {
       if (this.isSpectator) {
-        hint.textContent = '👀 관전 중';
+        hint.textContent = '관전 중';
       } else if (this.game.phase === 'ended') {
         hint.textContent = '게임 끝';
       } else if (!myAlive) {
-        hint.textContent = '😭 탈락했어요';
+        hint.textContent = '탈락했어요';
       } else if (!myTurn) {
         const cur = this.game.players.find((p) => p.index === this.game.currentTurn);
-        hint.textContent = `⏳ ${cur?.nickname ?? '?'} 차례`;
+        hint.textContent = `${cur?.nickname ?? '?'} 차례`;
       } else {
-        const lastWord = this.game.history[this.game.history.length - 1]!.word;
-        const lastChar = lastWord[lastWord.length - 1]!;
-        const allowed = allowedStartLetters(lastChar);
-        hint.textContent = `🎯 "${[...allowed].join(' / ')}" 로 시작하는 단어`;
+        // 내 차례 — 요구 글자는 캔버스 히어로 칩에 크게 표시되므로 힌트는 비움(중복 제거)
+        hint.textContent = '';
       }
     }
 
