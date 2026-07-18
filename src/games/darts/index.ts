@@ -103,6 +103,10 @@ class DartsGameModule implements GameModule {
 
   // --- 물리/입력 상태 ---
   private stuckDarts: StuckDart[] = [];
+  /** 마지막 다트가 꽂힌 로컬 시각 — 착탄/슬롯 팝 애니 전용(네트워크 동기화 X, 머신마다 시계 다름). 0=정착 */
+  private lastLandedAt = 0;
+  /** 방금 꽂힌 다트의 폭발 점수 팝(잠깐 떴다 사라짐). render 가 age 로 자동 만료 */
+  private scorePop: { x: number; y: number; score: number; kind: HitResult['kind']; at: number } | null = null;
   private flyingDart: FlyingDart | null = null;
   private flight: FlightPhysics | null = null;
   private heldDart: FlyingDart | null = null;
@@ -193,6 +197,9 @@ class DartsGameModule implements GameModule {
       if (!this.isHost) {
         this.game = sync.game;
         this.stuckDarts = sync.stuckDarts;
+        // 중간 합류 sync: 이미 꽂힌 다트라 팝/폭발점수 없이 정착 상태로 표시
+        this.lastLandedAt = 0;
+        this.scorePop = null;
       }
       return;
     }
@@ -294,6 +301,8 @@ class DartsGameModule implements GameModule {
       currentPlayerIdx: g.currentIdx,
       myPlayerIdx: myIdx !== null && myIdx >= 0 ? myIdx : null,
       stuckDarts: this.stuckDarts,
+      lastStuckLandedAt: this.lastLandedAt,
+      scorePop: this.scorePop,
       flyingDart: this.flyingDart,
       heldDart: this.heldDart,
       isMyTurn,
@@ -477,6 +486,12 @@ class DartsGameModule implements GameModule {
       freshness: 1,
     });
 
+    // 착탄 팝 + 폭발 점수 (miss 는 점수 팝 생략)
+    this.lastLandedAt = performance.now();
+    this.scorePop = hit.kind === 'miss'
+      ? null
+      : { x: landX, y: landY, score: hit.score, kind: hit.kind, at: this.lastLandedAt };
+
     this.flight = null;
     this.flyingDart = null;
 
@@ -507,6 +522,8 @@ class DartsGameModule implements GameModule {
         advanceTurn(this.game);
         // 새 턴이 돌아오면 꽂힌 다트 리셋 (각 턴마다 과녁 초기화)
         this.stuckDarts = [];
+        this.lastLandedAt = 0;
+        this.scorePop = null;
         // advanceTurn 이 maxRounds 초과 감지로 finished 세팅했을 수도 있음
         if (this.game.finished) {
           this.scheduleEndGame();

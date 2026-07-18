@@ -54,13 +54,14 @@ const PANEL_W = 340;
 const COLORS = {
   bg: '#fff9fd',
 
-  // 다트보드 외곽 링 — 실제 다트판다운 검정 느낌(완전 #000 말고 살짝 따뜻한 차콜).
-  boardOuterRing: '#1c1820',
-  boardOuterRingStroke: '#0f0b12',
+  // 다트보드 번호 링 — 실제 다트판 참고해 얇은 플럼 링(방사 그라데이션은 drawBoard 에서).
+  boardOuterRing: '#2a2238',
+  boardOuterRingStroke: '#160f22',
 
-  // Single 세그먼트 배경 (짝/홀 교차)
-  singleCream: '#fff6e4',
-  singleLavender: '#e9dfff',
+  // Single 세그먼트 배경 (짝/홀 교차) — 실제 보드의 흑↔백 고대비: 흰색 ↔ 진한 플럼.
+  //  singleDark 를 밝게 올리면(예: #6a5a80) 전체가 더 화사해짐 — 대비/밝기 취향 조절용 상수.
+  singleLight: '#ffffff',
+  singleDark: '#463a58',
 
   // Cricket 모드에서 비활성(1~14) 세그먼트 색 — 어둡게 톤다운
   inactiveSingleA: '#5a525a',
@@ -68,12 +69,15 @@ const COLORS = {
   inactiveRingA:   '#6b5a64',
   inactiveRingB:   '#5a4d56',
 
-  // Double / Triple 링 색 (짝/홀) — 다른 게임과 같은 pink/mint 팔레트 재사용
-  ringPink: '#ff82ac',
-  ringMint: '#86e8c4',
+  // Double / Triple 링 색 (짝/홀) — "리워드 링"이라 또렷하게 (채도 살짝 ↑)
+  ringPink: '#ff4d89',
+  ringMint: '#3fd398',
 
-  // 세그먼트 구분선(스파이더) — 외곽 링과 같은 톤
+  // 세그먼트 구분선(스파이더) — 실제 보드의 금속 와이어처럼 raised 느낌(어두운 바탕 + 은색 코어 + 교차 스터드)
   segBorder: '#1c1820',
+  wireDark: 'rgba(0, 0, 0, 0.4)',
+  wireLight: 'rgba(226, 229, 240, 0.85)',
+  wireStud: '#e8ecf2',
 
   // Bull
   outerBull: '#86e8c4',
@@ -131,6 +135,31 @@ const COLORS = {
 } as const;
 
 const FONT = `'Pretendard', 'Apple SD Gothic Neo', 'Noto Sans KR', system-ui, sans-serif`;
+
+// ============================================
+// 모션 상수 / 헬퍼 (apple-design: 스프링 팝 + materialize)
+// ============================================
+
+const POP_MS = 300;        // 다트 착탄 / 슬롯 채움 팝
+const SCOREPOP_MS = 850;   // 폭발 점수 팝 (떠올랐다 페이드)
+const MATERIALIZE_MS = 240; // 배너 / 게임오버 오버레이 등장
+
+const prefersReducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
+
+/** easeOutBack — 착수 momentum 느낌의 살짝 오버슈트 */
+function easeOutBack(t: number): number {
+  if (t >= 1) return 1;
+  const c1 = 1.70158;
+  const c3 = c1 + 1;
+  const x = t - 1;
+  return 1 + c3 * x * x * x + c1 * x * x;
+}
+/** easeOut(제곱) — materialize/상승용 */
+function easeOut(t: number): number {
+  const c = t < 0 ? 0 : t > 1 ? 1 : t;
+  return 1 - (1 - c) * (1 - c);
+}
+const clamp01 = (v: number): number => (v < 0 ? 0 : v > 1 ? 1 : v);
 
 // ============================================
 // 외부 타입
@@ -202,6 +231,10 @@ export interface DartsRenderState {
 
   /** 과녁에 꽂혀 있는 다트들 (보통 최근 라운드만 표시) */
   stuckDarts: StuckDart[];
+  /** 마지막 다트가 꽂힌 로컬 시각(performance.now) — 착탄/슬롯 팝 애니 전용. 네트워크 동기화 X, 0=정착 */
+  lastStuckLandedAt: number;
+  /** 방금 꽂힌 다트의 폭발 점수 팝 (잠깐 떠올랐다 사라짐). null=없음 */
+  scorePop: { x: number; y: number; score: number; kind: HitResult['kind']; at: number } | null;
   /** 날아가는 중인 다트 (있으면) */
   flyingDart: FlyingDart | null;
   /** 마우스로 들고 있는 다트 (드래그 중). 커서 따라다님 */
@@ -229,6 +262,9 @@ export class DartsRenderer {
   private ctx: CanvasRenderingContext2D;
   private ro: ResizeObserver;
   private view: FitView = { scale: 1, offX: 0, offY: 0 };
+  /** materialize 시작 시각(렌더러 자체 캡처) — 상태가 처음 나타난 프레임 기록 */
+  private gameOverShownAt = 0;
+  private bustShownAt = 0;
 
   constructor(args: DartsRendererArgs) {
     this.canvas = args.canvas;
@@ -263,16 +299,34 @@ export class DartsRenderer {
 
   render(state: DartsRenderState): void {
     const ctx = this.ctx;
+    const now = performance.now();
     // 균일 스케일+레터박스 (비율 유지 → 안 찌부러짐)
     this.view = fitContain(ctx, this.canvas, CANVAS_W, CANVAS_H, COLORS.bg);
 
     // 다트보드
     this.drawBoard(state.mode);
 
-    // 과녁에 꽂힌 다트들
-    for (const d of state.stuckDarts) {
-      this.drawDart(BOARD_CX + d.localX, BOARD_CY + d.localY, d.rotation, 1 + (1 - d.freshness) * 0);
+    // 과녁에 꽂힌 다트들 — 마지막(방금 꽂힌) 다트만 스프링 팝 + 임팩트 링
+    const lastIdx = state.stuckDarts.length - 1;
+    const popActive = state.lastStuckLandedAt > 0 && !prefersReducedMotion;
+    const popT = popActive ? clamp01((now - state.lastStuckLandedAt) / POP_MS) : 1;
+    for (let i = 0; i < state.stuckDarts.length; i++) {
+      const d = state.stuckDarts[i]!;
+      const px = BOARD_CX + d.localX;
+      const py = BOARD_CY + d.localY;
+      if (i === lastIdx && popActive && popT < 1) {
+        // 임팩트 링 (착탄 순간 퍼지는 링)
+        ctx.strokeStyle = `rgba(255, 90, 146, ${(1 - popT) * 0.7})`;
+        ctx.lineWidth = 2.4;
+        ctx.beginPath();
+        ctx.arc(px, py, 4 + popT * 18, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+      this.drawDart(px, py, d.rotation, i === lastIdx ? easeOutBack(popT) : 1);
     }
+
+    // 폭발 점수 팝 — 방금 꽂힌 점수가 튀어오르며 페이드
+    if (state.scorePop) this.drawScorePop(state.scorePop, now);
 
     // 날아가는 다트 (있으면) — 좌표는 index.ts 물리 계산값 그대로 사용
     if (state.flyingDart) {
@@ -299,25 +353,96 @@ export class DartsRenderer {
     }
 
     // 우측 패널
-    this.drawRightPanel(state);
+    this.drawRightPanel(state, now);
 
-    // BUST 배너 — 현재 플레이어가 bust 상태면 과녁 위에 크게 표시
+    // BUST 배너 — 현재 플레이어가 bust 상태면 과녁 위에 크게 표시 (materialize)
     const curDisplay = state.players[state.currentPlayerIdx];
     if (curDisplay?.bustThisTurn && !state.gameOver) {
-      this.drawBustBanner();
+      if (this.bustShownAt === 0) this.bustShownAt = now;
+      this.drawBustBanner(now);
+    } else {
+      this.bustShownAt = 0;
     }
 
-    // 게임 종료 오버레이
+    // 게임 종료 오버레이 (materialize)
     if (state.gameOver) {
-      this.drawGameOverOverlay(state);
+      if (this.gameOverShownAt === 0) this.gameOverShownAt = now;
+      this.drawGameOverOverlay(state, now);
+    } else {
+      this.gameOverShownAt = 0;
     }
   }
 
-  /** 과녁 상단에 큰 "BUST!" 배너 — 턴 원복 시 1.4초 정도 노출 */
-  private drawBustBanner(): void {
+  /** 방금 꽂힌 다트의 점수를 임팩트 지점에서 크게 띄워 올렸다가 페이드 (Darts of Fury식 폭발 점수) */
+  private drawScorePop(pop: NonNullable<DartsRenderState['scorePop']>, now: number): void {
+    const age = (now - pop.at) / SCOREPOP_MS;
+    if (age >= 1 || age < 0) return;
+    const ctx = this.ctx;
+    const rise = prefersReducedMotion ? 0 : -30 * easeOut(clamp01(age));
+    const grow = prefersReducedMotion ? 1 : 0.6 + 0.6 * easeOut(clamp01(age * 2));
+    const alpha = 1 - clamp01((age - 0.6) / 0.4); // 뒤쪽 40% 구간에 페이드아웃
+    const color =
+      pop.kind === 'triple' ? COLORS.ringPink
+        : pop.kind === 'double' ? COLORS.ringMint
+          : (pop.kind === 'inner-bull' || pop.kind === 'outer-bull') ? COLORS.innerBull
+            : COLORS.textAccent;
+
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    ctx.translate(pop.x, pop.y + rise);
+    ctx.scale(grow, grow);
+    ctx.font = `900 30px ${FONT}`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    // 흰 외곽선으로 어떤 배경 위에서도 또렷하게
+    ctx.lineWidth = 4;
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.92)';
+    ctx.strokeText(String(pop.score), 0, 0);
+    ctx.fillStyle = color;
+    ctx.fillText(String(pop.score), 0, 0);
+    ctx.restore();
+  }
+
+  /** 프로스티드 카드 — 반투명 흰색 + 소프트 섀도 + 라운드. 활성은 핑크 링. (패널 전반 통일) */
+  private frostedCard(
+    x: number, y: number, w: number, h: number,
+    opt: { active?: boolean; radius?: number; fill?: string; line?: string; danger?: boolean } = {},
+  ): void {
+    const ctx = this.ctx;
+    const r = opt.radius ?? 14;
+    ctx.save();
+    ctx.shadowColor = opt.danger
+      ? 'rgba(255, 90, 90, 0.28)'
+      : opt.active ? 'rgba(255, 90, 146, 0.22)' : 'rgba(120, 80, 140, 0.15)';
+    ctx.shadowBlur = opt.active || opt.danger ? 15 : 9;
+    ctx.shadowOffsetY = opt.active || opt.danger ? 6 : 4;
+    ctx.beginPath();
+    ctx.roundRect(x, y, w, h, r);
+    ctx.fillStyle = opt.fill ?? 'rgba(255, 255, 255, 0.6)';
+    ctx.fill();
+    ctx.restore();
+    ctx.beginPath();
+    ctx.roundRect(x, y, w, h, r);
+    ctx.strokeStyle = opt.danger ? COLORS.bustCardStroke : opt.active ? COLORS.currentCardStroke : (opt.line ?? COLORS.panelBorder);
+    ctx.lineWidth = opt.active || opt.danger ? 2.4 : 1.2;
+    ctx.stroke();
+  }
+
+  /** 과녁 상단에 큰 "BUST!" 배너 — 턴 원복 시 1.4초 정도 노출 (materialize: 페이드+스케일) */
+  private drawBustBanner(now: number): void {
     const ctx = this.ctx;
     const cx = BOARD_CX;
     const cy = BOARD_CY;
+
+    const raw = this.bustShownAt > 0 ? clamp01((now - this.bustShownAt) / MATERIALIZE_MS) : 1;
+    const t = prefersReducedMotion ? 1 : easeOut(raw);
+    const scale = prefersReducedMotion ? 1 : 0.86 + 0.14 * t;
+
+    ctx.save();
+    ctx.globalAlpha = t;
+    ctx.translate(cx, cy);
+    ctx.scale(scale, scale);
+    ctx.translate(-cx, -cy);
 
     // 반투명 경고 배경 — 빨강 톤 다운 (파스텔 전반과 덜 충돌)
     ctx.fillStyle = COLORS.bustBannerBg;
@@ -339,7 +464,9 @@ export class DartsRenderer {
 
     ctx.fillStyle = 'rgba(255, 240, 240, 0.95)';
     ctx.font = `700 13px ${FONT}`;
-    ctx.fillText('이번 턴 턴 무효', cx, cy + 18);
+    ctx.fillText('이번 턴 무효', cx, cy + 18);
+
+    ctx.restore();
   }
 
   // ============================================
@@ -348,24 +475,50 @@ export class DartsRenderer {
 
   private drawBoard(mode: DartsMode): void {
     const ctx = this.ctx;
-
-    // 외곽 라벤더 링 — 숫자가 이 링 안에 들어가야 하므로 두껍게(1.10 배).
-    ctx.fillStyle = COLORS.boardOuterRing;
-    ctx.beginPath();
-    ctx.arc(BOARD_CX, BOARD_CY, BOARD_R * 1.10, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.strokeStyle = COLORS.boardOuterRingStroke;
-    ctx.lineWidth = 2;
-    ctx.stroke();
-
-    // 20개 세그먼트 렌더: Single outer → Triple ring → Single inner 역순으로 큰 것부터.
-    // Cricket 모드에선 1~14 세그먼트는 어두운 톤으로 비활성 표시 (15~20, Bull 만 활성).
+    const R = BOARD_R;
+    const RING_OUTER = R * 1.085; // 번호 링 바깥 — 실제 보드 참고해 얇게
     const SEG_ARC = Math.PI / 10;
     const HALF = SEG_ARC / 2;
     const isCricket = mode === 'cricket';
 
+    // 0) 아레나 글로우 — 보드 뒤 은은한 스포트라이트(디지털 다트게임 "빅스크린 아레나" 느낌)
+    const glow = ctx.createRadialGradient(BOARD_CX, BOARD_CY, R * 0.2, BOARD_CX, BOARD_CY, R * 1.5);
+    glow.addColorStop(0, 'rgba(255, 255, 255, 0.5)');
+    glow.addColorStop(0.6, 'rgba(255, 255, 255, 0.1)');
+    glow.addColorStop(1, 'rgba(255, 255, 255, 0)');
+    ctx.fillStyle = glow;
+    ctx.beginPath();
+    ctx.arc(BOARD_CX, BOARD_CY, R * 1.5, 0, Math.PI * 2);
+    ctx.fill();
+
+    // 1) 번호 링 — 드롭섀도로 보드를 배경에서 띄우고, 플럼 방사 그라데이션
+    ctx.save();
+    ctx.shadowColor = 'rgba(90, 60, 110, 0.32)';
+    ctx.shadowBlur = 24;
+    ctx.shadowOffsetY = 9;
+    ctx.beginPath();
+    ctx.arc(BOARD_CX, BOARD_CY, RING_OUTER, 0, Math.PI * 2);
+    ctx.fillStyle = COLORS.boardOuterRing;
+    ctx.fill();
+    ctx.restore();
+    const ringGrad = ctx.createRadialGradient(
+      BOARD_CX, BOARD_CY - RING_OUTER * 0.3, R * 0.5, BOARD_CX, BOARD_CY, RING_OUTER,
+    );
+    ringGrad.addColorStop(0, '#3a3048');
+    ringGrad.addColorStop(1, '#221a30');
+    ctx.fillStyle = ringGrad;
+    ctx.beginPath();
+    ctx.arc(BOARD_CX, BOARD_CY, RING_OUTER, 0, Math.PI * 2);
+    ctx.fill();
+    // 링 안쪽 밝은 엣지(베젤에 빛 걸리는 느낌)
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.16)';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.arc(BOARD_CX, BOARD_CY, R * 1.003, 0, Math.PI * 2);
+    ctx.stroke();
+
+    // 2) 20개 세그먼트 — 크림 ↔ 플럼 고대비. Cricket 비활성(1~14)은 어두운 톤.
     for (let i = 0; i < 20; i++) {
-      // 12시 방향이 i=0 (세그먼트 20). 각 세그먼트 중심 각도 = -π/2 + i * SEG_ARC
       const centerAngle = -Math.PI / 2 + i * SEG_ARC;
       const startA = centerAngle - HALF;
       const endA = centerAngle + HALF;
@@ -375,86 +528,106 @@ export class DartsRenderer {
 
       const singleColor = inactive
         ? (isEven ? COLORS.inactiveSingleA : COLORS.inactiveSingleB)
-        : (isEven ? COLORS.singleCream : COLORS.singleLavender);
+        : (isEven ? COLORS.singleLight : COLORS.singleDark);
       const ringColor = inactive
         ? (isEven ? COLORS.inactiveRingA : COLORS.inactiveRingB)
         : (isEven ? COLORS.ringPink : COLORS.ringMint);
 
-      // 1) 바깥 single (Triple 바깥 ~ Double 안쪽)
-      this.fillRing(
-        startA, endA,
-        BOARD_R * BOARD_RATIOS.TRIPLE_OUTER,
-        BOARD_R * BOARD_RATIOS.DOUBLE_INNER,
-        singleColor,
-      );
-      // 2) Double 링
-      this.fillRing(
-        startA, endA,
-        BOARD_R * BOARD_RATIOS.DOUBLE_INNER,
-        BOARD_R * BOARD_RATIOS.DOUBLE_OUTER,
-        ringColor,
-      );
-      // 3) Triple 링
-      this.fillRing(
-        startA, endA,
-        BOARD_R * BOARD_RATIOS.TRIPLE_INNER,
-        BOARD_R * BOARD_RATIOS.TRIPLE_OUTER,
-        ringColor,
-      );
-      // 4) 안쪽 single (Bull 밖 ~ Triple 안쪽)
-      this.fillRing(
-        startA, endA,
-        BOARD_R * BOARD_RATIOS.OUTER_BULL_OUTER,
-        BOARD_R * BOARD_RATIOS.TRIPLE_INNER,
-        singleColor,
-      );
+      this.fillRing(startA, endA, R * BOARD_RATIOS.TRIPLE_OUTER, R * BOARD_RATIOS.DOUBLE_INNER, singleColor);
+      this.fillRing(startA, endA, R * BOARD_RATIOS.DOUBLE_INNER, R * BOARD_RATIOS.DOUBLE_OUTER, ringColor);
+      this.fillRing(startA, endA, R * BOARD_RATIOS.TRIPLE_INNER, R * BOARD_RATIOS.TRIPLE_OUTER, ringColor);
+      this.fillRing(startA, endA, R * BOARD_RATIOS.OUTER_BULL_OUTER, R * BOARD_RATIOS.TRIPLE_INNER, singleColor);
     }
 
-    // 세그먼트 경계선 (스파이더)
-    ctx.strokeStyle = COLORS.segBorder;
-    ctx.lineWidth = 0.8;
+    // 3) 깊이 셰이딩 — 살짝 오목한 접시처럼(상단 하이라이트 + 가장자리 음영). 파스텔 안 죽게 약하게.
+    const depth = ctx.createRadialGradient(
+      BOARD_CX, BOARD_CY - R * 0.3, R * 0.05, BOARD_CX, BOARD_CY, R * BOARD_RATIOS.DOUBLE_OUTER,
+    );
+    depth.addColorStop(0, 'rgba(255, 255, 255, 0.12)');
+    depth.addColorStop(0.5, 'rgba(20, 10, 25, 0.03)');
+    depth.addColorStop(1, 'rgba(20, 10, 25, 0.16)');
+    ctx.fillStyle = depth;
+    ctx.beginPath();
+    ctx.arc(BOARD_CX, BOARD_CY, R * BOARD_RATIOS.DOUBLE_OUTER, 0, Math.PI * 2);
+    ctx.fill();
+
+    // 4) 스파이더 — raised 금속 와이어: 어두운 바탕선 위에 은색 코어선을 겹쳐 그림.
+    //    세그먼트 경계(방사) + 링 경계(원)를 실제 보드처럼 모두 그림.
+    const drawSpider = (style: string, lw: number): void => {
+      ctx.strokeStyle = style;
+      ctx.lineWidth = lw;
+      for (let i = 0; i < 20; i++) {
+        const angle = -Math.PI / 2 + i * SEG_ARC - HALF;
+        ctx.beginPath();
+        ctx.moveTo(
+          BOARD_CX + Math.cos(angle) * R * BOARD_RATIOS.OUTER_BULL_OUTER,
+          BOARD_CY + Math.sin(angle) * R * BOARD_RATIOS.OUTER_BULL_OUTER,
+        );
+        ctx.lineTo(
+          BOARD_CX + Math.cos(angle) * R * BOARD_RATIOS.DOUBLE_OUTER,
+          BOARD_CY + Math.sin(angle) * R * BOARD_RATIOS.DOUBLE_OUTER,
+        );
+        ctx.stroke();
+      }
+      for (const f of [BOARD_RATIOS.DOUBLE_OUTER, BOARD_RATIOS.DOUBLE_INNER, BOARD_RATIOS.TRIPLE_OUTER, BOARD_RATIOS.TRIPLE_INNER]) {
+        ctx.beginPath();
+        ctx.arc(BOARD_CX, BOARD_CY, R * f, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+    };
+    drawSpider(COLORS.wireDark, 2);
+    drawSpider(COLORS.wireLight, 0.9);
+    // 교차 스터드 (더블/트리플 링과 세그먼트 경계가 만나는 점)
+    ctx.fillStyle = COLORS.wireStud;
     for (let i = 0; i < 20; i++) {
       const angle = -Math.PI / 2 + i * SEG_ARC - HALF;
-      const x0 = BOARD_CX + Math.cos(angle) * BOARD_R * BOARD_RATIOS.OUTER_BULL_OUTER;
-      const y0 = BOARD_CY + Math.sin(angle) * BOARD_R * BOARD_RATIOS.OUTER_BULL_OUTER;
-      const x1 = BOARD_CX + Math.cos(angle) * BOARD_R * BOARD_RATIOS.DOUBLE_OUTER;
-      const y1 = BOARD_CY + Math.sin(angle) * BOARD_R * BOARD_RATIOS.DOUBLE_OUTER;
-      ctx.beginPath();
-      ctx.moveTo(x0, y0);
-      ctx.lineTo(x1, y1);
-      ctx.stroke();
+      for (const f of [BOARD_RATIOS.DOUBLE_OUTER, BOARD_RATIOS.TRIPLE_OUTER]) {
+        ctx.beginPath();
+        ctx.arc(BOARD_CX + Math.cos(angle) * R * f, BOARD_CY + Math.sin(angle) * R * f, 1.6, 0, Math.PI * 2);
+        ctx.fill();
+      }
     }
 
-    // Bull
+    // 5) Bull — 민트(25) + 핑크(50). 이너 불에 작은 하이라이트.
     ctx.fillStyle = COLORS.outerBull;
     ctx.strokeStyle = COLORS.outerBullStroke;
-    ctx.lineWidth = 1;
+    ctx.lineWidth = 1.2;
     ctx.beginPath();
-    ctx.arc(BOARD_CX, BOARD_CY, BOARD_R * BOARD_RATIOS.OUTER_BULL_OUTER, 0, Math.PI * 2);
+    ctx.arc(BOARD_CX, BOARD_CY, R * BOARD_RATIOS.OUTER_BULL_OUTER, 0, Math.PI * 2);
     ctx.fill();
     ctx.stroke();
-
     ctx.fillStyle = COLORS.innerBull;
     ctx.strokeStyle = COLORS.innerBullStroke;
     ctx.beginPath();
-    ctx.arc(BOARD_CX, BOARD_CY, BOARD_R * BOARD_RATIOS.BULL_OUTER, 0, Math.PI * 2);
+    ctx.arc(BOARD_CX, BOARD_CY, R * BOARD_RATIOS.BULL_OUTER, 0, Math.PI * 2);
     ctx.fill();
     ctx.stroke();
+    const bullHi = ctx.createRadialGradient(
+      BOARD_CX - R * 0.015, BOARD_CY - R * 0.02, 0, BOARD_CX, BOARD_CY, R * BOARD_RATIOS.OUTER_BULL_OUTER,
+    );
+    bullHi.addColorStop(0, 'rgba(255, 255, 255, 0.45)');
+    bullHi.addColorStop(0.6, 'rgba(255, 255, 255, 0)');
+    ctx.fillStyle = bullHi;
+    ctx.beginPath();
+    ctx.arc(BOARD_CX, BOARD_CY, R * BOARD_RATIOS.OUTER_BULL_OUTER, 0, Math.PI * 2);
+    ctx.fill();
 
-    // 세그먼트 번호 라벨 — 외곽 검정 링(1.0~1.10) 중앙에 안정적으로 위치.
-    // Cricket 비활성 세그먼트(1~14)는 흐리게.
-    ctx.font = `900 13px ${FONT}`;
+    // 6) 번호 — 얇은 링 위, 살짝 그림자로 또렷하게. Cricket 비활성은 흐리게.
+    ctx.font = `900 12px ${FONT}`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    const labelR = BOARD_R * 1.050;
+    const labelR = R * 1.043;
     for (let i = 0; i < 20; i++) {
       const centerAngle = -Math.PI / 2 + i * SEG_ARC;
       const x = BOARD_CX + Math.cos(centerAngle) * labelR;
       const y = BOARD_CY + Math.sin(centerAngle) * labelR;
       const segNum = SEGMENTS[i]!;
       const inactive = isCricket && (segNum < 15 || segNum > 20);
-      ctx.fillStyle = inactive ? 'rgba(255, 246, 228, 0.35)' : COLORS.segNumber;
+      ctx.fillStyle = inactive ? 'rgba(255, 244, 224, 0.35)' : COLORS.segNumber;
+      ctx.shadowColor = 'rgba(0, 0, 0, 0.5)';
+      ctx.shadowBlur = 2;
       ctx.fillText(String(segNum), x, y);
+      ctx.shadowBlur = 0;
     }
   }
 
@@ -612,14 +785,14 @@ export class DartsRenderer {
   // 우측 패널 (점수판)
   // ============================================
 
-  private drawRightPanel(state: DartsRenderState): void {
+  private drawRightPanel(state: DartsRenderState, now: number): void {
     const ctx = this.ctx;
-    // 패널 배경 — radius 있는 라운드 박스처럼 자연스럽게
-    ctx.fillStyle = COLORS.panelBg;
-    ctx.fillRect(PANEL_X, 20, PANEL_W, CANVAS_H - 40);
-    ctx.strokeStyle = COLORS.panelBorder;
-    ctx.lineWidth = 1.5;
-    ctx.strokeRect(PANEL_X, 20, PANEL_W, CANVAS_H - 40);
+    // 패널 배경 — 프로스티드 유리(반투명 + 소프트 섀도 + 라운드)
+    this.frostedCard(PANEL_X, 20, PANEL_W, CANVAS_H - 40, {
+      radius: 18,
+      fill: 'rgba(255, 255, 255, 0.45)',
+      line: 'rgba(216, 199, 255, 0.6)',
+    });
 
     const INNER_PAD = 14;
     const innerX = PANEL_X + INNER_PAD;
@@ -638,13 +811,13 @@ export class DartsRenderer {
     const isMyTurn = myIdx !== null && myIdx === state.currentPlayerIdx;
 
     if (me) {
-      this.drawMyPlayerBlock(me, innerX, y, innerW, state.mode, isMyTurn);
+      this.drawMyPlayerBlock(me, innerX, y, innerW, state.mode, isMyTurn, now, state.lastStuckLandedAt);
       y += 120 + 10;
 
-      // 2-a) 내 라운드별 점수 히스토리 한 줄 (Cricket 제외 — 마크가 더 중요)
+      // 2-a) 내 라운드별 점수 히스토리 (Cricket 제외 — 마크가 더 중요)
       if (state.mode !== 'cricket' && me.roundScores && me.roundScores.length > 0) {
-        this.drawRoundHistoryLine(innerX, y, innerW, me.roundScores);
-        y += 20 + 4;
+        const histH = this.drawRoundHistory(innerX, y, innerW, me.roundScores);
+        y += histH + 4;
       }
       // 다음 "다른 플레이어" 섹션과 시각적 분리를 위한 공통 여백
       // (히스토리 유무와 무관하게 라벨이 위 셀/카드와 떨어지도록)
@@ -653,7 +826,7 @@ export class DartsRenderer {
       // 관전자 — 내 카드 없으므로 현재 차례 플레이어 카드를 대신 표시
       const cur = state.players[state.currentPlayerIdx];
       if (cur) {
-        this.drawMyPlayerBlock(cur, innerX, y, innerW, state.mode, true);
+        this.drawMyPlayerBlock(cur, innerX, y, innerW, state.mode, true, now, state.lastStuckLandedAt);
         y += 120 + 12;
       }
     }
@@ -706,11 +879,12 @@ export class DartsRenderer {
     p: PlayerDisplay, x: number, y: number, w: number, h: number, isActive: boolean,
   ): void {
     const ctx = this.ctx;
-    ctx.fillStyle = isActive ? '#f0e8ff' : COLORS.otherRowBg;
-    ctx.strokeStyle = isActive ? '#b89aff' : COLORS.otherRowBorder;
-    ctx.lineWidth = isActive ? 1.5 : 1;
-    ctx.fillRect(x, y, w, h);
-    ctx.strokeRect(x, y, w, h);
+    this.frostedCard(x, y, w, h, {
+      radius: 9,
+      active: isActive,
+      fill: isActive ? 'rgba(240, 232, 255, 0.75)' : 'rgba(255, 255, 255, 0.5)',
+      line: 'rgba(233, 223, 255, 0.8)',
+    });
     const midY = y + h / 2;
     ctx.fillStyle = COLORS.textMain;
     ctx.font = `700 11px ${FONT}`;
@@ -731,12 +905,12 @@ export class DartsRenderer {
     const ctx = this.ctx;
     const h = 48;
 
-    // 카드 배경 (연한 라벤더)
-    ctx.fillStyle = '#f0e8ff';
-    ctx.strokeStyle = '#c7b3f0';
-    ctx.lineWidth = 1.2;
-    ctx.fillRect(x, y, w, h);
-    ctx.strokeRect(x, y, w, h);
+    // 카드 배경 (프로스티드 라벤더)
+    this.frostedCard(x, y, w, h, {
+      radius: 12,
+      fill: 'rgba(240, 232, 255, 0.7)',
+      line: 'rgba(184, 154, 255, 0.5)',
+    });
 
     // 상단 라인 — 모드명 (좌) + Round (우)
     ctx.fillStyle = COLORS.textAccent;
@@ -777,21 +951,27 @@ export class DartsRenderer {
     w: number,
     mode: DartsMode,
     isMyTurn: boolean,
+    now: number,
+    lastStuckLandedAt: number,
   ): void {
     const ctx = this.ctx;
     const H = 120;
     const cx = x + w / 2; // 카드 가로 중앙 — 큰 숫자/3다트 슬롯 가운데 정렬에 사용
 
     const bust = p.bustThisTurn === true;
+    // 활성(내 차례) 카드는 살짝 위로 리프트(apple-design: 활성 상태를 형태로도 표현). bust 면 리프트 X.
+    const lift = isMyTurn && !bust ? -4 : 0;
+    const cardY = y + lift;
 
-    // 배경: bust > myTurn > rest. myTurn 아니면 카드 전체를 조금 더 옅게 (배경색은 동일하되 stroke/accent 를 톤다운).
-    ctx.fillStyle = bust ? COLORS.bustCardBg : COLORS.currentCardBg;
-    ctx.fillRect(x, y, w, H);
-    ctx.strokeStyle = bust
-      ? COLORS.bustCardStroke
-      : isMyTurn ? COLORS.currentCardStroke : '#f0b8d0'; // 내 턴 아닐 땐 부드러운 핑크 테두리
-    ctx.lineWidth = bust ? 3 : (isMyTurn ? 2 : 1.2);
-    ctx.strokeRect(x, y, w, H);
+    // 배경 — 프로스티드. bust=붉은 danger / 내 차례=핑크 활성 링 / 그 외=연한 핑크
+    this.frostedCard(x, cardY, w, H, {
+      radius: 16,
+      active: isMyTurn && !bust,
+      danger: bust,
+      fill: bust
+        ? 'rgba(255, 222, 222, 0.82)'
+        : isMyTurn ? 'rgba(255, 240, 246, 0.8)' : 'rgba(255, 240, 246, 0.55)',
+    });
 
     // 상단 라벨 — bust / 지금 차례 / 내 점수
     ctx.fillStyle = bust
@@ -803,26 +983,26 @@ export class DartsRenderer {
     const labelText = bust
       ? '💥 BUST! · 턴 무효'
       : isMyTurn ? '▶ 지금 내 차례' : '📊 내 점수';
-    ctx.fillText(labelText, x + 10, y + 18);
+    ctx.fillText(labelText, x + 10, cardY + 18);
 
     // 닉네임 (우측 상단)
     ctx.fillStyle = COLORS.textMain;
     ctx.font = `800 16px ${FONT}`;
     ctx.textAlign = 'right';
-    ctx.fillText(truncate(p.nickname, 10), x + w - 10, y + 18);
+    ctx.fillText(truncate(p.nickname, 10), x + w - 10, cardY + 18);
 
     // 큰 숫자 (가운데 정렬로 임팩트 강조)
     ctx.fillStyle = COLORS.textMain;
     ctx.font = `900 34px ${FONT}`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillText(String(p.primaryValue), cx, y + 54);
+    ctx.fillText(String(p.primaryValue), cx, cardY + 54);
 
     // primaryLabel — 큰 숫자 아래 작게 (가운데)
     ctx.fillStyle = COLORS.textMuted;
     ctx.font = `600 11px ${FONT}`;
     ctx.textBaseline = 'alphabetic';
-    ctx.fillText(p.primaryLabel, cx, y + 80);
+    ctx.fillText(p.primaryLabel, cx, cardY + 80);
 
     // 이번 턴 3다트 슬롯 — 카드 하단 가운데 정렬, kind 별 색 강조
     const slotW = 38;
@@ -830,8 +1010,15 @@ export class DartsRenderer {
     const slotH = 28;
     const slotsTotalW = slotW * 3 + slotGap * 2;
     const slotStartX = cx - slotsTotalW / 2;
-    const slotTopY = y + H - slotH - 4;    // 카드 하단에서 4px 여유
+    const slotTopY = cardY + H - slotH - 4;    // 카드 하단에서 4px 여유
     const showMultiplierBadges = mode === 'low-countup';
+
+    // 방금 채워진 슬롯(현재 던진 사람의 마지막 다트)만 팝
+    const lastFilledIdx = p.throwsThisRound.length - 1;
+    const slotPop =
+      isMyTurn && lastStuckLandedAt > 0 && !prefersReducedMotion
+        ? easeOutBack(clamp01((now - lastStuckLandedAt) / POP_MS))
+        : 1;
 
     for (let i = 0; i < 3; i++) {
       const sx = slotStartX + i * (slotW + slotGap);
@@ -847,7 +1034,7 @@ export class DartsRenderer {
         ctx.fillText(`×${i + 1}`, sx + slotW / 2, slotTopY - 8);
       }
 
-      this.drawDartSlot(sx, slotTopY, slotW, slotH, hit);
+      this.drawDartSlot(sx, slotTopY, slotW, slotH, hit, i === lastFilledIdx ? slotPop : 1);
     }
   }
 
@@ -863,9 +1050,21 @@ export class DartsRenderer {
   private drawDartSlot(
     sx: number, sy: number, w: number, h: number,
     hit: HitResult | undefined,
+    scale = 1,
   ): void {
     const ctx = this.ctx;
     const radius = 6;
+
+    // 채움 팝 — 슬롯 중심 기준 스케일
+    const scaled = scale !== 1;
+    if (scaled) {
+      const midX = sx + w / 2;
+      const midY = sy + h / 2;
+      ctx.save();
+      ctx.translate(midX, midY);
+      ctx.scale(scale, scale);
+      ctx.translate(-midX, -midY);
+    }
 
     if (!hit) {
       // 빈 슬롯 — 점선 border + 가운데 옅은 '·'
@@ -886,6 +1085,7 @@ export class DartsRenderer {
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       ctx.fillText('·', sx + w / 2, sy + h / 2);
+      if (scaled) ctx.restore();
       return;
     }
 
@@ -961,54 +1161,69 @@ export class DartsRenderer {
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.fillText(mainText, sx + w / 2, mainY);
+
+    if (scaled) ctx.restore();
   }
 
   /** 한 row 의 전체 높이 (drawRightPanel 의 y 증가량과 일치해야 함) */
   private static readonly OTHER_ROW_H = 30;
 
   /**
-   * 내 점수 카드 아래 한 줄짜리 라운드 히스토리.
-   *   [R1·60] [R2·42] [R3·80] … (최근 몇 개까지만)
-   * 카드 폭 맞춰 4~5칸 정도 들어감.
+   * 내 점수 카드 아래 라운드별 점수 그리드.
+   *   각 칸 = R번호 + 정확한 점수 + 칸 뒤 옅은 크기 막대. 모든 라운드 표시(유실 없음).
+   *   라운드가 많아지면(X01 은 상한 없음) 열 수를 늘려 최대 3줄로 높이를 묶는다.
+   *   반환값 = 실제 그린 높이 (호출부 y 진행에 사용).
    */
-  private drawRoundHistoryLine(x: number, y: number, w: number, scores: readonly number[]): void {
+  private drawRoundHistory(x: number, y: number, w: number, scores: readonly number[]): number {
     const ctx = this.ctx;
-    const maxShow = 5;
-    const recent = scores.slice(-maxShow);
-    const n = recent.length;
-    if (n === 0) return;
+    const n = scores.length;
+    if (n === 0) return 0;
 
-    const totalGap = 4 * (n - 1);
-    const cellW = Math.floor((w - totalGap) / n);
-    const h = 20;
-
-    // 시작 라운드 번호 (이전 턴 기록이니 scores.length 가 곧 끝난 턴 수)
-    const startRound = scores.length - n + 1;
+    // 라운드 수에 따라 줄 수 적응: 5↓=1줄, 12↓=2줄, 그 이상=3줄. 열 수는 거기서 역산.
+    const maxRows = n <= 5 ? 1 : n <= 12 ? 2 : 3;
+    const perRow = Math.ceil(n / maxRows);
+    const rows = Math.ceil(n / perRow);
+    const cellGap = 6;
+    const rowGap = 6;
+    const cellH = 26;
+    const cellW = (w - cellGap * (perRow - 1)) / perRow;
 
     for (let i = 0; i < n; i++) {
-      const sx = x + i * (cellW + 4);
-      const score = recent[i]!;
+      const col = i % perRow;
+      const row = Math.floor(i / perRow);
+      const cx = x + col * (cellW + cellGap);
+      const cy = y + row * (cellH + rowGap);
+      const last = i === n - 1;
 
-      // 배경 카드 (연한 라벤더 grid)
-      ctx.fillStyle = '#f7f1ff';
-      ctx.strokeStyle = '#e2d4f2';
-      ctx.lineWidth = 1;
-      ctx.fillRect(sx, y, cellW, h);
-      ctx.strokeRect(sx, y, cellW, h);
+      // 칸 배경 (반투명 흰색 — 칸이 많아 그림자는 생략해 깔끔하게)
+      ctx.beginPath();
+      ctx.roundRect(cx, cy, cellW, cellH, 6);
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.62)';
+      ctx.fill();
 
-      // 좌측 R 라벨
+      // 테두리 (최근 라운드 = 핑크 강조)
+      ctx.beginPath();
+      ctx.roundRect(cx, cy, cellW, cellH, 6);
+      ctx.strokeStyle = last ? COLORS.currentCardStroke : 'rgba(216, 199, 255, 0.7)';
+      ctx.lineWidth = last ? 2 : 1;
+      ctx.stroke();
+
+      // R번호 (좌상단 작게)
       ctx.fillStyle = COLORS.textMuted;
-      ctx.font = `700 9px ${FONT}`;
+      ctx.font = `700 8px ${FONT}`;
       ctx.textAlign = 'left';
-      ctx.textBaseline = 'middle';
-      ctx.fillText(`R${startRound + i}`, sx + 5, y + h / 2);
+      ctx.textBaseline = 'top';
+      ctx.fillText(`R${i + 1}`, cx + 4, cy + 3);
 
-      // 우측 점수 숫자
-      ctx.fillStyle = COLORS.textMain;
-      ctx.font = `800 12px ${FONT}`;
+      // 점수 (우측 중앙, 크게)
+      ctx.fillStyle = last ? COLORS.currentCardStroke : COLORS.textMain;
+      ctx.font = `900 13px ${FONT}`;
       ctx.textAlign = 'right';
-      ctx.fillText(String(score), sx + cellW - 5, y + h / 2);
+      ctx.textBaseline = 'middle';
+      ctx.fillText(String(scores[i]!), cx + cellW - 4, cy + cellH / 2 + 2);
     }
+
+    return rows * cellH + (rows - 1) * rowGap;
   }
 
   private drawOtherPlayerRow(
@@ -1023,12 +1238,13 @@ export class DartsRenderer {
     const isCricket = mode === 'cricket' && !!p.cricketMarks;
     const h = isCricket ? 56 : DartsRenderer.OTHER_ROW_H;
 
-    // 카드형 배경 — 현재 차례면 라벤더 강조
-    ctx.fillStyle = isActive ? '#f0e8ff' : COLORS.otherRowBg;
-    ctx.strokeStyle = isActive ? '#b89aff' : COLORS.otherRowBorder;
-    ctx.lineWidth = isActive ? 1.5 : 1;
-    ctx.fillRect(x, y, w, h);
-    ctx.strokeRect(x, y, w, h);
+    // 카드형 배경 — 현재 차례면 라벤더 강조 (프로스티드)
+    this.frostedCard(x, y, w, h, {
+      radius: 10,
+      active: isActive,
+      fill: isActive ? 'rgba(240, 232, 255, 0.75)' : 'rgba(255, 255, 255, 0.5)',
+      line: 'rgba(233, 223, 255, 0.8)',
+    });
 
     // Cricket 이면 상단 28px 영역의 중앙, 아니면 행 전체의 중앙에 텍스트 베이스라인.
     const topRowH = isCricket ? 28 : h;
@@ -1122,15 +1338,26 @@ export class DartsRenderer {
   // 게임 종료 오버레이
   // ============================================
 
-  private drawGameOverOverlay(state: DartsRenderState): void {
+  private drawGameOverOverlay(state: DartsRenderState, now: number): void {
     const ctx = this.ctx;
     const go = state.gameOver!;
-    // 과녁 영역만 덮기 (패널은 그대로)
-    ctx.fillStyle = COLORS.overlayBg;
-    ctx.fillRect(0, 0, PANEL_X - 10, CANVAS_H);
 
+    // materialize: 딤 배경 페이드 + 텍스트 살짝 확대
+    const raw = this.gameOverShownAt > 0 ? clamp01((now - this.gameOverShownAt) / MATERIALIZE_MS) : 1;
+    const t = prefersReducedMotion ? 1 : easeOut(raw);
     const cx = (PANEL_X - 10) / 2;
     const cy = CANVAS_H / 2;
+
+    // 과녁 영역만 덮기 (패널은 그대로). 알파를 진행도에 비례.
+    ctx.fillStyle = `rgba(255, 249, 253, ${0.92 * t})`;
+    ctx.fillRect(0, 0, PANEL_X - 10, CANVAS_H);
+
+    const scale = prefersReducedMotion ? 1 : 0.92 + 0.08 * t;
+    ctx.save();
+    ctx.globalAlpha = t;
+    ctx.translate(cx, cy);
+    ctx.scale(scale, scale);
+    ctx.translate(-cx, -cy);
 
     ctx.fillStyle = COLORS.overlayTitle;
     ctx.font = `900 36px ${FONT}`;
@@ -1141,6 +1368,7 @@ export class DartsRenderer {
     ctx.fillStyle = COLORS.textMuted;
     ctx.font = `600 14px ${FONT}`;
     ctx.fillText(go.subtitle, cx, cy + 24);
+    ctx.restore();
   }
 }
 
