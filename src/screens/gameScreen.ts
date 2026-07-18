@@ -6,6 +6,7 @@ import { updatePublicRoom, unpublishRoom } from '../core/roomDirectory';
 import type { GameContext, GameModule, Player, RoomState } from '../games/types';
 import { createMenuScreen } from './menu';
 import { createResultScreenAsHostScreen, createResultScreenAsGuestScreen } from './resultScreen';
+import { createWaitingRoomAsHostScreen, createWaitingRoomAsGuestScreen } from './waitingRoom';
 import { buildReactionBarHTML, wireReactionBar, showReactionBubble } from '../ui/reactions';
 import { buildChatPanelHTML, wireChatPanel, appendChatMessage } from '../ui/chat';
 import type { ChatMsg } from '../games/types';
@@ -51,7 +52,7 @@ function buildOptionSummary(gameId: string, roomOptions: Record<string, string>)
  * 게임 시작 전 카운트다운 오버레이 (3, 2, 1, 시작!).
  * 화면 전체를 흐리게 가린 채 큰 숫자를 1초씩 보여주고 promise resolve.
  * 호스트/게스트가 거의 동시에 진입하므로 양쪽이 거의 같은 타이밍에 게임 시작.
- * 1인 플레이/관전자는 호출하지 않는다.
+ * 모든 게임 공통(인원 무관). 관전자(게임 도중 합류)만 제외한다.
  */
 function playStartCountdown(parent: HTMLElement, seconds: number): Promise<void> {
   return new Promise((resolve) => {
@@ -96,6 +97,8 @@ function buildHeaderHTML(args: {
   optionSummary: string;
   /** 관전자 뷰면 "관전 중" 표시 */
   spectator?: boolean;
+  /** 호스트면 나가기 시 '대기실로 이동' 선택지 제공 */
+  canReturnToLobby?: boolean;
 }): string {
   // 헤더는 심플하게: [나가기] · [게임명(+옵션)] · [설정]. 플레이어/핑은 안 넣음
   //   (10인 긴 이름이면 지저분 + 게임 중엔 각 게임 HUD·대기실에서 이미 보임).
@@ -134,6 +137,8 @@ function buildHeaderHTML(args: {
 
     ${buildGameMenuModalHTML()}
 
+    ${args.canReturnToLobby ? buildExitChoiceHTML() : ''}
+
     <div class="game-pause-overlay" id="game-pause-overlay" hidden>
       <div class="game-pause-card">
         <div class="game-pause-icon">⏸️</div>
@@ -159,9 +164,8 @@ function hidePauseOverlay(el: HTMLElement): void {
 }
 
 /**
- * 인게임 설정 모달 HTML.
- * 게임 화면 안에서 BGM/SFX/볼륨 빠르게 조정 + 메뉴로 나가기.
- * 멀티플레이라 게임 자체는 정지하지 않고 모달만 떠있음.
+ * 인게임 설정 모달 HTML — BGM/SFX/볼륨 조정만. (나가기는 헤더 '나가기' 버튼으로 분리)
+ * 열면 pause broadcast + setPaused 로 게임이 정지된다(onOpen/onClose 콜백).
  */
 function buildGameMenuModalHTML(): string {
   return `
@@ -188,26 +192,67 @@ function buildGameMenuModalHTML(): string {
         <button class="btn btn-primary btn-block" id="gm-close" style="margin-top: 16px;">
           계속하기
         </button>
-        <button class="btn btn-ghost btn-block" id="gm-leave">
-          메뉴로 (방 나가기)
-        </button>
       </div>
     </div>
   `;
 }
 
 /**
+ * 나가기 선택 모달 HTML (호스트 전용).
+ * "대기실로 이동"(게임 중단→전원 대기실) / "방 나가기"(방 종료→메뉴) 두 선택지.
+ */
+function buildExitChoiceHTML(): string {
+  return `
+    <div class="game-menu-overlay" id="exit-choice-overlay" hidden>
+      <div class="game-menu-card">
+        <div class="game-menu-title">${icon('exit', { size: 20, hue: '#ff5a92' })} 나가기</div>
+        <button class="btn btn-ghost btn-block" id="exit-lobby">${icon('sofa', { size: 18, hue: '#9c7aeb' })} 대기실로 이동</button>
+        <button class="btn btn-ghost btn-block" id="exit-room" style="margin-top: 4px;">${icon('home', { size: 18, hue: '#9c7aeb' })} 메인으로</button>
+        <button class="btn btn-ghost btn-block" id="exit-cancel" style="margin-top: 4px;">취소</button>
+      </div>
+    </div>
+  `;
+}
+
+/**
+ * 나가기 선택 모달 와이어링. 반환값 = 모달 여는 show() 함수.
+ * - "대기실로 이동" → onReturnToLobby / "방 나가기" → onLeaveRoom / "취소"·바깥 → 닫기
+ */
+function wireExitChoice(
+  el: HTMLElement,
+  opts: {
+    onReturnToLobby: () => void;
+    onLeaveRoom: () => void;
+    /** 모달 열림(게임 정지용) */
+    onOpen?: () => void;
+    /** 취소/바깥클릭으로 닫힘(게임 재개용) */
+    onCancel?: () => void;
+  },
+): () => void {
+  const overlay = el.querySelector<HTMLDivElement>('#exit-choice-overlay')!;
+  const lobbyBtn = overlay.querySelector<HTMLButtonElement>('#exit-lobby')!;
+  const roomBtn = overlay.querySelector<HTMLButtonElement>('#exit-room')!;
+  const cancelBtn = overlay.querySelector<HTMLButtonElement>('#exit-cancel')!;
+  const hide = (): void => { overlay.hidden = true; };
+  const cancel = (): void => { hide(); opts.onCancel?.(); };
+  // 대기실/메인 선택은 화면 전환이라 재개 불필요
+  lobbyBtn.addEventListener('click', () => { hide(); opts.onReturnToLobby(); });
+  roomBtn.addEventListener('click', () => { hide(); opts.onLeaveRoom(); });
+  cancelBtn.addEventListener('click', cancel);
+  overlay.addEventListener('click', (e) => { if (e.target === overlay) cancel(); });
+  return (): void => { overlay.hidden = false; opts.onOpen?.(); };
+}
+
+/**
  * 인게임 메뉴 모달 와이어링.
  * - ⚙️ 버튼 클릭 / Esc 키 → 토글
- * - 오버레이 빈 영역 / "계속하기" → 닫기
- * - "메뉴로" → callbacks.onLeaveRequest
- * - 모달 열림/닫힘 시 callbacks.onOpen / onClose (pause broadcast 용)
+ * - 오버레이 빈 영역 / "계속하기" → 닫기 (나가기는 헤더 '나가기' 버튼으로 분리됨)
+ * - 모달 열림/닫힘 시 callbacks.onOpen / onClose (pause broadcast 용 — 열면 게임 정지)
  * - 슬라이더/토글 변경 → storage 저장 + sound.refreshBgmSettings()
  *
  * 반환값: window 키 리스너 해제 cleanup 함수. dispose 에서 호출.
  */
 interface GameMenuCallbacks {
-  onLeaveRequest: () => void;
   onOpen?: () => void;
   onClose?: () => void;
 }
@@ -215,7 +260,6 @@ function wireGameMenuModal(el: HTMLElement, callbacks: GameMenuCallbacks): () =>
   const overlay = el.querySelector<HTMLDivElement>('#game-menu-overlay')!;
   const menuBtn = el.querySelector<HTMLButtonElement>('#game-menu-btn')!;
   const closeBtn = overlay.querySelector<HTMLButtonElement>('#gm-close')!;
-  const leaveBtn = overlay.querySelector<HTMLButtonElement>('#gm-leave')!;
   const volInput = overlay.querySelector<HTMLInputElement>('#gm-vol')!;
   const volVal = overlay.querySelector<HTMLSpanElement>('#gm-vol-val')!;
   const bgmToggle = overlay.querySelector<HTMLDivElement>('#gm-bgm-toggle')!;
@@ -243,7 +287,6 @@ function wireGameMenuModal(el: HTMLElement, callbacks: GameMenuCallbacks): () =>
 
   menuBtn.addEventListener('click', open);
   closeBtn.addEventListener('click', close);
-  leaveBtn.addEventListener('click', () => { close(); callbacks.onLeaveRequest(); });
 
   // 오버레이 빈 영역 클릭 시 닫기 (카드 내부 클릭은 stopPropagation 안 해도 e.target 으로 거름)
   overlay.addEventListener('click', (e) => {
@@ -417,7 +460,7 @@ export function createGameScreenAsHostScreen(args: GameScreenAsHostArgs): Screen
 
       const el = document.createElement('div');
       el.className = 'game-screen';
-      el.innerHTML = buildHeaderHTML({ gameName: game.meta.name, optionSummary });
+      el.innerHTML = buildHeaderHTML({ gameName: game.meta.name, optionSummary, canReturnToLobby: true });
 
       const canvas = el.querySelector<HTMLCanvasElement>('#game-canvas')!;
       const scoreHome = el.querySelector<HTMLSpanElement>('#score-home')!;
@@ -663,29 +706,51 @@ export function createGameScreenAsHostScreen(args: GameScreenAsHostArgs): Screen
         router.reset(() => createMenuScreen());
       };
 
-      // 나가기
-      leaveBtn.addEventListener('click', () => {
-        if (window.confirm('게임을 나가시겠어요? 상대와의 연결이 끊어져요.')) {
-          router.reset(() => createMenuScreen());
-        }
-      });
+      // 나가기 — 호스트는 [대기실로 이동]/[방 나가기] 선택 모달
+      const doLeaveRoom = (): void => {
+        // 방 종료 → 메뉴 (dispose 에서 host.close → 전원 연결 끊김 알림)
+        router.reset(() => createMenuScreen());
+      };
+      const doReturnToLobby = (): void => {
+        if (disposed) return;
+        // 게임 중단 → 전원 대기실 복귀(연결 유지). 관전자 승격 + 준비 리셋.
+        const players = snapshotRoomState().players.map((p) => ({ ...p, role: 'player' as const, ready: false }));
+        const lobbyState: RoomState = { ...snapshotRoomState(), players, status: 'waiting' };
+        host.send({ type: 'return_to_lobby', roomState: lobbyState });
+        closeOnDispose = false; // 연결 유지한 채 대기실로
+        router.replace(() => createWaitingRoomAsHostScreen({
+          host,
+          gameId: roomState.gameId,
+          isPrivate,
+          password,
+          roomOptions: roomState.roomOptions,
+          initialPlayers: players,
+        }));
+      };
+      // 모달(설정/나가기) 열면 게임 정지, 닫으면 재개 — 두 모달이 공유.
+      const pauseByMe = (): void => {
+        pausedBy.add(host.myPeerId);
+        host.send({ type: 'pause', byPeerId: host.myPeerId, byNickname: hostNickname });
+        recomputePause();
+      };
+      const resumeByMe = (): void => {
+        pausedBy.delete(host.myPeerId);
+        if (pausedBy.size > 0) return; // 아직 다른 사람이 멈춰둠 — 계속 정지
+        host.send({ type: 'resume', byPeerId: host.myPeerId });
+        recomputePause();
+      };
 
-      // 인게임 메뉴 모달 (⚙️ / Esc) — 열림/닫힘 시 pause/resume broadcast.
-      // 호스트 본인 화면은 이미 모달이 위에 떠 있어 dim 별도 표시 불필요.
-      cleanupMenu = wireGameMenuModal(el, {
-        onLeaveRequest: () => leaveBtn.click(),
-        onOpen: () => {
-          pausedBy.add(host.myPeerId);
-          host.send({ type: 'pause', byPeerId: host.myPeerId, byNickname: hostNickname });
-          recomputePause();
-        },
-        onClose: () => {
-          pausedBy.delete(host.myPeerId);
-          if (pausedBy.size > 0) return; // 아직 다른 사람이 멈춰둠 — 계속 정지
-          host.send({ type: 'resume', byPeerId: host.myPeerId });
-          recomputePause();
-        },
+      // 나가기 모달 — 열면 정지, 취소하면 재개(대기실/메인 선택은 화면 전환이라 재개 불필요)
+      const showExit = wireExitChoice(el, {
+        onReturnToLobby: doReturnToLobby,
+        onLeaveRoom: doLeaveRoom,
+        onOpen: pauseByMe,
+        onCancel: resumeByMe,
       });
+      leaveBtn.addEventListener('click', showExit);
+
+      // 인게임 설정 모달 (⚙️ / Esc) — 열림/닫힘 시 정지/재개.
+      cleanupMenu = wireGameMenuModal(el, { onOpen: pauseByMe, onClose: resumeByMe });
 
       // 보스키(Esc) — 내가 켜면 전원에게 boss 플래그 pause broadcast(동기화). 끄면 boss resume.
       bossHandle = mountBossKey(
@@ -719,11 +784,9 @@ export function createGameScreenAsHostScreen(args: GameScreenAsHostArgs): Screen
             return;
           }
           gameModule = loaded;
-          // 2명 이상이면 시작 전 3초 카운트다운 (호스트와 게스트가 같이 봄)
-          if (roomState.players.length >= 2) {
-            await playStartCountdown(el, 3);
-            if (disposed) return;
-          }
+          // 시작 전 3초 카운트다운 — 모든 게임 공통(인원 무관). 호스트와 게스트가 같이 봄.
+          await playStartCountdown(el, 3);
+          if (disposed) return;
           await gameModule.start(ctx);
           // start 전에 도착해 버퍼된 메시지(예: 게스트 hello) 순서대로 전달
           gameStarted = true;
@@ -924,6 +987,14 @@ export function createGameScreenAsGuestScreen(args: GameScreenAsGuestArgs): Scre
           }
           return;
         }
+        // 방장이 게임 중 '대기실로 이동' — 나도 대기실(게스트)로 복귀(연결 유지)
+        if (msg.type === 'return_to_lobby') {
+          if (!disposed) {
+            closeOnDispose = false;
+            router.replace(() => createWaitingRoomAsGuestScreen({ guest, initialRoomState: msg.roomState }));
+          }
+          return;
+        }
         if (msg.type !== 'game_msg') return;
         // target이 나를 향하지 않으면 무시 (호스트가 relay 단계에서 거름)
         if (msg.target && msg.target !== myPlayerId) return;
@@ -956,7 +1027,6 @@ export function createGameScreenAsGuestScreen(args: GameScreenAsGuestArgs): Scre
 
       // 인게임 메뉴 모달 (⚙️ / Esc) — 열림/닫힘 시 pause/resume 송신 + 게임 모듈 정지
       cleanupMenu = wireGameMenuModal(el, {
-        onLeaveRequest: () => leaveBtn.click(),
         onOpen: () => {
           // 관전자는 전체 일시정지를 걸 수 없음 — 관전자가 메뉴 열었다고 플레이어들 게임이
           //   멈추면 안 됨(그리핑 방지). 관전자 메뉴는 나가기 용도로만.
@@ -1015,9 +1085,8 @@ export function createGameScreenAsGuestScreen(args: GameScreenAsGuestArgs): Scre
             return;
           }
           gameModule = loaded;
-          // 2명 이상 + 관전자가 아니면 시작 전 3초 카운트다운
-          // (관전자는 게임 도중 합류라 카운트다운 의미 없음)
-          if (roomState.players.length >= 2 && !isSpectator) {
+          // 시작 전 3초 카운트다운 — 모든 게임 공통. 관전자는 게임 도중 합류라 제외.
+          if (!isSpectator) {
             await playStartCountdown(el, 3);
             if (disposed) return;
           }
