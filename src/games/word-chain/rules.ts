@@ -180,6 +180,10 @@ export function createInitialGame(
   players: Array<{ peerId: string; nickname: string }>,
   rngSeed?: number,
 ): WordChainGame {
+  // 솔로(AlphaTest) UI 미리보기 — 1인이면 더미 상대를 붙여 최소 인원을 채운다(실제 대국은 시작 버튼에서 강제).
+  if (players.length === 1) {
+    players = [...players, { peerId: '__preview_dummy__', nickname: '연습 상대' }];
+  }
   if (players.length < 2 || players.length > 10) {
     throw new Error(`끝말잇기는 2~10인만 지원해요 (현재 ${players.length}인)`);
   }

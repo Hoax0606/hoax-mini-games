@@ -62,6 +62,14 @@ export function hintPassesFor(n: number): number {
 // ============================================
 
 export function createInitialGame(players: PlayerMeta[]): LiarGame {
+  // 솔로(AlphaTest) UI 미리보기 — 최소 3인 미달이면 더미 상대로 채운다(실제 대국은 시작 버튼에서 강제).
+  if (players.length === 1) {
+    players = [
+      ...players,
+      { peerId: '__preview_dummy_1__', nickname: '연습 상대 1' },
+      { peerId: '__preview_dummy_2__', nickname: '연습 상대 2' },
+    ];
+  }
   if (players.length < 3 || players.length > 10) {
     throw new Error(`라이어 게임은 3~10인만 지원해요 (현재 ${players.length}인)`);
   }
