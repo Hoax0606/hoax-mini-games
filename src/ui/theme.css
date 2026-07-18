@@ -1705,6 +1705,95 @@ input {
 /* ============================================
    라이어 게임 입력/투표 UI (canvas 아래)
    ============================================ */
+/* ============================================
+   라이어 게임 — HTML 화면(끝말잇기/그림퀴즈와 통일)
+   ============================================ */
+.lg-screen {
+  position: relative;
+  width: 100%;           /* 다른 게임 캔버스처럼 폭·높이를 꽉 채움(캔버스는 max 없이 flex fill) */
+  flex: 1 1 auto;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: 184px 1fr;
+  gap: 12px;
+}
+/* 좌: 플레이어 세로 리스트 (인원 무관 고정 높이 카드) */
+.lg-players { display: flex; flex-direction: column; gap: 6px; min-height: 0; overflow: hidden; }
+.lg-prow {
+  flex: 0 0 auto;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 12px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.6);
+  border: 1px solid var(--lavender-200, #e2d4f2);
+}
+.lg-pdot { width: 7px; height: 7px; border-radius: 50%; background: var(--lavender-300); flex: 0 0 auto; }
+.lg-pnm { flex: 1; min-width: 0; font-weight: 800; font-size: 14px; color: var(--text-main); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.lg-psc { flex: 0 0 auto; font-weight: 900; font-size: 13px; color: var(--lavender-500, #9c7aeb); }
+.lg-prow.turn { background: var(--pink-500); border-color: var(--pink-500); }
+.lg-prow.turn .lg-pnm, .lg-prow.turn .lg-psc { color: #fff; }
+.lg-prow.turn .lg-pdot { background: #fff; }
+.lg-prow.liar { background: var(--pink-100); border-color: var(--pink-400); }
+
+/* 우: 메인 */
+.lg-main { display: flex; flex-direction: column; gap: 10px; min-height: 0; }
+.lg-topbar {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  padding: 8px 14px; border-radius: 14px;
+  background: rgba(255, 255, 255, 0.55); border: 1px solid var(--lavender-200, #e2d4f2);
+}
+.lg-round { font-size: 13px; font-weight: 800; color: var(--text-main); }
+.lg-phase { display: flex; align-items: center; gap: 10px; color: var(--text-muted); font-weight: 700; font-size: 13px; }
+.lg-timer { display: inline-flex; align-items: center; gap: 3px; font-weight: 900; color: var(--lavender-500, #9c7aeb); }
+.lg-timer[hidden] { display: none; }
+.lg-timer.warn { color: var(--pink-500); }
+.lg-topic { background: var(--lavender-100); color: var(--lavender-500, #9c7aeb); border-radius: 999px; padding: 4px 12px; font-weight: 800; font-size: 12px; }
+
+/* 역할 카드 */
+.lg-role { border-radius: 16px; padding: 14px; text-align: center; font-weight: 900; font-size: 16px; border: 1.5px solid; }
+.lg-role.liar { background: var(--pink-50); border-color: var(--pink-300); color: var(--pink-500); }
+.lg-role.citizen { background: var(--lavender-100); border-color: var(--lavender-300); color: var(--lavender-500, #9c7aeb); }
+.lg-role-word { color: var(--text-main); }
+.lg-role-sub { display: block; font-size: 12px; font-weight: 700; color: var(--text-muted); margin-top: 3px; }
+
+/* 힌트 채팅 피드 */
+.lg-feed {
+  flex: 1; min-height: 0; border-radius: 16px; padding: 12px;
+  background: rgba(255, 255, 255, 0.4); border: 1px solid var(--lavender-200, #e2d4f2);
+  display: flex; flex-direction: column; gap: 8px; overflow-y: auto; overscroll-behavior: contain;
+}
+.lg-feed::-webkit-scrollbar { width: 6px; }
+.lg-feed::-webkit-scrollbar-thumb { background: var(--lavender-300); border-radius: 3px; }
+.lg-feed-empty { margin: auto; color: var(--text-muted); font-size: 14px; }
+.lg-hint {
+  display: flex; gap: 10px; align-items: baseline; padding: 9px 12px; border-radius: 12px;
+  background: rgba(255, 255, 255, 0.7); border: 1px solid var(--lavender-200, #e2d4f2);
+}
+.lg-hint.mine { background: var(--pink-50); border-color: var(--pink-200); }
+.lg-hint-who { flex: 0 0 auto; min-width: 68px; font-weight: 800; font-size: 13px; color: var(--lavender-500, #9c7aeb); }
+.lg-hint.mine .lg-hint-who { color: var(--pink-500); }
+.lg-hint-txt { font-weight: 600; font-size: 14px; color: var(--text-main); }
+
+/* 결과 오버레이 */
+.lg-result {
+  position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+  background: rgba(54, 36, 56, 0.55); border-radius: 16px; z-index: 5;
+}
+.lg-result[hidden] { display: none; }
+.lg-result-card {
+  background: rgba(255, 255, 255, 0.92); border-radius: 20px; padding: 24px 28px; text-align: center;
+  box-shadow: var(--shadow-lg); max-width: 80%;
+}
+.lg-result-liar { font-size: 20px; font-weight: 900; color: var(--text-main); }
+.lg-result-word { margin-top: 8px; font-size: 15px; font-weight: 700; color: var(--categoryText, #c93d73); }
+.lg-result-outcome { margin-top: 12px; font-size: 16px; font-weight: 800; }
+.lg-result-outcome.liar { color: var(--pink-500); }
+.lg-result-outcome.citizen { color: #2e8a70; }
+.lg-result-next { margin-top: 10px; font-size: 12px; font-weight: 600; color: var(--text-muted); }
+
 .lg-panel {
   display: flex;
   flex-direction: column;
@@ -1725,7 +1814,7 @@ input {
 }
 /* 그림 퀴즈: 캔버스가 아래 도구/추측 입력 공간을 남기도록 (낮은 해상도 입력창 잘림 방지) */
 .game-canvas-wrap:has(.dq-ui) .game-canvas {
-  max-height: calc(100% - 150px);
+  max-height: calc(100% - 132px);
 }
 
 /* ============================================
@@ -2484,10 +2573,15 @@ input {
   display: flex;
   flex-direction: column;
   align-items: center;
+  justify-content: center;
   gap: 8px;
   width: 100%;
   max-width: 640px;
-  flex-shrink: 0; /* 캔버스에 밀려 사라지지 않게 — 입력창 항상 자리 확보 */
+  /* 하단 공간을 항상 일정하게 예약 — 단어선택(카드는 absolute 오버레이)과 그리기 페이즈의
+     캔버스 크기·위치가 동일하게 유지되도록(페이즈 전환 시 화면 안 튐).
+     그리기 도구바(≈3줄)를 담을 만큼 확보해 두 페이즈 예약 공간을 일치시킴. */
+  min-height: 116px;
+  flex-shrink: 0;
 }
 
 /* 후보 단어 선택 (출제자) */

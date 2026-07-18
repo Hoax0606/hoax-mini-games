@@ -1,50 +1,23 @@
 /**
- * 라이어 게임 Canvas 렌더러.
+ * 라이어 게임 렌더러 (HTML DOM 기반 — 끝말잇기/그림퀴즈와 통일).
  *
- * 세로 구성: 상단 배너(라운드/페이즈/주제) → 내 역할 카드 → 힌트 피드 → 점수판.
- * phase==='result' 이면 위에 라운드 결과 오버레이.
- * 논리 좌표 = CSS 픽셀(rect 기준), devicePixelRatio 로 스케일.
+ * 레이아웃: [좌: 플레이어 세로 리스트] [우: 상단 필 → 역할 카드 → 힌트 채팅 피드]
+ *   입력 컨트롤(힌트/투표/추측)은 index.ts 의 .lg-panel 이 이 화면 아래에 붙는다.
+ *   result 페이즈면 lg-screen 위에 결과 오버레이.
+ *
+ * 캔버스는 쓰지 않는다(텍스트/소셜 게임) — 생성자에서 숨기고 HTML 오버레이를 부모에 마운트.
  */
 
 import type { LiarGame } from './rules';
 import type { RolePayload } from './netSync';
-
-const FONT = `'Pretendard', 'Apple SD Gothic Neo', 'Noto Sans KR', system-ui, sans-serif`;
-
-const C = {
-  bg: '#fff9fd',
-  banner: '#f0e8ff',
-  bannerText: '#4a3a4a',
-  category: '#ffe4ee',
-  categoryText: '#c93d73',
-  myCardCitizen: '#e0fff4',
-  myCardCitizenStroke: '#86e8c4',
-  myCardLiar: '#ffe4ee',
-  myCardLiarStroke: '#ff5a92',
-  cardText: '#4a3a4a',
-  muted: '#8a7a8a',
-  hintName: '#7a5fc7',
-  hintText: '#4a3a4a',
-  hintBubble: '#f6f2fb',
-  turnHi: '#ff5a92',
-  chip: '#ffffff',
-  chipStroke: '#ffc9dd',
-  chipMe: '#ffe4ee',
-  liarMark: '#ff5a92',
-  overlay: 'rgba(54,36,56,0.72)',
-  accent: '#ff5a92',
-  win: '#86e8c4',
-} as const;
+import { icon } from '../../ui/icons';
 
 export interface RenderState {
   game: LiarGame;
   myPeerId: string;
   isSpectator: boolean;
-  /** 내 역할/제시어 (lg:role 로 받음). 없으면 아직 배정 전/관전자 */
   myRole: RolePayload | null;
-  /** 결과 페이즈 투표 내역 (lg:reveal). 없으면 미공개 */
   revealVotes: Record<string, string> | null;
-  /** 현재 페이즈 남은 시간(ms). 0 이면 타이머 없음 */
   remainMs: number;
   now: number;
 }
@@ -54,120 +27,176 @@ export interface LiarRendererArgs {
 }
 
 export class LiarRenderer {
+  private root: HTMLDivElement;
   private canvas: HTMLCanvasElement;
-  private ctx: CanvasRenderingContext2D;
-  private ro: ResizeObserver;
+
+  private playersEl: HTMLDivElement;
+  private roundEl: HTMLSpanElement;
+  private phaseTextEl: HTMLSpanElement;
+  private timerEl: HTMLSpanElement;
+  private topicEl: HTMLSpanElement;
+  private roleEl: HTMLDivElement;
+  private feedEl: HTMLDivElement;
+  private resultEl: HTMLDivElement;
+
+  /** 피드에 이미 그린 힌트 수 — 증분 append + 자동 스크롤용(전체 재렌더 시 스크롤 튐 방지) */
+  private renderedHints = 0;
 
   constructor(args: LiarRendererArgs) {
     this.canvas = args.canvas;
-    const ctx = args.canvas.getContext('2d');
-    if (!ctx) throw new Error('Canvas 2D 컨텍스트를 가져올 수 없어요');
-    this.ctx = ctx;
-    this.resize();
-    this.ro = new ResizeObserver(() => this.resize());
-    this.ro.observe(this.canvas);
-  }
+    // 캔버스는 안 씀 — 숨기고 HTML 오버레이를 부모에 붙인다.
+    this.canvas.style.display = 'none';
+    const parent = this.canvas.parentElement;
 
-  resize(): void {
-    const rect = this.canvas.getBoundingClientRect();
-    if (rect.width === 0 || rect.height === 0) return;
-    const dpr = window.devicePixelRatio || 1;
-    this.canvas.width = Math.round(rect.width * dpr);
-    this.canvas.height = Math.round(rect.height * dpr);
+    const root = document.createElement('div');
+    root.className = 'lg-screen';
+    root.innerHTML = `
+      <div class="lg-players" id="lg-players"></div>
+      <div class="lg-main">
+        <div class="lg-topbar">
+          <span class="lg-round" id="lg-round"></span>
+          <span class="lg-phase"><span id="lg-phasetext"></span><span class="lg-timer" id="lg-timer"></span></span>
+          <span class="lg-topic" id="lg-topic"></span>
+        </div>
+        <div class="lg-role" id="lg-role" hidden></div>
+        <div class="lg-feed" id="lg-feed"></div>
+      </div>
+      <div class="lg-result" id="lg-result" hidden></div>
+    `;
+    // 컨트롤 패널(.lg-panel)보다 먼저 오도록 부모 맨 앞에 삽입
+    parent?.insertBefore(root, this.canvas.nextSibling);
+    this.root = root;
+
+    this.playersEl = root.querySelector('#lg-players')!;
+    this.roundEl = root.querySelector('#lg-round')!;
+    this.phaseTextEl = root.querySelector('#lg-phasetext')!;
+    this.timerEl = root.querySelector('#lg-timer')!;
+    this.topicEl = root.querySelector('#lg-topic')!;
+    this.roleEl = root.querySelector('#lg-role')!;
+    this.feedEl = root.querySelector('#lg-feed')!;
+    this.resultEl = root.querySelector('#lg-result')!;
   }
 
   destroy(): void {
-    this.ro.disconnect();
+    this.root.remove();
+    this.canvas.style.display = '';
   }
 
   render(state: RenderState): void {
-    const ctx = this.ctx;
-    const rect = this.canvas.getBoundingClientRect();
-    if (rect.width === 0) return;
-    const dpr = window.devicePixelRatio || 1;
-    const W = rect.width;
-    const H = rect.height;
-
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    ctx.clearRect(0, 0, W, H);
-    ctx.fillStyle = C.bg;
-    ctx.fillRect(0, 0, W, H);
-
-    const pad = 18;
     const g = state.game;
 
-    // ---- 상단 배너 ----
-    const bannerH = 42;
-    this.roundRect(pad, pad, W - pad * 2, bannerH, 12);
-    ctx.fillStyle = C.banner;
-    ctx.fill();
-    // 좌: 라운드
-    ctx.fillStyle = C.bannerText;
-    ctx.font = `800 15px ${FONT}`;
-    ctx.textAlign = 'left';
-    ctx.textBaseline = 'middle';
-    ctx.fillText(`라운드 ${g.round}/${g.totalRounds}`, pad + 14, pad + bannerH / 2);
-    // 우: 주제 pill
-    if (g.category) {
-      ctx.font = `700 13px ${FONT}`;
-      const label = `주제: ${g.category}`;
-      const tw = ctx.measureText(label).width;
-      const pillW = tw + 22;
-      const pillX = W - pad - 14 - pillW;
-      this.roundRect(pillX, pad + 8, pillW, bannerH - 16, 999);
-      ctx.fillStyle = C.category;
-      ctx.fill();
-      ctx.fillStyle = C.categoryText;
-      ctx.textAlign = 'left';
-      ctx.fillText(label, pillX + 11, pad + bannerH / 2);
-    }
-    // 중앙: 페이즈 안내 + 남은 시간(초). 10초 이하면 빨갛게 경고.
+    // ---- 상단 필 ----
+    this.roundEl.innerHTML = `라운드 <b>${g.round}</b> / ${g.totalRounds}`;
+    this.phaseTextEl.textContent = this.phaseText(state);
     const secs = state.remainMs > 0 ? Math.ceil(state.remainMs / 1000) : 0;
-    let phaseLine = this.phaseText(state);
-    if (secs > 0) phaseLine += `   ·   ⏱ ${secs}`;
-    ctx.fillStyle = secs > 0 && secs <= 10 ? '#e5484d' : C.bannerText;
-    ctx.font = `700 13px ${FONT}`;
-    ctx.textAlign = 'center';
-    ctx.fillText(phaseLine, W / 2, pad + bannerH / 2);
+    if (secs > 0) {
+      this.timerEl.hidden = false;
+      this.timerEl.innerHTML = `${icon('clock', { size: 14 })}${secs}`;
+      this.timerEl.classList.toggle('warn', secs <= 10);
+    } else {
+      this.timerEl.hidden = true;
+    }
+    this.topicEl.hidden = !g.category;
+    if (g.category) this.topicEl.textContent = `주제 · ${g.category}`;
 
-    let y = pad + bannerH + 12;
-
-    // ---- 내 역할 카드 (관전자는 생략) ----
+    // ---- 역할 카드 (관전자/미배정 제외) ----
     if (!state.isSpectator && state.myRole) {
-      const cardH = 58;
+      this.roleEl.hidden = false;
       const isLiar = state.myRole.role === 'liar';
-      this.roundRect(pad, y, W - pad * 2, cardH, 12);
-      ctx.fillStyle = isLiar ? C.myCardLiar : C.myCardCitizen;
-      ctx.fill();
-      ctx.lineWidth = 2;
-      ctx.strokeStyle = isLiar ? C.myCardLiarStroke : C.myCardCitizenStroke;
-      ctx.stroke();
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
+      this.roleEl.className = `lg-role ${isLiar ? 'liar' : 'citizen'}`;
       if (isLiar) {
-        ctx.fillStyle = C.liarMark;
-        ctx.font = `800 18px ${FONT}`;
-        ctx.fillText(`🤥 당신은 라이어! · 주제 "${state.myRole.category}"`, W / 2, y + cardH / 2);
+        this.roleEl.innerHTML =
+          `당신은 <b>라이어</b>예요<span class="lg-role-sub">제시어를 몰라요 — 들키지 않게 자연스럽게!</span>`;
       } else {
-        ctx.fillStyle = C.cardText;
-        ctx.font = `500 13px ${FONT}`;
-        ctx.fillText('내 제시어', W / 2, y + 18);
-        ctx.font = `800 22px ${FONT}`;
-        ctx.fillText(state.myRole.word, W / 2, y + 39);
+        this.roleEl.innerHTML =
+          `제시어 · <b class="lg-role-word">${escapeHtml(state.myRole.word)}</b><span class="lg-role-sub">라이어가 누군지 설명으로 찾아내세요</span>`;
       }
-      y += cardH + 12;
+    } else {
+      this.roleEl.hidden = true;
     }
 
-    // ---- 점수판 (하단) ----
-    const chipH = 46;
-    const chipY = H - pad - chipH;
-    this.drawScoreboard(state, pad, chipY, W - pad * 2, chipH);
+    // ---- 플레이어 세로 리스트 ----
+    this.renderPlayers(state);
 
-    // ---- 힌트 피드 (배너~점수판 사이) ----
-    this.drawHintFeed(state, pad, y, W - pad * 2, chipY - 12 - y);
+    // ---- 힌트 채팅 피드 ----
+    this.renderFeed(state);
 
     // ---- 결과 오버레이 ----
-    if (g.phase === 'result') this.drawResultOverlay(state, W, H);
+    if (g.phase === 'result') this.renderResult(state);
+    else this.resultEl.hidden = true;
+  }
+
+  private renderPlayers(state: RenderState): void {
+    const g = state.game;
+    const revealed = g.phase === 'result' ? g.revealedLiarPeerId : null;
+    const html = g.players.map((p) => {
+      const isMe = p.peerId === state.myPeerId;
+      const isTurn = g.phase === 'hint' && g.order[g.hintIndex] === p.peerId;
+      const isLiar = revealed && p.peerId === revealed;
+      const cls = ['lg-prow', isTurn ? 'turn' : '', isLiar ? 'liar' : ''].filter(Boolean).join(' ');
+      const score = g.scores[p.peerId] ?? 0;
+      return `<div class="${cls}"><span class="lg-pdot"></span>` +
+        `<span class="lg-pnm">${escapeHtml(p.nickname)}${isMe ? ' (나)' : ''}</span>` +
+        `<span class="lg-psc">${score}</span></div>`;
+    }).join('');
+    // players 는 매 프레임 갱신해도 스크롤/포커스 이슈 없음(고정 높이 카드)
+    this.playersEl.innerHTML = html;
+  }
+
+  private renderFeed(state: RenderState): void {
+    const g = state.game;
+    const n = g.hints.length;
+    // 라운드 리셋(힌트 줄어듦) → 피드 비우고 다시
+    if (n < this.renderedHints) {
+      this.feedEl.innerHTML = '';
+      this.renderedHints = 0;
+    }
+    // 빈 피드 안내
+    if (n === 0) {
+      if (this.renderedHints !== 0) { this.feedEl.innerHTML = ''; this.renderedHints = 0; }
+      if (!this.feedEl.querySelector('.lg-feed-empty')) {
+        this.feedEl.innerHTML = g.phase === 'hint'
+          ? `<div class="lg-feed-empty">첫 설명을 기다리는 중</div>` : '';
+      }
+      return;
+    }
+    // 안내문 제거 후 새 힌트만 append
+    const empty = this.feedEl.querySelector('.lg-feed-empty');
+    if (empty) { empty.remove(); this.renderedHints = 0; this.feedEl.innerHTML = ''; }
+    for (let i = this.renderedHints; i < n; i++) {
+      const h = g.hints[i]!;
+      const mine = h.peerId === state.myPeerId;
+      const row = document.createElement('div');
+      row.className = `lg-hint${mine ? ' mine' : ''}`;
+      row.innerHTML = `<span class="lg-hint-who">${escapeHtml(h.nickname)}${mine ? ' (나)' : ''}</span>` +
+        `<span class="lg-hint-txt">${escapeHtml(h.text)}</span>`;
+      this.feedEl.appendChild(row);
+    }
+    if (n > this.renderedHints) {
+      this.renderedHints = n;
+      this.feedEl.scrollTop = this.feedEl.scrollHeight; // 최신으로 자동 스크롤
+    }
+  }
+
+  private renderResult(state: RenderState): void {
+    const g = state.game;
+    const nick = (pid: string | null): string =>
+      g.players.find((p) => p.peerId === pid)?.nickname ?? '?';
+    let outcome = '';
+    if (g.liarWon === true) {
+      outcome = g.liarGuess ? '라이어 역전승! (제시어 맞힘)' : '라이어 승리! (안 들킴)';
+    } else if (g.liarWon === false) {
+      outcome = g.liarGuess ? `시민 승리! (라이어 추측 "${g.liarGuess}" 오답)` : '시민 승리! 라이어를 잡았어요';
+    }
+    const next = g.round >= g.totalRounds ? '최종 결과로' : '다음 라운드 준비 중';
+    this.resultEl.hidden = false;
+    this.resultEl.innerHTML = `
+      <div class="lg-result-card">
+        <div class="lg-result-liar">라이어는 <b>${escapeHtml(nick(g.revealedLiarPeerId))}</b> 였어요!</div>
+        ${g.revealedWord ? `<div class="lg-result-word">정답 제시어 · <b>${escapeHtml(g.revealedWord)}</b></div>` : ''}
+        <div class="lg-result-outcome ${g.liarWon ? 'liar' : 'citizen'}">${escapeHtml(outcome)}</div>
+        <div class="lg-result-next">${next}</div>
+      </div>`;
   }
 
   private phaseText(state: RenderState): string {
@@ -178,153 +207,23 @@ export class LiarRenderer {
         const cur = g.order[g.hintIndex];
         const mine = cur === state.myPeerId && !state.isSpectator;
         const who = mine ? '내 차례!' : `${nick(cur ?? '')} 차례`;
-        return `💬 설명 ${g.hintPass}/${g.totalPasses}바퀴 · ${who}`;
+        return `설명 ${g.hintPass}/${g.totalPasses}바퀴 · ${who}`;
       }
       case 'vote':
-        return '🗳️ 라이어를 지목하세요';
+        return '라이어를 지목하세요';
       case 'guess': {
         const acc = g.accusedPeerId ? nick(g.accusedPeerId) : '?';
-        return `🎯 ${acc} 지목! 라이어가 제시어 추측 중`;
+        return `${acc} 지목! 라이어 추측 중`;
       }
       case 'result':
-        return '📢 라운드 결과';
+        return '라운드 결과';
       default:
         return '';
     }
   }
+}
 
-  private drawHintFeed(state: RenderState, x: number, y: number, w: number, h: number): void {
-    if (h < 24) return;
-    const ctx = this.ctx;
-    const g = state.game;
-    if (g.hints.length === 0) {
-      if (g.phase === 'hint') {
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillStyle = C.muted;
-        ctx.font = `500 13px ${FONT}`;
-        ctx.fillText('첫 설명을 기다리는 중', x + w / 2, y + h / 2);
-      }
-      return;
-    }
-    ctx.textBaseline = 'middle';
-    const n = g.hints.length;
-    // 전부 보이게 — 1단으로 안 들어가면(작은 화면·설명 많음) 2단 컬럼으로 나눠 절대 안 잘리게.
-    //   (예전엔 최소 행높이 15px 고정 + maxRows 초과분 slice 로 잘려서, 화면 작은 사람만 일부 설명이 안 보였음)
-    const cols = n > Math.max(1, Math.floor(h / 17)) ? 2 : 1;
-    const perCol = Math.ceil(n / cols);
-    const rowH = Math.max(12, Math.min(26, h / perCol));
-    const colW = (w - 8) / cols;
-    const nameFs = Math.max(8, Math.min(12, Math.floor(rowH - 7)));
-    const textFs = Math.max(9, Math.min(13, Math.floor(rowH - 6)));
-    for (let i = 0; i < n; i++) {
-      const hint = g.hints[i]!;
-      const col = Math.floor(i / perCol);
-      const rowInCol = i % perCol;
-      const cx0 = x + 8 + col * colW;
-      const ry = y + rowH / 2 + rowInCol * rowH;
-      const isMe = hint.peerId === state.myPeerId;
-      ctx.textAlign = 'left';
-      ctx.font = `700 ${nameFs}px ${FONT}`;
-      ctx.fillStyle = isMe ? C.accent : C.hintName;
-      const label = `${hint.nickname}:`;
-      ctx.fillText(label, cx0, ry);
-      const tx = cx0 + ctx.measureText(label).width + 5;
-      // 설명 — 남는 폭에 안 들어가면 글자 크기 더 줄여 전부 보이게
-      const avail = x + 8 + (col + 1) * colW - 6 - tx;
-      let fs = textFs;
-      ctx.font = `500 ${fs}px ${FONT}`;
-      const tw = ctx.measureText(hint.text).width;
-      if (tw > avail && avail > 16) {
-        fs = Math.max(8, Math.floor((fs * avail) / tw));
-        ctx.font = `500 ${fs}px ${FONT}`;
-      }
-      ctx.fillStyle = C.hintText;
-      ctx.fillText(hint.text, tx, ry);
-    }
-  }
-
-  private drawScoreboard(state: RenderState, x: number, y: number, w: number, h: number): void {
-    const ctx = this.ctx;
-    const g = state.game;
-    const n = g.players.length;
-    if (n === 0) return;
-    const gap = 8;
-    const chipW = (w - gap * (n - 1)) / n;
-    const revealed = g.phase === 'result' && g.revealedLiarPeerId;
-    for (let i = 0; i < n; i++) {
-      const p = g.players[i]!;
-      const cx = x + i * (chipW + gap);
-      const isMe = p.peerId === state.myPeerId;
-      const isTurn = g.phase === 'hint' && g.order[g.hintIndex] === p.peerId;
-      const isLiar = revealed && p.peerId === g.revealedLiarPeerId;
-      this.roundRect(cx, y, chipW, h, 10);
-      ctx.fillStyle = isLiar ? C.myCardLiar : isMe ? C.chipMe : C.chip;
-      ctx.fill();
-      ctx.lineWidth = isTurn ? 2.5 : 1.5;
-      ctx.strokeStyle = isTurn ? C.turnHi : isLiar ? C.liarMark : C.chipStroke;
-      ctx.stroke();
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillStyle = C.cardText;
-      // 칩이 좁으면(다인원) 닉 축약 + "(나)" 생략 → 옆 칩 침범 방지
-      const narrow = chipW < 84;
-      const maxNick = narrow ? 4 : 8;
-      const nm = p.nickname.length > maxNick ? p.nickname.slice(0, maxNick - 1) + '…' : p.nickname;
-      ctx.font = `700 ${narrow ? 10 : 12}px ${FONT}`;
-      ctx.fillText((isLiar ? '🤥 ' : '') + nm + (isMe && !narrow ? ' (나)' : ''), cx + chipW / 2, y + 15);
-      ctx.font = `800 ${narrow ? 13 : 15}px ${FONT}`;
-      ctx.fillStyle = C.accent;
-      ctx.fillText(`${g.scores[p.peerId] ?? 0}점`, cx + chipW / 2, y + 33);
-    }
-  }
-
-  private drawResultOverlay(state: RenderState, W: number, H: number): void {
-    const ctx = this.ctx;
-    const g = state.game;
-    ctx.fillStyle = C.overlay;
-    ctx.fillRect(0, 0, W, H);
-    const nick = (pid: string | null): string =>
-      g.players.find((p) => p.peerId === pid)?.nickname ?? '?';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillStyle = '#fff';
-    ctx.font = `800 20px ${FONT}`;
-    ctx.fillText(`라이어는 ${nick(g.revealedLiarPeerId)} 였습니다!`, W / 2, H / 2 - 52);
-
-    // 실제 제시어(정답) — 라이어 승패 무관하게 항상 공개
-    if (g.revealedWord) {
-      ctx.font = `700 17px ${FONT}`;
-      ctx.fillStyle = C.category;
-      ctx.fillText(`정답 제시어: "${g.revealedWord}"`, W / 2, H / 2 - 22);
-    }
-
-    ctx.font = `700 16px ${FONT}`;
-    ctx.fillStyle = g.liarWon ? C.liarMark : C.win;
-    let line: string;
-    if (g.liarWon === null) line = '';
-    else if (g.liarWon) {
-      line = g.liarGuess ? `라이어 역전승! (제시어 맞힘)` : '라이어 승리! (안 들킴)';
-    } else {
-      line = g.liarGuess ? `시민 승리! (라이어 추측 "${g.liarGuess}" 오답)` : '시민 승리! 라이어를 잡았어요';
-    }
-    ctx.fillText(line, W / 2, H / 2 + 8);
-
-    ctx.font = `500 13px ${FONT}`;
-    ctx.fillStyle = 'rgba(255,255,255,0.85)';
-    const next = g.round >= g.totalRounds ? '최종 결과로' : '다음 라운드 준비 중';
-    ctx.fillText(next, W / 2, H / 2 + 40);
-  }
-
-  private roundRect(x: number, y: number, w: number, h: number, r: number): void {
-    const ctx = this.ctx;
-    const rr = Math.min(r, w / 2, h / 2);
-    ctx.beginPath();
-    ctx.moveTo(x + rr, y);
-    ctx.arcTo(x + w, y, x + w, y + h, rr);
-    ctx.arcTo(x + w, y + h, x, y + h, rr);
-    ctx.arcTo(x, y + h, x, y, rr);
-    ctx.arcTo(x, y, x + w, y, rr);
-    ctx.closePath();
-  }
+function escapeHtml(s: string): string {
+  return s.replace(/[&<>"']/g, (c) =>
+    ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]!));
 }
