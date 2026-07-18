@@ -63,6 +63,7 @@ import {
   type DrawTool,
   type ShapeKind,
 } from './netSync';
+import { icon } from '../../ui/icons';
 
 /** 라운드 결과 표시 시간 (ms) */
 const ROUND_RESULT_MS = 3500;
@@ -337,7 +338,9 @@ class DrawQuizGameModule implements GameModule {
       }
     }
 
-    this.renderer.render(this.buildRenderState(now));
+    // 정지 중엔 render 시각을 pauseStart 로 얼려 타이머 표시가 안 흐르게(모달 뒤 타이머 진행 방지)
+    const renderNow = this.paused && this.pauseStart > 0 ? this.pauseStart : now;
+    this.renderer.render(this.buildRenderState(renderNow));
   };
 
   private buildRenderState(now: number): RenderState {
@@ -971,36 +974,57 @@ class DrawQuizGameModule implements GameModule {
         this.candidatesEl.style.display = 'flex';
         // 이미 떠 있으면 재생성 안 함 (직접입력 타이핑 중 값 유지)
         if (!this.candidatesEl.querySelector('.dq-choose-wrap')) {
+          // 중앙 카드: 제목 + 주어진 단어 1개(크게) + '또는' + 직접입력 + 자동시작 안내
           const wrap = document.createElement('div');
           wrap.className = 'dq-choose-wrap';
-          // 주어진 단어 1개 (택1)
-          const cands = document.createElement('div');
-          cands.className = 'dq-choose-cands';
+
+          const title = document.createElement('div');
+          title.className = 'dq-choose-title';
+          title.innerHTML = `${icon('pen', { size: 20, hue: '#9c7aeb' })}<span>그릴 단어</span>`;
+          wrap.appendChild(title);
+
+          const sub = document.createElement('div');
+          sub.className = 'dq-choose-sub';
+          sub.textContent = '이 단어로 그리거나, 직접 정해도 돼요';
+          wrap.appendChild(sub);
+
+          // 주어진 단어 1개 (택1) — 크게
           const given = this.candidates[0];
           if (given) {
             const b = document.createElement('button');
             b.type = 'button';
-            b.className = 'dq-candidate-btn';
-            b.textContent = `🎲 ${given.word}`;
+            b.className = 'dq-candidate-btn dq-choose-word';
+            b.innerHTML = `${icon('dice', { size: 22, hue: '#9c7aeb' })}<span>${given.word}</span>`;
             b.title = '주어진 단어로 그리기';
             b.addEventListener('click', () => this.chooseGivenWord(0));
-            cands.appendChild(b);
+            wrap.appendChild(b);
           }
+
+          const divider = document.createElement('div');
+          divider.className = 'dq-choose-divider';
+          divider.textContent = '또는';
+          wrap.appendChild(divider);
+
           // 직접 입력
           const form = document.createElement('form');
           form.className = 'dq-customword-form';
           form.autocomplete = 'off';
           form.innerHTML = `
-            <input type="text" class="dq-customword-input" maxlength="12" placeholder="또는 직접 입력" />
-            <button type="submit" class="dq-candidate-btn">직접 출제</button>`;
+            <input type="text" class="dq-customword-input" maxlength="12" placeholder="직접 입력" />
+            <button type="submit" class="dq-candidate-btn dq-choose-custom">직접 출제</button>`;
           form.addEventListener('submit', (e) => {
             e.preventDefault();
             const input = form.querySelector<HTMLInputElement>('.dq-customword-input');
             const word = input?.value.trim();
             if (word) this.submitCustomWord(word);
           });
-          wrap.appendChild(cands);
           wrap.appendChild(form);
+
+          const hint = document.createElement('div');
+          hint.className = 'dq-choose-hint';
+          hint.innerHTML = `${icon('clock', { size: 14, hue: '#8a7a8a' })}<span>안 고르면 자동 시작</span>`;
+          wrap.appendChild(hint);
+
           this.candidatesEl.innerHTML = '';
           this.candidatesEl.appendChild(wrap);
         }

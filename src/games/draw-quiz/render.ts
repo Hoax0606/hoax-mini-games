@@ -392,21 +392,13 @@ export class DrawQuizRenderer {
     ctx.textBaseline = 'middle';
 
     if (isDrawer) {
-      ctx.fillStyle = COLORS.textMain;
-      ctx.font = `800 22px ${FONT}`;
-      ctx.fillText('🎨 그릴 단어를 골라요', cx, 80);
-      ctx.fillStyle = COLORS.textMuted;
-      ctx.font = `500 14px ${FONT}`;
-      ctx.fillText('아래 버튼에서 하나 선택', cx, 110);
-      // 후보 단어는 HTML 버튼으로 — index.ts. 여기선 안내만.
+      // 출제자 안내·후보·직접입력은 HTML 중앙 카드(index.ts)로 표시 — 여기선 배경만 딤 처리.
     } else {
       const drawer = state.game.players.find((p) => p.peerId === state.game.drawerPeerId);
       ctx.fillStyle = COLORS.textMain;
-      ctx.font = `800 22px ${FONT}`;
-      ctx.fillText('✏️', cx, DRAW_H / 2 - 24);
       ctx.font = `700 18px ${FONT}`;
-      ctx.fillText(`${drawer?.nickname ?? '출제자'} 님이`, cx, DRAW_H / 2 + 6);
-      ctx.fillText('단어를 고르고 있어요', cx, DRAW_H / 2 + 32);
+      ctx.fillText(`${drawer?.nickname ?? '출제자'} 님이`, cx, DRAW_H / 2 - 8);
+      ctx.fillText('단어를 고르고 있어요', cx, DRAW_H / 2 + 18);
     }
   }
 
@@ -524,7 +516,7 @@ export class DrawQuizRenderer {
     ctx.font = `700 13px ${FONT}`;
     ctx.textAlign = 'left';
     ctx.textBaseline = 'middle';
-    ctx.fillText('🏆 맞춘 개수', PANEL_X + 14, y0);
+    ctx.fillText('맞춘 개수', PANEL_X + 14, y0);
 
     // 점수 내림차순
     const sorted = [...game.players].sort((a, b) => b.score - a.score);
