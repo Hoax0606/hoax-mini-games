@@ -440,8 +440,8 @@ export class DrawQuizRenderer {
 
     // 타이머 ring + 라운드 (상단)
     const ringCx = PANEL_X + PANEL_W / 2;
-    const ringCy = 50;
-    const ringR = 30;
+    const ringCy = 46;
+    const ringR = 25;
     const drawing = game.phase === 'drawing';
     const elapsed = drawing ? Math.max(0, state.now - game.turnStartedAt) : 0;
     const remaining = Math.max(0, ROUND_DURATION_MS - elapsed);
@@ -449,14 +449,14 @@ export class DrawQuizRenderer {
     const remainSec = Math.ceil(remaining / 1000);
 
     ctx.strokeStyle = COLORS.timerRingBg;
-    ctx.lineWidth = 6;
+    ctx.lineWidth = 5;
     ctx.beginPath();
     ctx.arc(ringCx, ringCy, ringR, 0, Math.PI * 2);
     ctx.stroke();
 
     if (drawing) {
       ctx.strokeStyle = remainSec <= 10 ? COLORS.timerRingWarn : COLORS.timerRingFill;
-      ctx.lineWidth = 6;
+      ctx.lineWidth = 5;
       ctx.lineCap = 'round';
       ctx.beginPath();
       ctx.arc(ringCx, ringCy, ringR, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * ratio);
@@ -465,56 +465,56 @@ export class DrawQuizRenderer {
     }
 
     ctx.fillStyle = drawing && remainSec <= 10 ? COLORS.accentPink : COLORS.textMain;
-    ctx.font = `900 18px ${FONT}`;
+    ctx.font = `900 16px ${FONT}`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.fillText(drawing ? String(remainSec) : '–', ringCx, ringCy);
 
     // 라운드 표시
     ctx.fillStyle = COLORS.textMuted;
-    ctx.font = `600 12px ${FONT}`;
-    ctx.fillText(`라운드 ${game.round} / ${game.totalRounds}`, ringCx, ringCy + 44);
+    ctx.font = `700 11px ${FONT}`;
+    ctx.fillText(`라운드 ${game.round} / ${game.totalRounds}`, ringCx, ringCy + 38);
 
     // 제시어 영역 (글자수 또는 출제자 본인은 단어)
-    const wordY = 120;
+    const wordY = 108;
     ctx.fillStyle = COLORS.textMuted;
-    ctx.font = `600 12px ${FONT}`;
+    ctx.font = `700 10px ${FONT}`;
     ctx.fillText('제시어', ringCx, wordY);
 
     const isDrawer = game.drawerPeerId === state.myPeerId;
     ctx.fillStyle = COLORS.textMain;
-    ctx.font = `900 24px ${FONT}`;
+    ctx.font = `900 20px ${FONT}`;
     if (game.phase === 'round_result' || game.phase === 'ended') {
-      ctx.fillText(state.revealedWord ?? '', ringCx, wordY + 26);
+      ctx.fillText(state.revealedWord ?? '', ringCx, wordY + 24);
     } else if (isDrawer && game.currentWord) {
-      ctx.fillText(game.currentWord, ringCx, wordY + 26);
+      ctx.fillText(game.currentWord, ringCx, wordY + 24);
     } else if (game.phase === 'drawing') {
       // 마스킹 단어 — '*' 는 _, 시간 임박에 공개된 글자는 그대로 표시
       const masked = [...game.currentWord].map((c) => (c === '*' ? '_' : c)).join(' ');
-      ctx.fillText(masked, ringCx, wordY + 26);
+      ctx.fillText(masked, ringCx, wordY + 24);
     } else {
-      ctx.fillText('···', ringCx, wordY + 26);
+      ctx.fillText('···', ringCx, wordY + 24);
     }
 
     // 출제자 표시
     const drawer = game.players.find((p) => p.peerId === game.drawerPeerId);
     if (drawer && game.phase === 'drawing') {
       ctx.fillStyle = COLORS.drawerBadge;
-      ctx.font = `700 12px ${FONT}`;
+      ctx.font = `700 11px ${FONT}`;
       const badge = this.fitText(`✏️ ${drawer.nickname}`, PANEL_W - 24);
-      ctx.fillText(badge, ringCx, wordY + 50);
+      ctx.fillText(badge, ringCx, wordY + 44);
     }
 
     // 점수판 (하단)
-    this.drawScoreboard(state, 195);
+    this.drawScoreboard(state, 178);
   }
 
   private drawScoreboard(state: RenderState, y0: number): void {
     const ctx = this.ctx;
     const game = state.game;
 
-    ctx.fillStyle = COLORS.textMain;
-    ctx.font = `700 13px ${FONT}`;
+    ctx.fillStyle = COLORS.textMuted;
+    ctx.font = `700 10px ${FONT}`;
     ctx.textAlign = 'left';
     ctx.textBaseline = 'middle';
     ctx.fillText('맞춘 개수', PANEL_X + 14, y0);
@@ -523,44 +523,50 @@ export class DrawQuizRenderer {
     const sorted = [...game.players].sort((a, b) => b.score - a.score);
     // 행 높이 동적 — 인원 많으면(최대 10) 캔버스(400) 안에 다 들어오게 축소
     const bottomLimit = CANVAS_H - 22; // 하단 "관전 중" 표시 공간 남김
-    const avail = bottomLimit - (y0 + 16);
-    const rowH = Math.max(15, Math.min(26, Math.floor(avail / Math.max(1, sorted.length))));
-    const fontPx = rowH >= 22 ? 13 : 11;
+    const gap = 4;
+    const avail = bottomLimit - (y0 + 14);
+    const slot = Math.max(20, Math.min(32, Math.floor(avail / Math.max(1, sorted.length))));
+    const rowH = slot - gap;
+    const fontPx = rowH >= 26 ? 12 : 11;
     const rowX = PANEL_X + 10;
     const rowW = PANEL_W - 20;
 
     for (let i = 0; i < sorted.length; i++) {
       const p = sorted[i]!;
-      const y = y0 + 16 + i * rowH;
+      const ry = y0 + 14 + i * slot;
+      const midY = ry + rowH / 2;
       const isMe = p.peerId === state.myPeerId;
       const isDrawer = p.peerId === game.drawerPeerId;
       const isCorrect = game.correctThisRound.includes(p.peerId);
 
-      // 행 배경
-      ctx.fillStyle = isMe ? COLORS.scoreRow : 'transparent';
-      if (isMe) this.fillRoundRect(rowX, y - rowH / 2 + 2, rowW, rowH - 4, 6);
+      // 행 = 프로스티드 카드 (내 카드 핑크 강조). fillRoundRect 가 경로+채움 → 같은 경로에 stroke.
+      ctx.fillStyle = isMe ? 'rgba(255, 240, 246, 0.9)' : 'rgba(255, 255, 255, 0.5)';
+      this.fillRoundRect(rowX, ry, rowW, rowH, 9);
+      ctx.strokeStyle = isMe ? COLORS.scoreMe : 'rgba(216, 199, 255, 0.7)';
+      ctx.lineWidth = isMe ? 1.6 : 1;
+      ctx.stroke();
 
       // 정답/출제자 마커
       let marker = '';
       if (isDrawer && game.phase === 'drawing') marker = '✏️';
       else if (isCorrect) marker = '✅';
 
-      // 점수(우측) 먼저 그려 폭 확보 → 닉네임은 남는 폭에 맞춰 표시(웬만하면 다 보임)
+      // 점수(우측) 먼저 그려 폭 확보 → 닉네임은 남는 폭에 맞춰 표시
       ctx.fillStyle = COLORS.accentLavender;
       ctx.font = `800 ${fontPx}px ${FONT}`;
       ctx.textAlign = 'right';
       const scoreText = String(p.score);
-      ctx.fillText(scoreText, rowX + rowW - 8, y);
+      ctx.fillText(scoreText, rowX + rowW - 10, midY);
       const scoreW = ctx.measureText(scoreText).width;
 
       ctx.fillStyle = isMe ? COLORS.scoreMe : COLORS.textMain;
-      ctx.font = `${isMe ? 700 : 500} ${fontPx}px ${FONT}`;
+      ctx.font = `${isMe ? 800 : 600} ${fontPx}px ${FONT}`;
       ctx.textAlign = 'left';
       const markerStr = marker ? marker + ' ' : '';
       const markerW = ctx.measureText(markerStr).width;
-      const nickMaxW = rowW - 16 - markerW - scoreW - 12; // 좌우 패딩 + 점수 공간 확보
+      const nickMaxW = rowW - 20 - markerW - scoreW - 12;
       const nick = this.fitText(p.nickname, nickMaxW);
-      ctx.fillText(`${markerStr}${nick}`, rowX + 8, y);
+      ctx.fillText(`${markerStr}${nick}`, rowX + 10, midY);
     }
 
     // 관전 표시
