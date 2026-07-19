@@ -124,6 +124,16 @@ function segClosest(ax: number, ay: number, bx: number, by: number, px: number, 
   return { x: cx, y: cy, d: Math.hypot(px - cx, py - cy) };
 }
 
+/** 무기 바 아이콘 — 이모지 대신 인라인 SVG (프로젝트 방침: UI는 아이콘/도형). viewBox 24, .fw-icon svg 가 크기 지정 */
+const WEAPON_ICONS: Record<WeaponId, string> = {
+  normal: '<svg viewBox="0 0 24 24"><circle cx="11" cy="15" r="7" fill="#3a3242"/><circle cx="11" cy="15" r="7" fill="none" stroke="#241f2b" stroke-width="1"/><circle cx="8.4" cy="12.4" r="2.2" fill="#655d6b"/><path d="M15.5 8.6 q2.2-1.8 1.3-4.4" stroke="#c99a5a" stroke-width="1.8" fill="none" stroke-linecap="round"/><circle cx="17" cy="4" r="2" fill="#ffb845"/><circle cx="16.5" cy="3.6" r="0.8" fill="#fff3d0"/></svg>',
+  big: '<svg viewBox="0 0 24 24"><path d="M12 12 L14 2 L16 11 L23 8 L17 13 L22 19 L15 15 L14 23 L11 15 L4 19 L9 12 L2 9 Z" fill="#ffb845" opacity="0.9"/><circle cx="12" cy="13" r="6.2" fill="#ff5a5a"/><circle cx="12" cy="13" r="6.2" fill="none" stroke="#d63a3a" stroke-width="1"/><circle cx="9.8" cy="10.8" r="1.9" fill="#ff8f8f"/></svg>',
+  split: '<svg viewBox="0 0 24 24"><g stroke="#9a7fe0" stroke-width="1.5" stroke-linecap="round"><path d="M12 8 L6.5 15M12 8 L12 16M12 8 L17.5 15" fill="none"/></g><circle cx="12" cy="6" r="3.4" fill="#b89aff" stroke="#7a5fc7" stroke-width="1"/><circle cx="6" cy="17" r="2.7" fill="#b89aff" stroke="#7a5fc7" stroke-width="1"/><circle cx="12" cy="18" r="2.7" fill="#b89aff" stroke="#7a5fc7" stroke-width="1"/><circle cx="18" cy="17" r="2.7" fill="#b89aff" stroke="#7a5fc7" stroke-width="1"/></svg>',
+  grenade: '<svg viewBox="0 0 24 24"><rect x="7.5" y="8.5" width="9" height="11.5" rx="4.2" fill="#5a7a3a"/><rect x="7.5" y="8.5" width="9" height="11.5" rx="4.2" fill="none" stroke="#3f5a26" stroke-width="1"/><g stroke="#3f5a26" stroke-width="0.9" opacity="0.7"><path d="M10 11 h4M10 14 h4M10 17 h4M12 9.5 v10"/></g><rect x="9.5" y="6" width="5" height="3" rx="1" fill="#8a8a8a"/><path d="M14 7 h4" stroke="#8a8a8a" stroke-width="1.6" stroke-linecap="round"/><circle cx="19.5" cy="7" r="2.2" fill="none" stroke="#c99a5a" stroke-width="1.6"/></svg>',
+  guided: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5" fill="none" stroke="#5b9cff" stroke-width="1.5" stroke-dasharray="3 3"/><g transform="rotate(-45 12 12)"><rect x="10.4" y="6" width="3.2" height="9" rx="1.6" fill="#5b9cff"/><path d="M12 4 l1.8 3 h-3.6 Z" fill="#3f78c9"/><path d="M10.4 13 l-2 2.5 h2 Z M13.6 13 l2 2.5 h-2 Z" fill="#3f78c9"/></g><circle cx="12" cy="12" r="1.6" fill="#3f78c9"/></svg>',
+  bombard: '<svg viewBox="0 0 24 24"><g stroke-linecap="round"><path d="M4 20 L11 13" stroke="#ff8a3b" stroke-width="3"/><path d="M3 15 L8.5 11" stroke="#ffb845" stroke-width="2.4"/><path d="M8 21 L13 15" stroke="#ffd454" stroke-width="2.2"/></g><circle cx="15.5" cy="9" r="6" fill="#7a5a3a"/><circle cx="15.5" cy="9" r="6" fill="none" stroke="#5a4028" stroke-width="1"/><circle cx="13.4" cy="7.2" r="1.7" fill="#9a7a58"/><circle cx="17.5" cy="10.5" r="1.1" fill="#5a4028"/></svg>',
+};
+
 class FortressGameModule implements GameModule {
   private ctx!: GameContext;
   private renderer!: FortressRenderer;
@@ -846,7 +856,7 @@ class FortressGameModule implements GameModule {
       .map((w) => {
         const s = WEAPONS[w];
         return `<button class="fw-btn" data-weapon="${w}">
-          <span class="fw-icon">${s.icon}</span>
+          <span class="fw-icon">${WEAPON_ICONS[w] ?? ''}</span>
           <span class="fw-name">${s.name}</span>
           <span class="fw-ammo"></span>
         </button>`;
@@ -867,7 +877,10 @@ class FortressGameModule implements GameModule {
       const w = btn.dataset.weapon as WeaponId;
       const left = w === 'normal' ? Infinity : (this.game.ammo[this.myPeerId]?.[w] ?? 0);
       const ammoEl = btn.querySelector('.fw-ammo');
-      if (ammoEl) ammoEl.textContent = w === 'normal' ? '∞' : `×${left}`;
+      if (ammoEl) {
+        ammoEl.textContent = w === 'normal' ? '∞' : `×${left}`;
+        ammoEl.classList.toggle('inf', w === 'normal');
+      }
       const empty = left <= 0;
       const disabled = !isMyTurn || empty;
       btn.disabled = disabled;

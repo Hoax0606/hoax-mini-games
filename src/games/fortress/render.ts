@@ -8,7 +8,7 @@
  */
 
 import { terrainTopAt, TERRAIN_HEIGHT } from './terrain';
-import { MAX_WIND } from './physics';
+import { MAX_WIND, MIN_POWER, MAX_POWER, segPos } from './physics';
 import { FORT_HP, type FortressGame, type WeaponId } from './rules';
 
 
@@ -184,7 +184,7 @@ export class FortressRenderer {
     this.drawShells(state.shells, state.flyingWeapon);
     this.drawExplosions(state.explosions, state.now);
     this.drawDamagePops(state.damagePops, state.now);
-    if (state.aim) this.drawAim(state.aim);
+    if (state.aim) this.drawAim(state.aim, state.game.wind);
     if (state.guidedTarget) this.drawGuidedTarget(state);
 
     // HUD/종료 오버레이는 화면 좌표(캔버스 기준)로 — 레터박스에 밀려 잘리지 않게
@@ -250,30 +250,54 @@ export class FortressRenderer {
   private drawTerrain(hm: number[]): void {
     const ctx = this.ctx;
     const w = hm.length;
-    ctx.beginPath();
-    ctx.moveTo(0, hm[0]!);
-    for (let x = 1; x < w; x++) ctx.lineTo(x, hm[x]!);
+    const ridge = (): void => {
+      ctx.beginPath();
+      ctx.moveTo(0, hm[0]!);
+      for (let x = 1; x < w; x++) ctx.lineTo(x, hm[x]!);
+    };
+    // 흙 본체 (3단 그라데이션)
+    ridge();
     ctx.lineTo(w, TERRAIN_HEIGHT);
     ctx.lineTo(0, TERRAIN_HEIGHT);
     ctx.closePath();
     const g = ctx.createLinearGradient(0, 150, 0, TERRAIN_HEIGHT);
-    g.addColorStop(0, COLORS.soil);
-    g.addColorStop(1, COLORS.soilDark);
+    g.addColorStop(0, '#e0c3a2');
+    g.addColorStop(0.5, '#cda67f');
+    g.addColorStop(1, '#b0855f');
     ctx.fillStyle = g;
     ctx.fill();
-    // 지면 윗선 — 흙 가장자리 위에 풀색 라인 덧그려 "땅" 느낌
-    const topLine = (): void => {
-      ctx.beginPath();
-      ctx.moveTo(0, hm[0]!);
-      for (let x = 1; x < w; x++) ctx.lineTo(x, hm[x]!);
-      ctx.stroke();
-    };
-    ctx.strokeStyle = COLORS.soilEdge;
-    ctx.lineWidth = 3;
-    topLine();
-    ctx.strokeStyle = COLORS.grass;
+    // 자갈 텍스처 (은은한 점) — 지면 아래에만
+    ctx.fillStyle = 'rgba(138,106,74,0.15)';
+    for (let i = 0; i < 46; i++) {
+      const px = (i * 173) % w;
+      const py = hm[Math.floor(px)]! + 30 + ((i * 97) % 160);
+      if (py < TERRAIN_HEIGHT - 4) {
+        ctx.beginPath();
+        ctx.ellipse(px, py, 3 + ((i * 7) % 4), 2 + ((i * 5) % 3), 0, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+    // 잔디 밴드 — 능선 따라 3겹(진→연→진 라인)
+    ctx.save();
+    ctx.lineJoin = 'round';
+    ctx.lineCap = 'round';
+    ridge(); ctx.strokeStyle = '#8bcf8e'; ctx.lineWidth = 13; ctx.stroke();
+    ridge(); ctx.strokeStyle = '#a6e0a3'; ctx.lineWidth = 7; ctx.stroke();
+    ridge(); ctx.strokeStyle = '#7cc47f'; ctx.lineWidth = 2; ctx.stroke();
+    ctx.restore();
+    // 잔디 뭉치 — 능선 위로 삐죽
+    ctx.strokeStyle = '#7cc47f';
     ctx.lineWidth = 2;
-    topLine();
+    ctx.lineCap = 'round';
+    for (let x = 16; x < w; x += 34) {
+      const gy = hm[x]!;
+      ctx.beginPath();
+      ctx.moveTo(x, gy - 1); ctx.lineTo(x - 3, gy - 8);
+      ctx.moveTo(x, gy - 1); ctx.lineTo(x, gy - 10);
+      ctx.moveTo(x, gy - 1); ctx.lineTo(x + 3, gy - 8);
+      ctx.stroke();
+    }
+    ctx.lineCap = 'butt';
   }
 
   private drawForts(state: RenderState): void {
@@ -370,45 +394,78 @@ export class FortressRenderer {
    */
   private drawTank(x: number, baseY: number, fill: string, stroke: string, barrelAngle: number): void {
     const ctx = this.ctx;
-    const hullW = 24, hullH = 8, treadH = 7, turretW = 13, turretH = 7;
+    const hullW = 28, hullH = 10, treadH = 8, turretR = 8.5;
     const treadTop = baseY - treadH;
     const hullTop = treadTop - hullH;
-    const turretTop = hullTop - turretH;
-    const pivotY = turretTop + turretH / 2; // 포신 회전 중심 = 포탑 중앙
+    const pivotY = hullTop - turretR * 0.3; // 포신 회전 중심(포탑 근처)
 
-    // 궤도 + 바퀴 점
-    ctx.fillStyle = COLORS.tread;
-    this.roundRect(x - hullW / 2 - 2, treadTop, hullW + 4, treadH, 3.5);
+    // 바닥 그림자
+    ctx.fillStyle = 'rgba(90,74,82,0.2)';
+    ctx.beginPath();
+    ctx.ellipse(x, baseY + 1, hullW * 0.6, 3.5, 0, 0, Math.PI * 2);
     ctx.fill();
-    ctx.fillStyle = COLORS.wheel;
-    for (let i = 0; i < 4; i++) {
-      const wx = x - hullW / 2 + 3 + (i * (hullW - 6)) / 3;
+
+    // 궤도 (짙은 캡슐 + 상단 하이라이트 + 바퀴)
+    ctx.fillStyle = '#4a3b44';
+    this.roundRect(x - hullW / 2 - 3, treadTop, hullW + 6, treadH, treadH / 2);
+    ctx.fill();
+    ctx.fillStyle = 'rgba(255,255,255,0.12)';
+    this.roundRect(x - hullW / 2 - 1, treadTop + 1, hullW + 2, 2.2, 1.1);
+    ctx.fill();
+    ctx.fillStyle = '#9a8a92';
+    for (let i = 0; i < 5; i++) {
+      const wx = x - hullW / 2 + 2 + (i * (hullW - 4)) / 4;
       ctx.beginPath();
       ctx.arc(wx, treadTop + treadH / 2, 2, 0, Math.PI * 2);
       ctx.fill();
     }
 
-    // 포신 — 포탑보다 먼저 그려 뿌리가 포탑 뒤로 들어가게. pivot 기준 회전.
+    // 포신 — 포탑보다 먼저(뿌리가 뒤로). 그라데이션 대신 색+상단 하이라이트+머즐.
     ctx.save();
     ctx.translate(x, pivotY);
     ctx.rotate(barrelAngle);
     ctx.fillStyle = stroke;
-    this.roundRect(0, -2.5, 15, 5, 2.5);
+    this.roundRect(0, -3, 18, 6, 3);
+    ctx.fill();
+    ctx.fillStyle = 'rgba(255,255,255,0.25)';
+    this.roundRect(1, -2.6, 15, 1.6, 0.8);
+    ctx.fill();
+    ctx.fillStyle = stroke;
+    this.roundRect(16, -3.6, 3.5, 7.2, 1.8); // 머즐
     ctx.fill();
     ctx.restore();
 
-    // 차체
+    // 차체 (솔리드 + 하단 안쪽 그림자 + 상단 하이라이트)
+    ctx.fillStyle = fill;
+    this.roundRect(x - hullW / 2, hullTop, hullW, hullH, 5);
+    ctx.fill();
+    ctx.save();
+    this.roundRect(x - hullW / 2, hullTop, hullW, hullH, 5);
+    ctx.clip();
+    ctx.fillStyle = 'rgba(0,0,0,0.08)';
+    ctx.fillRect(x - hullW / 2, hullTop + hullH * 0.55, hullW, hullH);
+    ctx.restore();
+    ctx.strokeStyle = stroke;
+    ctx.lineWidth = 2;
+    this.roundRect(x - hullW / 2, hullTop, hullW, hullH, 5);
+    ctx.stroke();
+    ctx.fillStyle = 'rgba(255,255,255,0.45)';
+    this.roundRect(x - hullW / 2 + 4, hullTop + 2.5, hullW - 13, 2.6, 1.3);
+    ctx.fill();
+
+    // 포탑 (돔 반원 + 하이라이트)
     ctx.fillStyle = fill;
     ctx.strokeStyle = stroke;
     ctx.lineWidth = 2;
-    this.roundRect(x - hullW / 2, hullTop, hullW, hullH, 3);
+    ctx.beginPath();
+    ctx.arc(x, hullTop, turretR, Math.PI, 0);
+    ctx.closePath();
     ctx.fill();
     ctx.stroke();
-
-    // 포탑
-    this.roundRect(x - turretW / 2, turretTop, turretW, turretH, 3);
+    ctx.fillStyle = 'rgba(255,255,255,0.5)';
+    ctx.beginPath();
+    ctx.ellipse(x - 3, hullTop - 3, 2.8, 1.7, -0.4, 0, Math.PI * 2);
     ctx.fill();
-    ctx.stroke();
   }
 
   /** 파괴된 포대 — 묘비 (둥근 윗부분 슬랩 + 작은 십자) */
@@ -556,13 +613,26 @@ export class FortressRenderer {
     ctx.restore();
   }
 
-  private drawAim(aim: NonNullable<RenderState['aim']>): void {
+  private drawAim(aim: NonNullable<RenderState['aim']>, wind: number): void {
     const ctx = this.ctx;
     // 드래그 = (마우스 - 포대). 발사 방향은 그 반대.
     const dx = aim.mx - aim.fromX;
     const dy = aim.my - aim.fromY;
     const len = Math.hypot(dx, dy);
     if (len < 4) return;
+
+    // 짧은 궤적 미리보기 — 실제 물리(중력+바람)로 앞부분만, 페이드(착탄점은 안 보여줘 실력 유지)
+    const speed = MIN_POWER + (MAX_POWER - MIN_POWER) * aim.power01;
+    const seg = { x0: aim.fromX, y0: aim.fromY, vx0: (-dx / len) * speed, vy0: (-dy / len) * speed, wind: Number.isFinite(wind) ? wind : 0 };
+    for (let i = 1; i <= 7; i++) {
+      const p = segPos(seg, i * 0.05);
+      ctx.globalAlpha = 0.85 - i * 0.1;
+      ctx.fillStyle = COLORS.accentPink;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, 3, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.globalAlpha = 1;
 
     // 뒤로 당기는 점선 (드래그 방향)
     ctx.setLineDash([5, 4]);
@@ -598,49 +668,110 @@ export class FortressRenderer {
     const ctx = this.ctx;
     const g = state.game;
 
-    // 상단 중앙 HUD 박스 — 불투명 + 테두리 + 그림자로 밝은 하늘에 묻히지 않게.
-    //   폭을 캔버스에 맞게 적응(고정 260px 이면 채팅 열거나 낮은 해상도로 캔버스가 좁을 때
-    //   박스 오른쪽=바람 표시가 화면 밖으로 잘리던 문제 방지). 좌우 12px 여백 확보.
-    const boxW = Math.min(260, logicalW - 24);
-    const boxX = (logicalW - boxW) / 2;
-    ctx.save();
-    ctx.shadowColor = 'rgba(150,110,140,0.28)';
-    ctx.shadowBlur = 8;
-    ctx.shadowOffsetY = 2;
-    ctx.fillStyle = '#ffffff';
-    this.roundRect(boxX, 10, boxW, 36, 11);
-    ctx.fill();
-    ctx.restore();
-    ctx.lineWidth = 1.5;
-    ctx.strokeStyle = '#ffc9dd';
-    this.roundRect(boxX, 10, boxW, 36, 11);
-    ctx.stroke();
-
-    ctx.textBaseline = 'middle';
-    // 좌: 현재 차례 (타이머는 탱크 주위 링으로 표시하므로 여기선 이름만)
+    // 상단 중앙 HUD 카드 — 좌: 차례(플레이어 색 점) / 우: 바람(화살표·물결). 폭은 이름 길이에 맞춤.
     const cur = g.forts.find((f) => f.id === g.currentTurn);
+    const isMyTurn = !!cur && cur.ownerPeerId === state.myPeerId && g.phase === 'aiming' && !state.isSpectator;
     const turnLabel = g.phase === 'ended' ? '게임 종료'
       : g.phase === 'firing' ? '발사 중'
-      : `${cur?.ownerNickname ?? '?'} 차례`;
-    const midY = 28; // 박스(10~46) 중앙
-    ctx.fillStyle = COLORS.textMain;
-    ctx.font = `700 13px ${FONT}`;
-    ctx.textAlign = 'left';
-    ctx.fillText(turnLabel, boxX + 14, midY);
+      : isMyTurn ? '내 차례' : `${cur?.ownerNickname ?? '?'} 차례`;
 
-    // 우: 바람 — "바람" 라벨 + 방향(▶/◀) 삼각형(핑크, 세기만큼)
-    //   wind 가 undefined/NaN 이면 예전엔 화살표도 '무풍'도 안 그려져(게스트에서 아무것도 안 보임) → 0 으로 방어.
+    const boxY = 10, boxH = 44, midY = boxY + boxH / 2;
+    ctx.font = `800 14.5px ${FONT}`;
+    const turnW = ctx.measureText(turnLabel).width;
+    let boxW = Math.max(210, turnW + 150);   // 좌(점+이름) + 구분선 + 바람(≈102)
+    boxW = Math.min(boxW, logicalW - 24);
+    const boxX = (logicalW - boxW) / 2;
+
+    // 카드 (세로 그라데이션 + 소프트 그림자 + 상단 하이라이트 + 핑크 테두리)
+    ctx.save();
+    ctx.shadowColor = 'rgba(150,110,140,0.22)';
+    ctx.shadowBlur = 13;
+    ctx.shadowOffsetY = 4;
+    const bg = ctx.createLinearGradient(0, boxY, 0, boxY + boxH);
+    bg.addColorStop(0, '#ffffff');
+    bg.addColorStop(1, '#fff4f9');
+    ctx.fillStyle = bg;
+    this.roundRect(boxX, boxY, boxW, boxH, 16);
+    ctx.fill();
+    ctx.restore();
+    ctx.strokeStyle = '#ffd0e0';
+    ctx.lineWidth = 1.5;
+    this.roundRect(boxX, boxY, boxW, boxH, 16);
+    ctx.stroke();
+    ctx.strokeStyle = 'rgba(255,255,255,0.85)';
+    ctx.lineWidth = 1;
+    this.roundRect(boxX + 2, boxY + 1.5, boxW - 4, boxH - 4, 14);
+    ctx.stroke();
+
+    // 좌: 플레이어 색 점 + 차례 (내 차례면 핑크)
+    ctx.textBaseline = 'middle';
+    const dotCol = FILL[cur?.ownerIndex ?? 0] ?? FILL[0];
+    ctx.save();
+    ctx.shadowColor = 'rgba(0,0,0,0.15)';
+    ctx.shadowBlur = 4;
+    ctx.beginPath();
+    ctx.arc(boxX + 19, midY, 5, 0, Math.PI * 2);
+    ctx.fillStyle = dotCol;
+    ctx.fill();
+    ctx.restore();
+    ctx.fillStyle = isMyTurn ? COLORS.accentPink : COLORS.textMain;
+    ctx.font = `800 14.5px ${FONT}`;
+    ctx.textAlign = 'left';
+    ctx.fillText(turnLabel, boxX + 32, midY + 0.5);
+
+    // 구분선
+    const divX = boxX + boxW - 102;
+    ctx.strokeStyle = 'rgba(120,80,140,0.13)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(divX, boxY + 10);
+    ctx.lineTo(divX, boxY + boxH - 10);
+    ctx.stroke();
+
+    // 우: 바람 (라벨 + 화살표 1~4개 / 무풍 물결)
+    const gcy = midY, gx = divX + 12;
+    ctx.fillStyle = COLORS.textMuted;
+    ctx.font = `700 11px ${FONT}`;
+    ctx.textAlign = 'left';
+    ctx.fillText('바람', gx, gcy);
     const wind = Number.isFinite(g.wind) ? g.wind : 0;
-    ctx.textAlign = 'right';
-    ctx.font = `700 13px ${FONT}`;
-    if (Math.abs(wind) < 6) {
-      ctx.fillStyle = COLORS.textMuted;
-      ctx.fillText('바람 무풍', boxX + boxW - 14, midY);
+    const mag = Math.min(1, Math.abs(wind) / MAX_WIND), dir = wind >= 0 ? 1 : -1;
+    const cx0 = gx + 36, step = 10;
+    if (mag < 0.06) {
+      // 무풍 — 잔잔한 물결
+      ctx.strokeStyle = 'rgba(150,140,165,0.6)';
+      ctx.lineWidth = 2.2;
+      ctx.lineCap = 'round';
+      const wx = cx0 - 4, ww = 26;
+      ctx.beginPath();
+      ctx.moveTo(wx, gcy);
+      ctx.quadraticCurveTo(wx + ww * 0.17, gcy - 4, wx + ww * 0.34, gcy);
+      ctx.quadraticCurveTo(wx + ww * 0.5, gcy + 4, wx + ww * 0.66, gcy);
+      ctx.quadraticCurveTo(wx + ww * 0.83, gcy - 4, wx + ww, gcy);
+      ctx.stroke();
+      ctx.lineCap = 'butt';
     } else {
-      const count = 1 + Math.round(Math.min(1, Math.abs(wind) / MAX_WIND) * 3); // 1~4개
-      const tri = (wind >= 0 ? '▶' : '◀').repeat(count);
-      ctx.fillStyle = COLORS.accentPink;
-      ctx.fillText(`바람 ${tri}`, boxX + boxW - 14, midY);
+      const count = Math.min(4, 1 + Math.round(mag * 3)); // 1~4
+      const g0 = cx0 - 8, g1 = cx0 + (count - 1) * step + 10;
+      const grad = ctx.createLinearGradient(dir > 0 ? g0 : g1, 0, dir > 0 ? g1 : g0, 0);
+      grad.addColorStop(0, '#ffc4d8');
+      grad.addColorStop(1, '#ff4f8b');
+      ctx.fillStyle = grad;
+      ctx.strokeStyle = grad;
+      ctx.lineJoin = 'round';
+      ctx.lineWidth = 2.4;
+      for (let i = 0; i < count; i++) {
+        const px = cx0 + i * step;
+        const s = 0.8 + (dir > 0 ? i : count - 1 - i) * 0.12;
+        const aw = 8 * s, ah = 6.5 * s;
+        ctx.beginPath();
+        if (dir > 0) { ctx.moveTo(px - aw / 2, gcy - ah); ctx.lineTo(px + aw / 2, gcy); ctx.lineTo(px - aw / 2, gcy + ah); }
+        else { ctx.moveTo(px + aw / 2, gcy - ah); ctx.lineTo(px - aw / 2, gcy); ctx.lineTo(px + aw / 2, gcy + ah); }
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
+      }
+      ctx.lineJoin = 'miter';
     }
 
     // 관전 배지
@@ -648,7 +779,7 @@ export class FortressRenderer {
       ctx.fillStyle = COLORS.textMuted;
       ctx.font = `600 12px ${FONT}`;
       ctx.textAlign = 'center';
-      ctx.fillText('관전 중', logicalW / 2, 60);
+      ctx.fillText('관전 중', logicalW / 2, boxY + boxH + 14);
     }
   }
 

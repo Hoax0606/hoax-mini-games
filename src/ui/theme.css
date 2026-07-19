@@ -1643,24 +1643,43 @@ input {
   margin-top: 8px;
 }
 .fw-btn {
+  position: relative;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 2px;
-  min-width: 58px;
-  padding: 7px 10px;
-  border-radius: 12px;
-  background: var(--bg-card);
-  border: 2px solid var(--border-soft);
+  width: 74px;
+  padding: 11px 6px 8px;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.72);
+  border: 1.5px solid var(--border-soft);
+  box-shadow: 0 3px 10px rgba(120, 80, 140, 0.07);
   cursor: pointer;
-  transition: transform 0.1s, border-color 0.15s, opacity 0.15s;
+  transition: transform 0.12s ease, box-shadow 0.12s ease, border-color 0.12s ease;
 }
-.fw-btn:hover:not(.disabled) { transform: translateY(-2px); border-color: var(--accent-soft); }
-.fw-btn.selected { border-color: var(--pink-500); box-shadow: var(--shadow-sm); }
+.fw-btn:hover:not(.disabled) { transform: translateY(-3px); box-shadow: 0 8px 18px rgba(120, 80, 140, 0.14); }
+.fw-btn.selected { border-color: var(--pink-500); background: #fff4f8; box-shadow: 0 6px 18px rgba(255, 90, 146, 0.22); transform: translateY(-2px); }
 .fw-btn.disabled { opacity: 0.4; cursor: not-allowed; }
-.fw-icon { font-size: 22px; line-height: 1; }
-.fw-name { font-size: 11px; font-weight: 700; color: var(--text-main); }
-.fw-ammo { font-size: 10px; color: var(--text-muted); font-weight: 600; }
+.fw-icon { width: 30px; height: 30px; margin-bottom: 5px; filter: drop-shadow(0 1px 1px rgba(90, 60, 80, 0.15)); }
+.fw-icon svg { display: block; width: 30px; height: 30px; }
+.fw-name { font-size: 12.5px; font-weight: 800; color: var(--text-main); letter-spacing: -0.2px; }
+/* 잔탄 = 우상단 알약 */
+.fw-ammo {
+  position: absolute;
+  top: -7px;
+  right: -6px;
+  min-width: 20px;
+  height: 20px;
+  line-height: 20px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: #efe6f2;
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 800;
+  box-shadow: 0 1px 3px rgba(120, 80, 140, 0.15);
+}
+.fw-btn.selected .fw-ammo { background: var(--pink-500); color: #fff; }
+.fw-ammo.inf { background: #e7f7f0; color: #2e8a70; }
 
 /* 포트리스 이동 바 (◀ 연료 ▶) */
 .fortress-move-bar {
