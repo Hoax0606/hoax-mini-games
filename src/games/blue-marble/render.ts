@@ -338,7 +338,7 @@ export class BlueMarbleRenderer {
       const here = state.order.filter((p) => (this.dispPos[p] ?? state.pos[p]) === i && !state.players[p]!.bankrupt);
       if (here.length) {
         const tk = document.createElement('div'); tk.className = 'bm-toks';
-        tk.innerHTML = here.map((p) => `<span class="bm-tok" style="background:radial-gradient(circle at 34% 30%, #fff 4%, ${colorOf(state, p)} 60%, ${colorOf(state, p)})"></span>`).join('');
+        tk.innerHTML = here.map((p) => `<span class="bm-tok">${tokenSvg(colorOf(state, p), colorDeep(state, p))}</span>`).join('');
         tile.appendChild(tk);
       }
     }
@@ -372,7 +372,7 @@ export class BlueMarbleRenderer {
         } else if (t.type === 'city') {
           const arr = state.builds[i] ?? [];
           if (arr.length) {
-            const b = document.createElement('div'); b.style.color = col;
+            const b = document.createElement('div'); b.style.color = colorDeep(state, o);   // 건물은 진한 플레이어색
             if (arr.includes('landmark')) { b.className = 'bm-blds bm-lm'; b.innerHTML = landmarkSvg(t.name); }
             else { b.className = 'bm-blds'; b.innerHTML = arr.map((k) => BSVG[k]).join(''); }
             tile.appendChild(b);
@@ -383,7 +383,7 @@ export class BlueMarbleRenderer {
       const here = state.order.filter((p) => (this.dispPos[p] ?? state.pos[p]) === i && !state.players[p]!.bankrupt);
       if (here.length) {
         const tk = document.createElement('div'); tk.className = 'bm-toks';
-        tk.innerHTML = here.map((p) => `<span class="bm-tok" style="background:radial-gradient(circle at 34% 30%, #fff 4%, ${colorOf(state, p)} 60%, ${colorOf(state, p)})"></span>`).join('');
+        tk.innerHTML = here.map((p) => `<span class="bm-tok">${tokenSvg(colorOf(state, p), colorDeep(state, p))}</span>`).join('');
         tile.appendChild(tk);
       }
     }
@@ -719,6 +719,24 @@ function colorOf(state: BMState, peerId: string): string {
   const idx = state.order.indexOf(peerId);
   return ['#6ed9b3', '#ff5a92', '#5b9be6', '#f2c94c', '#b89aff', '#ff8a5b', '#7ed957', '#e07aff', '#4fd0d9', '#ffb12e'][idx % 10]!;
 }
+/** hex 를 f배 어둡게 (0~1). 건물 색을 진하게 해서 가독성↑ */
+function shade(hex: string, f: number): string {
+  const n = parseInt(hex.slice(1), 16);
+  const r = Math.round(((n >> 16) & 255) * f), g = Math.round(((n >> 8) & 255) * f), b = Math.round((n & 255) * f);
+  return `#${((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1)}`;
+}
+/** 플레이어 색의 진한 버전 (건물/랜드마크용) */
+function colorDeep(state: BMState, peerId: string): string { return shade(colorOf(state, peerId), 0.68); }
+/** 게임 말(폰 모양) SVG — 머리 구슬 + 몸통, 플레이어색 + 진한 외곽선 */
+function tokenSvg(color: string, dark: string): string {
+  return `<svg viewBox="0 0 24 30" aria-hidden="true">
+    <ellipse cx="12" cy="28" rx="6.6" ry="1.9" fill="rgba(0,0,0,.22)"/>
+    <path d="M6 25.6 C6 20.6 8.7 18.7 9.7 17.2 C8.2 16.2 7.3 14.5 7.3 12.6 C7.3 9.7 9.4 7.5 12 7.5 C14.6 7.5 16.7 9.7 16.7 12.6 C16.7 14.5 15.8 16.2 14.3 17.2 C15.3 18.7 18 20.6 18 25.6 Z"
+      fill="${color}" stroke="${dark}" stroke-width="1.6" stroke-linejoin="round"/>
+    <circle cx="12" cy="6" r="4.4" fill="${color}" stroke="${dark}" stroke-width="1.6"/>
+    <ellipse cx="10.1" cy="4.5" rx="1.5" ry="1" fill="rgba(255,255,255,.6)"/>
+  </svg>`;
+}
 function deedHTML(state: BMState, tile: number): string {
   const t = BOARD[tile] as { name: string; price: number };
   const info = BOARD[tile].type === 'island'
@@ -801,7 +819,8 @@ function injectStyle(): void {
 /* 상세창 최종 통행료 강조 */
 .bm-mrow.tollfinal b{color:#ff2d55;font-size:16px;text-shadow:0 1px 6px rgba(255,60,90,.35);}
 .bm-toks{position:absolute;bottom:17px;left:0;right:0;display:flex;gap:2px;justify-content:center;flex-wrap:wrap;pointer-events:none;z-index:4;}
-.bm-tok{width:22px;height:22px;border-radius:50%;border:2px solid rgba(255,255,255,.95);box-shadow:0 2px 5px rgba(0,0,0,.32),inset 0 -2px 4px rgba(0,0,0,.22);}
+.bm-tok{width:19px;height:24px;display:block;}
+.bm-tok svg{width:100%;height:100%;display:block;filter:drop-shadow(0 2px 2px rgba(0,0,0,.3));}
 .bm-selected{z-index:6;filter:brightness(1.12) saturate(1.1);box-shadow:0 0 0 3px #fff,0 0 0 5px #ff5a92;}
 .bm-center{grid-column:2/9;grid-row:2/9;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:11px;
   background:linear-gradient(135deg,rgba(255,255,255,.5),rgba(255,240,247,.5));border-radius:12px;padding:12px;}
