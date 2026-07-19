@@ -150,8 +150,7 @@ class BlueMarbleModule implements GameModule {
     else if (pend.kind === 'card') this.hostHandle({ kind: 'card', keep: !!CARDS[pend.card]!.keep && Math.random() < 0.5, by: DUMMY }, DUMMY);
     else if (pend.kind === 'build') {
       const picks = (['villa', 'house2', 'apt'] as BuildKind[]).filter((k) => canBuild(s, pend.tile, DUMMY, k));
-      const chosen = picks.length && Math.random() < 0.6 ? [picks[0]!] : [];
-      this.hostHandle({ kind: 'build', builds: chosen, by: DUMMY }, DUMMY);
+      this.hostHandle({ kind: 'build', builds: picks.length ? [picks[0]!] : [], by: DUMMY }, DUMMY);
     }
     else if (pend.kind === 'olympic' || pend.kind === 'startBuild') {
       const cities = pend.kind === 'olympic' ? this.ownedCities(DUMMY) : this.ownedCities(DUMMY).filter((i) => this.cityBuildable(DUMMY, i));
@@ -306,7 +305,10 @@ class BlueMarbleModule implements GameModule {
     const s = this.state;
     for (let k = 0; k < steps; k++) {
       s.pos[peer] = (s.pos[peer]! + 1) % BOARD.length;
-      if (s.pos[peer] === 0) { s.players[peer]!.money += SALARY; s.players[peer]!.laps += 1; }
+      if (s.pos[peer] === 0) {
+        s.players[peer]!.money += SALARY; s.players[peer]!.laps += 1;
+        s.fx = { seq: (s.fx?.seq ?? 0) + 1, amount: SALARY, mul: 1, kind: 'gain' };   // 월급 획득 팝업
+      }
     }
   }
 
@@ -339,7 +341,7 @@ class BlueMarbleModule implements GameModule {
         this.pay(peer, o, toll);
         s.log = `${t.name} 통행료 ${toll.toLocaleString()} → ${s.players[o]!.nickname}`;
         // 타격감 연출용 (배수 클수록 강하게)
-        if (toll > 0) s.fx = { seq: (s.fx?.seq ?? 0) + 1, amount: toll, mul: info.base > 0 ? Math.round(info.total / info.base) : 1 };
+        if (toll > 0) s.fx = { seq: (s.fx?.seq ?? 0) + 1, amount: toll, mul: info.base > 0 ? Math.round(info.total / info.base) : 1, kind: 'toll' };
         // 도시면 인수 기회(랜드마크·섬 제외)
         if (!p.bankrupt && t.type === 'city') {
           const cost = acquireCost(s, i);
@@ -364,6 +366,7 @@ class BlueMarbleModule implements GameModule {
     } else if (t.type === 'corner') {
       if (t.kind === 'start') {
         p.money += SALARY; s.log = '출발 도착! 월급';
+        s.fx = { seq: (s.fx?.seq ?? 0) + 1, amount: SALARY, mul: 1, kind: 'gain' };
         // 정확히 출발에 멈춤 → 내 도시 하나 추가 건설
         if (this.hasBuildableCity(peer)) { s.pending = { kind: 'startBuild' }; this.render(); return; }
       }

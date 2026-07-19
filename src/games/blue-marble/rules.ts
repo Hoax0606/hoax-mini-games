@@ -248,8 +248,8 @@ export interface BMState {
   winnerPeerId: string | null;
   /** UI 안내 문구 */
   log: string;
-  /** 통행료 타격감 연출용 (seq가 바뀌면 렌더러가 1회 재생) */
-  fx: { seq: number; amount: number; mul: number } | null;
+  /** 타격감/획득 연출용 (seq가 바뀌면 렌더러가 1회 재생). kind: toll=통행료 지불, gain=월급 등 획득 */
+  fx: { seq: number; amount: number; mul: number; kind: 'toll' | 'gain' } | null;
 }
 
 // ============================================

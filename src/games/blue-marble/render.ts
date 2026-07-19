@@ -66,14 +66,14 @@ const CARD_IC = ['coin', 'cake', 'ticket', 'cross', 'siren', 'flag', 'ticket', '
 
 // ── 건물 SVG (소유자 색 currentColor) ──
 const BSVG: Record<string, string> = {
-  villa: '<svg viewBox="0 0 24 24" stroke="#fff" stroke-width="1.5" stroke-linejoin="round"><rect x="6" y="13" width="12" height="8" fill="currentColor"/><path d="M4.5 13 L12 6.5 L19.5 13 Z" fill="currentColor"/><path d="M4.5 13 L12 6.5 L19.5 13 Z" fill="rgba(0,0,0,.15)" stroke="none"/><rect x="10.4" y="16" width="3.2" height="5" fill="#fff" stroke="none"/></svg>',
-  house2: '<svg viewBox="0 0 24 24" stroke="#fff" stroke-width="1.4" stroke-linejoin="round"><rect x="6.5" y="9" width="11" height="12" fill="currentColor"/><path d="M5 9 L12 3.5 L19 9 Z" fill="currentColor"/><path d="M5 9 L12 3.5 L19 9 Z" fill="rgba(0,0,0,.15)" stroke="none"/><g fill="#fff" stroke="none"><rect x="8" y="10.5" width="2.3" height="2.3"/><rect x="13.7" y="10.5" width="2.3" height="2.3"/></g><rect x="10.6" y="16" width="2.8" height="5" fill="#fff" stroke="none"/></svg>',
-  apt: '<svg viewBox="0 0 24 24" stroke="#fff" stroke-width="1.3" stroke-linejoin="round"><rect x="6" y="4" width="12" height="17" fill="currentColor"/><g fill="#fff" stroke="none" opacity=".95"><rect x="8" y="6" width="2.2" height="2.2"/><rect x="13.8" y="6" width="2.2" height="2.2"/><rect x="8" y="10" width="2.2" height="2.2"/><rect x="13.8" y="10" width="2.2" height="2.2"/><rect x="8" y="14" width="2.2" height="2.2"/><rect x="13.8" y="14" width="2.2" height="2.2"/></g><rect x="10.4" y="17.5" width="3.2" height="3.5" fill="#fff" stroke="none"/></svg>',
+  villa: '<svg viewBox="0 0 24 24" stroke="#241a30" stroke-width="1.4" stroke-linejoin="round"><rect x="6" y="13" width="12" height="8" fill="currentColor"/><path d="M4.5 13 L12 6.5 L19.5 13 Z" fill="currentColor"/><path d="M4.5 13 L12 6.5 L19.5 13 Z" fill="rgba(0,0,0,.15)" stroke="none"/><rect x="10.4" y="16" width="3.2" height="5" fill="#fff" stroke="none"/></svg>',
+  house2: '<svg viewBox="0 0 24 24" stroke="#241a30" stroke-width="1.3" stroke-linejoin="round"><rect x="6.5" y="9" width="11" height="12" fill="currentColor"/><path d="M5 9 L12 3.5 L19 9 Z" fill="currentColor"/><path d="M5 9 L12 3.5 L19 9 Z" fill="rgba(0,0,0,.15)" stroke="none"/><g fill="#fff" stroke="none"><rect x="8" y="10.5" width="2.3" height="2.3"/><rect x="13.7" y="10.5" width="2.3" height="2.3"/></g><rect x="10.6" y="16" width="2.8" height="5" fill="#fff" stroke="none"/></svg>',
+  apt: '<svg viewBox="0 0 24 24" stroke="#241a30" stroke-width="1.2" stroke-linejoin="round"><rect x="6" y="4" width="12" height="17" fill="currentColor"/><g fill="#fff" stroke="none" opacity=".95"><rect x="8" y="6" width="2.2" height="2.2"/><rect x="13.8" y="6" width="2.2" height="2.2"/><rect x="8" y="10" width="2.2" height="2.2"/><rect x="13.8" y="10" width="2.2" height="2.2"/><rect x="8" y="14" width="2.2" height="2.2"/><rect x="13.8" y="14" width="2.2" height="2.2"/></g><rect x="10.4" y="17.5" width="3.2" height="3.5" fill="#fff" stroke="none"/></svg>',
 };
 // 섬 소유 표시 — 깃발(천 = 플레이어색 currentColor)
 const FLAG = '<svg viewBox="0 0 24 24"><rect x="6" y="2.5" width="2" height="19" rx="1" fill="#6b5566"/><circle cx="7" cy="2.6" r="1.7" fill="#ffd454"/><path d="M8 3.5 H20 Q16.8 6.5 20 9.5 H8 Z" fill="currentColor" stroke="#fff" stroke-width="1" stroke-linejoin="round"/></svg>';
-const GENERIC_LM = '<svg viewBox="0 0 24 24" stroke="#fff" stroke-width="0.9" stroke-linejoin="round"><path d="M12 1 L14 5.5 H10 Z" fill="#ffd454" stroke="#fff" stroke-width="0.6"/><rect x="8.5" y="6" width="7" height="15" fill="currentColor"/><rect x="8.5" y="6" width="7" height="2.6" fill="#ffd454" stroke="none"/><rect x="6" y="18" width="12" height="3" fill="currentColor"/><g fill="#fff" stroke="none" opacity=".9"><rect x="10" y="10" width="4" height="2"/><rect x="10" y="13.5" width="4" height="2"/></g></svg>';
-const LM_ATTR = 'viewBox="0 0 24 24" stroke="#fff" stroke-width="0.9" stroke-linejoin="round"';
+const GENERIC_LM = '<svg viewBox="0 0 24 24" stroke="#241a30" stroke-width="0.9" stroke-linejoin="round"><path d="M12 1 L14 5.5 H10 Z" fill="#ffd454" stroke="#241a30" stroke-width="0.6"/><rect x="8.5" y="6" width="7" height="15" fill="currentColor"/><rect x="8.5" y="6" width="7" height="2.6" fill="#ffd454" stroke="none"/><rect x="6" y="18" width="12" height="3" fill="currentColor"/><g fill="#fff" stroke="none" opacity=".9"><rect x="10" y="10" width="4" height="2"/><rect x="10" y="13.5" width="4" height="2"/></g></svg>';
+const LM_ATTR = 'viewBox="0 0 24 24" stroke="#241a30" stroke-width="0.9" stroke-linejoin="round"';
 const LANDMARK: Record<string, string> = {
   '카이로': `<svg ${LM_ATTR}><path d="M12 3 L21 21 H3 Z" fill="currentColor"/><path d="M12 3 L12 21" stroke="rgba(0,0,0,.14)"/></svg>`,
   '아테네': `<svg ${LM_ATTR}><path d="M3 9 L12 4 L21 9 Z" fill="currentColor"/><g fill="currentColor" stroke="none"><rect x="5" y="10.5" width="2.2" height="8.5"/><rect x="9" y="10.5" width="2.2" height="8.5"/><rect x="12.8" y="10.5" width="2.2" height="8.5"/><rect x="16.8" y="10.5" width="2.2" height="8.5"/></g><rect x="3.5" y="19" width="17" height="2" fill="currentColor"/></svg>`,
@@ -229,14 +229,22 @@ export class BlueMarbleRenderer {
     // 통행료 타격감 — 이동/시퀀스 끝난 뒤 1회 재생
     if (!this.busy && state.fx && state.fx.seq !== this.lastFxSeq) {
       this.lastFxSeq = state.fx.seq;
-      this.playFx(state.fx.amount, state.fx.mul);
+      this.playFx(state.fx.amount, state.fx.mul, state.fx.kind);
     }
     if (!this.busy) this.cb.onSettled();   // idle → 더미 진행 트리거
   }
 
-  /** 통행료 타격감: 큰 숫자 팝업 + 화면 흔들림 + 동전 튀기기 (배수 클수록 강하게) */
-  private playFx(amount: number, mul: number): void {
+  /** 타격감/획득 연출. gain(월급)=초록 +₩ 팝업, toll(통행료)=흔들림+동전 */
+  private playFx(amount: number, mul: number, kind: 'toll' | 'gain'): void {
     if (this.destroyed) return;
+    if (kind === 'gain') {
+      const g = document.createElement('div');
+      g.className = 'bm-fxnum gain';
+      g.innerHTML = `<span>+₩${amount.toLocaleString()}</span>`;
+      this.root.appendChild(g);
+      window.setTimeout(() => g.remove(), 1300);
+      return;
+    }
     const strong = mul >= 3;
     // 화면 흔들림
     this.root.classList.remove('bm-shake', 'bm-shake-strong');
@@ -726,7 +734,7 @@ function shade(hex: string, f: number): string {
   return `#${((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1)}`;
 }
 /** 플레이어 색의 진한 버전 (건물/랜드마크용) */
-function colorDeep(state: BMState, peerId: string): string { return shade(colorOf(state, peerId), 0.68); }
+function colorDeep(state: BMState, peerId: string): string { return shade(colorOf(state, peerId), 0.82); }
 /** 게임 말(폰 모양) SVG — 머리 구슬 + 몸통, 플레이어색 + 진한 외곽선 */
 function tokenSvg(color: string, dark: string): string {
   return `<svg viewBox="0 0 24 30" aria-hidden="true">
@@ -810,6 +818,8 @@ function injectStyle(): void {
 .bm-fxmul{font-size:clamp(16px,3vw,26px);color:#ff5a92;}
 .bm-fxnum.fire{color:#ff2d55;text-shadow:0 0 16px rgba(255,60,90,.7),0 3px 10px rgba(0,0,0,.3);}
 .bm-fxnum.fire .bm-fxmul{color:#ffab1c;}
+.bm-fxnum.gain{color:#2fa968;text-shadow:0 2px 8px rgba(47,169,104,.35);}
+.bm-fxnum.gain span:last-child{font-size:clamp(24px,4.5vw,42px);}
 @keyframes bm-fxnum{0%{opacity:0;transform:translate(-50%,-30%) scale(.4);}25%{opacity:1;transform:translate(-50%,-50%) scale(1.12);}70%{opacity:1;transform:translate(-50%,-52%) scale(1);}100%{opacity:0;transform:translate(-50%,-80%) scale(.95);}}
 /* 타격감: 동전 */
 .bm-coins{position:absolute;top:44%;left:50%;z-index:59;pointer-events:none;}
