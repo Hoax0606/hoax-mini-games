@@ -9,10 +9,13 @@
 import type { GameModule, GameContext, GameMessage, GameResult, Player } from '../types';
 import { sound } from '../../core/sound';
 import {
-  BOARD, CARDS, SALARY, DESERT_TURNS, buildCostOf, canBuild, acquireCost,
+  BOARD, CARDS, BUILD_TYPES, SALARY, DESERT_TURNS, buildCostOf, canBuild, acquireCost,
   tollFor, alivePeers, nextTurnIdx, createInitialState,
   type BMState, type BuildKind,
 } from './rules';
+
+/** 솔로(AlphaTest) 프리뷰용 더미 상대 peerId */
+const DUMMY = '__preview_dummy__';
 import {
   encodeHello, decodeHello, encodeSync, decodeSync,
   encodeAct, decodeAct, encodeEnd, decodeEnd, type BMAction,
@@ -53,10 +56,11 @@ class BlueMarbleModule implements GameModule {
     if (this.isHost) {
       const players = orderPlayersHostFirst(ctx.players.filter((p) => p.role === 'player'))
         .map((p) => ({ peerId: p.peerId, nickname: p.nickname }));
+      // 솔로(AlphaTest) 프리뷰 — 더미 상대 1명 추가(자동 진행)
+      if (players.length === 1) players.push({ peerId: DUMMY, nickname: '연습 상대' });
       this.state = createInitialState(players);
       this.state.log = `${this.state.players[this.state.order[0]!]!.nickname}님부터 시작!`;
-      this.sync();
-      this.render();
+      this.afterChange();
     } else {
       this.ctx.sendToPeer(encodeHello(this.myPeerId));
     }
@@ -79,6 +83,7 @@ class BlueMarbleModule implements GameModule {
 
   destroy(): void {
     this.destroyed = true;
+    if (this.dummyTimer !== null) { window.clearTimeout(this.dummyTimer); this.dummyTimer = null; }
     this.renderer?.destroy();
     sound.stopBgm();
   }
@@ -91,7 +96,41 @@ class BlueMarbleModule implements GameModule {
     const wasTheirTurn = this.state.order[this.state.turnIdx] === peerId;
     this.bankrupt(peerId);
     if (!this.ended && wasTheirTurn) { this.state.pending = null; this.advanceTurn(); }
-    this.sync(); this.render();
+    this.afterChange();
+  }
+
+  // ── 상태 변경 후: 동기화 + 렌더 + 더미 자동 진행 ──
+  private afterChange(): void {
+    this.sync();
+    this.render();
+    this.maybeAutoPlay();
+  }
+
+  private dummyTimer: number | null = null;
+  /** 현재 차례가 더미면 잠시 후 자동 행동 예약 */
+  private maybeAutoPlay(): void {
+    if (!this.isHost || this.ended || this.dummyTimer !== null) return;
+    if (this.state.order[this.state.turnIdx] !== DUMMY) return;
+    this.dummyTimer = window.setTimeout(() => {
+      this.dummyTimer = null;
+      if (this.destroyed || this.ended) return;
+      this.dummyAct();
+    }, 950);
+  }
+  /** 더미의 한 스텝 (주사위/결정) — hostHandle 로 처리 */
+  private dummyAct(): void {
+    const s = this.state;
+    if (s.order[s.turnIdx] !== DUMMY) return;
+    const pend = s.pending;
+    if (!pend) { this.hostHandle({ kind: 'roll', by: DUMMY }, DUMMY); return; }
+    if (pend.kind === 'buy') this.hostHandle({ kind: 'decision', accept: Math.random() < 0.75, by: DUMMY }, DUMMY);
+    else if (pend.kind === 'acquire') this.hostHandle({ kind: 'decision', accept: Math.random() < 0.35, by: DUMMY }, DUMMY);
+    else if (pend.kind === 'card') this.hostHandle({ kind: 'card', keep: !!CARDS[pend.card]!.keep && Math.random() < 0.5, by: DUMMY }, DUMMY);
+    else if (pend.kind === 'build') {
+      const opt = BUILD_TYPES.find((bt) => canBuild(s, pend.tile, DUMMY, bt.kind));
+      if (opt && Math.random() < 0.6) this.hostHandle({ kind: 'build', build: opt.kind, by: DUMMY }, DUMMY);
+      else this.hostHandle({ kind: 'endTurn', by: DUMMY }, DUMMY);
+    }
   }
 
   // ============================================
@@ -111,7 +150,7 @@ class BlueMarbleModule implements GameModule {
     const cur = s.order[s.turnIdx];
     if (by !== cur || s.players[by]?.bankrupt) return; // 내 차례 아닌 사람 무시
 
-    if (action.kind === 'useHeld') { this.useHeld(by, action.cardId); this.sync(); this.render(); return; }
+    if (action.kind === 'useHeld') { this.useHeld(by, action.cardId); this.afterChange(); return; }
 
     if (action.kind === 'roll') {
       if (s.pending) return;
@@ -126,7 +165,7 @@ class BlueMarbleModule implements GameModule {
     } else if (action.kind === 'card') {
       if (s.pending?.kind === 'card') { this.resolveCard(by, s.pending.card, action.keep); s.pending = null; this.endStep(by); }
     }
-    this.sync(); this.render();
+    this.afterChange();
   }
 
   private rollAndMove(peer: string): void {
