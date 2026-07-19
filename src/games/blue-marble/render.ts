@@ -354,7 +354,7 @@ export class BlueMarbleRenderer {
     if (!p) { this.closeModal(); return; }
     const cur = state.order[state.turnIdx]!;
     const mine = cur === myPeerId && !isSpectator;
-    if (!mine) { this.showActing(`${state.players[cur]!.nickname}님이 ${pendingLabel(p)} 중…`); return; }
+    if (!mine) { this.showActing(state, p, cur); return; }
     // 내 결정 모달 (이미 같은 종류 열려있으면 유지)
     const kind = `${p.kind}:${'tile' in p ? p.tile : ''}`;
     if (this.openKind === kind && this.modalScrim) { if (p.kind === 'build') this.refreshBuildMenu(state); return; }
@@ -365,15 +365,26 @@ export class BlueMarbleRenderer {
     else if (p.kind === 'card') this.cardModal(state, p.card);
   }
 
-  private showActing(text: string): void {
-    if (this.openKind === 'acting' && this.modalScrim) {
-      const t = this.modalScrim.querySelector('.bm-acttxt'); if (t) t.textContent = text; return;
-    }
+  /** 다른 사람 차례일 때 — 구매 카드와 같은 크기의 카드로 "OO님이 ~ 중" 표시(딤 없이 판은 계속 보이게) */
+  private showActing(state: BMState, p: NonNullable<BMState['pending']>, cur: string): void {
+    const key = `acting:${p.kind}:${'tile' in p ? p.tile : p.card}`;
+    if (this.openKind === key && this.modalScrim) return;  // 같은 상태면 유지(스피너 계속 회전)
     this.closeModal();
-    const bar = document.createElement('div'); bar.className = 'bm-actbar';
-    bar.innerHTML = `<span class="bm-sp"></span><span class="bm-acttxt">${text}</span>`;
-    document.body.appendChild(bar);
-    this.modalScrim = bar; this.openKind = 'acting';
+    const who = state.players[cur]!.nickname;
+    const foot = `<div class="bm-actft"><span class="bm-sp"></span><span><b>${who}</b>님이 ${pendingLabel(p)} 중…</span></div>`;
+    let head: string, body: string;
+    if (p.kind === 'card') {
+      head = `<div class="bm-top" style="background:linear-gradient(90deg,#ffd454,#ffb02e)">${IC.key} 황금열쇠</div>`;
+      body = `<div class="bm-body"><div class="bm-cardic">${IC[CARD_IC[p.card]!] ?? IC.key}</div><div class="bm-ctitle">${cardTitle(p.card)}</div>${foot}</div>`;
+    } else {
+      const tile = p.tile;
+      const label = p.kind === 'acquire' ? '인수' : p.kind === 'build' ? '건설' : (BOARD[tile].type === 'island' ? '섬 구매' : '도시 구매');
+      head = `<div class="bm-top" style="background:${tileColor(tile)}">${label}</div>`;
+      body = `<div class="bm-body">${deedHTML(state, tile)}${foot}</div>`;
+    }
+    const scrim = document.createElement('div'); scrim.className = 'bm-scrim bm-noscrim';
+    scrim.innerHTML = `<div class="bm-modal">${head}${body}</div>`;
+    document.body.appendChild(scrim); this.modalScrim = scrim; this.openKind = key;
   }
 
   private closeModal(): void {
@@ -643,7 +654,9 @@ function injectStyle(): void {
 .bm-itable{width:100%;font-size:11.5px;border-collapse:collapse;margin-top:2px;} .bm-itable td{padding:3.5px 6px;border-bottom:1px solid #f2eaf4;} .bm-itable td:last-child{text-align:right;font-weight:800;} .bm-itable td:first-child{color:#6a5a6a;}
 .bm-ihdr{font-size:11.5px;font-weight:800;color:#8a7a8a;margin-top:10px;}
 .bm-curbox{background:#fff6fa;border:1px solid #ffd6e6;border-radius:12px;padding:8px 11px;margin:8px 0;}
-.bm-actbar{position:fixed;top:20px;left:50%;transform:translateX(-50%);z-index:210;background:rgba(74,58,74,.92);color:#fff;font-size:13px;font-weight:800;padding:9px 18px;border-radius:999px;display:flex;align-items:center;gap:8px;box-shadow:0 8px 22px rgba(0,0,0,.28);pointer-events:none;}
+.bm-scrim.bm-noscrim{background:transparent;pointer-events:none;}
+.bm-actft{display:flex;align-items:center;justify-content:center;gap:8px;margin-top:12px;padding-top:11px;border-top:1px solid #f0e6f4;font-size:13px;font-weight:700;color:#6a5a6a;} .bm-actft b{color:#4a3a4a;}
+.bm-actft .bm-sp{border-color:rgba(120,90,130,.28);border-top-color:#8a5a78;}
 .bm-sp{width:14px;height:14px;border:2px solid rgba(255,255,255,.4);border-top-color:#fff;border-radius:50%;animation:bm-spin .7s linear infinite;}
 @keyframes bm-spin{to{transform:rotate(360deg);}}
 .bm-end{position:absolute;inset:0;z-index:50;background:rgba(54,36,56,.55);display:grid;place-items:center;}
