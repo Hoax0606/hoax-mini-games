@@ -128,7 +128,7 @@ class BlueMarbleModule implements GameModule {
         this.state.pending = null;
         this.endStep(peer);      // 더블이면 재굴림, 아니면 다음 턴
         this.afterChange();
-      }, 1300);
+      }, 1000);
       return;
     }
     if (this.dummyTimer !== null) return;
@@ -137,7 +137,7 @@ class BlueMarbleModule implements GameModule {
       this.dummyTimer = null;
       if (this.destroyed || this.ended) return;
       this.dummyAct();
-    }, 950);
+    }, 600);
   }
   /** 더미의 한 스텝 (주사위/결정) — hostHandle 로 처리 */
   private dummyAct(): void {
@@ -289,7 +289,7 @@ class BlueMarbleModule implements GameModule {
     const p = s.players[peer]!;
 
     if (p.desertLeft > 0) {
-      if (a === b) { p.desertLeft = 0; s.log = `${p.nickname} 무인도 탈출!`; this.move(peer, a + b); this.resolveLanding(peer); }
+      if (a === b) { p.desertLeft = 0; s.log = `${p.nickname} 무인도 탈출!`; this.move(peer, a + b); this.sync(); this.render(); this.resolveLanding(peer); }
       else { p.desertLeft -= 1; s.doubles = 0; s.log = `${p.nickname} 무인도… (${p.desertLeft}턴 남음)`; this.advanceTurn(); }
       return;
     }
@@ -297,6 +297,7 @@ class BlueMarbleModule implements GameModule {
     if (s.doubles >= 3) { s.doubles = 0; this.toDesert(peer); s.log = `${p.nickname} 더블 3연속 → 무인도!`; this.advanceTurn(); return; }
     s.log = `${p.nickname} · ${a}+${b}=${a + b}`;
     this.move(peer, a + b);
+    this.sync(); this.render();  // 이동 애니 트리거(dice 살아있을 때) — 통행료/세금 등 결정 없는 착지도 말이 움직이게
     this.resolveLanding(peer);
   }
 

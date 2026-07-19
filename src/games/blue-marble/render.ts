@@ -131,6 +131,8 @@ export class BlueMarbleRenderer {
   private buildSel = new Set<BuildKind>();
   /** 세계여행: 칸 클릭으로 목적지 선택하는 모드 */
   private travelMode = false;
+  /** 올림픽 개최/추가 건설: 클릭 가능한 내 땅 목록(나머지는 어둡게) */
+  private pickTiles: number[] = [];
   /** 마지막으로 재생한 타격감 fx seq (중복 재생 방지) */
   private lastFxSeq = 0;
 
@@ -199,6 +201,7 @@ export class BlueMarbleRenderer {
       el.addEventListener('click', () => {
         const i = Number(el.dataset.i);
         if (this.travelMode) { this.cb.onTravelTo(i); return; }
+        if (this.pickTiles.includes(i)) { this.cb.onPickCity(i); return; }   // 올림픽/추가건설 선택
         if (el.classList.contains('bm-prop')) this.infoModal(i);
       });
     });
@@ -296,7 +299,7 @@ export class BlueMarbleRenderer {
       if (this.destroyed) { if (this.spinTimer !== null) window.clearInterval(this.spinTimer); return; }
       d1.innerHTML = diceFace(1 + Math.floor(Math.random() * 6));
       d2.innerHTML = diceFace(1 + Math.floor(Math.random() * 6));
-      if (++t > 8) {
+      if (++t > 6) {
         window.clearInterval(this.spinTimer!); this.spinTimer = null;
         d1.classList.remove('bm-rolling'); d2.classList.remove('bm-rolling');
         const s = this._lastState!;
@@ -323,7 +326,7 @@ export class BlueMarbleRenderer {
       this.renderTokens(st);
       // 마지막 칸에 도착 → 말이 잠시 머문 뒤에 결정창(구매/황금열쇠) 표시
       if (this.dispPos[active] === st.pos[active]) { this.clearMove(); this.settle(); }
-    }, 220);
+    }, 160);
   }
 
   /** 도착 후 짧은 텀(360ms)을 두고 결정창/배너 표시 — 착지하자마자 모달이 뜨지 않게 */
@@ -334,7 +337,7 @@ export class BlueMarbleRenderer {
       if (this.destroyed) return;
       this.busy = false;
       const st = this._lastState; if (st) this.render(st, this.myId, this.spec);
-    }, 360);
+    }, 240);
   }
 
   /** 이동 애니 중 말(구슬)만 다시 그림 — 건물/깃발 SVG 재생성 없이 가벼워서 첫 이동도 매끄러움 */
@@ -449,16 +452,25 @@ export class BlueMarbleRenderer {
   // ── 결정 모달 / 행동중 배너 ──
   private renderPending(state: BMState, myPeerId: string, isSpectator: boolean): void {
     // 주사위/이동 시퀀스 중엔 결정창/배너 보류 (완료 후 render 재호출에서 표시)
-    if (this.busy) { this.travelMode = false; this.closeModal(); return; }
+    if (this.busy) { this.travelMode = false; this.setPickMode(null); this.closeModal(); return; }
     const p = state.pending;
-    if (!p) { this.travelMode = false; this.closeModal(); return; }
-    if (p.kind === 'info') { this.travelMode = false; this.showInfo(p.tile, p.text); return; }   // 안내 토스트(모두에게)
+    if (!p) { this.travelMode = false; this.setPickMode(null); this.closeModal(); return; }
+    if (p.kind === 'info') { this.travelMode = false; this.setPickMode(null); this.showInfo(p.tile, p.text); return; }
     const cur = state.order[state.turnIdx]!;
     const mine = cur === myPeerId && !isSpectator;
-    // 세계여행: 내 차례면 칸 클릭 모드, 아니면 배너
+    // 세계여행 = 아무 칸 클릭 / 올림픽·추가건설 = 내 땅만 클릭(나머지 어둡게)
     this.travelMode = p.kind === 'travel' && mine;
+    let pick: number[] | null = null;
+    if (mine && (p.kind === 'olympic' || p.kind === 'startBuild')) {
+      pick = Object.keys(state.owner).map(Number).filter((i) =>
+        state.owner[i] === myPeerId && BOARD[i].type === 'city'
+        && (p.kind === 'olympic' || (['villa', 'house2', 'apt', 'landmark'] as BuildKind[]).some((k) => canBuild(state, i, myPeerId, k))));
+    }
+    this.setPickMode(pick);
     if (!mine) { this.showActing(state, p, cur); return; }
     if (p.kind === 'travel') { this.showBanner('이동할 칸을 클릭하세요'); return; }
+    if (p.kind === 'olympic') { this.showBanner('개최할 내 땅을 클릭하세요'); return; }
+    if (p.kind === 'startBuild') { this.showBanner('건설할 내 땅을 클릭하세요'); return; }
     // 내 결정 모달 (이미 같은 종류 열려있으면 유지)
     const disc = p.kind === 'bonus' ? `${p.round}:${p.pot}` : ('tile' in p ? p.tile : '');
     const kind = `${p.kind}:${disc}`;
@@ -468,9 +480,17 @@ export class BlueMarbleRenderer {
     else if (p.kind === 'acquire') this.buyOrAcquireModal(state, p.tile, true);
     else if (p.kind === 'build') this.buildMenuModal(state, p.tile);
     else if (p.kind === 'card') this.cardModal(state, p.card);
-    else if (p.kind === 'olympic') this.pickCityModal(state, myPeerId, 'olympic');
-    else if (p.kind === 'startBuild') this.pickCityModal(state, myPeerId, 'startBuild');
     else if (p.kind === 'bonus') this.bonusModal(p.round, p.pot);
+  }
+
+  /** 보드 칸 선택 모드 — tiles 만 밝게+클릭 가능, 나머지 어둡게 (없으면 해제) */
+  private setPickMode(tiles: number[] | null): void {
+    const set = new Set(tiles ?? []);
+    this.root.classList.toggle('bm-picking', set.size > 0);
+    this.root.querySelectorAll<HTMLElement>('.bm-tile').forEach((el) => {
+      el.classList.toggle('bm-pickable', set.has(Number(el.dataset.i)));
+    });
+    this.pickTiles = tiles ?? [];
   }
 
   /** 세계여행: 이동할 칸 클릭 안내 배너 (딤 없이) */
@@ -483,27 +503,6 @@ export class BlueMarbleRenderer {
   }
 
   /** 올림픽 개최 / 추가 건설: 내 도시 하나 선택 */
-  private pickCityModal(state: BMState, myPeerId: string, mode: 'olympic' | 'startBuild'): void {
-    this.closeModal();
-    const mine = Object.keys(state.owner).map(Number)
-      .filter((i) => state.owner[i] === myPeerId && BOARD[i].type === 'city'
-        && (mode === 'olympic' || (['villa', 'house2', 'apt', 'landmark'] as BuildKind[]).some((k) => canBuild(state, i, myPeerId, k))));
-    const title = mode === 'olympic' ? '올림픽 개최' : '추가 건설';
-    const sub = mode === 'olympic' ? '개최할 내 도시를 골라요 (통행료 배수 ↑)' : '추가로 건설할 내 도시를 골라요';
-    const rows = mine.map((i) => {
-      const t = BOARD[i] as { name: string };
-      const oly = mode === 'olympic' && state.olympic[i] ? ` <span style="color:#ff5a92">현재 ×${state.olympic[i]}</span>` : '';
-      return `<button class="bm-brow" data-i="${i}"><span class="bm-bnm">${t.name}</span><span class="bm-bst">${oly || ''}</span></button>`;
-    }).join('') || '<div class="bm-sub">가능한 도시가 없어요</div>';
-    const scrim = document.createElement('div'); scrim.className = 'bm-scrim';
-    scrim.innerHTML = `<div class="bm-modal" style="width:290px"><div class="bm-top" style="background:linear-gradient(90deg,#ffd454,#ffb02e)">${title}</div>
-      <div class="bm-body"><div class="bm-sub">${sub}</div><div class="bm-bmenu">${rows}</div></div></div>`;
-    document.body.appendChild(scrim); this.modalScrim = scrim;
-    scrim.querySelectorAll<HTMLButtonElement>('.bm-brow').forEach((b) => {
-      b.onclick = () => this.cb.onPickCity(Number(b.dataset.i));
-    });
-  }
-
   /** 오락실(보너스 게임): 2지선다 + 받기 */
   private bonusModal(round: number, pot: number): void {
     this.closeModal();
@@ -780,6 +779,11 @@ function injectStyle(): void {
 .bm-prop:hover{transform:translateY(-3px) scale(1.05);z-index:6;filter:brightness(1.07) saturate(1.08);
   box-shadow:0 10px 20px rgba(60,40,80,.34);outline:2.5px solid rgba(255,255,255,.92);outline-offset:-2px;border-radius:8px;}
 @media(prefers-reduced-motion:reduce){.bm-prop{transition:none;} .bm-prop:hover{transform:none;}}
+/* 칸 선택 모드(올림픽 개최/추가 건설): 내 땅만 밝게, 나머지 어둡게 */
+.bm-root.bm-picking .bm-tile{filter:brightness(.42) saturate(.7);transition:filter .2s;}
+.bm-root.bm-picking .bm-tile.bm-pickable{filter:none;cursor:pointer;outline:3px solid #ffd454;outline-offset:-2px;border-radius:8px;z-index:5;animation:bm-pickpulse 1.1s ease-in-out infinite;}
+@keyframes bm-pickpulse{0%,100%{box-shadow:0 0 0 rgba(255,206,70,.4);}50%{box-shadow:0 0 16px 2px rgba(255,206,70,.9);}}
+@media(prefers-reduced-motion:reduce){.bm-root.bm-picking .bm-tile.bm-pickable{animation:none;}}
 .bm-cinfo{position:absolute;bottom:0;left:0;right:0;padding:3px 3px 4px;text-align:center;z-index:1;}
 .bm-cnm{font-size:13px;font-weight:800;color:#2c2136;text-shadow:0 1px 0 rgba(255,255,255,.45);line-height:1.1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 .bm-special,.bm-corner{align-items:center;justify-content:center;text-align:center;background:#fffdf7;}
