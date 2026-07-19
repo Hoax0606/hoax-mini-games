@@ -18,6 +18,8 @@ export interface BMRenderCallbacks {
   onBuildDone(): void;                  // 건설 메뉴 완료
   onCard(keep: boolean): void;          // 황금열쇠 보관/사용
   onUseHeld(cardId: number): void;
+  /** 주사위·이동 시퀀스가 끝나 화면이 idle 이 됨(호스트가 더미 진행 타이밍에 사용) */
+  onSettled(): void;
 }
 
 const GROUP: Record<GroupColor, string> = {
@@ -112,6 +114,9 @@ export class BlueMarbleRenderer {
   /** 화면에 표시 중인 말 위치 (state.pos 로 한 칸씩 애니메이션) */
   private dispPos: Record<string, number> = {};
   private moveTimer: number | null = null;
+  private spinTimer: number | null = null;
+  /** 주사위 굴림 → 이동 시퀀스 진행 중이면 결정창 보류 */
+  private busy = false;
   private myId = '';
   private spec = false;
 
@@ -128,29 +133,12 @@ export class BlueMarbleRenderer {
   destroy(): void {
     this.destroyed = true;
     this.clearMove();
+    if (this.spinTimer !== null) window.clearInterval(this.spinTimer);
     this.closeModal();
     this.root.remove();
   }
 
   private clearMove(): void { if (this.moveTimer !== null) { window.clearInterval(this.moveTimer); this.moveTimer = null; } }
-
-  /** dispPos → state.pos 로 말을 한 칸씩 이동(순간이동 방지). 큰 점프(카드)만 즉시. */
-  private ensureMoveAnim(state: BMState): void {
-    if (this.moveTimer !== null) return;
-    // 큰 점프는 바로 반영
-    for (const p of state.order) {
-      const gap = (((state.pos[p]! - (this.dispPos[p] ?? state.pos[p]!)) % 40) + 40) % 40;
-      if (gap > 12) this.dispPos[p] = state.pos[p]!;
-    }
-    if (!state.order.some((p) => this.dispPos[p] !== state.pos[p])) return;
-    this.moveTimer = window.setInterval(() => {
-      const s = this._lastState; if (this.destroyed || !s) { this.clearMove(); return; }
-      for (const p of s.order) if (this.dispPos[p] !== s.pos[p]) this.dispPos[p] = (this.dispPos[p]! + 1) % 40;
-      this.renderTiles(s);
-      const left = s.order.some((p) => this.dispPos[p] !== s.pos[p]);
-      if (!left) { this.clearMove(); this.render(s, this.myId, this.spec); } // 도착 → 전체 리렌더(결정창 표시)
-    }, 170);
-  }
 
   // ── 정적 보드 HTML (1회) ──
   private boardHTML(): string {
@@ -202,14 +190,58 @@ export class BlueMarbleRenderer {
     if (this.destroyed) return;
     this._lastState = state; this.myId = myPeerId; this.spec = isSpectator;
     for (const p of state.order) if (this.dispPos[p] === undefined) this.dispPos[p] = state.pos[p]!;
-    this.ensureMoveAnim(state);
+
+    const key = state.dice ? state.dice.join(',') : '';
+    const newRoll = !!state.dice && key !== this.lastDice && !this.busy;
+
     this.renderTiles(state);
-    this.renderDice(state);
     this.renderCenter(state, myPeerId, isSpectator);
     this.renderPanel(state, myPeerId);
     this.renderHeld(state, myPeerId);
-    this.renderPending(state, myPeerId, isSpectator);
+
+    if (newRoll) { this.lastDice = key; this.startSequence(state); }   // ① 주사위 → ② 이동 → ③ 결정
+    else if (!state.dice) { this.lastDice = ''; this.setDie('#bm-d1', 1); this.setDie('#bm-d2', 1); }
+
+    this.renderPending(state, myPeerId, isSpectator);  // busy면 내부에서 보류
     if (state.phase === 'ended') this.showEnd(state, myPeerId);
+    if (!this.busy) this.cb.onSettled();   // idle → 더미 진행 트리거
+  }
+
+  private setDie(sel: string, n: number): void { const el = this.root.querySelector(sel); if (el) el.innerHTML = diceFace(n); }
+
+  /** ① 주사위 굴림 연출(~600ms) → 끝나면 이동 시퀀스 */
+  private startSequence(state: BMState): void {
+    this.busy = true; this.clearMove();
+    if (this.spinTimer !== null) window.clearInterval(this.spinTimer);
+    const d1 = this.root.querySelector<HTMLElement>('#bm-d1')!;
+    const d2 = this.root.querySelector<HTMLElement>('#bm-d2')!;
+    d1.classList.add('bm-rolling'); d2.classList.add('bm-rolling');
+    let t = 0;
+    this.spinTimer = window.setInterval(() => {
+      if (this.destroyed) { if (this.spinTimer !== null) window.clearInterval(this.spinTimer); return; }
+      d1.innerHTML = diceFace(1 + Math.floor(Math.random() * 6));
+      d2.innerHTML = diceFace(1 + Math.floor(Math.random() * 6));
+      if (++t > 8) {
+        window.clearInterval(this.spinTimer!); this.spinTimer = null;
+        d1.classList.remove('bm-rolling'); d2.classList.remove('bm-rolling');
+        const s = this._lastState!;
+        d1.innerHTML = diceFace(s.dice![0]); d2.innerHTML = diceFace(s.dice![1]);
+        this.startMoveSeq();  // ② 이동
+      }
+    }, 65);
+  }
+
+  /** ② 말이 칸마다 한 칸씩 이동 → 도착하면 busy 해제 + 전체 리렌더(결정창 표시) */
+  private startMoveSeq(): void {
+    const s = this._lastState; if (!s) { this.busy = false; return; }
+    for (const p of s.order) { const gap = (((s.pos[p]! - this.dispPos[p]!) % 40) + 40) % 40; if (gap > 12) this.dispPos[p] = s.pos[p]!; }
+    if (!s.order.some((p) => this.dispPos[p] !== s.pos[p])) { this.busy = false; this.render(s, this.myId, this.spec); return; }
+    this.moveTimer = window.setInterval(() => {
+      const st = this._lastState; if (this.destroyed || !st) { this.clearMove(); return; }
+      for (const p of st.order) if (this.dispPos[p] !== st.pos[p]) this.dispPos[p] = (this.dispPos[p]! + 1) % 40;
+      this.renderTiles(st);
+      if (!st.order.some((p) => this.dispPos[p] !== st.pos[p])) { this.clearMove(); this.busy = false; this.render(st, this.myId, this.spec); }
+    }, 220);
   }
 
   private renderTiles(state: BMState): void {
@@ -243,27 +275,6 @@ export class BlueMarbleRenderer {
         tile.appendChild(tk);
       }
     }
-  }
-
-  private renderDice(state: BMState): void {
-    const key = state.dice ? state.dice.join(',') : '';
-    if (key === this.lastDice) return;
-    this.lastDice = key;
-    const d1 = this.root.querySelector<HTMLElement>('#bm-d1')!;
-    const d2 = this.root.querySelector<HTMLElement>('#bm-d2')!;
-    if (!state.dice) { d1.innerHTML = diceFace(1); d2.innerHTML = diceFace(1); return; }
-    // 짧은 굴림 연출 후 결과
-    d1.classList.add('bm-rolling'); d2.classList.add('bm-rolling');
-    let ticks = 0;
-    const spin = window.setInterval(() => {
-      d1.innerHTML = diceFace(1 + Math.floor(Math.random() * 6));
-      d2.innerHTML = diceFace(1 + Math.floor(Math.random() * 6));
-      if (++ticks > 6 || this.destroyed) {
-        window.clearInterval(spin);
-        d1.classList.remove('bm-rolling'); d2.classList.remove('bm-rolling');
-        d1.innerHTML = diceFace(state.dice![0]); d2.innerHTML = diceFace(state.dice![1]);
-      }
-    }, 70);
   }
 
   private renderCenter(state: BMState, myPeerId: string, isSpectator: boolean): void {
@@ -304,8 +315,8 @@ export class BlueMarbleRenderer {
 
   // ── 결정 모달 / 행동중 배너 ──
   private renderPending(state: BMState, myPeerId: string, isSpectator: boolean): void {
-    // 말이 아직 이동 중이면 결정창/배너 보류 (도착 후 render 재호출에서 표시)
-    if (this.moveTimer !== null) { this.closeModal(); return; }
+    // 주사위/이동 시퀀스 중엔 결정창/배너 보류 (완료 후 render 재호출에서 표시)
+    if (this.busy) { this.closeModal(); return; }
     const p = state.pending;
     if (!p) { this.closeModal(); return; }
     const cur = state.order[state.turnIdx]!;

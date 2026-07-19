@@ -50,6 +50,7 @@ class BlueMarbleModule implements GameModule {
       onBuildDone: () => this.act({ kind: 'endTurn' }),
       onCard: (keep) => this.act({ kind: 'card', keep }),
       onUseHeld: (cardId) => this.act({ kind: 'useHeld', cardId }),
+      onSettled: () => this.maybeAutoPlay(),  // 애니 끝난 뒤 더미 진행
     });
     sound.startBgm('apple-game');
 
@@ -103,7 +104,7 @@ class BlueMarbleModule implements GameModule {
   private afterChange(): void {
     this.sync();
     this.render();
-    this.maybeAutoPlay();
+    // 더미 자동진행은 render()의 onSettled(애니 완료 후)에서만 트리거 — 여기서 직접 호출 X
   }
 
   private dummyTimer: number | null = null;
