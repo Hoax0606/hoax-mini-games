@@ -157,7 +157,16 @@ class BlueMarbleModule implements GameModule {
       if (s.pending) return;
       this.rollAndMove(by);
     } else if (action.kind === 'decision') {
-      if (s.pending?.kind === 'buy') { if (action.accept) this.doBuy(by, s.pending.tile); s.pending = null; this.endStep(by); }
+      if (s.pending?.kind === 'buy') {
+        if (action.accept) {
+          const tile = s.pending.tile;
+          this.doBuy(by, tile);
+          // 부루마블처럼 구매 직후 바로 건물 짓기 — 지을 수 있는 게 있으면 build 창으로 이어감
+          const buildable = (['villa', 'house2', 'apt', 'landmark'] as BuildKind[]).some((k) => canBuild(s, tile, by, k));
+          if (BOARD[tile].type === 'city' && buildable) { s.pending = { kind: 'build', tile }; this.afterChange(); return; }
+        }
+        s.pending = null; this.endStep(by);
+      }
       else if (s.pending?.kind === 'acquire') { if (action.accept) this.doAcquire(by, s.pending.tile); s.pending = null; this.endStep(by); }
     } else if (action.kind === 'build') {
       if (s.pending?.kind === 'build') this.doBuild(by, s.pending.tile, action.build); // 계속 pending
