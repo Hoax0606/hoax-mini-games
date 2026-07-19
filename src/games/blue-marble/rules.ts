@@ -30,6 +30,8 @@ export const SALARY = 200;
 export const START_MONEY = 2000;
 /** 무인도에 갇히는 최대 턴 수 */
 export const DESERT_TURNS = 3;
+/** 무인도 탈출 비용 (돈 내고 즉시 탈출) */
+export const DESERT_ESCAPE = 300;
 
 // ── 건물 종류 (각각 따로 지음) ──
 export type BuildKind = 'villa' | 'house2' | 'apt' | 'landmark';

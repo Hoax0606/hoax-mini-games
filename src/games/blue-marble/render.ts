@@ -6,13 +6,14 @@
  */
 
 import {
-  BOARD, BUILD_TYPES, ISLAND_TILES, BASE_TOLL_MUL,
+  BOARD, BUILD_TYPES, ISLAND_TILES, BASE_TOLL_MUL, DESERT_ESCAPE,
   buildMeta, buildCostOf, acquireCost, islandCount, hasAllHouses,
   type BMState, type BuildKind, type GroupColor,
 } from './rules';
 
 export interface BMRenderCallbacks {
   onRoll(): void;
+  onDesertPay(): void;                   // 무인도: 돈 내고 탈출
   onDecision(accept: boolean): void;   // 구매/인수 예/아니오
   onBuildConfirm(builds: BuildKind[]): void;  // 선택한 건물들 확정 건설 + 턴 종료(빈 배열 = 그냥 완료)
   onCard(keep: boolean): void;          // 황금열쇠 보관/사용
@@ -154,11 +155,11 @@ export class BlueMarbleRenderer {
       const style = `grid-row:${r};grid-column:${c}`;
       if (t.type === 'city') {
         tiles += `<div class="bm-tile bm-prop" data-i="${i}" style="${style};background:${GROUP[t.group]}">
-          <div class="bm-cinfo"><div class="bm-cnm">${t.name}</div><div class="bm-cpr">${won(t.price)}</div></div></div>`;
+          <div class="bm-cinfo"><div class="bm-cnm">${t.name}</div></div></div>`;
       } else if (t.type === 'island') {
         tiles += `<div class="bm-tile bm-prop" data-i="${i}" style="${style};background:${ISLAND_BG}">
           <span class="bm-islandic">${IC.island}</span>
-          <div class="bm-cinfo"><div class="bm-cnm">${t.name}</div><div class="bm-cpr">${won(t.price)}</div></div></div>`;
+          <div class="bm-cinfo"><div class="bm-cnm">${t.name}</div></div></div>`;
       } else {
         const cls = t.type === 'corner' ? 'bm-corner' : 'bm-special';
         tiles += `<div class="bm-tile ${cls}" data-i="${i}" style="${style}">
@@ -171,6 +172,7 @@ export class BlueMarbleRenderer {
       <div class="bm-diceres" id="bm-diceres"></div>
       <div class="bm-turn" id="bm-turn"></div>
       <button class="bm-roll" id="bm-roll">${IC.dice} 주사위 굴리기</button>
+      <button class="bm-escape" id="bm-escape" style="display:none"></button>
       <div class="bm-hint" id="bm-hint"></div>
     </div>`;
     return `<div class="bm-board">${tiles}${center}</div>
@@ -182,6 +184,7 @@ export class BlueMarbleRenderer {
 
   private wireStatic(): void {
     this.root.querySelector('#bm-roll')!.addEventListener('click', () => this.cb.onRoll());
+    this.root.querySelector('#bm-escape')!.addEventListener('click', () => this.cb.onDesertPay());
     // 타일 클릭 → 정보
     this.root.querySelectorAll<HTMLElement>('.bm-prop').forEach((el) => {
       el.addEventListener('click', () => this.infoModal(Number(el.dataset.i)));
@@ -261,7 +264,7 @@ export class BlueMarbleRenderer {
     this.moveTimer = window.setInterval(() => {
       const st = this._lastState; if (this.destroyed || !st) { this.clearMove(); return; }
       this.dispPos[active] = (this.dispPos[active]! + 1) % BOARD.length;
-      this.renderTiles(st);
+      this.renderTokens(st);
       // 마지막 칸에 도착 → 말이 잠시 머문 뒤에 결정창(구매/황금열쇠) 표시
       if (this.dispPos[active] === st.pos[active]) { this.clearMove(); this.settle(); }
     }, 220);
@@ -276,6 +279,21 @@ export class BlueMarbleRenderer {
       this.busy = false;
       const st = this._lastState; if (st) this.render(st, this.myId, this.spec);
     }, 360);
+  }
+
+  /** 이동 애니 중 말(구슬)만 다시 그림 — 건물/깃발 SVG 재생성 없이 가벼워서 첫 이동도 매끄러움 */
+  private renderTokens(state: BMState): void {
+    for (let i = 0; i < BOARD.length; i++) {
+      const tile = this.root.querySelector<HTMLElement>(`.bm-tile[data-i="${i}"]`);
+      if (!tile) continue;
+      tile.querySelector('.bm-toks')?.remove();
+      const here = state.order.filter((p) => (this.dispPos[p] ?? state.pos[p]) === i && !state.players[p]!.bankrupt);
+      if (here.length) {
+        const tk = document.createElement('div'); tk.className = 'bm-toks';
+        tk.innerHTML = here.map((p) => `<span class="bm-tok" style="background:radial-gradient(circle at 34% 30%, #fff 4%, ${colorOf(state, p)} 60%, ${colorOf(state, p)})"></span>`).join('');
+        tile.appendChild(tk);
+      }
+    }
   }
 
   private renderTiles(state: BMState): void {
@@ -318,7 +336,20 @@ export class BlueMarbleRenderer {
     const turnEl = this.root.querySelector<HTMLElement>('#bm-turn')!;
     turnEl.innerHTML = `<b style="background:${colorOf(state, cur)}">${isMine ? '내 차례' : curP.nickname + ' 차례'}</b>`;
     const roll = this.root.querySelector<HTMLButtonElement>('#bm-roll')!;
-    roll.disabled = !(isMine && !state.pending && state.phase === 'playing');
+    const canAct = isMine && !state.pending && state.phase === 'playing';
+    roll.disabled = !canAct;
+    // 무인도(감옥): 돈 내고 탈출 버튼 + 주사위(더블) 탈출 안내
+    const inDesert = canAct && curP.desertLeft > 0;
+    const esc = this.root.querySelector<HTMLButtonElement>('#bm-escape')!;
+    esc.style.display = inDesert ? 'flex' : 'none';
+    if (inDesert) {
+      const canPay = curP.money >= DESERT_ESCAPE;
+      esc.disabled = !canPay;
+      esc.textContent = `₩${DESERT_ESCAPE.toLocaleString()} 내고 탈출`;
+      roll.innerHTML = `${IC.dice} 주사위 (더블이면 탈출)`;
+    } else {
+      roll.innerHTML = `${IC.dice} 주사위 굴리기`;
+    }
     this.root.querySelector<HTMLElement>('#bm-hint')!.textContent = state.log || '';
   }
 
@@ -597,10 +628,12 @@ function injectStyle(): void {
   grid-template-columns:repeat(9,1fr);grid-template-rows:repeat(9,1fr);
   gap:3px;background:linear-gradient(135deg,#e9f7ff,#ffeaf3);border-radius:16px;padding:7px;box-shadow:0 8px 26px rgba(120,80,140,.14);}
 .bm-tile{position:relative;background:#fff;border:1px solid #efe3f2;border-radius:6px;overflow:hidden;min-width:0;display:flex;flex-direction:column;}
-.bm-prop{cursor:pointer;}
-.bm-cinfo{position:absolute;bottom:0;left:0;right:0;padding:3px 2px 2px;text-align:center;z-index:1;background:linear-gradient(transparent,rgba(0,0,0,.32) 32%,rgba(0,0,0,.62));}
-.bm-cnm{font-size:10px;font-weight:800;color:#fff;text-shadow:0 1px 2px rgba(0,0,0,.6);line-height:1.05;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
-.bm-cpr{font-size:8.5px;font-weight:700;color:rgba(255,255,255,.95);text-shadow:0 1px 1.5px rgba(0,0,0,.55);}
+.bm-prop{cursor:pointer;transition:transform .12s ease,box-shadow .12s ease,filter .12s ease;}
+.bm-prop:hover{transform:translateY(-3px) scale(1.05);z-index:6;filter:brightness(1.07) saturate(1.08);
+  box-shadow:0 10px 20px rgba(60,40,80,.34);outline:2.5px solid rgba(255,255,255,.92);outline-offset:-2px;border-radius:8px;}
+@media(prefers-reduced-motion:reduce){.bm-prop{transition:none;} .bm-prop:hover{transform:none;}}
+.bm-cinfo{position:absolute;bottom:0;left:0;right:0;padding:3px 3px 4px;text-align:center;z-index:1;}
+.bm-cnm{font-size:13px;font-weight:800;color:#2c2136;text-shadow:0 1px 0 rgba(255,255,255,.45);line-height:1.1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 .bm-special,.bm-corner{align-items:center;justify-content:center;text-align:center;background:#fffdf7;}
 .bm-corner{background:linear-gradient(135deg,#fff,#fff4fa);}
 .bm-ic svg{width:17px;height:17px;} .bm-corner .bm-ic svg{width:25px;height:25px;}
@@ -632,6 +665,8 @@ function injectStyle(): void {
 .bm-turn{font-size:14px;font-weight:800;} .bm-turn b{padding:1px 10px;border-radius:999px;color:#fff;}
 .bm-roll{font:inherit;font-weight:800;font-size:14px;color:#fff;background:#ff5a92;border:none;border-radius:999px;padding:9px 20px;cursor:pointer;box-shadow:0 6px 16px rgba(255,90,146,.32);display:flex;align-items:center;gap:5px;}
 .bm-roll svg{width:18px;height:18px;} .bm-roll:disabled{opacity:.45;cursor:default;}
+.bm-escape{font:inherit;font-weight:800;font-size:13px;color:#7a5a10;background:linear-gradient(135deg,#ffe7a0,#ffcf4a);border:none;border-radius:999px;padding:8px 18px;cursor:pointer;box-shadow:0 5px 14px rgba(200,150,30,.32);align-items:center;justify-content:center;}
+.bm-escape:disabled{opacity:.45;cursor:default;}
 .bm-hint{font-size:12px;color:#8a7a8a;min-height:15px;text-align:center;}
 .bm-panel{width:262px;display:flex;flex-direction:column;gap:12px;}
 .bm-pcard{background:rgba(255,255,255,.72);border:1px solid rgba(216,199,255,.7);border-radius:14px;padding:12px;box-shadow:0 4px 14px rgba(120,80,140,.08);}

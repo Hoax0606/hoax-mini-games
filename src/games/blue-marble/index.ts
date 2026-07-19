@@ -9,7 +9,7 @@
 import type { GameModule, GameContext, GameMessage, GameResult, Player } from '../types';
 import { sound } from '../../core/sound';
 import {
-  BOARD, CARDS, SALARY, DESERT_TURNS, buildCostOf, canBuild, acquireCost,
+  BOARD, CARDS, SALARY, DESERT_TURNS, DESERT_ESCAPE, buildCostOf, canBuild, acquireCost,
   tollFor, alivePeers, nextTurnIdx, createInitialState,
   type BMState, type BuildKind,
 } from './rules';
@@ -45,6 +45,7 @@ class BlueMarbleModule implements GameModule {
     const parent = ctx.canvas.parentElement!;
     this.renderer = new BlueMarbleRenderer(parent, {
       onRoll: () => this.act({ kind: 'roll' }),
+      onDesertPay: () => this.act({ kind: 'desertPay' }),
       onDecision: (accept) => this.act({ kind: 'decision', accept }),
       onBuildConfirm: (builds) => this.act({ kind: 'build', builds }),
       onCard: (keep) => this.act({ kind: 'card', keep }),
@@ -168,6 +169,16 @@ class BlueMarbleModule implements GameModule {
     if (by !== cur || s.players[by]?.bankrupt) return; // 내 차례 아닌 사람 무시
 
     if (action.kind === 'useHeld') { this.useHeld(by, action.cardId); this.afterChange(); return; }
+
+    if (action.kind === 'desertPay') {
+      // 무인도: 돈 내고 즉시 탈출 (턴 유지 → 이어서 주사위 굴림)
+      const p = s.players[by]!;
+      if (!s.pending && p.desertLeft > 0 && p.money >= DESERT_ESCAPE) {
+        p.money -= DESERT_ESCAPE; p.desertLeft = 0;
+        s.log = `${p.nickname} ₩${DESERT_ESCAPE.toLocaleString()} 내고 무인도 탈출!`;
+      }
+      this.afterChange(); return;
+    }
 
     if (action.kind === 'roll') {
       if (s.pending) return;
