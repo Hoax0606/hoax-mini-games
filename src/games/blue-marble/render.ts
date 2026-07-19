@@ -610,7 +610,7 @@ function injectStyle(): void {
 .bm-die{width:clamp(36px,4.6vw,52px);aspect-ratio:1;background:#fff;border-radius:12px;box-shadow:0 5px 14px rgba(120,80,140,.22);display:grid;place-items:center;}
 .bm-die svg{width:80%;height:80%;} .bm-die.bm-rolling{animation:bm-shake .12s infinite;}
 @keyframes bm-shake{0%{transform:translateY(0) rotate(-8deg);}50%{transform:translateY(-4px) rotate(8deg);}100%{transform:translateY(0) rotate(-8deg);}}
-.bm-diceres{display:flex;align-items:center;gap:8px;min-height:30px;opacity:0;transform:scale(.7);transition:opacity .18s,transform .28s cubic-bezier(.34,1.56,.64,1);}
+.bm-diceres{display:flex;align-items:center;justify-content:center;gap:8px;height:38px;flex:none;opacity:0;transform:scale(.7);transition:opacity .18s,transform .28s cubic-bezier(.34,1.56,.64,1);}
 .bm-diceres.show{opacity:1;transform:scale(1);}
 .bm-dsum{font-size:20px;font-weight:900;color:#5b3f6e;background:#fff;border-radius:999px;min-width:34px;height:34px;padding:0 8px;display:grid;place-items:center;box-shadow:0 4px 12px rgba(120,80,140,.2);}
 .bm-diceres.dbl .bm-dsum{color:#fff;background:linear-gradient(135deg,#ffb347,#ff5a92);}
