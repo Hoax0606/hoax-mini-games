@@ -84,6 +84,7 @@ class BlueMarbleModule implements GameModule {
   destroy(): void {
     this.destroyed = true;
     if (this.dummyTimer !== null) { window.clearTimeout(this.dummyTimer); this.dummyTimer = null; }
+    if (this.infoTimer !== null) { window.clearTimeout(this.infoTimer); this.infoTimer = null; }
     this.renderer?.destroy();
     sound.stopBgm();
   }
@@ -107,10 +108,26 @@ class BlueMarbleModule implements GameModule {
   }
 
   private dummyTimer: number | null = null;
-  /** 현재 차례가 더미면 잠시 후 자동 행동 예약 */
+  /** 안내(info) 자동 넘김 타이머 */
+  private infoTimer: number | null = null;
+  /** 현재 차례가 더미면 잠시 후 자동 행동 예약 + 안내(info) pending 자동 넘김 */
   private maybeAutoPlay(): void {
-    if (!this.isHost || this.ended || this.dummyTimer !== null) return;
-    if (this.state.order[this.state.turnIdx] !== DUMMY) return;
+    if (!this.isHost || this.ended) return;
+    const s = this.state;
+    // 안내(돈 부족 등) → 잠깐 보여준 뒤 자동으로 턴 마무리
+    if (s.pending?.kind === 'info') {
+      if (this.infoTimer === null) this.infoTimer = window.setTimeout(() => {
+        this.infoTimer = null;
+        if (this.destroyed || this.ended) return;
+        const peer = this.state.order[this.state.turnIdx]!;
+        this.state.pending = null;
+        this.endStep(peer);      // 더블이면 재굴림, 아니면 다음 턴
+        this.afterChange();
+      }, 1300);
+      return;
+    }
+    if (this.dummyTimer !== null) return;
+    if (s.order[s.turnIdx] !== DUMMY) return;
     this.dummyTimer = window.setTimeout(() => {
       this.dummyTimer = null;
       if (this.destroyed || this.ended) return;
@@ -220,7 +237,9 @@ class BlueMarbleModule implements GameModule {
       const o = s.owner[i];
       if (o === undefined) {
         if (p.money >= t.price) { s.pending = { kind: 'buy', tile: i }; this.render(); return; }
+        // 살 돈이 없으면 잠깐 안내 후 자동으로 턴 넘김 (info pending)
         s.log = `${t.name} — 살 돈이 부족해요`;
+        s.pending = { kind: 'info', tile: i, text: '살 돈이 부족해요' }; this.render(); return;
       } else if (o === peer) {
         if (t.type === 'city' && (['villa', 'house2', 'apt', 'landmark'] as BuildKind[]).some((k) => canBuild(s, i, peer, k))) {
           s.pending = { kind: 'build', tile: i }; this.render(); return;

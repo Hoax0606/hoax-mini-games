@@ -152,6 +152,7 @@ export type Pending =
   | { kind: 'build'; tile: number }                 // 내 도시 도착 → 건설 메뉴(원하는 건물 선택)
   | { kind: 'acquire'; tile: number; cost: number }
   | { kind: 'card'; card: number }
+  | { kind: 'info'; tile: number; text: string }   // 잠깐 안내(돈 부족 등) 후 자동으로 턴 넘김
   | null;
 
 export interface BMState {
