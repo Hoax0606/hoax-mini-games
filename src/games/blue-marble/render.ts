@@ -135,6 +135,8 @@ export class BlueMarbleRenderer {
   private pickTiles: number[] = [];
   /** 마지막으로 재생한 타격감 fx seq (중복 재생 방지) */
   private lastFxSeq = 0;
+  /** 이번에 이동하는 말(굴린 사람). 착지 후 턴이 넘어가도 이 말만 애니 */
+  private moverId = '';
 
   constructor(parent: HTMLElement, cb: BMRenderCallbacks) {
     this.cb = cb;
@@ -289,6 +291,8 @@ export class BlueMarbleRenderer {
   /** ① 주사위 굴림 연출(~600ms) → 끝나면 이동 시퀀스 */
   private startSequence(state: BMState): void {
     this.busy = true; this.clearMove();
+    this.moverId = state.order[state.turnIdx]!;   // 지금 차례(=굴린 사람) 캡처 — 이후 턴이 넘어가도 이 말만 이동 애니
+    const fd = state.dice ? [state.dice[0], state.dice[1]] as [number, number] : null;  // 시작 시점 주사위 캡처(스핀 끝날 때 dice가 null 돼도 안전)
     if (this.spinTimer !== null) window.clearInterval(this.spinTimer);
     const d1 = this.root.querySelector<HTMLElement>('#bm-d1')!;
     const d2 = this.root.querySelector<HTMLElement>('#bm-d2')!;
@@ -302,9 +306,7 @@ export class BlueMarbleRenderer {
       if (++t > 6) {
         window.clearInterval(this.spinTimer!); this.spinTimer = null;
         d1.classList.remove('bm-rolling'); d2.classList.remove('bm-rolling');
-        const s = this._lastState!;
-        d1.innerHTML = diceFace(s.dice![0]); d2.innerHTML = diceFace(s.dice![1]);
-        this.setDiceRes([s.dice![0], s.dice![1]]);  // 합계/더블 표시
+        if (fd) { d1.innerHTML = diceFace(fd[0]); d2.innerHTML = diceFace(fd[1]); this.setDiceRes(fd); }
         this.startMoveSeq();  // ② 이동
       }
     }, 65);
@@ -313,7 +315,7 @@ export class BlueMarbleRenderer {
   /** ② 현재 차례 말만 칸마다 한 칸씩 이동 → 도착하면 busy 해제 + 전체 리렌더(결정창 표시) */
   private startMoveSeq(): void {
     const s = this._lastState; if (!s) { this.busy = false; return; }
-    const active = s.order[s.turnIdx]!;   // 이번에 움직이는 말은 현재 차례 하나뿐
+    const active = (this.moverId && s.pos[this.moverId] !== undefined) ? this.moverId : s.order[s.turnIdx]!;   // 굴린 사람(캡처) — 턴 넘어가도 그 말만
     // 나머지 말들은 즉시 제자리로 스냅 → 이전 애니 잔상이 같이 따라 움직이는 버그 방지
     for (const p of s.order) if (p !== active) this.dispPos[p] = s.pos[p]!;
     // 카드 등으로 12칸 초과 순간이동은 스텝 없이 즉시
@@ -798,9 +800,9 @@ function injectStyle(): void {
 .bm-blds svg{width:21px;height:21px;filter:drop-shadow(0 1px 1.5px rgba(0,0,0,.3));}
 .bm-blds.bm-lm svg{width:44px;height:44px;filter:drop-shadow(0 0 5px rgba(255,200,60,.9)) drop-shadow(0 1px 2px rgba(0,0,0,.35));}
 /* 통행료 배수 뱃지 (둥둥) */
-.bm-mulbadge{position:absolute;top:-6px;right:-4px;z-index:7;font-size:11px;font-weight:900;color:#fff;
-  background:linear-gradient(135deg,#ffd454,#ff9f1c);border-radius:999px;padding:2px 6px;
-  box-shadow:0 3px 8px rgba(200,140,20,.5);animation:bm-bob 1.5s ease-in-out infinite;pointer-events:none;}
+.bm-mulbadge{position:absolute;top:3px;right:3px;z-index:8;font-size:13px;font-weight:900;color:#fff;
+  background:linear-gradient(135deg,#ffb01c,#ff7a1c);border-radius:999px;padding:2px 8px;line-height:1.25;
+  border:1.5px solid rgba(255,255,255,.9);box-shadow:0 2px 7px rgba(160,90,10,.55);animation:bm-bob 1.5s ease-in-out infinite;pointer-events:none;}
 .bm-mulbadge.hot{background:linear-gradient(135deg,#ff9f1c,#ff5a3c);box-shadow:0 3px 10px rgba(255,90,60,.6);}
 .bm-mulbadge.fire{background:linear-gradient(135deg,#ff6a3c,#ff2d55);box-shadow:0 0 12px rgba(255,60,90,.85);animation:bm-bob 1.1s ease-in-out infinite, bm-flame .5s ease-in-out infinite alternate;}
 @keyframes bm-bob{0%,100%{transform:translateY(0);}50%{transform:translateY(-4px);}}
