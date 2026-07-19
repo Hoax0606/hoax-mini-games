@@ -58,8 +58,6 @@ const SPLIT_SPREAD = 0.30;
 const GUIDED_SPEED = 340;
 /** 유도탄 최대 선회 각속도(rad/s) — 클수록 급하게 타겟으로 꺾음 */
 const GUIDED_TURN_RATE = 3.4;
-/** 유도탄 발사 시 타겟보다 이만큼(px) 위를 겨눠 상승 후 하강(미사일 아크). 지형에 막히면 지형 피격 */
-const GUIDED_LOFT = 150;
 /** 수류탄 지형 반사 감쇠 계수 */
 const BOUNCE_DAMP = 0.55;
 /** 발사 직후 이 거리(px)까진 지형/포대 충돌 무시 — 총구 앞 오조준 착탄 방지 */
@@ -97,8 +95,10 @@ interface Shell extends Projectile {
   originFortId: number;
   /** 자기 포대 히트박스를 한 번 벗어났는지. false 동안은 originFortId 충돌 무시(아래로 쏠 때 자폭 방지) */
   armed: boolean;
-  /** 유도탄 여부 — true 면 seg(포물선) 대신 타겟 향해 호밍(등속 선회) */
+  /** 유도탄 여부 — true 면 탄도 발사 후 정점을 지나면 타겟으로 호밍 */
   guided?: boolean;
+  /** 유도탄: 정점(하강 시작)을 지나 호밍 단계에 들어갔는지 */
+  homing?: boolean;
   /** 유도탄 목표 좌표(발사 시 고정) */
   tx?: number;
   ty?: number;
@@ -581,8 +581,14 @@ class FortressGameModule implements GameModule {
 
       // 한 스텝 전진 — 이전 위치는 스침(터널링) 판정에 사용
       const prevX = s.x, prevY = s.y;
-      if (s.guided) {
-        // 호밍: 타겟 방향으로 제한 각속도만큼 선회, 등속 유지(중력/바람 무시). 고정스텝이라 결정론적.
+      if (s.guided && !s.homing) {
+        // 유도탄 1단계 — 탄도(포물선). 정점(vy>=0=하강) + 최소 비행 후 호밍 단계로.
+        s.st += dt;
+        const p = segPos(s.seg, s.st); s.x = p.x; s.y = p.y;
+        const v = segVel(s.seg, s.st); s.vx = v.vx; s.vy = v.vy;
+        if (s.vy >= 0 && s.st >= 0.3) s.homing = true;
+      } else if (s.guided) {
+        // 유도탄 2단계 — 호밍: 타겟 방향으로 제한 각속도만큼 선회, 등속 유지. 고정스텝이라 결정론적.
         const desired = Math.atan2((s.ty ?? s.y) - s.y, (s.tx ?? s.x) - s.x);
         let cur = Math.atan2(s.vy, s.vx);
         let diff = desired - cur;
@@ -958,14 +964,13 @@ class FortressGameModule implements GameModule {
     const rect = this.ctx.canvas.getBoundingClientRect();
     const { x, y } = this.renderer.screenToLogical(e.clientX - rect.left, e.clientY - rect.top);
 
-    // 유도탄: 드래그 조준 대신 '적 포대 클릭 → 타겟 락, 같은 타겟 재클릭 → 발사'
+    // 유도탄: 적 포대 클릭 → 타겟 락. 타겟이 잡혀 있으면(빈 곳 클릭) 아래 드래그 조준으로 발사.
+    //   발사 후 정점을 지나면 락된 타겟으로 유도된다(중간부터 호밍).
     if (this.selectedWeapon === 'guided' && hasAmmo(this.game, me.ownerPeerId, 'guided')) {
       const target = this.fortNear(x, y, me.ownerPeerId);
-      if (target) {
-        if (this.guidedTarget === target.id) this.fireGuided();
-        else this.guidedTarget = target.id;
-      }
-      return; // 유도탄은 드래그 조준 안 함
+      if (target) { this.guidedTarget = target.id; return; } // 적 클릭 = 타겟 지정(발사 안 함)
+      if (this.guidedTarget === null) return;                // 타겟 먼저 골라야 조준 가능
+      // 타겟 있음 → 일반탄처럼 드래그 조준 진행
     }
 
     this.aiming = true;
@@ -986,29 +991,6 @@ class FortressGameModule implements GameModule {
     }
     return best;
   }
-
-  /** 유도탄 발사 — 지정 타겟으로 호밍 미사일 발사 + broadcast. */
-  private fireGuided(): void {
-    const me = this.currentFort();
-    if (!me || me.ownerPeerId !== this.myPeerId || this.game.phase !== 'aiming' || this.shells.length > 0) return;
-    if (!hasAmmo(this.game, me.ownerPeerId, 'guided')) return;
-    const target = this.game.forts.find((f) => f.id === this.guidedTarget && f.alive);
-    if (!target) { this.guidedTarget = null; return; }
-    const sx = me.x, sy = fortCenterY(this.hm, me) - MUZZLE_RISE;
-    const tx = target.x, ty = fortCenterY(this.hm, target);
-
-    this.beginProjectile(sx, sy, 0, 0, 0, 'guided', this.game.currentTurn, { tx, ty });
-    spendAmmo(this.game, me.ownerPeerId, 'guided');
-    if (!hasAmmo(this.game, me.ownerPeerId, 'guided')) this.selectedWeapon = 'normal';
-    this.ctx.sendToPeer(encodeFire({
-      fromFortId: this.game.currentTurn,
-      startX: sx, startY: sy,
-      angleRad: 0, power01: 0, wind: 0, weapon: 'guided',
-      targetX: tx, targetY: ty,
-    }));
-    this.guidedTarget = null;
-    this.refreshWeaponBar();
-  };
 
   private onMove = (e: MouseEvent): void => {
     const rect = this.ctx.canvas.getBoundingClientRect();
@@ -1043,15 +1025,25 @@ class FortressGameModule implements GameModule {
     const angleRad = Math.atan2(dy, -dx);
     const power01 = Math.min(1, dragLen / MAX_DRAG_PX);
 
+    // 유도탄이면 락된 타겟 해석 (없으면 발사 취소)
+    let guidedTgt: { tx: number; ty: number } | undefined;
+    if (weapon === 'guided') {
+      const t = this.game.forts.find((f) => f.id === this.guidedTarget && f.alive);
+      if (!t) return;
+      guidedTgt = { tx: t.x, ty: fortCenterY(this.hm, t) };
+    }
+
     // 로컬 즉시 시작 + broadcast (게스트/호스트 공통)
-    this.beginProjectile(this.aimFromX, this.aimFromY, angleRad, power01, effWind, weapon, this.game.currentTurn);
+    this.beginProjectile(this.aimFromX, this.aimFromY, angleRad, power01, effWind, weapon, this.game.currentTurn, guidedTgt);
     spendAmmo(this.game, ownerPeerId, weapon);
     if (!hasAmmo(this.game, ownerPeerId, weapon)) this.selectedWeapon = 'normal'; // 소진 시 기본 복귀
     this.ctx.sendToPeer(encodeFire({
       fromFortId: this.game.currentTurn,
       startX: this.aimFromX, startY: this.aimFromY,
       angleRad, power01, wind: effWind, weapon,
+      ...(guidedTgt ? { targetX: guidedTgt.tx, targetY: guidedTgt.ty } : {}),
     }));
+    this.guidedTarget = null;
     this.refreshWeaponBar();
   };
 
@@ -1060,12 +1052,11 @@ class FortressGameModule implements GameModule {
     let vx: number, vy: number;
     let guided = false, tx: number | undefined, ty: number | undefined;
     if (weapon === 'guided' && guidedTarget) {
-      // 유도탄: 타겟보다 GUIDED_LOFT 만큼 위를 겨눠 발사(상승 아크) → 이후 매 스텝 타겟으로 호밍.
-      //   초기 속도/타겟이 모두 결정론 파라미터(sx,sy,tx,ty)라 전 클라 동일 궤적.
+      // 유도탄: 각도/파워로 '탄도 발사'(바람 무시) → 정점(하강 시작) 지나면 타겟으로 호밍.
+      //   angle/power/target 모두 결정론 파라미터라 전 클라 동일 궤적.
       guided = true; tx = guidedTarget.tx; ty = guidedTarget.ty;
-      const heading = Math.atan2((ty - GUIDED_LOFT) - sy, tx - sx);
-      vx = Math.cos(heading) * GUIDED_SPEED;
-      vy = Math.sin(heading) * GUIDED_SPEED;
+      const lv = launchVelocity(angleRad, power01);
+      vx = lv.vx; vy = lv.vy;
     } else {
       const lv = launchVelocity(angleRad, power01);
       vx = lv.vx; vy = lv.vy;
@@ -1077,7 +1068,7 @@ class FortressGameModule implements GameModule {
       seg: { x0: sx, y0: sy, vx0: vx, vy0: vy, wind },
       st: 0,
       originFortId, armed: false,
-      guided, tx, ty,
+      guided, homing: false, tx, ty,
     }];
     this.simAccum = 0;
     this.splitDone = false;

@@ -578,37 +578,25 @@ export class FortressRenderer {
     }
   }
 
-  /** 유도탄 타겟 레티클 + 내 포대→타겟 조준선 + "재클릭 발사" 안내 */
+  /** 유도탄 락온 타겟 레티클 (조준은 드래그로 하므로 조준선/안내문 없음) */
   private drawGuidedTarget(state: RenderState): void {
     const t = state.guidedTarget!;
     const ctx = this.ctx;
-    // 내 현재 포대 총구에서 타겟까지 점선 조준선
-    const me = state.game.forts.find((f) => f.id === state.game.currentTurn);
-    if (me) {
-      const my = terrainTopAt(state.hm, me.x) - 24;
-      ctx.save();
-      ctx.strokeStyle = 'rgba(255,90,146,0.6)';
-      ctx.lineWidth = 2;
-      ctx.setLineDash([7, 6]);
-      ctx.beginPath();
-      ctx.moveTo(me.x, my);
-      ctx.lineTo(t.x, t.y);
-      ctx.stroke();
-      ctx.setLineDash([]);
-      ctx.restore();
-    }
-    // 레티클 (핑크 원 + 십자)
+    // 회전하는 레티클 (핑크 원 + 십자) — "락온" 느낌
     ctx.save();
     ctx.strokeStyle = COLORS.accentPink;
     ctx.lineWidth = 2.5;
+    ctx.lineCap = 'round';
+    const pulse = 1 + Math.sin(state.now / 260) * 0.06;
+    const r = 16 * pulse;
     ctx.beginPath();
-    ctx.arc(t.x, t.y, 17, 0, Math.PI * 2);
+    ctx.arc(t.x, t.y, r, 0, Math.PI * 2);
     ctx.stroke();
     ctx.beginPath();
-    ctx.moveTo(t.x - 24, t.y); ctx.lineTo(t.x - 8, t.y);
-    ctx.moveTo(t.x + 8, t.y); ctx.lineTo(t.x + 24, t.y);
-    ctx.moveTo(t.x, t.y - 24); ctx.lineTo(t.x, t.y - 8);
-    ctx.moveTo(t.x, t.y + 8); ctx.lineTo(t.x, t.y + 24);
+    ctx.moveTo(t.x - r - 7, t.y); ctx.lineTo(t.x - r + 3, t.y);
+    ctx.moveTo(t.x + r - 3, t.y); ctx.lineTo(t.x + r + 7, t.y);
+    ctx.moveTo(t.x, t.y - r - 7); ctx.lineTo(t.x, t.y - r + 3);
+    ctx.moveTo(t.x, t.y + r - 3); ctx.lineTo(t.x, t.y + r + 7);
     ctx.stroke();
     ctx.restore();
   }
