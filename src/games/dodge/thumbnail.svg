@@ -1,64 +1,48 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 200">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 200" width="320" height="200">
   <defs>
     <linearGradient id="ddBg" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0%" stop-color="#ffe4ee"/>
-      <stop offset="100%" stop-color="#e0fff4"/>
+      <stop offset="0" stop-color="#ffe4ee"/><stop offset="1" stop-color="#e0fff4"/>
     </linearGradient>
-    <!-- 소프트 입체: 중앙 일러스트 드롭섀도 -->
-    <filter id="lift" x="-35%" y="-35%" width="170%" height="170%"><feDropShadow dx="0" dy="5" stdDeviation="5" flood-color="#8a5a78" flood-opacity="0.26"/></filter>
+    <linearGradient id="ddPoo" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#b9834d"/><stop offset="0.55" stop-color="#a06b3c"/><stop offset="1" stop-color="#82542e"/>
+    </linearGradient>
+    <radialGradient id="ddBall" cx="0.35" cy="0.32" r="0.75">
+      <stop offset="0" stop-color="#bef6e5"/><stop offset="0.6" stop-color="#7fe0bd"/><stop offset="1" stop-color="#5cc9a2"/>
+    </radialGradient>
+    <filter id="ddLift" x="-35%" y="-35%" width="170%" height="170%"><feDropShadow dx="0" dy="5" stdDeviation="5" flood-color="#8a5a78" flood-opacity="0.24"/></filter>
   </defs>
 
-  <!-- 배경 -->
   <rect x="0" y="0" width="320" height="200" rx="22" fill="url(#ddBg)"/>
+  <circle cx="26" cy="28" r="4.5" fill="#ffc9dd"/>
+  <circle cx="296" cy="30" r="4" fill="#bfe9ff"/>
+  <circle cx="24" cy="172" r="4" fill="#c7f0dc"/>
+  <circle cx="298" cy="170" r="4.5" fill="#e6d4ff"/>
+  <path d="M256 40 l2.4 5 5.2 .5 -4 3.6 1.2 5.2 -4.8 -2.8 -4.8 2.8 1.2 -5.2 -4 -3.6 5.2 -.5z" fill="#ffd4e6"/>
+  <path d="M44 150 l2 4 4.4 .4 -3.4 3 1 4.4 -4 -2.4 -4 2.4 1 -4.4 -3.4 -3 4.4 -.4z" fill="#cdeffb"/>
 
-  <!-- 모서리 점 데코 -->
-  <circle cx="24" cy="24" r="3" fill="#ff6b9e" opacity="0.55"/>
-  <circle cx="298" cy="28" r="3.5" fill="#86e8c4" opacity="0.6"/>
-  <circle cx="26" cy="176" r="2.5" fill="#b89aff" opacity="0.55"/>
-  <circle cx="296" cy="172" r="3" fill="#ffeec2" opacity="0.7"/>
-
-  <!-- 별 데코 -->
-  <path d="M 250 30 l 1.6 4 4.4 0.4 -3.4 2.8 1 4.3 -3.6 -2.4 -3.6 2.4 1 -4.3 -3.4 -2.8 4.4 -0.4 z"
-        fill="#ff82ac" opacity="0.7"/>
-  <path d="M 40 150 l 1.4 3.5 3.8 0.3 -3 2.5 0.9 3.7 -3.1 -2.1 -3.1 2.1 0.9 -3.7 -3 -2.5 3.8 -0.3 z"
-        fill="#86e8c4" opacity="0.7"/>
-
-  <!-- 소프트 입체: 중앙 일러스트 드롭섀도 -->
-  <g filter="url(#lift)">
-  <!-- 떨어지는 똥 3개 (갈색 소용돌이 + 낙하 모션선) -->
-  <!-- 낙하 모션선 -->
-  <line x1="96" y1="24" x2="96" y2="44" stroke="#c49a1f" stroke-width="2" stroke-linecap="round" opacity="0.4"/>
-  <line x1="168" y1="16" x2="168" y2="40" stroke="#c49a1f" stroke-width="2" stroke-linecap="round" opacity="0.4"/>
-  <line x1="232" y1="30" x2="232" y2="50" stroke="#c49a1f" stroke-width="2" stroke-linecap="round" opacity="0.4"/>
-
-  <g stroke="#7a5230" stroke-width="2.5" stroke-linejoin="round">
-    <!-- 똥 1 -->
-    <path d="M 88 70 q -10 0 -8 -9 q -6 -6 2 -10 q 0 -9 10 -9 q 8 -2 10 7 q 9 1 6 10 q 5 7 -4 11 z" fill="#a9744a"/>
-    <!-- 똥 2 (가운데, 큼) -->
-    <path d="M 156 60 q -12 0 -10 -11 q -7 -7 3 -12 q 0 -11 12 -11 q 10 -2 12 8 q 11 1 7 12 q 6 8 -5 13 z" fill="#8b5a2b"/>
-    <!-- 똥 3 -->
-    <path d="M 224 74 q -10 0 -8 -9 q -6 -6 2 -10 q 0 -9 10 -9 q 8 -2 10 7 q 9 1 6 10 q 5 7 -4 11 z" fill="#a9744a"/>
+  <g stroke="#c49a1f" stroke-width="2.4" stroke-linecap="round" opacity="0.35">
+    <line x1="92" y1="18" x2="92" y2="40"/><line x1="164" y1="12" x2="164" y2="36"/><line x1="232" y1="24" x2="232" y2="46"/>
   </g>
 
-  <!-- 캐릭터 (하단 중앙, 위 올려다보며 피하는 중) — 산리오풍 파스텔 블롭 + 대시 잔상 -->
-  <!-- 대시 잔상 (오른쪽으로 휙) -->
-  <g opacity="0.25">
-    <rect x="118" y="140" width="40" height="42" rx="16" fill="#6ed9b3"/>
+  <g filter="url(#ddLift)">
+    <g transform="translate(76,42) scale(1.35)"><path d="M22.072 6.66c.126 1.058-.063 1.734-.309 2.133c2.029.56 3.879 1.974 4.743 3.82c.625 1.532.66 3.359.192 5.027C29.18 18.847 31 21.547 31 24.429c0 3.722-2.723 6.399-6.574 6.624v.016H9.03v-.004C4.26 30.95 2 27.75 2 24.023c0-2.494 2.149-5.47 4.549-6.49c-.002-.22.02-.387.056-.512c-.929-1.88.021-3.78.618-4.5l.227-.294l.01-.013c.83-1.083 1.331-1.736 4.895-3.279c3.887-1.683 5.269-3.336 5.8-4.006c.146-.184.281-.425.42-.672c.366-.652.763-1.358 1.478-1.245c.987.156 1.761 1.465 2.02 3.647" fill="url(#ddPoo)" stroke="#67432c" stroke-width="1.1"/></g>
+    <g transform="translate(146,32) scale(1.7)"><path d="M22.072 6.66c.126 1.058-.063 1.734-.309 2.133c2.029.56 3.879 1.974 4.743 3.82c.625 1.532.66 3.359.192 5.027C29.18 18.847 31 21.547 31 24.429c0 3.722-2.723 6.399-6.574 6.624v.016H9.03v-.004C4.26 30.95 2 27.75 2 24.023c0-2.494 2.149-5.47 4.549-6.49c-.002-.22.02-.387.056-.512c-.929-1.88.021-3.78.618-4.5l.227-.294l.01-.013c.83-1.083 1.331-1.736 4.895-3.279c3.887-1.683 5.269-3.336 5.8-4.006c.146-.184.281-.425.42-.672c.366-.652.763-1.358 1.478-1.245c.987.156 1.761 1.465 2.02 3.647" fill="url(#ddPoo)" stroke="#67432c" stroke-width="0.9"/></g>
+    <g transform="translate(216,46) scale(1.35)"><path d="M22.072 6.66c.126 1.058-.063 1.734-.309 2.133c2.029.56 3.879 1.974 4.743 3.82c.625 1.532.66 3.359.192 5.027C29.18 18.847 31 21.547 31 24.429c0 3.722-2.723 6.399-6.574 6.624v.016H9.03v-.004C4.26 30.95 2 27.75 2 24.023c0-2.494 2.149-5.47 4.549-6.49c-.002-.22.02-.387.056-.512c-.929-1.88.021-3.78.618-4.5l.227-.294l.01-.013c.83-1.083 1.331-1.736 4.895-3.279c3.887-1.683 5.269-3.336 5.8-4.006c.146-.184.281-.425.42-.672c.366-.652.763-1.358 1.478-1.245c.987.156 1.761 1.465 2.02 3.647" fill="url(#ddPoo)" stroke="#67432c" stroke-width="1.1"/></g>
   </g>
-  <g opacity="0.45">
-    <rect x="130" y="140" width="40" height="42" rx="16" fill="#6ed9b3"/>
-  </g>
-  <!-- 본체 -->
-  <g>
-    <rect x="144" y="138" width="46" height="46" rx="18" fill="#86e8c4" stroke="#2e8a70" stroke-width="2.5"/>
-    <!-- 발 -->
-    <ellipse cx="156" cy="185" rx="6" ry="3.5" fill="#2e8a70"/>
-    <ellipse cx="178" cy="185" rx="6" ry="3.5" fill="#2e8a70"/>
-    <!-- 눈 (위 올려다봄) -->
-    <circle cx="160" cy="153" r="3.4" fill="#1c1820"/>
-    <circle cx="174" cy="153" r="3.4" fill="#1c1820"/>
-    <!-- 땀방울 (긴장) -->
-    <path d="M 186 150 q 3 5 0 7 q -3 -2 0 -7 z" fill="#5b9cff"/>
-  </g>
+
+  <g filter="url(#ddLift)" transform="translate(150,150)">
+    <ellipse cx="0" cy="30" rx="26" ry="5" fill="#8a5a78" opacity="0.18"/>
+    <ellipse cx="-11" cy="26" rx="7" ry="4.6" fill="#49bd97"/>
+    <ellipse cx="11" cy="26" rx="7" ry="4.6" fill="#49bd97"/>
+    <ellipse cx="-25" cy="4" rx="6" ry="8.5" fill="#54c6a0" transform="rotate(-16 -25 4)"/>
+    <ellipse cx="25" cy="4" rx="6" ry="8.5" fill="#54c6a0" transform="rotate(16 25 4)"/>
+    <circle cx="0" cy="0" r="25" fill="url(#ddBall)" stroke="#2e8a70" stroke-width="2.6"/>
+    <ellipse cx="-9" cy="-10" rx="8" ry="5" fill="#fff" opacity="0.5" transform="rotate(-25 -9 -10)"/>
+    <ellipse cx="-13" cy="6" rx="4.5" ry="3" fill="#f4a0a8" opacity="0.85"/>
+    <ellipse cx="13" cy="6" rx="4.5" ry="3" fill="#f4a0a8" opacity="0.85"/>
+    <ellipse cx="-7.5" cy="-1" rx="3.4" ry="4" fill="#3a2e34"/>
+    <ellipse cx="7.5" cy="-1" rx="3.4" ry="4" fill="#3a2e34"/>
+    <circle cx="-9" cy="-3" r="1.5" fill="#fff"/><circle cx="6" cy="-3" r="1.5" fill="#fff"/>
+    <path d="M-4 7 Q0 11 4 7" fill="none" stroke="#3a2e34" stroke-width="1.8" stroke-linecap="round"/>
   </g>
 </svg>

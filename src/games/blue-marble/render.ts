@@ -109,6 +109,9 @@ export class BlueMarbleRenderer {
   /** 현재 열린 결정 모달의 종류(중복 오픈 방지) */
   private openKind = '';
   private destroyed = false;
+  /** 화면에 표시 중인 말 위치 (state.pos 로 한 칸씩 애니메이션) */
+  private dispPos: Record<string, number> = {};
+  private moveTimer: number | null = null;
 
   constructor(parent: HTMLElement, cb: BMRenderCallbacks) {
     this.cb = cb;
@@ -122,8 +125,29 @@ export class BlueMarbleRenderer {
 
   destroy(): void {
     this.destroyed = true;
+    this.clearMove();
     this.closeModal();
     this.root.remove();
+  }
+
+  private clearMove(): void { if (this.moveTimer !== null) { window.clearInterval(this.moveTimer); this.moveTimer = null; } }
+
+  /** dispPos → state.pos 로 말을 한 칸씩 이동(순간이동 방지). 큰 점프(카드)만 즉시. */
+  private ensureMoveAnim(state: BMState): void {
+    if (this.moveTimer !== null) return;
+    // 큰 점프는 바로 반영
+    for (const p of state.order) {
+      const gap = (((state.pos[p]! - (this.dispPos[p] ?? state.pos[p]!)) % 40) + 40) % 40;
+      if (gap > 12) this.dispPos[p] = state.pos[p]!;
+    }
+    if (!state.order.some((p) => this.dispPos[p] !== state.pos[p])) return;
+    this.moveTimer = window.setInterval(() => {
+      const s = this._lastState; if (this.destroyed || !s) { this.clearMove(); return; }
+      let moving = false;
+      for (const p of s.order) if (this.dispPos[p] !== s.pos[p]) { this.dispPos[p] = (this.dispPos[p]! + 1) % 40; moving = true; }
+      this.renderTiles(s);
+      if (!moving) this.clearMove();
+    }, 170);
   }
 
   // ── 정적 보드 HTML (1회) ──
@@ -174,6 +198,9 @@ export class BlueMarbleRenderer {
 
   render(state: BMState, myPeerId: string, isSpectator: boolean): void {
     if (this.destroyed) return;
+    this._lastState = state;
+    for (const p of state.order) if (this.dispPos[p] === undefined) this.dispPos[p] = state.pos[p]!;
+    this.ensureMoveAnim(state);
     this.renderTiles(state);
     this.renderDice(state);
     this.renderCenter(state, myPeerId, isSpectator);
@@ -206,8 +233,8 @@ export class BlueMarbleRenderer {
           }
         }
       }
-      // 말(구슬)
-      const here = state.order.filter((p) => state.pos[p] === i && !state.players[p]!.bankrupt);
+      // 말(구슬) — 표시 위치(dispPos)로
+      const here = state.order.filter((p) => (this.dispPos[p] ?? state.pos[p]) === i && !state.players[p]!.bankrupt);
       if (here.length) {
         const tk = document.createElement('div'); tk.className = 'bm-toks';
         tk.innerHTML = here.map((p) => `<span class="bm-tok" style="background:radial-gradient(circle at 34% 30%, #fff 4%, ${colorOf(state, p)} 60%, ${colorOf(state, p)})"></span>`).join('');
@@ -482,11 +509,11 @@ function injectStyle(): void {
 .bm-corner .bm-nm{font-size:8.5px;}
 .bm-islandic{position:absolute;top:38%;left:50%;transform:translate(-50%,-50%);} .bm-islandic svg{width:22px;height:22px;filter:drop-shadow(0 1px 1px rgba(0,0,0,.2));}
 .bm-idock{position:absolute;top:56%;left:50%;transform:translateX(-50%);width:18px;height:5px;border-radius:3px;border:1.5px solid rgba(255,255,255,.9);box-shadow:0 1px 2px rgba(0,0,0,.3);z-index:2;}
-.bm-blds{position:absolute;left:0;right:0;top:4px;display:flex;justify-content:center;align-items:flex-end;gap:1px;z-index:2;}
-.bm-blds svg{width:16px;height:16px;filter:drop-shadow(0 1px 1.5px rgba(0,0,0,.3));}
-.bm-blds.bm-lm svg{width:38px;height:38px;filter:drop-shadow(0 0 5px rgba(255,200,60,.9)) drop-shadow(0 1px 2px rgba(0,0,0,.35));}
-.bm-toks{position:absolute;bottom:18px;left:0;right:0;display:flex;gap:1px;justify-content:center;flex-wrap:wrap;pointer-events:none;z-index:3;}
-.bm-tok{width:15px;height:15px;border-radius:50%;border:1.6px solid rgba(255,255,255,.9);box-shadow:0 2px 4px rgba(0,0,0,.3),inset 0 -2px 3px rgba(0,0,0,.22);}
+.bm-blds{position:absolute;left:0;right:0;top:3px;display:flex;justify-content:center;align-items:flex-end;gap:1px;z-index:2;}
+.bm-blds svg{width:21px;height:21px;filter:drop-shadow(0 1px 1.5px rgba(0,0,0,.3));}
+.bm-blds.bm-lm svg{width:44px;height:44px;filter:drop-shadow(0 0 5px rgba(255,200,60,.9)) drop-shadow(0 1px 2px rgba(0,0,0,.35));}
+.bm-toks{position:absolute;bottom:17px;left:0;right:0;display:flex;gap:2px;justify-content:center;flex-wrap:wrap;pointer-events:none;z-index:4;}
+.bm-tok{width:22px;height:22px;border-radius:50%;border:2px solid rgba(255,255,255,.95);box-shadow:0 2px 5px rgba(0,0,0,.32),inset 0 -2px 4px rgba(0,0,0,.22);}
 .bm-selected{z-index:6;filter:brightness(1.12) saturate(1.1);box-shadow:0 0 0 3px #fff,0 0 0 5px #ff5a92;}
 .bm-center{grid-column:2/11;grid-row:2/11;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:11px;
   background:linear-gradient(135deg,rgba(255,255,255,.5),rgba(255,240,247,.5));border-radius:12px;padding:12px;}
