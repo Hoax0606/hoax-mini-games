@@ -26,6 +26,7 @@ import bombWordChainThumbnail from './bomb-wordchain/thumbnail.svg';
 import storyDrawThumbnail from './story-draw/thumbnail.svg';
 import dodgeThumbnail from './dodge/thumbnail.svg';
 import oneCardThumbnail from './onecard/thumbnail.svg';
+import blueMarbleThumbnail from './blue-marble/thumbnail.svg';
 
 export const games: GameEntry[] = [
   {
@@ -414,6 +415,21 @@ export const games: GameEntry[] = [
     load: async () => {
       const mod = await import('./onecard');
       return mod.createOneCardGame();
+    },
+  },
+  {
+    meta: {
+      id: 'blue-marble',
+      name: '블루마블',
+      description: '주사위를 굴려 세계를 돌며 도시를 사고 건물을 지어요. 별장·2층집·아파트를 골라 짓고, 3개 다 지으면 랜드마크까지! 섬은 인수 불가, 여러 개일수록 통행료가 오르죠. 통행료로 상대를 파산시키면 승리.',
+      thumbnail: blueMarbleThumbnail,
+      minPlayers: 2,
+      maxPlayers: 4,
+      roomOptions: [],
+    },
+    load: async () => {
+      const mod = await import('./blue-marble');
+      return mod.createBlueMarbleGame();
     },
   },
 ];
