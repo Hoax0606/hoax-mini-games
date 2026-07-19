@@ -10,7 +10,7 @@ import type { GameModule, GameContext, GameMessage, GameResult, Player } from '.
 import { sound } from '../../core/sound';
 import {
   BOARD, CARDS, SALARY, DESERT_TURNS, DESERT_ESCAPE, TRAVEL_COST, BONUS_STAKE, buildCostOf, canBuild, acquireCost,
-  tollFor, alivePeers, nextTurnIdx, createInitialState, monopolyWin,
+  tollBreakdown, alivePeers, nextTurnIdx, createInitialState, monopolyWin,
   type BMState, type BuildKind,
 } from './rules';
 
@@ -334,9 +334,12 @@ class BlueMarbleModule implements GameModule {
           s.pending = { kind: 'build', tile: i }; this.render(); return;
         }
       } else {
-        const toll = tollFor(s, i, peer);
+        const info = tollBreakdown(s, i, peer);
+        const toll = info.total;
         this.pay(peer, o, toll);
         s.log = `${t.name} 통행료 ${toll.toLocaleString()} → ${s.players[o]!.nickname}`;
+        // 타격감 연출용 (배수 클수록 강하게)
+        if (toll > 0) s.fx = { seq: (s.fx?.seq ?? 0) + 1, amount: toll, mul: info.base > 0 ? Math.round(info.total / info.base) : 1 };
         // 도시면 인수 기회(랜드마크·섬 제외)
         if (!p.bankrupt && t.type === 'city') {
           const cost = acquireCost(s, i);

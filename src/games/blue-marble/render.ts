@@ -8,6 +8,7 @@
 import {
   BOARD, BUILD_TYPES, ISLAND_TILES, BASE_TOLL_MUL, DESERT_ESCAPE,
   buildMeta, buildCostOf, acquireCost, islandCount, hasAllHouses,
+  colorMonopolyMul, ownsGroup, tollBreakdown,
   type BMState, type BuildKind, type GroupColor,
 } from './rules';
 
@@ -130,6 +131,8 @@ export class BlueMarbleRenderer {
   private buildSel = new Set<BuildKind>();
   /** 세계여행: 칸 클릭으로 목적지 선택하는 모드 */
   private travelMode = false;
+  /** 마지막으로 재생한 타격감 fx seq (중복 재생 방지) */
+  private lastFxSeq = 0;
 
   constructor(parent: HTMLElement, cb: BMRenderCallbacks) {
     this.cb = cb;
@@ -223,7 +226,42 @@ export class BlueMarbleRenderer {
 
     this.renderPending(state, myPeerId, isSpectator);  // busy면 내부에서 보류
     if (state.phase === 'ended') this.showEnd(state, myPeerId);
+    // 통행료 타격감 — 이동/시퀀스 끝난 뒤 1회 재생
+    if (!this.busy && state.fx && state.fx.seq !== this.lastFxSeq) {
+      this.lastFxSeq = state.fx.seq;
+      this.playFx(state.fx.amount, state.fx.mul);
+    }
     if (!this.busy) this.cb.onSettled();   // idle → 더미 진행 트리거
+  }
+
+  /** 통행료 타격감: 큰 숫자 팝업 + 화면 흔들림 + 동전 튀기기 (배수 클수록 강하게) */
+  private playFx(amount: number, mul: number): void {
+    if (this.destroyed) return;
+    const strong = mul >= 3;
+    // 화면 흔들림
+    this.root.classList.remove('bm-shake', 'bm-shake-strong');
+    void this.root.offsetWidth;   // 리플로우로 애니 재시작
+    this.root.classList.add(strong ? 'bm-shake-strong' : 'bm-shake');
+    window.setTimeout(() => this.root.classList.remove('bm-shake', 'bm-shake-strong'), 620);
+    // 큰 숫자 팝업
+    const num = document.createElement('div');
+    num.className = 'bm-fxnum' + (strong ? ' fire' : '');
+    num.innerHTML = `<span class="bm-fxmul">${mul > 1 ? `×${mul}` : ''}</span><span>−₩${amount.toLocaleString()}</span>`;
+    this.root.appendChild(num);
+    window.setTimeout(() => num.remove(), 1300);
+    // 동전 튀기기
+    const coins = document.createElement('div'); coins.className = 'bm-coins';
+    const n = Math.min(14, 5 + mul * 2);
+    for (let k = 0; k < n; k++) {
+      const c = document.createElement('span'); c.className = 'bm-coin';
+      const ang = (k / n) * Math.PI - Math.PI;            // 위쪽으로 부채꼴
+      c.style.setProperty('--dx', `${Math.cos(ang) * (60 + (k % 5) * 22)}px`);
+      c.style.setProperty('--dy', `${-90 - (k % 4) * 40}px`);
+      c.style.animationDelay = `${(k % 5) * 20}ms`;
+      coins.appendChild(c);
+    }
+    this.root.appendChild(coins);
+    window.setTimeout(() => coins.remove(), 1200);
   }
 
   private setDie(sel: string, n: number): void { const el = this.root.querySelector(sel); if (el) el.innerHTML = diceFace(n); }
@@ -313,8 +351,20 @@ export class BlueMarbleRenderer {
       tile.querySelector('.bm-blds')?.remove();
       tile.querySelector('.bm-iflag')?.remove();
       tile.querySelector('.bm-toks')?.remove();
+      tile.querySelector('.bm-mulbadge')?.remove();
       const o = state.owner[i];
       const t = BOARD[i];
+      // 통행료 배수 뱃지 + 컬러 독점 glow
+      let mul = 1;
+      if (o !== undefined && t.type === 'city') { mul = colorMonopolyMul(state, i, o) * (state.olympic[i] ?? 1); tile.classList.toggle('bm-mono', ownsGroup(state, o, t.group)); }
+      else if (o !== undefined && t.type === 'island') { mul = state.islandBoost[o] ?? 1; }
+      else tile.classList.remove('bm-mono');
+      if (mul > 1) {
+        const bd = document.createElement('div');
+        bd.className = `bm-mulbadge ${mul >= 4 ? 'fire' : mul >= 3 ? 'hot' : ''}`;
+        bd.textContent = `×${mul}`;
+        tile.appendChild(bd);
+      }
       if (o !== undefined) {
         const col = colorOf(state, o);
         if (t.type === 'island') {
@@ -610,11 +660,15 @@ export class BlueMarbleRenderer {
     const o = state.owner[tile];
     const ownerTxt = o !== undefined ? `${state.players[o]!.nickname} 소유` : '주인 없음';
     let cur: string, rows: string;
+    // 배수 내역 (컬러 독점/올림픽/관광지 패시브) — 소유주 기준으로 계산
+    const info = o !== undefined ? tollBreakdown(state, tile, '') : { base: 0, parts: [], total: 0 };
+    const partsHtml = info.parts.map((pt) => `<div class="bm-mrow"><span>${pt.label}</span><b style="color:#ff5a92">×${pt.mul}</b></div>`).join('');
     if (t.type === 'island') {
       const base = Math.round(t.price * 0.5), cnt = o !== undefined ? islandCount(state, o) : 0;
       cur = o !== undefined
         ? `<div class="bm-curbox"><div class="bm-mrow"><span>보유 섬</span><b>${cnt}개</b></div>
-             <div class="bm-mrow big"><span>밟으면 통행료</span><b>${won(base * cnt)}</b></div>
+             <div class="bm-mrow"><span>기본 통행료</span><b>${won(base * cnt)}</b></div>${partsHtml}
+             <div class="bm-mrow big tollfinal"><span>최종 통행료</span><b>${won(info.total)}</b></div>
              <div class="bm-mrow"><span>인수</span><b>불가</b></div></div>`
         : `<div class="bm-curbox"><div class="bm-mrow big"><span>구매가</span><b>${won(t.price)}</b></div></div>`;
       rows = `<div class="bm-ihdr">통행료 (보유 섬 수)</div><table class="bm-itable">${[1, 2, 3, 4].map((n) => `<tr><td>섬 ${n}개</td><td>${won(base * n)}</td></tr>`).join('')}</table>`;
@@ -624,7 +678,8 @@ export class BlueMarbleRenderer {
       const acq = acquireCost(state, tile);
       cur = o !== undefined
         ? `<div class="bm-curbox"><div class="bm-mrow"><span>지은 건물</span><b>${builtTxt}</b></div>
-             <div class="bm-mrow big"><span>밟으면 통행료</span><b>${won(tollForCity(state, tile))}</b></div>
+             <div class="bm-mrow"><span>기본 통행료</span><b>${won(info.base)}</b></div>${partsHtml}
+             <div class="bm-mrow big tollfinal"><span>최종 통행료</span><b>${won(info.total)}</b></div>
              <div class="bm-mrow"><span>인수하려면</span><b>${acq < 0 ? '불가' : won(acq)}</b></div></div>`
         : `<div class="bm-curbox"><div class="bm-mrow big"><span>구매가</span><b>${won(t.price)}</b></div></div>`;
       rows = `<div class="bm-ihdr">건물별 건설비 · 통행료 기여</div><table class="bm-itable">
@@ -663,12 +718,6 @@ export class BlueMarbleRenderer {
 function colorOf(state: BMState, peerId: string): string {
   const idx = state.order.indexOf(peerId);
   return ['#6ed9b3', '#ff5a92', '#5b9be6', '#f2c94c', '#b89aff', '#ff8a5b', '#7ed957', '#e07aff', '#4fd0d9', '#ffb12e'][idx % 10]!;
-}
-function tollForCity(state: BMState, tile: number): number {
-  const t = BOARD[tile];
-  if (t.type !== 'city') return 0;
-  const arr = state.builds[tile] ?? [];
-  return Math.round(t.price * (BASE_TOLL_MUL + arr.reduce((s, k) => s + buildMeta(k).tollMul, 0)));
 }
 function deedHTML(state: BMState, tile: number): string {
   const t = BOARD[tile] as { name: string; price: number };
@@ -718,6 +767,39 @@ function injectStyle(): void {
 .bm-blds{position:absolute;left:0;right:0;top:3px;display:flex;justify-content:center;align-items:flex-end;gap:1px;z-index:2;}
 .bm-blds svg{width:21px;height:21px;filter:drop-shadow(0 1px 1.5px rgba(0,0,0,.3));}
 .bm-blds.bm-lm svg{width:44px;height:44px;filter:drop-shadow(0 0 5px rgba(255,200,60,.9)) drop-shadow(0 1px 2px rgba(0,0,0,.35));}
+/* 통행료 배수 뱃지 (둥둥) */
+.bm-mulbadge{position:absolute;top:-6px;right:-4px;z-index:7;font-size:11px;font-weight:900;color:#fff;
+  background:linear-gradient(135deg,#ffd454,#ff9f1c);border-radius:999px;padding:2px 6px;
+  box-shadow:0 3px 8px rgba(200,140,20,.5);animation:bm-bob 1.5s ease-in-out infinite;pointer-events:none;}
+.bm-mulbadge.hot{background:linear-gradient(135deg,#ff9f1c,#ff5a3c);box-shadow:0 3px 10px rgba(255,90,60,.6);}
+.bm-mulbadge.fire{background:linear-gradient(135deg,#ff6a3c,#ff2d55);box-shadow:0 0 12px rgba(255,60,90,.85);animation:bm-bob 1.1s ease-in-out infinite, bm-flame .5s ease-in-out infinite alternate;}
+@keyframes bm-bob{0%,100%{transform:translateY(0);}50%{transform:translateY(-4px);}}
+@keyframes bm-flame{from{filter:brightness(1);}to{filter:brightness(1.35) saturate(1.3);}}
+/* 컬러 독점 타일 바닥 빛남 */
+.bm-tile.bm-mono{animation:bm-mono 2s ease-in-out infinite;}
+@keyframes bm-mono{0%,100%{box-shadow:inset 0 0 0 1px rgba(0,0,0,.05);}50%{box-shadow:inset 0 0 0 2px rgba(255,220,120,.9),0 0 14px rgba(255,210,90,.7);}}
+/* 타격감: 화면 흔들림 */
+.bm-shake{animation:bm-shk .5s cubic-bezier(.36,.07,.19,.97);}
+.bm-shake-strong{animation:bm-shk-strong .6s cubic-bezier(.36,.07,.19,.97);}
+@keyframes bm-shk{10%,90%{transform:translate(-2px,0);}30%,70%{transform:translate(4px,-1px);}50%{transform:translate(-5px,1px);}}
+@keyframes bm-shk-strong{10%,90%{transform:translate(-4px,1px) rotate(-.4deg);}30%,70%{transform:translate(8px,-2px) rotate(.5deg);}50%{transform:translate(-10px,2px) rotate(-.6deg);}}
+@media(prefers-reduced-motion:reduce){.bm-shake,.bm-shake-strong{animation:none;} .bm-mulbadge,.bm-tile.bm-mono{animation:none;}}
+/* 타격감: 큰 숫자 팝업 */
+.bm-fxnum{position:absolute;top:38%;left:50%;transform:translate(-50%,-50%);z-index:60;pointer-events:none;
+  display:flex;flex-direction:column;align-items:center;gap:2px;font-weight:900;color:#4a3a4a;
+  text-shadow:0 3px 10px rgba(0,0,0,.28);animation:bm-fxnum 1.25s cubic-bezier(.2,1.3,.4,1) forwards;}
+.bm-fxnum span:last-child{font-size:clamp(30px,6vw,58px);}
+.bm-fxmul{font-size:clamp(16px,3vw,26px);color:#ff5a92;}
+.bm-fxnum.fire{color:#ff2d55;text-shadow:0 0 16px rgba(255,60,90,.7),0 3px 10px rgba(0,0,0,.3);}
+.bm-fxnum.fire .bm-fxmul{color:#ffab1c;}
+@keyframes bm-fxnum{0%{opacity:0;transform:translate(-50%,-30%) scale(.4);}25%{opacity:1;transform:translate(-50%,-50%) scale(1.12);}70%{opacity:1;transform:translate(-50%,-52%) scale(1);}100%{opacity:0;transform:translate(-50%,-80%) scale(.95);}}
+/* 타격감: 동전 */
+.bm-coins{position:absolute;top:44%;left:50%;z-index:59;pointer-events:none;}
+.bm-coin{position:absolute;width:16px;height:16px;border-radius:50%;background:radial-gradient(circle at 35% 30%,#fff2b0,#ffcf4a 60%,#e0a91c);
+  box-shadow:0 1px 3px rgba(0,0,0,.3),inset 0 -2px 2px rgba(180,130,10,.5);animation:bm-coin .9s ease-out forwards;}
+@keyframes bm-coin{0%{opacity:1;transform:translate(0,0) scale(.5);}30%{opacity:1;transform:translate(calc(var(--dx) * .6),var(--dy)) scale(1);}100%{opacity:0;transform:translate(var(--dx),120px) scale(.9);}}
+/* 상세창 최종 통행료 강조 */
+.bm-mrow.tollfinal b{color:#ff2d55;font-size:16px;text-shadow:0 1px 6px rgba(255,60,90,.35);}
 .bm-toks{position:absolute;bottom:17px;left:0;right:0;display:flex;gap:2px;justify-content:center;flex-wrap:wrap;pointer-events:none;z-index:4;}
 .bm-tok{width:22px;height:22px;border-radius:50%;border:2px solid rgba(255,255,255,.95);box-shadow:0 2px 5px rgba(0,0,0,.32),inset 0 -2px 4px rgba(0,0,0,.22);}
 .bm-selected{z-index:6;filter:brightness(1.12) saturate(1.1);box-shadow:0 0 0 3px #fff,0 0 0 5px #ff5a92;}

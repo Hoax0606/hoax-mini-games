@@ -248,6 +248,8 @@ export interface BMState {
   winnerPeerId: string | null;
   /** UI 안내 문구 */
   log: string;
+  /** 통행료 타격감 연출용 (seq가 바뀌면 렌더러가 1회 재생) */
+  fx: { seq: number; amount: number; mul: number } | null;
 }
 
 // ============================================
@@ -355,6 +357,6 @@ export function createInitialState(players: Array<{ peerId: string; nickname: st
     order, players: pmap, pos, owner: {}, builds: {}, held,
     turnIdx: 0, dice: null, doubles: 0, pending: null, fund: 0,
     olympic: {}, islandBoost,
-    phase: 'playing', winnerPeerId: null, log: '',
+    phase: 'playing', winnerPeerId: null, log: '', fx: null,
   };
 }
