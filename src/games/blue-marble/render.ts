@@ -112,6 +112,8 @@ export class BlueMarbleRenderer {
   /** 화면에 표시 중인 말 위치 (state.pos 로 한 칸씩 애니메이션) */
   private dispPos: Record<string, number> = {};
   private moveTimer: number | null = null;
+  private myId = '';
+  private spec = false;
 
   constructor(parent: HTMLElement, cb: BMRenderCallbacks) {
     this.cb = cb;
@@ -143,10 +145,10 @@ export class BlueMarbleRenderer {
     if (!state.order.some((p) => this.dispPos[p] !== state.pos[p])) return;
     this.moveTimer = window.setInterval(() => {
       const s = this._lastState; if (this.destroyed || !s) { this.clearMove(); return; }
-      let moving = false;
-      for (const p of s.order) if (this.dispPos[p] !== s.pos[p]) { this.dispPos[p] = (this.dispPos[p]! + 1) % 40; moving = true; }
+      for (const p of s.order) if (this.dispPos[p] !== s.pos[p]) this.dispPos[p] = (this.dispPos[p]! + 1) % 40;
       this.renderTiles(s);
-      if (!moving) this.clearMove();
+      const left = s.order.some((p) => this.dispPos[p] !== s.pos[p]);
+      if (!left) { this.clearMove(); this.render(s, this.myId, this.spec); } // 도착 → 전체 리렌더(결정창 표시)
     }, 170);
   }
 
@@ -198,7 +200,7 @@ export class BlueMarbleRenderer {
 
   render(state: BMState, myPeerId: string, isSpectator: boolean): void {
     if (this.destroyed) return;
-    this._lastState = state;
+    this._lastState = state; this.myId = myPeerId; this.spec = isSpectator;
     for (const p of state.order) if (this.dispPos[p] === undefined) this.dispPos[p] = state.pos[p]!;
     this.ensureMoveAnim(state);
     this.renderTiles(state);
@@ -302,6 +304,8 @@ export class BlueMarbleRenderer {
 
   // ── 결정 모달 / 행동중 배너 ──
   private renderPending(state: BMState, myPeerId: string, isSpectator: boolean): void {
+    // 말이 아직 이동 중이면 결정창/배너 보류 (도착 후 render 재호출에서 표시)
+    if (this.moveTimer !== null) { this.closeModal(); return; }
     const p = state.pending;
     if (!p) { this.closeModal(); return; }
     const cur = state.order[state.turnIdx]!;
