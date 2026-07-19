@@ -18,6 +18,10 @@ export interface BMRenderCallbacks {
   onBuildConfirm(builds: BuildKind[]): void;  // 선택한 건물들 확정 건설 + 턴 종료(빈 배열 = 그냥 완료)
   onCard(keep: boolean): void;          // 황금열쇠 보관/사용
   onUseHeld(cardId: number): void;
+  onPickCity(tile: number): void;       // 올림픽 개최 / 추가 건설: 내 도시 선택
+  onTravelTo(tile: number): void;       // 세계여행: 목적지 칸 선택
+  onBonusPick(choice: number): void;    // 오락실 2지선다
+  onBonusStop(): void;                  // 오락실: 받고 종료
   /** 주사위·이동 시퀀스가 끝나 화면이 idle 이 됨(호스트가 더미 진행 타이밍에 사용) */
   onSettled(): void;
 }
@@ -124,6 +128,8 @@ export class BlueMarbleRenderer {
   private spec = false;
   /** 건설 모달에서 체크한 건물들 (완료 시 일괄 확정) */
   private buildSel = new Set<BuildKind>();
+  /** 세계여행: 칸 클릭으로 목적지 선택하는 모드 */
+  private travelMode = false;
 
   constructor(parent: HTMLElement, cb: BMRenderCallbacks) {
     this.cb = cb;
@@ -185,9 +191,13 @@ export class BlueMarbleRenderer {
   private wireStatic(): void {
     this.root.querySelector('#bm-roll')!.addEventListener('click', () => this.cb.onRoll());
     this.root.querySelector('#bm-escape')!.addEventListener('click', () => this.cb.onDesertPay());
-    // 타일 클릭 → 정보
-    this.root.querySelectorAll<HTMLElement>('.bm-prop').forEach((el) => {
-      el.addEventListener('click', () => this.infoModal(Number(el.dataset.i)));
+    // 타일 클릭 → 세계여행 모드면 이동, 아니면 정보(구매 가능 칸만)
+    this.root.querySelectorAll<HTMLElement>('.bm-tile').forEach((el) => {
+      el.addEventListener('click', () => {
+        const i = Number(el.dataset.i);
+        if (this.travelMode) { this.cb.onTravelTo(i); return; }
+        if (el.classList.contains('bm-prop')) this.infoModal(i);
+      });
     });
   }
 
@@ -381,26 +391,83 @@ export class BlueMarbleRenderer {
   // ── 결정 모달 / 행동중 배너 ──
   private renderPending(state: BMState, myPeerId: string, isSpectator: boolean): void {
     // 주사위/이동 시퀀스 중엔 결정창/배너 보류 (완료 후 render 재호출에서 표시)
-    if (this.busy) { this.closeModal(); return; }
+    if (this.busy) { this.travelMode = false; this.closeModal(); return; }
     const p = state.pending;
-    if (!p) { this.closeModal(); return; }
-    if (p.kind === 'info') { this.showInfo(p.tile, p.text); return; }   // 안내 토스트(모두에게)
+    if (!p) { this.travelMode = false; this.closeModal(); return; }
+    if (p.kind === 'info') { this.travelMode = false; this.showInfo(p.tile, p.text); return; }   // 안내 토스트(모두에게)
     const cur = state.order[state.turnIdx]!;
     const mine = cur === myPeerId && !isSpectator;
+    // 세계여행: 내 차례면 칸 클릭 모드, 아니면 배너
+    this.travelMode = p.kind === 'travel' && mine;
     if (!mine) { this.showActing(state, p, cur); return; }
+    if (p.kind === 'travel') { this.showBanner('이동할 칸을 클릭하세요'); return; }
     // 내 결정 모달 (이미 같은 종류 열려있으면 유지)
-    const kind = `${p.kind}:${'tile' in p ? p.tile : ''}`;
+    const disc = p.kind === 'bonus' ? `${p.round}:${p.pot}` : ('tile' in p ? p.tile : '');
+    const kind = `${p.kind}:${disc}`;
     if (this.openKind === kind && this.modalScrim) { if (p.kind === 'build') this.refreshBuildMenu(state); return; }
     this.openKind = kind;
     if (p.kind === 'buy') this.buyOrAcquireModal(state, p.tile, false);
     else if (p.kind === 'acquire') this.buyOrAcquireModal(state, p.tile, true);
     else if (p.kind === 'build') this.buildMenuModal(state, p.tile);
     else if (p.kind === 'card') this.cardModal(state, p.card);
+    else if (p.kind === 'olympic') this.pickCityModal(state, myPeerId, 'olympic');
+    else if (p.kind === 'startBuild') this.pickCityModal(state, myPeerId, 'startBuild');
+    else if (p.kind === 'bonus') this.bonusModal(p.round, p.pot);
+  }
+
+  /** 세계여행: 이동할 칸 클릭 안내 배너 (딤 없이) */
+  private showBanner(text: string): void {
+    if (this.openKind === `banner:${text}` && this.modalScrim) return;
+    this.closeModal();
+    const scrim = document.createElement('div'); scrim.className = 'bm-scrim bm-noscrim';
+    scrim.innerHTML = `<div class="bm-toast">${text}</div>`;
+    document.body.appendChild(scrim); this.modalScrim = scrim; this.openKind = `banner:${text}`;
+  }
+
+  /** 올림픽 개최 / 추가 건설: 내 도시 하나 선택 */
+  private pickCityModal(state: BMState, myPeerId: string, mode: 'olympic' | 'startBuild'): void {
+    this.closeModal();
+    const mine = Object.keys(state.owner).map(Number)
+      .filter((i) => state.owner[i] === myPeerId && BOARD[i].type === 'city'
+        && (mode === 'olympic' || (['villa', 'house2', 'apt', 'landmark'] as BuildKind[]).some((k) => canBuild(state, i, myPeerId, k))));
+    const title = mode === 'olympic' ? '올림픽 개최' : '추가 건설';
+    const sub = mode === 'olympic' ? '개최할 내 도시를 골라요 (통행료 배수 ↑)' : '추가로 건설할 내 도시를 골라요';
+    const rows = mine.map((i) => {
+      const t = BOARD[i] as { name: string };
+      const oly = mode === 'olympic' && state.olympic[i] ? ` <span style="color:#ff5a92">현재 ×${state.olympic[i]}</span>` : '';
+      return `<button class="bm-brow" data-i="${i}"><span class="bm-bnm">${t.name}</span><span class="bm-bst">${oly || ''}</span></button>`;
+    }).join('') || '<div class="bm-sub">가능한 도시가 없어요</div>';
+    const scrim = document.createElement('div'); scrim.className = 'bm-scrim';
+    scrim.innerHTML = `<div class="bm-modal" style="width:290px"><div class="bm-top" style="background:linear-gradient(90deg,#ffd454,#ffb02e)">${title}</div>
+      <div class="bm-body"><div class="bm-sub">${sub}</div><div class="bm-bmenu">${rows}</div></div></div>`;
+    document.body.appendChild(scrim); this.modalScrim = scrim;
+    scrim.querySelectorAll<HTMLButtonElement>('.bm-brow').forEach((b) => {
+      b.onclick = () => this.cb.onPickCity(Number(b.dataset.i));
+    });
+  }
+
+  /** 오락실(보너스 게임): 2지선다 + 받기 */
+  private bonusModal(round: number, pot: number): void {
+    this.closeModal();
+    const scrim = document.createElement('div'); scrim.className = 'bm-scrim';
+    scrim.innerHTML = `<div class="bm-modal" style="width:300px"><div class="bm-top" style="background:linear-gradient(90deg,#b89aff,#8a5fd0)">보너스 게임</div>
+      <div class="bm-body">
+        <div class="bm-sub">둘 중 하나! 맞히면 ×2 (최대 8배)</div>
+        <div class="bm-bonuspot">누적 <b>₩${pot.toLocaleString()}</b>${round > 0 ? ` <span style="color:#8a5fd0">(${Math.pow(2, round)}배)</span>` : ''}</div>
+        <div class="bm-bchoices"><button class="bm-bchoice" data-c="0">왼쪽</button><button class="bm-bchoice" data-c="1">오른쪽</button></div>
+        ${round > 0 ? `<div class="bm-btns"><button class="bm-no" style="flex:1">₩${pot.toLocaleString()} 받고 종료</button></div>` : ''}
+      </div></div>`;
+    document.body.appendChild(scrim); this.modalScrim = scrim; this.openKind = `bonus:${round}:${pot}`;
+    scrim.querySelectorAll<HTMLButtonElement>('.bm-bchoice').forEach((b) => {
+      b.onclick = () => this.cb.onBonusPick(Number(b.dataset.c));
+    });
+    scrim.querySelector<HTMLButtonElement>('.bm-no')?.addEventListener('click', () => this.cb.onBonusStop());
   }
 
   /** 다른 사람 차례일 때 — 구매 카드와 같은 크기의 카드로 "OO님이 ~ 중" 표시(딤 없이 판은 계속 보이게) */
   private showActing(state: BMState, p: NonNullable<BMState['pending']>, cur: string): void {
-    const key = `acting:${p.kind}:${'tile' in p ? p.tile : p.card}`;
+    const disc = p.kind === 'card' ? p.card : ('tile' in p ? p.tile : p.kind === 'bonus' ? `${p.round}:${p.pot}` : '');
+    const key = `acting:${p.kind}:${disc}`;
     if (this.openKind === key && this.modalScrim) return;  // 같은 상태면 유지(스피너 계속 회전)
     this.closeModal();
     const who = state.players[cur]!.nickname;
@@ -409,11 +476,15 @@ export class BlueMarbleRenderer {
     if (p.kind === 'card') {
       head = `<div class="bm-top" style="background:linear-gradient(90deg,#ffd454,#ffb02e)">${IC.key} 황금열쇠</div>`;
       body = `<div class="bm-body"><div class="bm-cardic">${IC[CARD_IC[p.card]!] ?? IC.key}</div><div class="bm-ctitle">${cardTitle(p.card)}</div>${foot}</div>`;
-    } else {
+    } else if ('tile' in p) {
       const tile = p.tile;
       const label = p.kind === 'acquire' ? '인수' : p.kind === 'build' ? '건설' : (BOARD[tile].type === 'island' ? '섬 구매' : '도시 구매');
       head = `<div class="bm-top" style="background:${tileColor(tile)}">${label}</div>`;
       body = `<div class="bm-body">${deedHTML(state, tile)}${foot}</div>`;
+    } else {
+      // 올림픽/세계여행/추가건설/보너스 — 타일 없는 행동
+      head = `<div class="bm-top" style="background:linear-gradient(90deg,#b89aff,#8a5fd0)">${pendingLabel(p)}</div>`;
+      body = `<div class="bm-body">${foot}</div>`;
     }
     const scrim = document.createElement('div'); scrim.className = 'bm-scrim bm-noscrim';
     scrim.innerHTML = `<div class="bm-modal">${head}${body}</div>`;
@@ -612,7 +683,9 @@ const CARD_DESCS = ['₩150 받기', '₩120 받기', '₩300 받기', '₩100 �
 const cardTitle = (id: number): string => CARD_TITLES[id] ?? '카드';
 const cardDesc = (id: number): string => CARD_DESCS[id] ?? '';
 const pendingLabel = (p: NonNullable<BMState['pending']>): string =>
-  p.kind === 'buy' ? '구매 고민' : p.kind === 'build' ? '건설' : p.kind === 'acquire' ? '인수 고민' : '카드 확인';
+  p.kind === 'buy' ? '구매 고민' : p.kind === 'build' ? '건설' : p.kind === 'acquire' ? '인수 고민'
+  : p.kind === 'olympic' ? '올림픽 개최' : p.kind === 'travel' ? '세계여행'
+  : p.kind === 'startBuild' ? '추가 건설' : p.kind === 'bonus' ? '보너스 게임' : '카드 확인';
 
 // ============================================
 // CSS (1회 주입)
@@ -699,6 +772,10 @@ function injectStyle(): void {
 .bm-bic{width:26px;height:26px;flex:none;display:grid;place-items:center;} .bm-bic svg{width:26px;height:26px;}
 .bm-bnm{flex:1;font-size:13px;font-weight:800;} .bm-bst{font-size:12px;font-weight:700;}
 .bm-bsum{margin-top:10px;font-size:12px;color:#7a6a7a;} .bm-bsum b{color:#5b3f6e;} .bm-bsum.dim{color:#a89aab;}
+.bm-bonuspot{font-size:15px;font-weight:800;margin:10px 0;color:#5b3f6e;} .bm-bonuspot b{font-size:19px;color:#8a5fd0;}
+.bm-bchoices{display:flex;gap:10px;margin-bottom:6px;}
+.bm-bchoice{flex:1;font:inherit;font-weight:800;font-size:15px;color:#fff;background:linear-gradient(135deg,#b89aff,#8a5fd0);border:none;border-radius:14px;padding:16px 0;cursor:pointer;box-shadow:0 6px 16px rgba(138,95,208,.34);transition:transform .1s;}
+.bm-bchoice:active{transform:scale(.96);}
 .bm-itable{width:100%;font-size:11.5px;border-collapse:collapse;margin-top:2px;} .bm-itable td{padding:3.5px 6px;border-bottom:1px solid #f2eaf4;} .bm-itable td:last-child{text-align:right;font-weight:800;} .bm-itable td:first-child{color:#6a5a6a;}
 .bm-ihdr{font-size:11.5px;font-weight:800;color:#8a7a8a;margin-top:10px;}
 .bm-curbox{background:#fff6fa;border:1px solid #ffd6e6;border-radius:12px;padding:8px 11px;margin:8px 0;}

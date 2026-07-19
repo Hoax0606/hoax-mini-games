@@ -9,7 +9,7 @@
 import type { GameModule, GameContext, GameMessage, GameResult, Player } from '../types';
 import { sound } from '../../core/sound';
 import {
-  BOARD, CARDS, SALARY, DESERT_TURNS, DESERT_ESCAPE, buildCostOf, canBuild, acquireCost,
+  BOARD, CARDS, SALARY, DESERT_TURNS, DESERT_ESCAPE, TRAVEL_COST, BONUS_STAKE, buildCostOf, canBuild, acquireCost,
   tollFor, alivePeers, nextTurnIdx, createInitialState, monopolyWin,
   type BMState, type BuildKind,
 } from './rules';
@@ -50,6 +50,10 @@ class BlueMarbleModule implements GameModule {
       onBuildConfirm: (builds) => this.act({ kind: 'build', builds }),
       onCard: (keep) => this.act({ kind: 'card', keep }),
       onUseHeld: (cardId) => this.act({ kind: 'useHeld', cardId }),
+      onPickCity: (tile) => this.act({ kind: 'pickCity', tile }),
+      onTravelTo: (tile) => this.act({ kind: 'travelTo', tile }),
+      onBonusPick: (choice) => this.act({ kind: 'bonusPick', choice }),
+      onBonusStop: () => this.act({ kind: 'bonusStop' }),
       onSettled: () => this.maybeAutoPlay(),  // 애니 끝난 뒤 더미 진행
     });
     sound.startBgm('apple-game');
@@ -149,6 +153,21 @@ class BlueMarbleModule implements GameModule {
       const chosen = picks.length && Math.random() < 0.6 ? [picks[0]!] : [];
       this.hostHandle({ kind: 'build', builds: chosen, by: DUMMY }, DUMMY);
     }
+    else if (pend.kind === 'olympic' || pend.kind === 'startBuild') {
+      const cities = pend.kind === 'olympic' ? this.ownedCities(DUMMY) : this.ownedCities(DUMMY).filter((i) => this.cityBuildable(DUMMY, i));
+      if (cities.length) this.hostHandle({ kind: 'pickCity', tile: cities[0]!, by: DUMMY }, DUMMY);
+      else { s.pending = null; this.endStep(DUMMY); this.afterChange(); }   // 개최/건설할 도시 없음
+    }
+    else if (pend.kind === 'travel') {
+      // 아무 빈 도시(없으면 아무 칸)로 이동
+      const empty = BOARD.map((t, i) => (t.type === 'city' && s.owner[i] === undefined ? i : -1)).filter((i) => i >= 0);
+      const dest = empty.length ? empty[Math.floor(Math.random() * empty.length)]! : Math.floor(Math.random() * BOARD.length);
+      this.hostHandle({ kind: 'travelTo', tile: dest, by: DUMMY }, DUMMY);
+    }
+    else if (pend.kind === 'bonus') {
+      if (pend.round >= 1 && Math.random() < 0.5) this.hostHandle({ kind: 'bonusStop', by: DUMMY }, DUMMY);
+      else this.hostHandle({ kind: 'bonusPick', choice: Math.floor(Math.random() * 2), by: DUMMY }, DUMMY);
+    }
   }
 
   // ============================================
@@ -207,8 +226,61 @@ class BlueMarbleModule implements GameModule {
       }
     } else if (action.kind === 'card') {
       if (s.pending?.kind === 'card') { this.resolveCard(by, s.pending.card, action.keep); s.pending = null; this.endStep(by); }
+    } else if (action.kind === 'pickCity') {
+      if (s.pending?.kind === 'olympic') {
+        this.doOlympic(by, action.tile); s.pending = null; this.endStep(by);
+      } else if (s.pending?.kind === 'startBuild') {
+        if (s.owner[action.tile] === by && BOARD[action.tile].type === 'city' && this.cityBuildable(by, action.tile)) {
+          s.pending = { kind: 'build', tile: action.tile };   // 추가 건설 → 건설 메뉴
+        } else { s.pending = null; this.endStep(by); }
+      }
+    } else if (action.kind === 'travelTo') {
+      if (s.pending?.kind === 'travel') {
+        s.pending = null; s.pos[by] = action.tile;   // 세계여행: 출발 통과 월급 없음
+        this.resolveLanding(by);
+      }
+    } else if (action.kind === 'bonusPick') {
+      if (s.pending?.kind === 'bonus') this.doBonusPick(by, action.choice);
+    } else if (action.kind === 'bonusStop') {
+      if (s.pending?.kind === 'bonus') this.doBonusStop(by);
     }
     this.afterChange();
+  }
+
+  private ownedCities(peer: string): number[] {
+    const s = this.state;
+    return Object.keys(s.owner).map(Number).filter((i) => s.owner[i] === peer && BOARD[i].type === 'city');
+  }
+  private cityBuildable(peer: string, tile: number): boolean {
+    return (['villa', 'house2', 'apt', 'landmark'] as BuildKind[]).some((k) => canBuild(this.state, tile, peer, k));
+  }
+  private hasBuildableCity(peer: string): boolean {
+    return this.ownedCities(peer).some((i) => this.cityBuildable(peer, i));
+  }
+  private doOlympic(peer: string, tile: number): void {
+    const s = this.state;
+    if (s.owner[tile] !== peer || BOARD[tile].type !== 'city') return;
+    s.olympic[tile] = Math.min(5, (s.olympic[tile] ?? 1) + 1);   // 첫 개최 ×2 … 최대 ×5
+    s.log = `${BOARD[tile].name} 올림픽 개최 ×${s.olympic[tile]}!`;
+    sound.play('pop');
+  }
+  private doBonusPick(peer: string, choice: number): void {
+    const s = this.state; const pend = s.pending; if (pend?.kind !== 'bonus') return;
+    const win = Math.floor(Math.random() * 2) === (choice & 1);
+    if (!win) { s.log = `보너스 실패… 판돈 ₩${pend.stake.toLocaleString()} 소멸`; s.pending = null; this.endStep(peer); return; }
+    const pot = pend.pot * 2; const round = pend.round + 1;
+    if (round >= 3) {   // 8배 달성 → 자동 지급
+      s.players[peer]!.money += pot; s.log = `보너스 게임 8배! ₩${pot.toLocaleString()} 획득`;
+      s.pending = null; this.endStep(peer); return;
+    }
+    s.pending = { kind: 'bonus', stake: pend.stake, round, pot };
+    s.log = `보너스 성공! 누적 ₩${pot.toLocaleString()}`;
+    sound.play('pop');
+  }
+  private doBonusStop(peer: string): void {
+    const s = this.state; const pend = s.pending; if (pend?.kind !== 'bonus') return;
+    s.players[peer]!.money += pend.pot; s.log = `보너스 게임 ₩${pend.pot.toLocaleString()} 획득`;
+    s.pending = null; this.endStep(peer);
   }
 
   private rollAndMove(peer: string): void {
@@ -277,11 +349,32 @@ class BlueMarbleModule implements GameModule {
         s.pending = { kind: 'card', card }; this.render(); return;
       } else if (t.kind === 'tax') { const amt = t.taxAmount ?? 100; this.pay(peer, null, amt); s.log = `${t.name} ${amt.toLocaleString()} 납부`; }
       else if (t.kind === 'concert') { this.pay(peer, null, 50); s.log = '콘서트 관람 ₩50'; }
+      else if (t.kind === 'bonus') {
+        // 오락실: 판돈을 걸고 2지선다 시작 (돈 있으면)
+        if (p.money >= BONUS_STAKE) {
+          p.money -= BONUS_STAKE;
+          s.pending = { kind: 'bonus', stake: BONUS_STAKE, round: 0, pot: BONUS_STAKE };
+          this.render(); return;
+        }
+        s.log = '보너스 게임 — 판돈이 부족해요';
+      }
     } else if (t.type === 'corner') {
-      if (t.kind === 'start') { p.money += SALARY; s.log = '출발 도착! 월급'; }
-      else if (t.kind === 'welfare') { p.money += s.fund; s.log = `사회복지기금 ${s.fund.toLocaleString()} 수령`; s.fund = 0; }
+      if (t.kind === 'start') {
+        p.money += SALARY; s.log = '출발 도착! 월급';
+        // 정확히 출발에 멈춤 → 내 도시 하나 추가 건설
+        if (this.hasBuildableCity(peer)) { s.pending = { kind: 'startBuild' }; this.render(); return; }
+      }
+      else if (t.kind === 'welfare') {
+        // 올림픽 개최 — 내 도시 하나에 개최(통행료 배수 누적). 도시 없으면 스킵
+        if (this.ownedCities(peer).length) { s.pending = { kind: 'olympic' }; this.render(); return; }
+        s.log = '올림픽 — 개최할 내 도시가 없어요';
+      }
       else if (t.kind === 'desert') { this.toDesert(peer); s.log = `${p.nickname} 무인도에 갇힘`; }
-      // space(우주여행): 기본판에선 이벤트 없음
+      else if (t.kind === 'space') {
+        // 세계여행 — 비용 내면 다음 턴에 원하는 칸으로 이동
+        if (p.money >= TRAVEL_COST) { this.pay(peer, null, TRAVEL_COST); p.travelReady = true; s.log = `세계여행 준비! 다음 턴에 원하는 칸으로`; }
+        else s.log = '세계여행 — 비용이 부족해요';
+      }
     }
     this.endStep(peer);
   }
@@ -299,6 +392,12 @@ class BlueMarbleModule implements GameModule {
     const s = this.state;
     s.doubles = 0; s.pending = null; s.dice = null;
     s.turnIdx = nextTurnIdx(s);
+    // 세계여행 대기자의 턴이면 → 원하는 칸 선택(travel)으로 시작
+    const cur = s.order[s.turnIdx]!;
+    if (s.players[cur]!.travelReady && !s.players[cur]!.bankrupt) {
+      s.players[cur]!.travelReady = false;
+      s.pending = { kind: 'travel' };
+    }
   }
 
   // ── 개별 처리 ──

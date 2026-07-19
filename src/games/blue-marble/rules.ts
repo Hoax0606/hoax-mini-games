@@ -17,7 +17,7 @@ export type TileType = 'city' | 'island' | 'special' | 'corner';
 export interface CityTile { type: 'city'; name: string; group: GroupColor; price: number; }
 export interface IslandTile { type: 'island'; name: string; price: number; }
 /** special.kind: goldkey=황금열쇠 / tax=세금 / concert=콘서트홀 */
-export interface SpecialTile { type: 'special'; name: string; kind: 'goldkey' | 'tax' | 'concert'; taxAmount?: number; }
+export interface SpecialTile { type: 'special'; name: string; kind: 'goldkey' | 'tax' | 'concert' | 'bonus'; taxAmount?: number; }
 /** corner.kind: start=출발 / desert=무인도 / welfare=사회복지기금 / space=우주여행 */
 export interface CornerTile { type: 'corner'; name: string; kind: 'start' | 'desert' | 'welfare' | 'space'; }
 export type Tile = CityTile | IslandTile | SpecialTile | CornerTile;
@@ -32,6 +32,10 @@ export const START_MONEY = 2000;
 export const DESERT_TURNS = 3;
 /** 무인도 탈출 비용 (돈 내고 즉시 탈출) */
 export const DESERT_ESCAPE = 300;
+/** 세계여행 비용 */
+export const TRAVEL_COST = 300;
+/** 오락실(보너스 게임) 기본 판돈 */
+export const BONUS_STAKE = 100;
 
 // ── 건물 종류 (각각 따로 지음) ──
 export type BuildKind = 'villa' | 'house2' | 'apt' | 'landmark';
@@ -72,7 +76,7 @@ export const BOARD: Tile[] = [
   { type: 'corner', kind: 'start', name: '출발' },
   // 하단 (초록)
   { type: 'city', group: 'green', name: '홍콩', price: 80 },
-  { type: 'special', kind: 'goldkey', name: '보너스 게임' },
+  { type: 'special', kind: 'bonus', name: '보너스 게임' },
   { type: 'city', group: 'green', name: '베이징', price: 100 },
   { type: 'island', name: '독도', price: 130 },
   { type: 'city', group: 'teal', name: '타이베이', price: 120 },
@@ -196,6 +200,8 @@ export interface BMPlayer {
   desertLeft: number;
   /** 완주한 바퀴 수 (출발 통과 시 +1). 각 건물 해금(BuildMeta.lap)에 사용 */
   laps: number;
+  /** 세계여행권 대기 — true면 다음 턴에 원하는 칸으로 이동 */
+  travelReady: boolean;
 }
 
 /** 현재 턴 플레이어가 "결정"해야 하는 상황 (구매/건설/인수/카드). 없으면 null */
@@ -205,6 +211,10 @@ export type Pending =
   | { kind: 'acquire'; tile: number; cost: number }
   | { kind: 'card'; card: number }
   | { kind: 'info'; tile: number; text: string }   // 잠깐 안내(돈 부족 등) 후 자동으로 턴 넘김
+  | { kind: 'olympic' }                             // 올림픽 도착 → 내 도시 하나에 개최
+  | { kind: 'travel' }                              // 세계여행 → 원하는 칸 선택해 이동
+  | { kind: 'startBuild' }                          // 출발 정확히 멈춤 → 내 도시 하나 추가 건설
+  | { kind: 'bonus'; stake: number; round: number; pot: number }  // 오락실 2지선다
   | null;
 
 export interface BMState {
@@ -335,7 +345,7 @@ export function createInitialState(players: Array<{ peerId: string; nickname: st
   const pos: Record<string, number> = {};
   const held: Record<string, number[]> = {};
   for (const p of players) {
-    pmap[p.peerId] = { peerId: p.peerId, nickname: p.nickname, money: START_MONEY, bankrupt: false, desertLeft: 0, laps: 0 };
+    pmap[p.peerId] = { peerId: p.peerId, nickname: p.nickname, money: START_MONEY, bankrupt: false, desertLeft: 0, laps: 0, travelReady: false };
     pos[p.peerId] = 0;
     held[p.peerId] = [];
   }
