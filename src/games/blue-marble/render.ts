@@ -94,12 +94,12 @@ function diceFace(n: number): string {
   return `<svg viewBox="0 0 24 24">${(P[n] || P[1]).map(([x, y]) => `<circle cx="${x}" cy="${y}" r="2.2" fill="#4a3a4a"/>`).join('')}</svg>`;
 }
 
-/** 11×11 그리드에서 칸 index(시계방향, 우하단=출발) → grid cell */
+/** 9×9 그리드에서 칸 index(반시계, 우하단=출발) → grid cell. 한 변 8칸(모서리 포함) */
 function cell(i: number): { r: number; c: number } {
-  if (i <= 10) return { r: 11, c: 11 - i };
-  if (i <= 20) return { r: 11 - (i - 10), c: 1 };
-  if (i <= 30) return { r: 1, c: 1 + (i - 20) };
-  return { r: 1 + (i - 30), c: 11 };
+  if (i <= 8) return { r: 9, c: 9 - i };        // 하단: 우하(출발)→좌하(무인도)
+  if (i <= 16) return { r: 17 - i, c: 1 };       // 좌측: 아래→위(올림픽)
+  if (i <= 24) return { r: 1, c: i - 15 };        // 상단: 좌→우(세계여행)
+  return { r: i - 23, c: 9 };                     // 우측: 위→아래(→출발)
 }
 
 const won = (n: number): string => `₩${n.toLocaleString()}`;
@@ -255,11 +255,12 @@ export class BlueMarbleRenderer {
     // 나머지 말들은 즉시 제자리로 스냅 → 이전 애니 잔상이 같이 따라 움직이는 버그 방지
     for (const p of s.order) if (p !== active) this.dispPos[p] = s.pos[p]!;
     // 카드 등으로 12칸 초과 순간이동은 스텝 없이 즉시
-    const gap = (((s.pos[active]! - this.dispPos[active]!) % 40) + 40) % 40;
+    const N = BOARD.length;
+    const gap = (((s.pos[active]! - this.dispPos[active]!) % N) + N) % N;
     if (gap === 0 || gap > 12) { this.dispPos[active] = s.pos[active]!; this.renderTiles(s); this.settle(); return; }
     this.moveTimer = window.setInterval(() => {
       const st = this._lastState; if (this.destroyed || !st) { this.clearMove(); return; }
-      this.dispPos[active] = (this.dispPos[active]! + 1) % 40;
+      this.dispPos[active] = (this.dispPos[active]! + 1) % BOARD.length;
       this.renderTiles(st);
       // 마지막 칸에 도착 → 말이 잠시 머문 뒤에 결정창(구매/황금열쇠) 표시
       if (this.dispPos[active] === st.pos[active]) { this.clearMove(); this.settle(); }
@@ -593,7 +594,7 @@ function injectStyle(): void {
 .bm-root{position:absolute;inset:0;display:flex;gap:13px;padding:11px;box-sizing:border-box;align-items:center;justify-content:center;
   font-family:'Pretendard','Apple SD Gothic Neo','Noto Sans KR',system-ui,sans-serif;color:#4a3a4a;}
 .bm-board{height:100%;aspect-ratio:1;max-width:calc(100% - 275px);display:grid;
-  grid-template-columns:repeat(11,1fr);grid-template-rows:repeat(11,1fr);
+  grid-template-columns:repeat(9,1fr);grid-template-rows:repeat(9,1fr);
   gap:3px;background:linear-gradient(135deg,#e9f7ff,#ffeaf3);border-radius:16px;padding:7px;box-shadow:0 8px 26px rgba(120,80,140,.14);}
 .bm-tile{position:relative;background:#fff;border:1px solid #efe3f2;border-radius:6px;overflow:hidden;min-width:0;display:flex;flex-direction:column;}
 .bm-prop{cursor:pointer;}
@@ -614,7 +615,7 @@ function injectStyle(): void {
 .bm-toks{position:absolute;bottom:17px;left:0;right:0;display:flex;gap:2px;justify-content:center;flex-wrap:wrap;pointer-events:none;z-index:4;}
 .bm-tok{width:22px;height:22px;border-radius:50%;border:2px solid rgba(255,255,255,.95);box-shadow:0 2px 5px rgba(0,0,0,.32),inset 0 -2px 4px rgba(0,0,0,.22);}
 .bm-selected{z-index:6;filter:brightness(1.12) saturate(1.1);box-shadow:0 0 0 3px #fff,0 0 0 5px #ff5a92;}
-.bm-center{grid-column:2/11;grid-row:2/11;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:11px;
+.bm-center{grid-column:2/9;grid-row:2/9;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:11px;
   background:linear-gradient(135deg,rgba(255,255,255,.5),rgba(255,240,247,.5));border-radius:12px;padding:12px;}
 .bm-logo{font-size:clamp(20px,3vw,38px);font-weight:900;letter-spacing:-1px;transform:rotate(-8deg);line-height:.95;text-align:center;
   background:linear-gradient(90deg,#5b9be6,#ff5a92);-webkit-background-clip:text;background-clip:text;color:transparent;}

@@ -23,7 +23,7 @@ export interface CornerTile { type: 'corner'; name: string; kind: 'start' | 'des
 export type Tile = CityTile | IslandTile | SpecialTile | CornerTile;
 
 // ── 상수 ──
-export const BOARD_SIZE = 40;
+export const BOARD_SIZE = 32;
 /** 출발 통과/도착 시 받는 월급 */
 export const SALARY = 200;
 /** 시작 자금 */
@@ -59,48 +59,50 @@ export function hasAllHouses(builds: BuildKind[]): boolean {
   return builds.includes('villa') && builds.includes('house2') && builds.includes('apt');
 }
 
-/** 40칸 보드. index 0=출발, 시계방향. */
+/**
+ * 32칸 보드 (9×9, 한 변 8칸 = 모서리 포함). index 0=출발, 반시계(모두의마블 월드맵 배치).
+ * 색 그룹은 기존 팔레트 재사용: 하단 초록(green/teal) · 좌측 파랑(sky/navy)
+ * · 상단 핑크(pink/rose) · 우측 주황·빨강(orange/red).
+ * 모서리: 출발/무인도/올림픽(=welfare)/세계여행(=space) — 기존 코너 메커니즘 유지.
+ * 보너스 게임은 기존 황금열쇠(goldkey) 메커니즘 재사용.
+ */
 export const BOARD: Tile[] = [
   { type: 'corner', kind: 'start', name: '출발' },
-  { type: 'city', group: 'tan', name: '베이징', price: 50 },
-  { type: 'island', name: '제주도', price: 150 },
-  { type: 'city', group: 'tan', name: '타이베이', price: 60 },
-  { type: 'city', group: 'sky', name: '마닐라', price: 80 },
-  { type: 'special', kind: 'tax', name: '소득세', taxAmount: 150 },
-  { type: 'city', group: 'sky', name: '방콕', price: 90 },
-  { type: 'city', group: 'pink', name: '싱가포르', price: 100 },
-  { type: 'special', kind: 'goldkey', name: '황금열쇠' },
-  { type: 'city', group: 'pink', name: '카이로', price: 110 },
+  // 하단 (초록)
+  { type: 'city', group: 'green', name: '홍콩', price: 80 },
+  { type: 'special', kind: 'goldkey', name: '보너스 게임' },
+  { type: 'city', group: 'green', name: '베이징', price: 100 },
+  { type: 'island', name: '독도', price: 130 },
+  { type: 'city', group: 'teal', name: '타이베이', price: 120 },
+  { type: 'city', group: 'teal', name: '두바이', price: 140 },
+  { type: 'city', group: 'teal', name: '카이로', price: 160 },
   { type: 'corner', kind: 'desert', name: '무인도' },
-  { type: 'city', group: 'orange', name: '이스탄불', price: 120 },
-  { type: 'city', group: 'orange', name: '아테네', price: 130 },
+  // 좌측 (파랑)
+  { type: 'island', name: '라하바나', price: 170 },
+  { type: 'city', group: 'sky', name: '시드니', price: 180 },
   { type: 'special', kind: 'goldkey', name: '황금열쇠' },
-  { type: 'city', group: 'orange', name: '로마', price: 140 },
-  { type: 'city', group: 'red', name: '마드리드', price: 150 },
-  { type: 'city', group: 'red', name: '파리', price: 160 },
-  { type: 'island', name: '발리', price: 200 },
-  { type: 'city', group: 'yellow', name: '런던', price: 180 },
-  { type: 'city', group: 'yellow', name: '베를린', price: 200 },
-  { type: 'corner', kind: 'welfare', name: '사회복지기금' },
-  { type: 'city', group: 'green', name: '프라하', price: 210 },
+  { type: 'city', group: 'sky', name: '밴쿠버', price: 200 },
+  { type: 'island', name: '하와이', price: 210 },
+  { type: 'city', group: 'navy', name: '상파울로', price: 220 },
+  { type: 'city', group: 'navy', name: '오클랜드', price: 240 },
+  { type: 'corner', kind: 'welfare', name: '올림픽' },
+  // 상단 (핑크·보라)
+  { type: 'city', group: 'pink', name: '프라하', price: 260 },
+  { type: 'city', group: 'pink', name: '부다페스트', price: 280 },
+  { type: 'city', group: 'pink', name: '베를린', price: 300 },
   { type: 'special', kind: 'goldkey', name: '황금열쇠' },
-  { type: 'city', group: 'green', name: '취리히', price: 230 },
-  { type: 'city', group: 'green', name: '코펜하겐', price: 250 },
-  { type: 'special', kind: 'tax', name: '재산세', taxAmount: 200 },
-  { type: 'city', group: 'rose', name: '스톡홀름', price: 260 },
-  { type: 'city', group: 'rose', name: '시드니', price: 280 },
-  { type: 'island', name: '몰디브', price: 260 },
-  { type: 'city', group: 'rose', name: '하와이', price: 300 },
-  { type: 'corner', kind: 'space', name: '우주여행' },
-  { type: 'city', group: 'teal', name: '리우', price: 320 },
+  { type: 'city', group: 'rose', name: '모스크바', price: 320 },
+  { type: 'city', group: 'rose', name: '제네바', price: 340 },
+  { type: 'city', group: 'rose', name: '로마', price: 360 },
+  { type: 'corner', kind: 'space', name: '세계여행' },
+  // 우측 (주황·빨강)
+  { type: 'island', name: '타이티', price: 300 },
+  { type: 'city', group: 'orange', name: '런던', price: 380 },
+  { type: 'city', group: 'orange', name: '파리', price: 400 },
   { type: 'special', kind: 'goldkey', name: '황금열쇠' },
-  { type: 'city', group: 'teal', name: '라스베이거스', price: 340 },
-  { type: 'city', group: 'teal', name: '상파울루', price: 360 },
-  { type: 'special', kind: 'concert', name: '콘서트홀' },
-  { type: 'city', group: 'navy', name: '도쿄', price: 400 },
-  { type: 'island', name: '산토리니', price: 320 },
-  { type: 'city', group: 'navy', name: '뉴욕', price: 450 },
-  { type: 'city', group: 'navy', name: '서울', price: 500 },
+  { type: 'city', group: 'red', name: '뉴욕', price: 450 },
+  { type: 'city', group: 'red', name: '서울', price: 500 },
+  { type: 'special', kind: 'tax', name: '국세청', taxAmount: 200 },
 ];
 
 /** 섬 칸 인덱스 목록 (개수별 통행료 계산용) */
@@ -127,7 +129,7 @@ export const CARDS: GoldCard[] = [
   { id: 5, title: '출발로 이동', icon: 'flag', moveTo: 0, pass: true },
   { id: 6, title: '통행료 면제권', icon: 'ticket', keep: true },
   { id: 7, title: '무인도 탈출권', icon: 'island', keep: true },
-  { id: 8, title: '우주여행권', icon: 'rocket', moveTo: 30, keep: true },
+  { id: 8, title: '세계여행권', icon: 'rocket', moveTo: 24, keep: true },
 ];
 
 // ============================================
