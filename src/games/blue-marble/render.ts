@@ -165,6 +165,7 @@ export class BlueMarbleRenderer {
     const center = `<div class="bm-center">
       <div class="bm-logo">BLUE<br>MARBLE</div>
       <div class="bm-dice"><div class="bm-die" id="bm-d1">${diceFace(1)}</div><div class="bm-die" id="bm-d2">${diceFace(1)}</div></div>
+      <div class="bm-diceres" id="bm-diceres"></div>
       <div class="bm-turn" id="bm-turn"></div>
       <button class="bm-roll" id="bm-roll">${IC.dice} 주사위 굴리기</button>
       <div class="bm-hint" id="bm-hint"></div>
@@ -202,7 +203,7 @@ export class BlueMarbleRenderer {
     this.renderHeld(state, myPeerId);
 
     if (newRoll) { this.lastDice = key; this.startSequence(state); }   // ① 주사위 → ② 이동 → ③ 결정
-    else if (!state.dice) { this.lastDice = ''; this.setDie('#bm-d1', 1); this.setDie('#bm-d2', 1); }
+    else if (!state.dice) { this.lastDice = ''; this.setDie('#bm-d1', 1); this.setDie('#bm-d2', 1); this.setDiceRes(null); }
 
     this.renderPending(state, myPeerId, isSpectator);  // busy면 내부에서 보류
     if (state.phase === 'ended') this.showEnd(state, myPeerId);
@@ -211,6 +212,15 @@ export class BlueMarbleRenderer {
 
   private setDie(sel: string, n: number): void { const el = this.root.querySelector(sel); if (el) el.innerHTML = diceFace(n); }
 
+  /** 주사위 합계/더블 뱃지 (null이면 숨김) */
+  private setDiceRes(dice: [number, number] | null): void {
+    const el = this.root.querySelector<HTMLElement>('#bm-diceres'); if (!el) return;
+    if (!dice) { el.className = 'bm-diceres'; el.innerHTML = ''; return; }
+    const dbl = dice[0] === dice[1];
+    el.className = 'bm-diceres show' + (dbl ? ' dbl' : '');
+    el.innerHTML = `<span class="bm-dsum">${dice[0] + dice[1]}</span>` + (dbl ? `<span class="bm-ddbl">더블!</span>` : '');
+  }
+
   /** ① 주사위 굴림 연출(~600ms) → 끝나면 이동 시퀀스 */
   private startSequence(state: BMState): void {
     this.busy = true; this.clearMove();
@@ -218,6 +228,7 @@ export class BlueMarbleRenderer {
     const d1 = this.root.querySelector<HTMLElement>('#bm-d1')!;
     const d2 = this.root.querySelector<HTMLElement>('#bm-d2')!;
     d1.classList.add('bm-rolling'); d2.classList.add('bm-rolling');
+    this.setDiceRes(null);  // 굴리는 동안 이전 결과 숨김
     let t = 0;
     this.spinTimer = window.setInterval(() => {
       if (this.destroyed) { if (this.spinTimer !== null) window.clearInterval(this.spinTimer); return; }
@@ -228,6 +239,7 @@ export class BlueMarbleRenderer {
         d1.classList.remove('bm-rolling'); d2.classList.remove('bm-rolling');
         const s = this._lastState!;
         d1.innerHTML = diceFace(s.dice![0]); d2.innerHTML = diceFace(s.dice![1]);
+        this.setDiceRes([s.dice![0], s.dice![1]]);  // 합계/더블 표시
         this.startMoveSeq();  // ② 이동
       }
     }, 65);
@@ -552,6 +564,12 @@ function injectStyle(): void {
 .bm-die{width:clamp(36px,4.6vw,52px);aspect-ratio:1;background:#fff;border-radius:12px;box-shadow:0 5px 14px rgba(120,80,140,.22);display:grid;place-items:center;}
 .bm-die svg{width:80%;height:80%;} .bm-die.bm-rolling{animation:bm-shake .12s infinite;}
 @keyframes bm-shake{0%{transform:translateY(0) rotate(-8deg);}50%{transform:translateY(-4px) rotate(8deg);}100%{transform:translateY(0) rotate(-8deg);}}
+.bm-diceres{display:flex;align-items:center;gap:8px;min-height:30px;opacity:0;transform:scale(.7);transition:opacity .18s,transform .28s cubic-bezier(.34,1.56,.64,1);}
+.bm-diceres.show{opacity:1;transform:scale(1);}
+.bm-dsum{font-size:20px;font-weight:900;color:#5b3f6e;background:#fff;border-radius:999px;min-width:34px;height:34px;padding:0 8px;display:grid;place-items:center;box-shadow:0 4px 12px rgba(120,80,140,.2);}
+.bm-diceres.dbl .bm-dsum{color:#fff;background:linear-gradient(135deg,#ffb347,#ff5a92);}
+.bm-ddbl{font-size:14px;font-weight:900;color:#fff;background:linear-gradient(135deg,#ff8ab0,#ff5a92);border-radius:999px;padding:4px 12px;box-shadow:0 4px 12px rgba(255,90,146,.38);animation:bm-dblpop .5s ease;}
+@keyframes bm-dblpop{0%{transform:scale(.5) rotate(-8deg);}60%{transform:scale(1.18) rotate(4deg);}100%{transform:scale(1) rotate(0);}}
 .bm-turn{font-size:14px;font-weight:800;} .bm-turn b{padding:1px 10px;border-radius:999px;color:#fff;}
 .bm-roll{font:inherit;font-weight:800;font-size:14px;color:#fff;background:#ff5a92;border:none;border-radius:999px;padding:9px 20px;cursor:pointer;box-shadow:0 6px 16px rgba(255,90,146,.32);display:flex;align-items:center;gap:5px;}
 .bm-roll svg{width:18px;height:18px;} .bm-roll:disabled{opacity:.45;cursor:default;}
