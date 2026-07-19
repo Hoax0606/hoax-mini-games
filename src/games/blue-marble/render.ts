@@ -248,17 +248,21 @@ export class BlueMarbleRenderer {
     }, 65);
   }
 
-  /** ② 말이 칸마다 한 칸씩 이동 → 도착하면 busy 해제 + 전체 리렌더(결정창 표시) */
+  /** ② 현재 차례 말만 칸마다 한 칸씩 이동 → 도착하면 busy 해제 + 전체 리렌더(결정창 표시) */
   private startMoveSeq(): void {
     const s = this._lastState; if (!s) { this.busy = false; return; }
-    for (const p of s.order) { const gap = (((s.pos[p]! - this.dispPos[p]!) % 40) + 40) % 40; if (gap > 12) this.dispPos[p] = s.pos[p]!; }
-    if (!s.order.some((p) => this.dispPos[p] !== s.pos[p])) { this.settle(); return; }
+    const active = s.order[s.turnIdx]!;   // 이번에 움직이는 말은 현재 차례 하나뿐
+    // 나머지 말들은 즉시 제자리로 스냅 → 이전 애니 잔상이 같이 따라 움직이는 버그 방지
+    for (const p of s.order) if (p !== active) this.dispPos[p] = s.pos[p]!;
+    // 카드 등으로 12칸 초과 순간이동은 스텝 없이 즉시
+    const gap = (((s.pos[active]! - this.dispPos[active]!) % 40) + 40) % 40;
+    if (gap === 0 || gap > 12) { this.dispPos[active] = s.pos[active]!; this.renderTiles(s); this.settle(); return; }
     this.moveTimer = window.setInterval(() => {
       const st = this._lastState; if (this.destroyed || !st) { this.clearMove(); return; }
-      for (const p of st.order) if (this.dispPos[p] !== st.pos[p]) this.dispPos[p] = (this.dispPos[p]! + 1) % 40;
+      this.dispPos[active] = (this.dispPos[active]! + 1) % 40;
       this.renderTiles(st);
       // 마지막 칸에 도착 → 말이 잠시 머문 뒤에 결정창(구매/황금열쇠) 표시
-      if (!st.order.some((p) => this.dispPos[p] !== st.pos[p])) { this.clearMove(); this.settle(); }
+      if (this.dispPos[active] === st.pos[active]) { this.clearMove(); this.settle(); }
     }, 220);
   }
 
@@ -563,9 +567,10 @@ function injectStyle(): void {
   if (styleInjected) return;
   styleInjected = true;
   const css = `
-.bm-root{position:absolute;inset:0;display:flex;gap:16px;padding:16px;box-sizing:border-box;align-items:center;justify-content:center;
+.bm-root{position:absolute;inset:0;display:flex;gap:13px;padding:11px;box-sizing:border-box;align-items:center;justify-content:center;
   font-family:'Pretendard','Apple SD Gothic Neo','Noto Sans KR',system-ui,sans-serif;color:#4a3a4a;}
-.bm-board{height:100%;aspect-ratio:1;max-width:calc(100% - 300px);display:grid;grid-template-columns:repeat(11,1fr);grid-template-rows:repeat(11,1fr);
+.bm-board{height:100%;aspect-ratio:1;max-width:calc(100% - 275px);display:grid;
+  grid-template-columns:1.35fr repeat(9,1fr) 1.35fr;grid-template-rows:1.35fr repeat(9,1fr) 1.35fr;
   gap:3px;background:linear-gradient(135deg,#e9f7ff,#ffeaf3);border-radius:16px;padding:7px;box-shadow:0 8px 26px rgba(120,80,140,.14);}
 .bm-tile{position:relative;background:#fff;border:1px solid #efe3f2;border-radius:6px;overflow:hidden;min-width:0;display:flex;flex-direction:column;}
 .bm-prop{cursor:pointer;}
@@ -604,7 +609,7 @@ function injectStyle(): void {
 .bm-roll{font:inherit;font-weight:800;font-size:14px;color:#fff;background:#ff5a92;border:none;border-radius:999px;padding:9px 20px;cursor:pointer;box-shadow:0 6px 16px rgba(255,90,146,.32);display:flex;align-items:center;gap:5px;}
 .bm-roll svg{width:18px;height:18px;} .bm-roll:disabled{opacity:.45;cursor:default;}
 .bm-hint{font-size:12px;color:#8a7a8a;min-height:15px;text-align:center;}
-.bm-panel{width:290px;display:flex;flex-direction:column;gap:12px;}
+.bm-panel{width:262px;display:flex;flex-direction:column;gap:12px;}
 .bm-pcard{background:rgba(255,255,255,.72);border:1px solid rgba(216,199,255,.7);border-radius:14px;padding:12px;box-shadow:0 4px 14px rgba(120,80,140,.08);}
 .bm-pcard h3{margin:0 0 8px;font-size:12px;color:#8a7a8a;font-weight:800;}
 .bm-prow{display:flex;align-items:center;gap:8px;padding:6px 7px;border-radius:9px;}
