@@ -9,7 +9,7 @@
 import type { GameModule, GameContext, GameMessage, GameResult, Player } from '../types';
 import { sound } from '../../core/sound';
 import {
-  BOARD, CARDS, BUILD_TYPES, SALARY, DESERT_TURNS, buildCostOf, canBuild, acquireCost,
+  BOARD, CARDS, SALARY, DESERT_TURNS, buildCostOf, canBuild, acquireCost,
   tollFor, alivePeers, nextTurnIdx, createInitialState,
   type BMState, type BuildKind,
 } from './rules';
@@ -46,8 +46,7 @@ class BlueMarbleModule implements GameModule {
     this.renderer = new BlueMarbleRenderer(parent, {
       onRoll: () => this.act({ kind: 'roll' }),
       onDecision: (accept) => this.act({ kind: 'decision', accept }),
-      onBuild: (build) => this.act({ kind: 'build', build }),
-      onBuildDone: () => this.act({ kind: 'endTurn' }),
+      onBuildConfirm: (builds) => this.act({ kind: 'build', builds }),
       onCard: (keep) => this.act({ kind: 'card', keep }),
       onUseHeld: (cardId) => this.act({ kind: 'useHeld', cardId }),
       onSettled: () => this.maybeAutoPlay(),  // 애니 끝난 뒤 더미 진행
@@ -128,9 +127,9 @@ class BlueMarbleModule implements GameModule {
     else if (pend.kind === 'acquire') this.hostHandle({ kind: 'decision', accept: Math.random() < 0.35, by: DUMMY }, DUMMY);
     else if (pend.kind === 'card') this.hostHandle({ kind: 'card', keep: !!CARDS[pend.card]!.keep && Math.random() < 0.5, by: DUMMY }, DUMMY);
     else if (pend.kind === 'build') {
-      const opt = BUILD_TYPES.find((bt) => canBuild(s, pend.tile, DUMMY, bt.kind));
-      if (opt && Math.random() < 0.6) this.hostHandle({ kind: 'build', build: opt.kind, by: DUMMY }, DUMMY);
-      else this.hostHandle({ kind: 'endTurn', by: DUMMY }, DUMMY);
+      const picks = (['villa', 'house2', 'apt'] as BuildKind[]).filter((k) => canBuild(s, pend.tile, DUMMY, k));
+      const chosen = picks.length && Math.random() < 0.6 ? [picks[0]!] : [];
+      this.hostHandle({ kind: 'build', builds: chosen, by: DUMMY }, DUMMY);
     }
   }
 
@@ -169,9 +168,14 @@ class BlueMarbleModule implements GameModule {
       }
       else if (s.pending?.kind === 'acquire') { if (action.accept) this.doAcquire(by, s.pending.tile); s.pending = null; this.endStep(by); }
     } else if (action.kind === 'build') {
-      if (s.pending?.kind === 'build') this.doBuild(by, s.pending.tile, action.build); // 계속 pending
-    } else if (action.kind === 'endTurn') {
-      if (s.pending?.kind === 'build') { s.pending = null; this.endStep(by); }
+      if (s.pending?.kind === 'build') {
+        const tile = s.pending.tile;
+        // 선택한 건물들을 별장→2층집→아파트→랜드마크 순으로 건설(의존성·자금 검증이 순서대로 맞아야 함)
+        for (const k of ['villa', 'house2', 'apt', 'landmark'] as BuildKind[]) {
+          if (action.builds.includes(k) && canBuild(s, tile, by, k)) this.doBuild(by, tile, k);
+        }
+        s.pending = null; this.endStep(by);   // 완료 → 턴 마무리
+      }
     } else if (action.kind === 'card') {
       if (s.pending?.kind === 'card') { this.resolveCard(by, s.pending.card, action.keep); s.pending = null; this.endStep(by); }
     }

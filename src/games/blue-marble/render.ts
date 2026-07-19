@@ -14,8 +14,7 @@ import {
 export interface BMRenderCallbacks {
   onRoll(): void;
   onDecision(accept: boolean): void;   // 구매/인수 예/아니오
-  onBuild(kind: BuildKind): void;       // 건물 하나 건설
-  onBuildDone(): void;                  // 건설 메뉴 완료
+  onBuildConfirm(builds: BuildKind[]): void;  // 선택한 건물들 확정 건설 + 턴 종료(빈 배열 = 그냥 완료)
   onCard(keep: boolean): void;          // 황금열쇠 보관/사용
   onUseHeld(cardId: number): void;
   /** 주사위·이동 시퀀스가 끝나 화면이 idle 이 됨(호스트가 더미 진행 타이밍에 사용) */
@@ -120,6 +119,8 @@ export class BlueMarbleRenderer {
   private busy = false;
   private myId = '';
   private spec = false;
+  /** 건설 모달에서 체크한 건물들 (완료 시 일괄 확정) */
+  private buildSel = new Set<BuildKind>();
 
   constructor(parent: HTMLElement, cb: BMRenderCallbacks) {
     this.cb = cb;
@@ -389,6 +390,7 @@ export class BlueMarbleRenderer {
 
   private buildMenuModal(state: BMState, tile: number): void {
     this.closeModal();
+    this.buildSel = new Set();   // 새 건설창 → 선택 초기화
     const scrim = document.createElement('div'); scrim.className = 'bm-scrim';
     document.body.appendChild(scrim); this.modalScrim = scrim; this.openKind = `build:${tile}`;
     (scrim as HTMLElement & { _tile?: number })._tile = tile;
@@ -402,28 +404,53 @@ export class BlueMarbleRenderer {
     const t = BOARD[tile] as { name: string; price: number };
     const p = state.players[state.order[state.turnIdx]!]!;
     const arr = state.builds[tile] ?? [];
+    // 이미 지은 것 + 지금 체크한 것 (랜드마크 선행조건·자금 계산에 사용)
+    const withSel = [...arr, ...this.buildSel];
+    const selTotal = [...this.buildSel].reduce((v, k) => v + buildCostOf(tile, k), 0);
+    const remain = p.money - selTotal;
+
     const rows = BUILD_TYPES.map((bt) => {
-      const has = arr.includes(bt.kind);
+      const owned = arr.includes(bt.kind);
+      const sel = this.buildSel.has(bt.kind);
       const cost = buildCostOf(tile, bt.kind);
-      let st = '', dis = true;
-      if (has) st = '<span style="color:#57c777">보유</span>';
+      let st = '', can = false;
+      if (owned) st = '<span style="color:#57c777">보유</span>';
       else if (p.laps < bt.lap) st = `<span style="color:#9a8a9a">${bt.lap}바퀴 필요</span>`;
-      else if (bt.kind === 'landmark' && !hasAllHouses(arr)) st = '<span style="color:#9a8a9a">3건물 먼저</span>';
-      else if (p.money < cost) st = '<span style="color:#e5484d">돈 부족</span>';
-      else { st = `<b style="color:#ff5a92">${won(cost)}</b>`; dis = false; }
+      else if (bt.kind === 'landmark' && !hasAllHouses(withSel)) st = '<span style="color:#9a8a9a">3건물 먼저</span>';
+      else if (!sel && cost > remain) st = '<span style="color:#e5484d">돈 부족</span>';
+      else { st = `<b style="color:#ff5a92">${won(cost)}</b>`; can = true; }
       const ic = bt.kind === 'landmark' ? landmarkSvg(t.name) : BSVG[bt.kind];
-      return `<button class="bm-brow" data-k="${bt.kind}" ${dis ? 'disabled' : ''}>
+      const on = owned || sel;
+      return `<button class="bm-brow${sel ? ' sel' : ''}" data-k="${bt.kind}" ${can ? '' : 'disabled'}>
+        <span class="bm-bck${on ? ' on' : ''}">${on ? IC.check : ''}</span>
         <span class="bm-bic" style="color:${colorOf(state, p.peerId)}">${ic}</span>
         <span class="bm-bnm">${bt.name}</span><span class="bm-bst">${st}</span></button>`;
     }).join('');
-    scrim.innerHTML = `<div class="bm-modal" style="width:290px"><div class="bm-top" style="background:${tileColor(tile)}">${t.name} · 건설</div>
-      <div class="bm-body"><div class="bm-sub">지을 건물을 골라요 (바퀴 ${p.laps})</div>
+
+    const sumLine = this.buildSel.size
+      ? `<div class="bm-bsum">건설비 <b>${won(selTotal)}</b> · 잔액 <b>${won(remain)}</b></div>`
+      : `<div class="bm-bsum dim">지을 건물을 골라요</div>`;
+    const doneLabel = this.buildSel.size ? `건설 완료 (${this.buildSel.size})` : '건설 안 함';
+    scrim.innerHTML = `<div class="bm-modal" style="width:300px"><div class="bm-top" style="background:${tileColor(tile)}">${t.name} · 건설 (바퀴 ${p.laps})</div>
+      <div class="bm-body">
       <div class="bm-bmenu">${rows}</div>
-      <div class="bm-btns"><button class="bm-no" style="flex:1">완료</button></div></div></div>`;
+      ${sumLine}
+      <div class="bm-btns"><button class="bm-yes" style="flex:1">${doneLabel}</button></div></div></div>`;
+
     scrim.querySelectorAll<HTMLButtonElement>('.bm-brow').forEach((b) => {
-      b.onclick = () => this.cb.onBuild(b.dataset.k as BuildKind);
+      b.onclick = () => {
+        const k = b.dataset.k as BuildKind;
+        if (this.buildSel.has(k)) this.buildSel.delete(k);
+        else this.buildSel.add(k);
+        // 집을 빼면 선행조건이 깨진 랜드마크도 자동 해제
+        if (this.buildSel.has('landmark') && !hasAllHouses([...arr, ...this.buildSel])) this.buildSel.delete('landmark');
+        this.refreshBuildMenu(state);   // 체크/합계/랜드마크 가용성 갱신
+      };
     });
-    scrim.querySelector<HTMLButtonElement>('.bm-no')!.onclick = () => this.cb.onBuildDone();
+    scrim.querySelector<HTMLButtonElement>('.bm-yes')!.onclick = () => {
+      const order: BuildKind[] = ['villa', 'house2', 'apt', 'landmark'];
+      this.cb.onBuildConfirm(order.filter((k) => this.buildSel.has(k)));  // 확정 + 턴 종료
+    };
   }
 
   private cardModal(state: BMState, cardId: number): void {
@@ -597,10 +624,14 @@ function injectStyle(): void {
 .bm-deedb{height:26px;background:var(--bd);} .bm-deedn{font-size:16px;font-weight:900;padding:6px 4px 0;} .bm-deedi{font-size:10.5px;color:#8a7a8a;padding:2px 4px 8px;line-height:1.3;}
 .bm-cardic svg{width:46px;height:46px;} .bm-ctitle{font-size:18px;font-weight:900;margin-top:6px;} .bm-cdesc{font-size:12px;color:#8a7a8a;margin-bottom:6px;}
 .bm-bmenu{display:flex;flex-direction:column;gap:7px;}
-.bm-brow{display:flex;align-items:center;gap:9px;padding:7px 9px;border-radius:12px;border:1.5px solid #eadcf2;background:#fff;font:inherit;cursor:pointer;text-align:left;}
+.bm-brow{display:flex;align-items:center;gap:9px;padding:7px 9px;border-radius:12px;border:1.5px solid #eadcf2;background:#fff;font:inherit;cursor:pointer;text-align:left;transition:border-color .12s,background .12s;}
 .bm-brow:not(:disabled):hover{border-color:#ff5a92;} .bm-brow:disabled{opacity:.55;cursor:default;}
+.bm-brow.sel{border-color:#57c777;background:#f2fdf6;}
+.bm-bck{width:20px;height:20px;flex:none;border-radius:50%;border:2px solid #dcdce4;background:#fff;box-sizing:border-box;}
+.bm-bck.on{border:none;} .bm-bck svg{width:20px;height:20px;display:block;}
 .bm-bic{width:26px;height:26px;flex:none;display:grid;place-items:center;} .bm-bic svg{width:26px;height:26px;}
 .bm-bnm{flex:1;font-size:13px;font-weight:800;} .bm-bst{font-size:12px;font-weight:700;}
+.bm-bsum{margin-top:10px;font-size:12px;color:#7a6a7a;} .bm-bsum b{color:#5b3f6e;} .bm-bsum.dim{color:#a89aab;}
 .bm-itable{width:100%;font-size:11.5px;border-collapse:collapse;margin-top:2px;} .bm-itable td{padding:3.5px 6px;border-bottom:1px solid #f2eaf4;} .bm-itable td:last-child{text-align:right;font-weight:800;} .bm-itable td:first-child{color:#6a5a6a;}
 .bm-ihdr{font-size:11.5px;font-weight:800;color:#8a7a8a;margin-top:10px;}
 .bm-curbox{background:#fff6fa;border:1px solid #ffd6e6;border-radius:12px;padding:8px 11px;margin:8px 0;}

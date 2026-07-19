@@ -21,10 +21,9 @@ const T_END = 'bm:end';
 export type BMAction =
   | { kind: 'roll' }                          // 주사위 굴리기
   | { kind: 'decision'; accept: boolean }     // 구매/인수 대기에 대한 예/아니오
-  | { kind: 'build'; build: BuildKind }       // 내 도시에 건물 하나 건설
+  | { kind: 'build'; builds: BuildKind[] }    // 선택한 건물들 일괄 건설 후 턴 마무리(빈 배열 = 그냥 완료)
   | { kind: 'card'; keep: boolean }           // 황금열쇠: 보관(true) / 지금 사용(false)
-  | { kind: 'useHeld'; cardId: number }       // 보관 카드 사용
-  | { kind: 'endTurn' };                       // 결정/건설 끝내고 턴 마무리
+  | { kind: 'useHeld'; cardId: number };      // 보관 카드 사용
 
 // ── hello ──
 export function encodeHello(peerId: string): GameMessage {
