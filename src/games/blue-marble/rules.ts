@@ -47,8 +47,8 @@ export interface BuildMeta {
 }
 export const BUILD_TYPES: BuildMeta[] = [
   { kind: 'villa', name: '별장', costMul: 0.5, tollMul: 0.3, lap: 0 },
-  { kind: 'house2', name: '2층집', costMul: 0.7, tollMul: 0.5, lap: 1 },
-  { kind: 'apt', name: '아파트', costMul: 1.0, tollMul: 0.8, lap: 2 },
+  { kind: 'house2', name: '빌딩', costMul: 0.7, tollMul: 0.5, lap: 1 },
+  { kind: 'apt', name: '호텔', costMul: 1.0, tollMul: 0.8, lap: 2 },
   { kind: 'landmark', name: '랜드마크', costMul: 1.5, tollMul: 2.0, lap: 3 },
 ];
 /** 땅만 있을 때 통행료 배수 (건물 없음) */
@@ -109,6 +109,54 @@ export const BOARD: Tile[] = [
 
 /** 섬 칸 인덱스 목록 (개수별 통행료 계산용) */
 export const ISLAND_TILES = BOARD.map((t, i) => (t.type === 'island' ? i : -1)).filter((i) => i >= 0);
+
+/** 그룹(색) → 그 색 도시 index 목록 (컬러 독점 판정용) */
+export const GROUP_TILES: Partial<Record<GroupColor, number[]>> = (() => {
+  const m: Partial<Record<GroupColor, number[]>> = {};
+  BOARD.forEach((t, i) => { if (t.type === 'city') (m[t.group] ??= []).push(i); });
+  return m;
+})();
+export const CITY_GROUPS = Object.keys(GROUP_TILES) as GroupColor[];
+
+/** 각 변(라인)의 도시 index 목록. 0=하단·1=좌·2=상·3=우 (라인 독점 판정용) */
+export const SIDE_CITIES: number[][] = (() => {
+  const sides: number[][] = [[], [], [], []];
+  BOARD.forEach((t, i) => {
+    if (t.type !== 'city') return;
+    sides[i <= 8 ? 0 : i <= 16 ? 1 : i <= 24 ? 2 : 3]!.push(i);
+  });
+  return sides;
+})();
+
+/** 그 색 도시를 전부 소유했는지 (컬러 독점) */
+export function ownsGroup(state: BMState, peer: string, group: GroupColor): boolean {
+  const tiles = GROUP_TILES[group];
+  return !!tiles && tiles.length > 0 && tiles.every((i) => state.owner[i] === peer);
+}
+/** 이 도시의 컬러 독점 통행료 배수 (독점이면 2, 아니면 1) */
+export function colorMonopolyMul(state: BMState, tile: number, owner: string): number {
+  const t = BOARD[tile];
+  return t.type === 'city' && ownsGroup(state, owner, t.group) ? 2 : 1;
+}
+/** 완성한 컬러 독점 개수 */
+export function fullGroupsOwned(state: BMState, peer: string): number {
+  return CITY_GROUPS.filter((g) => ownsGroup(state, peer, g)).length;
+}
+/** 한 변의 도시를 전부 소유했는지 (라인 독점) */
+export function ownsAnyLine(state: BMState, peer: string): boolean {
+  return SIDE_CITIES.some((cs) => cs.length > 0 && cs.every((i) => state.owner[i] === peer));
+}
+/** 모든 관광지(섬) 소유 여부 (관광지 독점) */
+export function ownsAllIslands(state: BMState, peer: string): boolean {
+  return ISLAND_TILES.length > 0 && ISLAND_TILES.every((i) => state.owner[i] === peer);
+}
+/** 독점 즉시승 판정 → 사유(트리플/라인/관광지) 또는 null */
+export function monopolyWin(state: BMState, peer: string): string | null {
+  if (fullGroupsOwned(state, peer) >= 3) return '트리플 독점';
+  if (ownsAnyLine(state, peer)) return '라인 독점';
+  if (ownsAllIslands(state, peer)) return '관광지 독점';
+  return null;
+}
 
 // ── 황금열쇠 카드 ──
 /** effect: money(+받음/-냄), moveTo(칸 이동), pass(이동 시 출발 통과 월급), keep(보관 가능) */
@@ -181,6 +229,10 @@ export interface BMState {
   pending: Pending;
   /** 사회복지기금 적립액 (세금이 여기 쌓이고, 사회복지기금 칸 도착 시 수령) */
   fund: number;
+  /** 도시 index → 올림픽 개최 배수(2~5). 올림픽 칸 도착 후 내 도시에 개최하면 누적 */
+  olympic: Record<number, number>;
+  /** peerId → 관광지 패시브 배수(1,2,4,8…). 내 섬을 다시 밟을 때마다 ×2 누적 */
+  islandBoost: Record<string, number>;
   phase: 'playing' | 'ended';
   /** 승자 peerId (phase==='ended') */
   winnerPeerId: string | null;
@@ -197,18 +249,39 @@ export function islandCount(state: BMState, peerId: string): number {
   return ISLAND_TILES.filter((i) => state.owner[i] === peerId).length;
 }
 
-/** 그 칸(도시/섬)을 밟았을 때 내야 하는 통행료. 소유자 없거나 본인 소유면 0. */
-export function tollFor(state: BMState, tile: number, byPeerId: string): number {
+/** 통행료 배수 한 줄 (UI 상세 표시용) */
+export interface TollPart { label: string; mul: number; }
+/** 통행료 상세: 기본액 + 배수 항목들 + 최종액 */
+export interface TollInfo { base: number; parts: TollPart[]; total: number; }
+
+/** 통행료 상세 계산 (모든 배수는 곱연산으로 중첩). 소유자 없거나 본인이면 0. */
+export function tollBreakdown(state: BMState, tile: number, byPeerId: string): TollInfo {
   const t = BOARD[tile];
   const o = state.owner[tile];
-  if (o === undefined || o === byPeerId) return 0;
-  if (t.type === 'island') return Math.round(t.price * 0.5) * islandCount(state, o);
+  if (o === undefined || o === byPeerId) return { base: 0, parts: [], total: 0 };
+  const parts: TollPart[] = [];
+  if (t.type === 'island') {
+    const base = Math.round(t.price * 0.5) * islandCount(state, o);
+    const boost = state.islandBoost[o] ?? 1;
+    if (boost > 1) parts.push({ label: `관광지 패시브 ×${boost}`, mul: boost });
+    return { base, parts, total: Math.round(base * boost) };
+  }
   if (t.type === 'city') {
     const arr = state.builds[tile] ?? [];
-    const mul = BASE_TOLL_MUL + arr.reduce((s, k) => s + buildMeta(k).tollMul, 0);
-    return Math.round(t.price * mul);
+    const base = Math.round(t.price * (BASE_TOLL_MUL + arr.reduce((s, k) => s + buildMeta(k).tollMul, 0)));
+    let total = base;
+    const cm = colorMonopolyMul(state, tile, o);
+    if (cm > 1) { parts.push({ label: `컬러 독점 ×${cm}`, mul: cm }); total *= cm; }
+    const oly = state.olympic[tile] ?? 1;
+    if (oly > 1) { parts.push({ label: `올림픽 개최 ×${oly}`, mul: oly }); total *= oly; }
+    return { base, parts, total: Math.round(total) };
   }
-  return 0;
+  return { base: 0, parts: [], total: 0 };
+}
+
+/** 그 칸을 밟았을 때 내야 하는 최종 통행료. */
+export function tollFor(state: BMState, tile: number, byPeerId: string): number {
+  return tollBreakdown(state, tile, byPeerId).total;
 }
 
 /** 특정 건물 건설비 = 도시가격 × costMul */
@@ -266,9 +339,12 @@ export function createInitialState(players: Array<{ peerId: string; nickname: st
     pos[p.peerId] = 0;
     held[p.peerId] = [];
   }
+  const islandBoost: Record<string, number> = {};
+  for (const p of players) islandBoost[p.peerId] = 1;
   return {
     order, players: pmap, pos, owner: {}, builds: {}, held,
     turnIdx: 0, dice: null, doubles: 0, pending: null, fund: 0,
+    olympic: {}, islandBoost,
     phase: 'playing', winnerPeerId: null, log: '',
   };
 }

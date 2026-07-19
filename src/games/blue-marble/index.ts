@@ -10,7 +10,7 @@ import type { GameModule, GameContext, GameMessage, GameResult, Player } from '.
 import { sound } from '../../core/sound';
 import {
   BOARD, CARDS, SALARY, DESERT_TURNS, DESERT_ESCAPE, buildCostOf, canBuild, acquireCost,
-  tollFor, alivePeers, nextTurnIdx, createInitialState,
+  tollFor, alivePeers, nextTurnIdx, createInitialState, monopolyWin,
   type BMState, type BuildKind,
 } from './rules';
 
@@ -188,6 +188,7 @@ class BlueMarbleModule implements GameModule {
         if (action.accept) {
           const tile = s.pending.tile;
           this.doBuy(by, tile);
+          if (this.ended) { this.afterChange(); return; }   // 구매로 독점 즉시승 달성
           // 부루마블처럼 구매 직후 바로 건물 짓기 — 지을 수 있는 게 있으면 build 창으로 이어감
           const buildable = (['villa', 'house2', 'apt', 'landmark'] as BuildKind[]).some((k) => canBuild(s, tile, by, k));
           if (BOARD[tile].type === 'city' && buildable) { s.pending = { kind: 'build', tile }; this.afterChange(); return; }
@@ -252,6 +253,11 @@ class BlueMarbleModule implements GameModule {
         s.log = `${t.name} — 살 돈이 부족해요`;
         s.pending = { kind: 'info', tile: i, text: '살 돈이 부족해요' }; this.render(); return;
       } else if (o === peer) {
+        // 내 섬 재도착 → 관광지 패시브 ×2 누적 (내 모든 섬 통행료 상승)
+        if (t.type === 'island') {
+          s.islandBoost[peer] = (s.islandBoost[peer] ?? 1) * 2;
+          s.log = `${t.name} — 관광지 패시브 ×${s.islandBoost[peer]}!`;
+        }
         if (t.type === 'city' && (['villa', 'house2', 'apt', 'landmark'] as BuildKind[]).some((k) => canBuild(s, i, peer, k))) {
           s.pending = { kind: 'build', tile: i }; this.render(); return;
         }
@@ -301,6 +307,7 @@ class BlueMarbleModule implements GameModule {
     s.players[peer]!.money -= t.price; s.owner[tile] = peer;
     if (BOARD[tile].type === 'city') s.builds[tile] = [];
     sound.play('pop');
+    this.checkMonopolyWin(peer);
   }
   private doBuild(peer: string, tile: number, kind: BuildKind): void {
     const s = this.state;
@@ -315,6 +322,19 @@ class BlueMarbleModule implements GameModule {
     this.pay(peer, from, cost);
     s.owner[tile] = peer;
     sound.play('pop');
+    this.checkMonopolyWin(peer);
+  }
+
+  /** 독점 즉시승(트리플/라인/관광지) 판정 → 달성 시 게임 종료 */
+  private checkMonopolyWin(peer: string): void {
+    if (this.ended) return;
+    const s = this.state;
+    const reason = monopolyWin(s, peer);
+    if (!reason) return;
+    s.phase = 'ended';
+    s.winnerPeerId = peer;
+    s.log = `${s.players[peer]!.nickname} · ${reason} 달성 — 승리!`;
+    this.finishGame();
   }
   private resolveCard(peer: string, cardId: number, keep: boolean): void {
     const s = this.state; const c = CARDS[cardId]!;
