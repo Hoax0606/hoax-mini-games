@@ -318,10 +318,11 @@ export class BlueMarbleRenderer {
     const active = (this.moverId && s.pos[this.moverId] !== undefined) ? this.moverId : s.order[s.turnIdx]!;   // 굴린 사람(캡처) — 턴 넘어가도 그 말만
     // 나머지 말들은 즉시 제자리로 스냅 → 이전 애니 잔상이 같이 따라 움직이는 버그 방지
     for (const p of s.order) if (p !== active) this.dispPos[p] = s.pos[p]!;
+    if (this.dispPos[active] === undefined) this.dispPos[active] = s.pos[active]!;   // 안전: 미초기화면 즉시 도착 처리
     // 카드 등으로 12칸 초과 순간이동은 스텝 없이 즉시
     const N = BOARD.length;
     const gap = (((s.pos[active]! - this.dispPos[active]!) % N) + N) % N;
-    if (gap === 0 || gap > 12) { this.dispPos[active] = s.pos[active]!; this.renderTiles(s); this.settle(); return; }
+    if (!Number.isFinite(gap) || gap === 0 || gap > 12) { this.dispPos[active] = s.pos[active]!; this.renderTiles(s); this.settle(); return; }
     this.moveTimer = window.setInterval(() => {
       const st = this._lastState; if (this.destroyed || !st) { this.clearMove(); return; }
       this.dispPos[active] = (this.dispPos[active]! + 1) % BOARD.length;
@@ -470,9 +471,9 @@ export class BlueMarbleRenderer {
     }
     this.setPickMode(pick);
     if (!mine) { this.showActing(state, p, cur); return; }
-    if (p.kind === 'travel') { this.showBanner('이동할 칸을 클릭하세요'); return; }
-    if (p.kind === 'olympic') { this.showBanner('개최할 내 땅을 클릭하세요'); return; }
-    if (p.kind === 'startBuild') { this.showBanner('건설할 내 땅을 클릭하세요'); return; }
+    if (p.kind === 'travel') { this.showBanner('이동할 칸을 클릭하세요', false); return; }
+    if (p.kind === 'olympic') { this.showBanner('개최할 내 땅을 클릭하세요', true); return; }
+    if (p.kind === 'startBuild') { this.showBanner('건설할 내 땅을 클릭하세요', true); return; }
     // 내 결정 모달 (이미 같은 종류 열려있으면 유지)
     const disc = p.kind === 'bonus' ? `${p.round}:${p.pot}` : ('tile' in p ? p.tile : '');
     const kind = `${p.kind}:${disc}`;
@@ -495,13 +496,15 @@ export class BlueMarbleRenderer {
     this.pickTiles = tiles ?? [];
   }
 
-  /** 세계여행: 이동할 칸 클릭 안내 배너 (딤 없이) */
-  private showBanner(text: string): void {
-    if (this.openKind === `banner:${text}` && this.modalScrim) return;
+  /** 칸 클릭 안내 배너 (딤 없이). skippable=true면 건너뛰기 버튼(막다른 길 방지) */
+  private showBanner(text: string, skippable: boolean): void {
+    const key = `banner:${text}:${skippable}`;
+    if (this.openKind === key && this.modalScrim) return;
     this.closeModal();
     const scrim = document.createElement('div'); scrim.className = 'bm-scrim bm-noscrim';
-    scrim.innerHTML = `<div class="bm-toast">${text}</div>`;
-    document.body.appendChild(scrim); this.modalScrim = scrim; this.openKind = `banner:${text}`;
+    scrim.innerHTML = `<div class="bm-toast">${text}${skippable ? '<button class="bm-bskip">건너뛰기</button>' : ''}</div>`;
+    document.body.appendChild(scrim); this.modalScrim = scrim; this.openKind = key;
+    scrim.querySelector<HTMLButtonElement>('.bm-bskip')?.addEventListener('click', () => this.cb.onPickCity(-1));
   }
 
   /** 올림픽 개최 / 추가 건설: 내 도시 하나 선택 */
@@ -897,7 +900,8 @@ function injectStyle(): void {
 .bm-ihdr{font-size:11.5px;font-weight:800;color:#8a7a8a;margin-top:10px;}
 .bm-curbox{background:#fff6fa;border:1px solid #ffd6e6;border-radius:12px;padding:8px 11px;margin:8px 0;}
 .bm-scrim.bm-noscrim{background:transparent;pointer-events:none;}
-.bm-toast{background:rgba(74,58,74,.94);color:#fff;font-size:15px;font-weight:800;padding:14px 26px;border-radius:16px;box-shadow:0 14px 36px rgba(0,0,0,.32);animation:bm-pop .26s cubic-bezier(.34,1.56,.64,1);} .bm-toast b{color:#ffd7e6;}
+.bm-toast{background:rgba(74,58,74,.94);color:#fff;font-size:15px;font-weight:800;padding:14px 26px;border-radius:16px;box-shadow:0 14px 36px rgba(0,0,0,.32);animation:bm-pop .26s cubic-bezier(.34,1.56,.64,1);display:flex;align-items:center;gap:14px;} .bm-toast b{color:#ffd7e6;}
+.bm-bskip{pointer-events:auto;font:inherit;font-size:13px;font-weight:800;color:#4a3a4a;background:#fff;border:none;border-radius:999px;padding:6px 14px;cursor:pointer;box-shadow:0 3px 8px rgba(0,0,0,.25);}
 .bm-actft{display:flex;align-items:center;justify-content:center;gap:8px;margin-top:12px;padding-top:11px;border-top:1px solid #f0e6f4;font-size:13px;font-weight:700;color:#6a5a6a;} .bm-actft b{color:#4a3a4a;}
 .bm-actft .bm-sp{border-color:rgba(120,90,130,.28);border-top-color:#8a5a78;}
 .bm-sp{width:14px;height:14px;border:2px solid rgba(255,255,255,.4);border-top-color:#fff;border-radius:50%;animation:bm-spin .7s linear infinite;}

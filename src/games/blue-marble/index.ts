@@ -366,10 +366,10 @@ class BlueMarbleModule implements GameModule {
       }
     } else if (t.type === 'corner') {
       if (t.kind === 'start') {
-        p.money += SALARY; s.log = '출발 도착! 월급';
-        s.fx = { seq: (s.fx?.seq ?? 0) + 1, amount: SALARY, mul: 1, kind: 'gain' };
-        // 정확히 출발에 멈춤 → 내 도시 하나 추가 건설
+        // 월급은 move()에서 출발 통과 시 이미 지급됨. 여기선 추가 건설만.
+        s.log = '출발 도착! 추가 건설 기회';
         if (this.hasBuildableCity(peer)) { s.pending = { kind: 'startBuild' }; this.render(); return; }
+        s.log = '출발 도착! 월급';
       }
       else if (t.kind === 'welfare') {
         // 올림픽 개최 — 내 도시 하나에 개최(통행료 배수 누적). 도시 없으면 스킵
