@@ -64,6 +64,8 @@ const BSVG: Record<string, string> = {
   house2: '<svg viewBox="0 0 24 24" stroke="#fff" stroke-width="1.4" stroke-linejoin="round"><rect x="6.5" y="9" width="11" height="12" fill="currentColor"/><path d="M5 9 L12 3.5 L19 9 Z" fill="currentColor"/><path d="M5 9 L12 3.5 L19 9 Z" fill="rgba(0,0,0,.15)" stroke="none"/><g fill="#fff" stroke="none"><rect x="8" y="10.5" width="2.3" height="2.3"/><rect x="13.7" y="10.5" width="2.3" height="2.3"/></g><rect x="10.6" y="16" width="2.8" height="5" fill="#fff" stroke="none"/></svg>',
   apt: '<svg viewBox="0 0 24 24" stroke="#fff" stroke-width="1.3" stroke-linejoin="round"><rect x="6" y="4" width="12" height="17" fill="currentColor"/><g fill="#fff" stroke="none" opacity=".95"><rect x="8" y="6" width="2.2" height="2.2"/><rect x="13.8" y="6" width="2.2" height="2.2"/><rect x="8" y="10" width="2.2" height="2.2"/><rect x="13.8" y="10" width="2.2" height="2.2"/><rect x="8" y="14" width="2.2" height="2.2"/><rect x="13.8" y="14" width="2.2" height="2.2"/></g><rect x="10.4" y="17.5" width="3.2" height="3.5" fill="#fff" stroke="none"/></svg>',
 };
+// 섬 소유 표시 — 깃발(천 = 플레이어색 currentColor)
+const FLAG = '<svg viewBox="0 0 24 24"><rect x="6" y="2.5" width="2" height="19" rx="1" fill="#6b5566"/><circle cx="7" cy="2.6" r="1.7" fill="#ffd454"/><path d="M8 3.5 H20 Q16.8 6.5 20 9.5 H8 Z" fill="currentColor" stroke="#fff" stroke-width="1" stroke-linejoin="round"/></svg>';
 const GENERIC_LM = '<svg viewBox="0 0 24 24" stroke="#fff" stroke-width="0.9" stroke-linejoin="round"><path d="M12 1 L14 5.5 H10 Z" fill="#ffd454" stroke="#fff" stroke-width="0.6"/><rect x="8.5" y="6" width="7" height="15" fill="currentColor"/><rect x="8.5" y="6" width="7" height="2.6" fill="#ffd454" stroke="none"/><rect x="6" y="18" width="12" height="3" fill="currentColor"/><g fill="#fff" stroke="none" opacity=".9"><rect x="10" y="10" width="4" height="2"/><rect x="10" y="13.5" width="4" height="2"/></g></svg>';
 const LM_ATTR = 'viewBox="0 0 24 24" stroke="#fff" stroke-width="0.9" stroke-linejoin="round"';
 const LANDMARK: Record<string, string> = {
@@ -276,14 +278,14 @@ export class BlueMarbleRenderer {
       const tile = this.root.querySelector<HTMLElement>(`.bm-tile[data-i="${i}"]`);
       if (!tile) continue;
       tile.querySelector('.bm-blds')?.remove();
-      tile.querySelector('.bm-idock')?.remove();
+      tile.querySelector('.bm-iflag')?.remove();
       tile.querySelector('.bm-toks')?.remove();
       const o = state.owner[i];
       const t = BOARD[i];
       if (o !== undefined) {
         const col = colorOf(state, o);
         if (t.type === 'island') {
-          const dk = document.createElement('div'); dk.className = 'bm-idock'; dk.style.background = col; tile.appendChild(dk);
+          const fl = document.createElement('div'); fl.className = 'bm-iflag'; fl.style.color = col; fl.innerHTML = FLAG; tile.appendChild(fl);
         } else if (t.type === 'city') {
           const arr = state.builds[i] ?? [];
           if (arr.length) {
@@ -576,7 +578,8 @@ function injectStyle(): void {
 .bm-nm{font-size:9px;font-weight:800;line-height:1.05;padding:2px;text-align:center;}
 .bm-corner .bm-nm{font-size:8.5px;}
 .bm-islandic{position:absolute;top:38%;left:50%;transform:translate(-50%,-50%);} .bm-islandic svg{width:22px;height:22px;filter:drop-shadow(0 1px 1px rgba(0,0,0,.2));}
-.bm-idock{position:absolute;top:56%;left:50%;transform:translateX(-50%);width:18px;height:5px;border-radius:3px;border:1.5px solid rgba(255,255,255,.9);box-shadow:0 1px 2px rgba(0,0,0,.3);z-index:2;}
+.bm-iflag{position:absolute;left:0;right:0;top:2px;display:flex;justify-content:center;z-index:2;}
+.bm-iflag svg{width:24px;height:24px;filter:drop-shadow(0 1px 1.5px rgba(0,0,0,.3));}
 .bm-blds{position:absolute;left:0;right:0;top:3px;display:flex;justify-content:center;align-items:flex-end;gap:1px;z-index:2;}
 .bm-blds svg{width:21px;height:21px;filter:drop-shadow(0 1px 1.5px rgba(0,0,0,.3));}
 .bm-blds.bm-lm svg{width:44px;height:44px;filter:drop-shadow(0 0 5px rgba(255,200,60,.9)) drop-shadow(0 1px 2px rgba(0,0,0,.35));}
