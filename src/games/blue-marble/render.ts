@@ -115,6 +115,7 @@ export class BlueMarbleRenderer {
   private dispPos: Record<string, number> = {};
   private moveTimer: number | null = null;
   private spinTimer: number | null = null;
+  private settleTimer: number | null = null;
   /** 주사위 굴림 → 이동 시퀀스 진행 중이면 결정창 보류 */
   private busy = false;
   private myId = '';
@@ -134,6 +135,7 @@ export class BlueMarbleRenderer {
     this.destroyed = true;
     this.clearMove();
     if (this.spinTimer !== null) window.clearInterval(this.spinTimer);
+    if (this.settleTimer !== null) window.clearTimeout(this.settleTimer);
     this.closeModal();
     this.root.remove();
   }
@@ -235,13 +237,25 @@ export class BlueMarbleRenderer {
   private startMoveSeq(): void {
     const s = this._lastState; if (!s) { this.busy = false; return; }
     for (const p of s.order) { const gap = (((s.pos[p]! - this.dispPos[p]!) % 40) + 40) % 40; if (gap > 12) this.dispPos[p] = s.pos[p]!; }
-    if (!s.order.some((p) => this.dispPos[p] !== s.pos[p])) { this.busy = false; this.render(s, this.myId, this.spec); return; }
+    if (!s.order.some((p) => this.dispPos[p] !== s.pos[p])) { this.settle(); return; }
     this.moveTimer = window.setInterval(() => {
       const st = this._lastState; if (this.destroyed || !st) { this.clearMove(); return; }
       for (const p of st.order) if (this.dispPos[p] !== st.pos[p]) this.dispPos[p] = (this.dispPos[p]! + 1) % 40;
       this.renderTiles(st);
-      if (!st.order.some((p) => this.dispPos[p] !== st.pos[p])) { this.clearMove(); this.busy = false; this.render(st, this.myId, this.spec); }
+      // 마지막 칸에 도착 → 말이 잠시 머문 뒤에 결정창(구매/황금열쇠) 표시
+      if (!st.order.some((p) => this.dispPos[p] !== st.pos[p])) { this.clearMove(); this.settle(); }
     }, 220);
+  }
+
+  /** 도착 후 짧은 텀(360ms)을 두고 결정창/배너 표시 — 착지하자마자 모달이 뜨지 않게 */
+  private settle(): void {
+    if (this.settleTimer !== null) window.clearTimeout(this.settleTimer);
+    this.settleTimer = window.setTimeout(() => {
+      this.settleTimer = null;
+      if (this.destroyed) return;
+      this.busy = false;
+      const st = this._lastState; if (st) this.render(st, this.myId, this.spec);
+    }, 360);
   }
 
   private renderTiles(state: BMState): void {
