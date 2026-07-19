@@ -546,7 +546,7 @@ class FortressGameModule implements GameModule {
       hm: this.hm,
       myPeerId: this.myPeerId,
       isSpectator: this.isSpectator,
-      shells: this.shells.map((s) => ({ x: s.x, y: s.y, fuseLeft: s.fuseLeft })),
+      shells: this.shells.map((s) => ({ x: s.x, y: s.y, vx: s.vx, vy: s.vy, fuseLeft: s.fuseLeft })),
       flyingWeapon: this.flyingWeapon,
       explosions: this.explosions,
       damagePops: this.damagePops,

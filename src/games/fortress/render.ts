@@ -67,8 +67,8 @@ export interface RenderState {
   hm: number[];
   myPeerId: string;
   isSpectator: boolean;
-  /** 날아가는 포탄들 (분열탄은 여러 개). fuseLeft 는 수류탄 카운트다운(ms) */
-  shells: { x: number; y: number; fuseLeft: number }[];
+  /** 날아가는 포탄들 (분열탄은 여러 개). fuseLeft 는 수류탄 카운트다운(ms), vx/vy 는 방향(미사일/꼬리용) */
+  shells: { x: number; y: number; vx: number; vy: number; fuseLeft: number }[];
   /** 현재 날아가는 무기 종류 (포탄 색/수류탄 퓨즈 표시용) */
   flyingWeapon: WeaponId;
   /** 폭발 이펙트 (확장 후 페이드) */
@@ -495,22 +495,58 @@ export class FortressRenderer {
     ctx.stroke();
   }
 
+  /** 무기별로 날아가는 포탄 모양을 다르게 (무기 바 아이콘 테마와 맞춤) */
   private drawShells(shells: RenderState['shells'], weapon: WeaponId): void {
     const ctx = this.ctx;
-    const isGrenade = weapon === 'grenade';
+    const P2 = Math.PI * 2;
+    const dot = (x: number, y: number, r: number, c: string): void => { ctx.fillStyle = c; ctx.beginPath(); ctx.arc(x, y, r, 0, P2); ctx.fill(); };
     for (const s of shells) {
-      ctx.fillStyle = isGrenade ? '#5a7a3a' : COLORS.projectile; // 수류탄은 올리브색
-      ctx.beginPath();
-      ctx.arc(s.x, s.y, isGrenade ? 5 : 4, 0, Math.PI * 2);
-      ctx.fill();
-      // 수류탄: 남은 퓨즈 초를 포탄 위에 작게 표시 (따라다님)
-      if (isGrenade && s.fuseLeft !== Infinity && s.fuseLeft > 0) {
-        ctx.fillStyle = COLORS.accentPink;
-        ctx.font = `700 11px ${FONT}`;
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'bottom';
-        ctx.fillText(String(Math.ceil(s.fuseLeft / 1000)), s.x, s.y - 8);
+      const ang = Math.atan2(s.vy, s.vx);
+      const bx = -Math.cos(ang), by = -Math.sin(ang); // 뒤(꼬리) 방향
+
+      if (weapon === 'grenade') {
+        dot(s.x, s.y, 5.5, '#5a7a3a');
+        ctx.strokeStyle = '#3f5a26'; ctx.lineWidth = 1;
+        ctx.beginPath(); ctx.arc(s.x, s.y, 5.5, 0, P2); ctx.stroke();
+        ctx.strokeStyle = 'rgba(63,90,38,0.6)'; ctx.lineWidth = 0.8;
+        ctx.beginPath(); ctx.moveTo(s.x - 3, s.y); ctx.lineTo(s.x + 3, s.y); ctx.moveTo(s.x, s.y - 3); ctx.lineTo(s.x, s.y + 3); ctx.stroke();
+        if (s.fuseLeft !== Infinity && s.fuseLeft > 0) {
+          ctx.fillStyle = COLORS.accentPink;
+          ctx.font = `700 11px ${FONT}`;
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'bottom';
+          ctx.fillText(String(Math.ceil(s.fuseLeft / 1000)), s.x, s.y - 8);
+        }
+      } else if (weapon === 'big') {
+        ctx.save(); ctx.globalAlpha = 0.45; dot(s.x, s.y, 10, '#ff9a3c'); ctx.restore();
+        dot(s.x, s.y, 6, '#ff5a5a');
+        ctx.strokeStyle = '#d63a3a'; ctx.lineWidth = 1; ctx.beginPath(); ctx.arc(s.x, s.y, 6, 0, P2); ctx.stroke();
+        dot(s.x - 2, s.y - 2, 1.8, 'rgba(255,255,255,0.55)');
+      } else if (weapon === 'split') {
+        dot(s.x, s.y, 5, '#b89aff');
+        ctx.strokeStyle = '#7a5fc7'; ctx.lineWidth = 1.3; ctx.beginPath(); ctx.arc(s.x, s.y, 5, 0, P2); ctx.stroke();
+        dot(s.x - 1.6, s.y - 1.6, 1.4, 'rgba(255,255,255,0.55)');
+      } else if (weapon === 'guided') {
+        // 파란 미사일 + 불꽃 꼬리
+        for (let i = 1; i <= 3; i++) { ctx.globalAlpha = 0.5 - i * 0.13; dot(s.x + bx * i * 4, s.y + by * i * 4, 3 - i * 0.6, i === 1 ? '#ffd454' : '#ff8a3b'); }
+        ctx.globalAlpha = 1;
+        ctx.save(); ctx.translate(s.x, s.y); ctx.rotate(ang);
+        ctx.fillStyle = '#5b9cff'; this.roundRect(-5, -2.5, 10, 5, 2.5); ctx.fill();
+        ctx.fillStyle = '#3f78c9'; this.roundRect(3, -2.5, 3.2, 5, 1.5); ctx.fill();
+        ctx.restore();
+      } else if (weapon === 'bombard') {
+        // 갈색 운석 + 불 꼬리
+        for (let i = 1; i <= 4; i++) { ctx.globalAlpha = 0.55 - i * 0.12; dot(s.x + bx * i * 4.5, s.y + by * i * 4.5, 3.4 - i * 0.6, i <= 2 ? '#ffb845' : '#ff8a3b'); }
+        ctx.globalAlpha = 1;
+        dot(s.x, s.y, 5, '#7a5a3a');
+        ctx.strokeStyle = '#5a4028'; ctx.lineWidth = 1; ctx.beginPath(); ctx.arc(s.x, s.y, 5, 0, P2); ctx.stroke();
+        dot(s.x - 1.6, s.y - 1.6, 1.4, '#9a7a58');
+      } else {
+        // 일반탄 — 검은 포탄 + 하이라이트
+        dot(s.x, s.y, 4, '#3a3242');
+        dot(s.x - 1.3, s.y - 1.3, 1.2, 'rgba(255,255,255,0.4)');
       }
+      ctx.globalAlpha = 1;
     }
   }
 
