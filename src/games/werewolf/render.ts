@@ -218,6 +218,7 @@ export class WerewolfRenderer {
   private seerTab: 'player' | 'center' = 'player';
   private seerCenters: number[] = [];
   private tmPick: string[] = [];
+  private _dbg = false;
 
   constructor(canvas: HTMLCanvasElement, cb: WwCallbacks) {
     this.canvas = canvas;
@@ -249,6 +250,7 @@ export class WerewolfRenderer {
     `;
     canvas.parentElement?.appendChild(root);
     this.root = root;
+    console.log('[ww] renderer mount', { hasParent: !!canvas.parentElement, connected: root.isConnected, parentCls: canvas.parentElement?.className });
 
     this.phaseEl = root.querySelector('#ww-phase')!;
     this.timerEl = root.querySelector('#ww-timer')!;
@@ -272,6 +274,10 @@ export class WerewolfRenderer {
 
   render(rs: WwRenderState): void {
     const s = rs.state;
+    if (!this._dbg) {
+      this._dbg = true;
+      console.log('[ww] first render', { phase: s.phase, players: s.players.length, myOrigRole: rs.myOrigRole, connected: this.root.isConnected, w: this.root.clientWidth, h: this.root.clientHeight, parentH: this.root.parentElement?.clientHeight });
+    }
     this.renderTop(rs);
     this.renderSteps(rs);
     this.renderPlayers(rs);

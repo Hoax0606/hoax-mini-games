@@ -101,6 +101,7 @@ class WerewolfModule implements GameModule {
     this.isHost = ctx.role === 'host';
     this.isSpectator = ctx.isSpectator === true;
     this.dayMs = Math.max(30, Number(ctx.roomOptions['discuss'] ?? '180')) * 1000;
+    console.log('[ww] start', { role: ctx.role, players: ctx.players.map((p) => ({ id: p.peerId, role: p.role })), myId: this.myPeerId, spectator: this.isSpectator, hasParent: !!ctx.canvas.parentElement });
 
     this.renderer = new WerewolfRenderer(ctx.canvas, {
       onReady: () => this.doReady(),
