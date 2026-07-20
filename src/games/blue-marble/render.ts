@@ -449,11 +449,10 @@ export class BlueMarbleRenderer {
       tile.querySelector('.bm-oly')?.remove();
       const o = state.owner[i];
       const t = BOARD[i];
-      // 소유 표시 — 주인 색 테두리. 내 땅은 더 두껍게(확실히 구분)
+      // 소유 표시 — 주인 색 두꺼운 테두리. 내 땅은 안쪽 흰 라인으로 한 번 더 강조
       if (o !== undefined && (t.type === 'city' || t.type === 'island')) {
-        const w = o === this.myId ? 6 : 3;
-        tile.style.outline = `${w}px solid ${colorOf(state, o)}`; tile.style.outlineOffset = `-${w}px`;
-        tile.style.boxShadow = o === this.myId ? `inset 0 0 0 1px rgba(255,255,255,.7)` : '';
+        tile.style.outline = `6px solid ${colorOf(state, o)}`; tile.style.outlineOffset = '-6px';
+        tile.style.boxShadow = o === this.myId ? 'inset 0 0 0 2px rgba(255,255,255,.85)' : '';
       } else { tile.style.outline = ''; tile.style.boxShadow = ''; }
       // 통행료 배수 뱃지 + 컬러 독점 glow + 올림픽 팡파레
       let mul = 1;
