@@ -27,6 +27,7 @@ import storyDrawThumbnail from './story-draw/thumbnail.svg';
 import dodgeThumbnail from './dodge/thumbnail.svg';
 import oneCardThumbnail from './onecard/thumbnail.svg';
 import blueMarbleThumbnail from './blue-marble/thumbnail.svg';
+import werewolfThumbnail from './werewolf/thumbnail.svg';
 
 export const games: GameEntry[] = [
   {
@@ -430,6 +431,33 @@ export const games: GameEntry[] = [
     load: async () => {
       const mod = await import('./blue-marble');
       return mod.createBlueMarbleGame();
+    },
+  },
+  {
+    meta: {
+      id: 'werewolf',
+      name: '한밤의 늑대인간',
+      description: '단 한 번의 밤과 낮으로 끝나는 빠른 추리 게임! 밤에 예언자·강도·말썽쟁이가 몰래 움직여 역할 카드가 뒤바뀌어요. 낮 토론으로 늑대를 추리하고 투표로 처형 — 처형자 중 늑대가 있으면 시민 승, 없으면 늑대 승.',
+      thumbnail: werewolfThumbnail,
+      minPlayers: 3,
+      maxPlayers: 5,
+      roomOptions: [
+        {
+          key: 'discuss',
+          label: '토론 시간',
+          type: 'select',
+          choices: [
+            { value: '120', label: '짧게 · 2분' },
+            { value: '180', label: '보통 · 3분' },
+            { value: '300', label: '길게 · 5분' },
+          ],
+          defaultValue: '180',
+        },
+      ],
+    },
+    load: async () => {
+      const mod = await import('./werewolf');
+      return mod.createWerewolfGame();
     },
   },
 ];

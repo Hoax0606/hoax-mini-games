@@ -1,0 +1,54 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 200" fill="none">
+  <defs>
+    <linearGradient id="ww-bg" x1="0" y1="0" x2="320" y2="200" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#ffe4ee"/>
+      <stop offset="1" stop-color="#e0fff4"/>
+    </linearGradient>
+    <linearGradient id="ww-night" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#2b2f5c"/>
+      <stop offset="1" stop-color="#171935"/>
+    </linearGradient>
+  </defs>
+
+  <rect x="0" y="0" width="320" height="200" rx="22" fill="url(#ww-bg)"/>
+
+  <!-- 네 모서리 점 데코 -->
+  <circle cx="30" cy="30" r="5" fill="#ffc2d6"/>
+  <circle cx="292" cy="34" r="4" fill="#b7ead6"/>
+  <circle cx="34" cy="168" r="4" fill="#cdb9f0"/>
+  <circle cx="290" cy="166" r="5" fill="#ffd8a6"/>
+
+  <!-- 별 데코 2개 -->
+  <path d="M64 52 l3 7 7 1 -5 5 1 7 -6 -3 -6 3 1 -7 -5 -5 7 -1 z" fill="#ffd066" opacity="0.85"/>
+  <path d="M250 130 l2.4 5.6 5.6 .8 -4 4 .9 5.6 -4.9 -2.6 -4.9 2.6 .9 -5.6 -4 -4 5.6 -.8 z" fill="#a9d0f5" opacity="0.85"/>
+
+  <!-- 중앙: 밤하늘 카드 + 달 -->
+  <g transform="rotate(-7 160 100)">
+    <rect x="112" y="52" width="96" height="104" rx="16" fill="url(#ww-night)" stroke="#3a3f74" stroke-width="2"/>
+    <!-- 초승달 -->
+    <circle cx="160" cy="88" r="24" fill="#f5c96a"/>
+    <circle cx="171" cy="82" r="21" fill="#252a52"/>
+    <!-- 작은 별들 -->
+    <circle cx="132" cy="70" r="2" fill="#fff3d0"/>
+    <circle cx="186" cy="112" r="2" fill="#fff3d0"/>
+    <circle cx="140" cy="120" r="1.6" fill="#fff3d0"/>
+    <!-- 늑대 얼굴 -->
+    <path d="M138 122 l7 10 -7 0 z" fill="#f0564e"/>
+    <path d="M182 122 l-7 10 7 0 z" fill="#f0564e"/>
+    <path d="M141 130 q19 -12 38 0 l0 11 q-19 12 -38 0 z" fill="#f0564e"/>
+    <circle cx="152" cy="135" r="2" fill="#171935"/>
+    <circle cx="168" cy="135" r="2" fill="#171935"/>
+    <path d="M158 140 h4 l-2 3 z" fill="#171935"/>
+  </g>
+
+  <!-- 보조: 역할 카드 두 장 비스듬히 -->
+  <g transform="rotate(-16 74 128)">
+    <rect x="52" y="104" width="44" height="58" rx="9" fill="#ffffff" stroke="#e39ab6" stroke-width="2"/>
+    <ellipse cx="74" cy="128" rx="14" ry="9" fill="none" stroke="#8fb7e6" stroke-width="2.4"/>
+    <circle cx="74" cy="128" r="4.5" fill="#8fb7e6"/>
+  </g>
+  <g transform="rotate(15 250 78)">
+    <rect x="228" y="52" width="44" height="58" rx="9" fill="#ffffff" stroke="#9ad9bf" stroke-width="2"/>
+    <path d="M238 82 h20 l-6 -6 M262 92 h-20 l6 6" fill="none" stroke="#e0a63c" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+</svg>
