@@ -86,6 +86,24 @@ const FLAG = '<svg viewBox="0 0 24 24"><rect x="6" y="2.5" width="2" height="19"
 const FANFARE = '<svg viewBox="0 0 24 24"><rect x="10.4" y="12" width="3.2" height="9" rx="1" fill="#b98a4a" stroke="#8a5f2a" stroke-width="0.8"/><path d="M12 2 C15.2 6 16.2 8.4 15 11.2 C14.2 13.2 9.8 13.2 9 11.2 C7.8 8.4 8.8 6 12 2 Z" fill="#ff8a1c" stroke="#e0640f" stroke-width="0.8" stroke-linejoin="round"/><path d="M12 5 C13.6 7.6 14 9.2 13.2 10.8 C12.8 11.8 11.2 11.8 10.8 10.8 C10 9.2 10.4 7.6 12 5 Z" fill="#ffd454"/></svg>';
 // 세계여행 비행기 (오른쪽을 향함 — 진행방향으로 회전)
 const PLANE = '<svg viewBox="0 0 48 48"><path d="M4 26 L40 20 L44 22 L40 24 L30 30 L22 29 L26 24 L16 25 L11 30 L7 29 L10 24 L4 26 Z" fill="#5b9be6" stroke="#2e5f96" stroke-width="1.4" stroke-linejoin="round"/><circle cx="35" cy="22" r="1.6" fill="#fff"/></svg>';
+
+// ── 모서리/특수칸 칸-전체 일러스트 (viewBox 130) ──
+const ILL: Record<string, { svg: string; dark: boolean }> = {
+  start: { dark: false, svg: `<svg class="bm-illsvg" viewBox="0 0 130 130" preserveAspectRatio="xMidYMid slice"><defs><linearGradient id="ilS" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#c7f5e4"/><stop offset="1" stop-color="#9fe8ff"/></linearGradient></defs><rect width="130" height="130" fill="url(#ilS)"/><g opacity=".9"><circle cx="26" cy="30" r="3" fill="#fff"/><circle cx="104" cy="26" r="4" fill="#fff"/><circle cx="108" cy="92" r="3" fill="#fff"/></g><path d="M46 46 h22 v-11 l22 19 -22 19 v-11 h-22 z" fill="#ff5a92" stroke="#fff" stroke-width="3.5" stroke-linejoin="round"/><text x="65" y="106" text-anchor="middle" font-size="30" font-weight="900" fill="#2e9370" style="letter-spacing:-1px">GO!</text></svg>` },
+  olympic: { dark: true, svg: `<svg class="bm-illsvg" viewBox="0 0 130 130" preserveAspectRatio="xMidYMid slice"><defs><linearGradient id="ilO" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff6df"/><stop offset="1" stop-color="#ffe6ad"/></linearGradient></defs><rect width="130" height="130" fill="url(#ilO)"/><path d="M30 96 q35 -20 70 0" stroke="#e0b850" stroke-width="3" fill="none" opacity=".6"/><g fill="none" stroke-width="4"><circle cx="42" cy="52" r="13" stroke="#0081c8"/><circle cx="65" cy="52" r="13" stroke="#222"/><circle cx="88" cy="52" r="13" stroke="#ee334e"/><circle cx="53.5" cy="65" r="13" stroke="#f9a01b"/><circle cx="76.5" cy="65" r="13" stroke="#00a651"/></g><path d="M20 28 l3 7 7 .6 -5.4 4.7 1.7 7 -6.3 -3.7 -6.3 3.7 1.7 -7 -5.4 -4.7 7 -.6z" fill="#ffcf4a"/></svg>` },
+  travel: { dark: true, svg: `<svg class="bm-illsvg" viewBox="0 0 130 130" preserveAspectRatio="xMidYMid slice"><defs><linearGradient id="ilT" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#bfe6ff"/><stop offset="1" stop-color="#eaf7ff"/></linearGradient></defs><rect width="130" height="130" fill="url(#ilT)"/><g fill="#fff" opacity=".85"><ellipse cx="32" cy="96" rx="16" ry="7"/><ellipse cx="99" cy="102" rx="13" ry="6"/><ellipse cx="104" cy="32" rx="12" ry="5"/></g><path d="M16 98 Q52 38 112 28" stroke="#5b9be6" stroke-width="2.2" stroke-dasharray="3 5" fill="none" opacity=".55" stroke-linecap="round"/><g transform="translate(65 63) rotate(32)"><path d="M-6.5 -14 Q-6.5 -30 0 -34 Q6.5 -30 6.5 -14 L5.5 20 Q4.5 31 0 35 Q-4.5 31 -5.5 20 Z" fill="#fff" stroke="#5b9be6" stroke-width="2.4" stroke-linejoin="round"/><path d="M-5 -4 L-35 9 L-35 16 L-5 9 Z" fill="#9cc6f2" stroke="#5b9be6" stroke-width="1.8" stroke-linejoin="round"/><path d="M5 -4 L35 9 L35 16 L5 9 Z" fill="#9cc6f2" stroke="#5b9be6" stroke-width="1.8" stroke-linejoin="round"/><path d="M-4 22 L-15 28 L-15 32 L-4 27 Z" fill="#7fb2ea" stroke="#5b9be6" stroke-width="1.5" stroke-linejoin="round"/><path d="M4 22 L15 28 L15 32 L4 27 Z" fill="#7fb2ea" stroke="#5b9be6" stroke-width="1.5" stroke-linejoin="round"/><path d="M-6.5 -14 Q-6.5 -30 0 -34 Q6.5 -30 6.5 -14 Z" fill="#ff8fb0"/></g></svg>` },
+  desert: { dark: true, svg: `<svg class="bm-illsvg" viewBox="0 0 130 130" preserveAspectRatio="xMidYMid slice"><defs><linearGradient id="ilD" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#8fd6ef"/><stop offset="1" stop-color="#4fb3dd"/></linearGradient></defs><rect width="130" height="130" fill="url(#ilD)"/><path d="M0 92 q20 -6 34 0 t34 0 t34 0 t28 0 V130 H0Z" fill="#5fc0e0"/><ellipse cx="65" cy="98" rx="34" ry="12" fill="#e9c483"/><path d="M62 96 V70" stroke="#8a5a34" stroke-width="4"/><path d="M62 70 q-14 -8 -24 -2 q10 -6 24 2 q0 -12 14 -16 q-10 8 -14 16 q10 -6 22 0 q-12 -4 -22 0z" fill="#3fae79"/><rect x="82" y="60" width="2.6" height="20" fill="#b06a4a"/><path d="M84 60 h12 l-3 4 3 4 h-12z" fill="#ee334e"/></svg>` },
+  tax: { dark: true, svg: `<svg class="bm-illsvg" viewBox="0 0 130 130" preserveAspectRatio="xMidYMid slice"><defs><linearGradient id="ilTx" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffe0e0"/><stop offset="1" stop-color="#ffc2c2"/></linearGradient></defs><rect width="130" height="130" fill="url(#ilTx)"/><rect x="40" y="30" width="42" height="54" rx="4" fill="#fff" stroke="#e88" stroke-width="2"/><g stroke="#f2a0a0" stroke-width="2.4" stroke-linecap="round"><path d="M48 42h26M48 50h26M48 58h18"/></g><circle cx="84" cy="74" r="16" fill="#ff5a5a"/><text x="84" y="80" text-anchor="middle" font-size="15" font-weight="900" fill="#fff">%</text><g fill="#ffd454" stroke="#e0a91c" stroke-width="1.5"><ellipse cx="44" cy="96" rx="10" ry="4"/><ellipse cx="44" cy="92" rx="10" ry="4"/></g></svg>` },
+  bonus: { dark: false, svg: `<svg class="bm-illsvg" viewBox="0 0 130 130" preserveAspectRatio="xMidYMid slice"><defs><linearGradient id="ilB" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#efe1ff"/><stop offset="1" stop-color="#d3b8ff"/></linearGradient></defs><rect width="130" height="130" fill="url(#ilB)"/><rect x="34" y="34" width="62" height="52" rx="8" fill="#8a5fd0"/><rect x="40" y="42" width="50" height="24" rx="4" fill="#fff"/><g font-size="17" font-weight="900" fill="#ff5a92" text-anchor="middle"><text x="52" y="60">7</text><text x="65" y="60">7</text><text x="78" y="60">7</text></g><rect x="46" y="72" width="38" height="7" rx="3.5" fill="#ffd454"/><circle cx="100" cy="58" r="7" fill="#ff5a92"/><rect x="97" y="58" width="6" height="18" rx="3" fill="#c93d73"/></svg>` },
+  key: { dark: true, svg: `<svg class="bm-illsvg" viewBox="0 0 130 130" preserveAspectRatio="xMidYMid slice"><defs><linearGradient id="ilK" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff4d6"/><stop offset="1" stop-color="#ffe19c"/></linearGradient></defs><rect width="130" height="130" fill="url(#ilK)"/><g transform="rotate(-38 65 62)"><circle cx="65" cy="44" r="15" fill="none" stroke="#f2b01c" stroke-width="8"/><rect x="61" y="56" width="8" height="34" rx="2" fill="#f2b01c"/><rect x="69" y="76" width="10" height="7" rx="2" fill="#f2b01c"/><rect x="69" y="86" width="8" height="7" rx="2" fill="#f2b01c"/></g><g fill="#fff"><path d="M96 34 l2 5 5 2 -5 2 -2 5 -2 -5 -5 -2 5 -2z"/><circle cx="34" cy="92" r="3"/></g></svg>` },
+};
+/** 칸 index → 전체 일러스트 (모서리/특수). 없으면 null */
+function tileIll(i: number): { svg: string; dark: boolean } | null {
+  const t = BOARD[i];
+  if (t.type === 'corner') return ILL[{ start: 'start', desert: 'desert', welfare: 'olympic', space: 'travel' }[t.kind]] ?? null;
+  if (t.type === 'special') return t.kind === 'tax' ? ILL.tax! : t.kind === 'bonus' ? ILL.bonus! : t.kind === 'goldkey' ? ILL.key! : null;
+  return null;
+}
 const GENERIC_LM = '<svg viewBox="0 0 24 24" stroke="#241a30" stroke-width="0.9" stroke-linejoin="round"><path d="M12 1 L14 5.5 H10 Z" fill="#ffd454" stroke="#241a30" stroke-width="0.6"/><rect x="8.5" y="6" width="7" height="15" fill="currentColor"/><rect x="8.5" y="6" width="7" height="2.6" fill="#ffd454" stroke="none"/><rect x="6" y="18" width="12" height="3" fill="currentColor"/><g fill="#fff" stroke="none" opacity=".9"><rect x="10" y="10" width="4" height="2"/><rect x="10" y="13.5" width="4" height="2"/></g></svg>';
 const LM_ATTR = 'viewBox="0 0 24 24" stroke="#241a30" stroke-width="0.9" stroke-linejoin="round"';
 const LANDMARK: Record<string, string> = {
@@ -187,12 +205,12 @@ export class BlueMarbleRenderer {
           <div class="bm-cinfo"><div class="bm-cnm">${t.name}</div></div></div>`;
       } else if (t.type === 'island') {
         tiles += `<div class="bm-tile bm-prop bm-isle" data-i="${i}" style="${style};background:${tileColor(i)}">
-          <span class="bm-islandic">${t.spot === 'beach' ? IC.parasol : IC.island}</span>
           <div class="bm-cinfo"><div class="bm-cnm">${t.name}</div></div></div>`;
       } else {
-        const cls = t.type === 'corner' ? 'bm-corner' : 'bm-special';
-        tiles += `<div class="bm-tile ${cls}" data-i="${i}" style="${style}">
-          <div class="bm-ic">${IC[tileIcon(i)]}</div><div class="bm-nm">${t.name}</div></div>`;
+        // 모서리·특수칸 → 칸 전체 일러스트
+        const ill = tileIll(i);
+        tiles += `<div class="bm-tile bm-illtile" data-i="${i}" style="${style}">
+          ${ill ? ill.svg : ''}<div class="bm-illnm${ill && ill.dark ? ' dark' : ''}">${t.name}</div></div>`;
       }
     }
     const center = `<div class="bm-center">
@@ -875,15 +893,16 @@ function injectStyle(): void {
 .bm-root.bm-picking .bm-tile.bm-pickable{filter:none;cursor:pointer;outline:3px solid #ffd454;outline-offset:-2px;border-radius:8px;z-index:5;animation:bm-pickpulse 1.1s ease-in-out infinite;}
 @keyframes bm-pickpulse{0%,100%{box-shadow:0 0 0 rgba(255,206,70,.4);}50%{box-shadow:0 0 16px 2px rgba(255,206,70,.9);}}
 @media(prefers-reduced-motion:reduce){.bm-root.bm-picking .bm-tile.bm-pickable{animation:none;}}
-.bm-cinfo{position:absolute;bottom:0;left:0;right:0;padding:3px 3px 4px;text-align:center;z-index:1;}
-.bm-cnm{font-size:13px;font-weight:800;color:#2c2136;text-shadow:0 1px 0 rgba(255,255,255,.45);line-height:1.1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
-.bm-isle .bm-cnm{color:#fff;text-shadow:0 1px 2px rgba(0,0,0,.5);}
-.bm-special,.bm-corner{align-items:center;justify-content:center;text-align:center;background:#fffdf7;}
-.bm-corner{background:linear-gradient(135deg,#fff,#fff4fa);}
-.bm-ic svg{width:17px;height:17px;} .bm-corner .bm-ic svg{width:25px;height:25px;}
-.bm-nm{font-size:10px;font-weight:800;line-height:1.05;padding:2px;text-align:center;}
-.bm-corner .bm-nm{font-size:9.5px;}
-.bm-islandic{position:absolute;top:38%;left:50%;transform:translate(-50%,-50%);} .bm-islandic svg{width:22px;height:22px;filter:drop-shadow(0 1px 1px rgba(0,0,0,.2));}
+/* 도시·관광지 이름 — 칸 중앙 정렬(아이콘 없음) */
+.bm-cinfo{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;padding:5px;text-align:center;z-index:1;}
+.bm-cnm{font-size:15px;font-weight:800;color:#2c2136;text-shadow:0 1px 0 rgba(255,255,255,.4);line-height:1.12;overflow:hidden;text-overflow:ellipsis;}
+.bm-isle .bm-cnm{color:#fff;text-shadow:0 1px 3px rgba(0,0,0,.4);}
+/* 모서리·특수칸 — 칸 전체 일러스트 */
+.bm-illtile{background:#fffdf7;}
+.bm-illsvg{position:absolute;inset:0;width:100%;height:100%;display:block;}
+.bm-illnm{position:absolute;left:0;right:0;bottom:0;z-index:2;padding:4px 3px 6px;text-align:center;font-size:11px;font-weight:800;
+  color:#fff;background:linear-gradient(transparent,rgba(0,0,0,.4));}
+.bm-illnm.dark{color:#3a2e42;text-shadow:0 1px 0 rgba(255,255,255,.4);background:linear-gradient(transparent,rgba(255,255,255,.45));}
 .bm-iflag{position:absolute;left:0;right:0;top:2px;display:flex;justify-content:center;z-index:2;}
 .bm-iflag svg{width:24px;height:24px;filter:drop-shadow(0 1px 1.5px rgba(0,0,0,.3));}
 .bm-blds{position:absolute;left:0;right:0;top:3px;display:flex;justify-content:center;align-items:flex-end;gap:1px;z-index:2;}
