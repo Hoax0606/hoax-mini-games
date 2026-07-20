@@ -10,7 +10,7 @@ import type { GameModule, GameContext, GameMessage, GameResult, Player } from '.
 import { sound } from '../../core/sound';
 import {
   BOARD, CARDS, SALARY, DESERT_TURNS, DESERT_ESCAPE, TRAVEL_COST, BONUS_STAKE, buildCostOf, canBuild, acquireCost,
-  tollBreakdown, alivePeers, nextTurnIdx, createInitialState, monopolyWin, drawCardId, TOP_CITY_TILE, DESERT_TILE,
+  tollBreakdown, alivePeers, nextTurnIdx, createInitialState, monopolyWin, drawCardId, TOP_CITY_TILE, DESERT_TILE, SPACE_TILE,
   type BMState, type BuildKind,
 } from './rules';
 
@@ -223,7 +223,17 @@ class BlueMarbleModule implements GameModule {
         }
         s.pending = null; this.endStep(by);
       }
-      else if (s.pending?.kind === 'acquire') { if (action.accept) this.doAcquire(by, s.pending.tile); s.pending = null; this.endStep(by); }
+      else if (s.pending?.kind === 'acquire') {
+        if (action.accept) {
+          const tile = s.pending.tile;
+          this.doAcquire(by, tile);
+          if (this.ended) { this.afterChange(); return; }   // 인수로 독점 즉시승
+          // 인수 직후에도 지을 수 있으면 건설창으로 이어감 (구매와 동일)
+          const buildable = (['villa', 'house2', 'apt', 'landmark'] as BuildKind[]).some((k) => canBuild(s, tile, by, k));
+          if (BOARD[tile].type === 'city' && buildable) { s.pending = { kind: 'build', tile }; this.afterChange(); return; }
+        }
+        s.pending = null; this.endStep(by);
+      }
     } else if (action.kind === 'build') {
       if (s.pending?.kind === 'build') {
         const tile = s.pending.tile;
@@ -345,8 +355,14 @@ class BlueMarbleModule implements GameModule {
     const p = s.players[peer]!;
 
     if (p.desertLeft > 0) {
-      if (a === b) { p.desertLeft = 0; s.log = `${p.nickname} 무인도 탈출!`; this.move(peer, a + b); this.sync(); this.render(); this.resolveLanding(peer); }
-      else { p.desertLeft -= 1; s.doubles = 0; s.log = `${p.nickname} 무인도… (${p.desertLeft}턴 남음)`; this.advanceTurn(); }
+      if (a === b) {
+        p.desertLeft = 0; s.log = `${p.nickname} · ${a}+${b} 더블! 무인도 탈출!`;
+        this.move(peer, a + b); this.sync(); this.render(); this.resolveLanding(peer);
+      } else {
+        p.desertLeft -= 1; s.doubles = 0; s.log = `${p.nickname} · ${a}+${b} — 탈출 실패 (${p.desertLeft}턴 남음)`;
+        this.sync(); this.render();   // 주사위 스핀/결과를 먼저 보여준 뒤 턴 넘김
+        this.advanceTurn();
+      }
       return;
     }
     if (a === b) s.doubles += 1; else s.doubles = 0;
@@ -529,10 +545,6 @@ class BlueMarbleModule implements GameModule {
         const tax = Math.floor(p.money * 0.1); this.pay(peer, null, tax); loss(tax);
         s.log = `재산세 ₩${tax.toLocaleString()} 납부`; this.endStep(peer); return;
       }
-      case 'fund': {
-        const amt = s.fund; p.money += amt; s.fund = 0; gain(amt);
-        s.log = `사회복지기금 ₩${amt.toLocaleString()} 수령`; this.endStep(peer); return;
-      }
       case 'go': this.cardMove(peer, 0); this.resolveLanding(peer); return;        // 출발 corner에서 월급 지급
       case 'jail': { const from = s.pos[peer]!; this.toDesert(peer); s.pos[peer] = DESERT_TILE; this.setCardFly(peer, from, DESERT_TILE); s.log = '무인도 유배!'; this.endStep(peer); return; }
       case 'back3': this.cardMove(peer, ((s.pos[peer]! - 3) % BOARD.length + BOARD.length) % BOARD.length); this.resolveLanding(peer); return;
@@ -548,6 +560,19 @@ class BlueMarbleModule implements GameModule {
       case 'blackout':
         if (this.opponentCities(peer).length) s.pending = { kind: 'cardBlackout' };
         else { s.log = '정전시킬 상대 도시가 없어요'; this.endStep(peer); }
+        return;
+      case 'olympicGrant':
+        // 올림픽 개최 — 즉발. 내 도시 하나에 개최(통행료 배수), 없으면 스킵
+        if (this.ownedCities(peer).length) s.pending = { kind: 'olympic' };
+        else { s.log = '개최할 내 도시가 없어요'; this.endStep(peer); }
+        return;
+      case 'travel':
+        // 세계여행 카드 — 즉시 세계여행 칸으로 이동, 건물 없이 턴 종료
+        // (세계여행 칸에 도착했으니 다음 턴에 원하는 칸으로 이동 준비. 카드라 비용 없음)
+        this.cardMove(peer, SPACE_TILE);
+        p.travelReady = true;
+        s.log = '세계여행권! 세계여행으로 이동 — 다음 턴 원하는 칸으로';
+        this.endStep(peer);
         return;
       default: this.endStep(peer); return;   // (보관형은 이 경로로 안 옴)
     }
@@ -572,14 +597,12 @@ class BlueMarbleModule implements GameModule {
     const s = this.state; const arr = s.held[peer]; if (!arr) return;
     const idx = arr.indexOf(cardId); if (idx < 0) return;
     const c = CARDS[cardId]!; const p = s.players[peer]!;
-    // 사용 조건 없는 카드는 바로, olympicGrant는 도시 있어야
-    if (c.effect === 'olympicGrant' && this.ownedCities(peer).length === 0) { s.log = '개최할 내 도시가 없어요'; return; }
+    // 사용 조건 검사 (조건 안 맞으면 카드 소모 없이 안내만)
+    if (c.effect === 'jailFree' && p.desertLeft === 0) { s.log = '무인도에 있을 때만 쓸 수 있어요'; return; }
     arr.splice(idx, 1);
     switch (c.effect) {
       case 'jailFree': p.desertLeft = 0; s.log = '무인도 탈출권 사용!'; this.cardFxEvt('toast', { text: '무인도 탈출!' }); break;
       case 'tollExempt': p.tollExempt = true; s.log = '통행료 면제권 사용 — 다음 통행료 면제'; this.cardFxEvt('toast', { text: '통행료 면제권 사용!' }); break;
-      case 'travel': p.travelReady = true; s.log = '세계여행권 사용 — 다음 턴 자유 이동'; this.cardFxEvt('toast', { text: '세계여행 준비!' }); break;
-      case 'olympicGrant': s.pending = { kind: 'olympic', free: true }; break;
       default: break;
     }
   }
@@ -628,7 +651,14 @@ class BlueMarbleModule implements GameModule {
   private scheduleEnd(result: GameResult): void {
     this.ended = true;
     this.render();
-    window.setTimeout(() => { if (!this.destroyed) this.ctx.endGame(result); }, END_DELAY_MS);
+    // 이동/주사위 애니가 끝난 뒤(=착지해서 어떤 땅에서 파산했는지 보인 뒤) 결과·통행료 fx 를
+    // 잠깐 보여주고 나서 결과 화면으로. (애니 중이면 끝날 때까지 대기)
+    const go = (): void => {
+      if (this.destroyed) return;
+      if (this.renderer.isBusy()) { window.setTimeout(go, 250); return; }
+      window.setTimeout(() => { if (!this.destroyed) this.ctx.endGame(result); }, END_DELAY_MS);
+    };
+    go();
   }
 
   private sync(): void { if (this.isHost) this.ctx.sendToPeer(encodeSync(this.state)); }

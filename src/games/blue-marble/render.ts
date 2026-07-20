@@ -283,7 +283,8 @@ export class BlueMarbleRenderer {
     }
 
     this.renderPending(state, myPeerId, isSpectator);  // busy면 내부에서 보류
-    if (state.phase === 'ended') this.showEnd(state, myPeerId);
+    // 파산으로 끝난 경우: 말이 착지(이동 애니 완료)한 뒤에 결과 오버레이 표시
+    if (state.phase === 'ended' && !this.busy) this.showEnd(state, myPeerId);
     // 통행료 타격감 — 이동/시퀀스 끝난 뒤 1회 재생
     if (!this.busy && state.fx && state.fx.seq !== this.lastFxSeq) {
       this.lastFxSeq = state.fx.seq;
@@ -620,9 +621,17 @@ export class BlueMarbleRenderer {
     const el = this.root.querySelector<HTMLElement>('#bm-held')!;
     const cards = state.held[myPeerId] ?? [];
     if (!cards.length) { el.innerHTML = '<div class="bm-empty">보관한 카드가 없어요</div>'; return; }
-    el.innerHTML = cards.map((cid) => `<div class="bm-hcard"><span class="bm-hic">${cardIcon(cid)}</span>
-      <span class="bm-htxt">${cardTitle(cid)}</span><button class="bm-huse" data-cid="${cid}">사용</button></div>`).join('');
-    el.querySelectorAll<HTMLButtonElement>('.bm-huse').forEach((b) => {
+    const inDesert = (state.players[myPeerId]?.desertLeft ?? 0) > 0;
+    el.innerHTML = cards.map((cid) => {
+      // 무인도 탈출권은 무인도에 있을 때만 사용 가능
+      const locked = CARDS[cid]?.effect === 'jailFree' && !inDesert;
+      const btn = locked
+        ? `<button class="bm-huse" disabled title="무인도에 있을 때만">무인도용</button>`
+        : `<button class="bm-huse" data-cid="${cid}">사용</button>`;
+      return `<div class="bm-hcard"><span class="bm-hic">${cardIcon(cid)}</span>
+        <span class="bm-htxt">${cardTitle(cid)}</span>${btn}</div>`;
+    }).join('');
+    el.querySelectorAll<HTMLButtonElement>('.bm-huse[data-cid]').forEach((b) => {
       b.onclick = () => this.cb.onUseHeld(Number(b.dataset.cid));
     });
   }
@@ -877,17 +886,14 @@ export class BlueMarbleRenderer {
 
   private cardModal(state: BMState, cardId: number): void {
     this.closeModal();
-    const keepable = [6, 7, 8].includes(cardId);
+    // 뽑은 즉발 카드는 전부 즉시 사용 — 보관 옵션 없음(보관형 카드는 애초에 뽑는 즉시 자동 저장됨)
     const scrim = document.createElement('div'); scrim.className = 'bm-scrim';
-    const btns = keepable
-      ? `<div class="bm-btns"><button class="bm-yes">지금 쓰기</button><button class="bm-no" style="background:#fff0d0;color:#b8860b">보관</button></div>`
-      : `<div class="bm-btns"><button class="bm-yes" style="background:#b89aff;color:#fff">확인</button></div>`;
+    const btns = `<div class="bm-btns"><button class="bm-yes" style="background:#b89aff;color:#fff">확인</button></div>`;
     scrim.innerHTML = `<div class="bm-modal"><div class="bm-top" style="background:linear-gradient(90deg,#ffd454,#ffb02e)">${IC.key} 황금열쇠</div>
       <div class="bm-body"><div class="bm-cardic">${cardIcon(cardId)}</div>
         <div class="bm-ctitle">${cardTitle(cardId)}</div><div class="bm-cdesc">${cardDesc(cardId)}</div>${btns}</div></div>`;
     document.body.appendChild(scrim); this.modalScrim = scrim; this.openKind = `card:${cardId}`;
     scrim.querySelector<HTMLButtonElement>('.bm-yes')!.onclick = () => this.cb.onCard(false);
-    scrim.querySelector<HTMLButtonElement>('.bm-no')?.addEventListener('click', () => this.cb.onCard(true));
   }
 
   private infoModal(tile: number): void {
@@ -962,6 +968,9 @@ export class BlueMarbleRenderer {
       this.root.appendChild(end);
     }, 1100);
   }
+
+  /** 주사위/이동/카드 애니 재생 중인지 (index 가 종료 타이밍 맞출 때 사용) */
+  isBusy(): boolean { return this.busy; }
 
   /** index 가 매 render 마다 최신 state 를 넘겨 정보모달 등에 쓰게 */
   setLastState(state: BMState): void { this._lastState = state; }
