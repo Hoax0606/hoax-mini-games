@@ -74,8 +74,8 @@ export function hasAllHouses(builds: BuildKind[]): boolean {
  */
 export const BOARD: Tile[] = [
   { type: 'corner', kind: 'start', name: '출발' },
-  // 하단 (초록) — 1라인 (대지 5~8만)
-  { type: 'city', group: 'green', name: '홍콩', price: 50000 },
+  // 1라인 (하단) — 대지 5~8만
+  { type: 'city', group: 'green', name: '방콕', price: 50000 },
   { type: 'special', kind: 'bonus', name: '보너스 게임' },
   { type: 'city', group: 'green', name: '베이징', price: 60000 },
   { type: 'island', name: '독도', price: 80000 },
@@ -83,32 +83,32 @@ export const BOARD: Tile[] = [
   { type: 'city', group: 'teal', name: '두바이', price: 72000 },
   { type: 'city', group: 'teal', name: '카이로', price: 80000 },
   { type: 'corner', kind: 'desert', name: '무인도' },
-  // 좌측 (파랑) — 2라인 (대지 10~15만)
-  { type: 'island', name: '라하바나', price: 110000 },
-  { type: 'city', group: 'sky', name: '시드니', price: 100000 },
+  // 2라인 (좌측) — 대지 10~15만
+  { type: 'island', name: '발리', price: 110000 },
+  { type: 'city', group: 'sky', name: '도쿄', price: 100000 },
+  { type: 'city', group: 'sky', name: '시드니', price: 115000 },
   { type: 'special', kind: 'goldkey', name: '황금열쇠' },
-  { type: 'city', group: 'sky', name: '밴쿠버', price: 115000 },
+  { type: 'city', group: 'navy', name: '퀘벡', price: 130000 },
   { type: 'island', name: '하와이', price: 140000 },
-  { type: 'city', group: 'navy', name: '상파울로', price: 130000 },
-  { type: 'city', group: 'navy', name: '오클랜드', price: 150000 },
+  { type: 'city', group: 'navy', name: '상파울루', price: 150000 },
   { type: 'corner', kind: 'welfare', name: '올림픽' },
-  // 상단 (핑크·보라) — 3라인 (대지 18~25만)
+  // 3라인 (상단) — 대지 18~25만
   { type: 'city', group: 'pink', name: '프라하', price: 180000 },
-  { type: 'city', group: 'pink', name: '부다페스트', price: 195000 },
-  { type: 'city', group: 'pink', name: '베를린', price: 210000 },
+  { type: 'island', name: '푸껫', price: 210000 },
+  { type: 'city', group: 'pink', name: '베를린', price: 200000 },
   { type: 'special', kind: 'goldkey', name: '황금열쇠' },
-  { type: 'city', group: 'rose', name: '모스크바', price: 220000 },
+  { type: 'city', group: 'rose', name: '모스크바', price: 215000 },
   { type: 'city', group: 'rose', name: '제네바', price: 235000 },
   { type: 'city', group: 'rose', name: '로마', price: 250000 },
   { type: 'corner', kind: 'space', name: '세계여행' },
-  // 우측 (주황·빨강) — 4라인 (대지 30~40만)
-  { type: 'island', name: '타이티', price: 300000 },
+  // 4라인 (우측) — 대지 30~40만
+  { type: 'island', name: '타히티', price: 350000 },
   { type: 'city', group: 'orange', name: '런던', price: 300000 },
   { type: 'city', group: 'orange', name: '파리', price: 330000 },
   { type: 'special', kind: 'goldkey', name: '황금열쇠' },
   { type: 'city', group: 'red', name: '뉴욕', price: 370000 },
-  { type: 'city', group: 'red', name: '서울', price: 400000 },
   { type: 'special', kind: 'tax', name: '국세청', taxAmount: 300000 },
+  { type: 'city', group: 'red', name: '서울', price: 400000 },
 ];
 
 /** 섬 칸 인덱스 목록 (개수별 통행료 계산용) */
