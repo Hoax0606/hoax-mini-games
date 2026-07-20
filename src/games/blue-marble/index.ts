@@ -370,6 +370,13 @@ class BlueMarbleModule implements GameModule {
     } else if (t.type === 'special') {
       if (t.kind === 'goldkey') {
         const card = Math.floor(Math.random() * CARDS.length);
+        // 보관형 카드(무인도 탈출권 등)는 즉시 쓸 수 없으니 자동으로 보관함에 저장
+        if (CARDS[card]!.keep) {
+          (s.held[peer] ??= []).push(card);
+          s.log = `황금열쇠 · ${CARDS[card]!.title} — 보관함에 저장`;
+          s.pending = { kind: 'info', tile: i, text: `${CARDS[card]!.title} 보관!` };
+          this.render(); return;
+        }
         s.pending = { kind: 'card', card }; this.render(); return;
       } else if (t.kind === 'tax') { const amt = t.taxAmount ?? 100; this.pay(peer, null, amt); s.log = `${t.name} ${amt.toLocaleString()} 납부`; }
       else if (t.kind === 'concert') { this.pay(peer, null, 50); s.log = '콘서트 관람 ₩50'; }
