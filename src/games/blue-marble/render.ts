@@ -33,8 +33,8 @@ const GROUP: Record<GroupColor, string> = {
   tan: '#d9b38c', sky: '#8fc2f0', pink: '#ff9bbb', orange: '#ffb27a', red: '#ff8a8a',
   yellow: '#f2d24c', green: '#8fe0b0', rose: '#e79ad0', teal: '#7fd6d0', navy: '#8a9ef0',
 };
-const ISLAND_GRAD = 'linear-gradient(155deg,#5fcdf2 0%,#2b8fce 100%)';   // 섬(파랑, 개수 기반)
-const BEACH_GRAD = 'linear-gradient(155deg,#ff9c86 0%,#e8503f 100%)';    // 해변(붉은, 방문 기반)
+const ISLAND_GRAD = 'linear-gradient(155deg,#33a8dd 0%,#4fbbe8 42%,#ffffff 100%)';   // 섬(파랑) → 끝 흰색
+const BEACH_GRAD = 'linear-gradient(155deg,#f56a5a 0%,#ff8672 42%,#ffffff 100%)';    // 해변(붉은) → 끝 흰색
 const tileColor = (i: number): string => {
   const t = BOARD[i];
   if (t.type === 'island') return t.spot === 'beach' ? BEACH_GRAD : ISLAND_GRAD;
@@ -1033,7 +1033,7 @@ function injectStyle(): void {
 /* 도시·관광지 이름 — 칸 중앙 정렬(아이콘 없음) */
 .bm-cinfo{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;padding:5px;text-align:center;z-index:1;}
 .bm-cnm{font-size:15px;font-weight:800;color:#2c2136;text-shadow:0 1px 0 rgba(255,255,255,.4);line-height:1.12;overflow:hidden;text-overflow:ellipsis;}
-.bm-isle .bm-cnm{color:#fff;text-shadow:0 1px 3px rgba(0,0,0,.4);}
+.bm-isle .bm-cnm{color:#fff;text-shadow:0 1px 2px rgba(0,0,0,.6),0 0 3px rgba(0,0,0,.45);}
 /* 모서리·특수칸 — 칸 전체 일러스트 */
 .bm-illtile{background:#fffdf7;}
 .bm-illsvg{position:absolute;inset:0;width:100%;height:100%;display:block;}
