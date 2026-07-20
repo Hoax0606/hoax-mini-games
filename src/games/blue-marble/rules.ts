@@ -212,6 +212,7 @@ export type Pending =
   | { kind: 'acquire'; tile: number; cost: number }
   | { kind: 'card'; card: number }
   | { kind: 'info'; tile: number; text: string }   // 잠깐 안내(돈 부족 등) 후 자동으로 턴 넘김
+  | { kind: 'event'; tile: number; text: string; amount: number }  // 세금 등 — 모두에게 창, 밟은 사람만 확인해 닫음
   | { kind: 'olympic' }                             // 올림픽 도착 → 내 도시 하나에 개최
   | { kind: 'travel' }                              // 세계여행 → 원하는 칸 선택해 이동
   | { kind: 'startBuild' }                          // 출발 정확히 멈춤 → 내 도시 하나 추가 건설
@@ -250,8 +251,8 @@ export interface BMState {
   winnerPeerId: string | null;
   /** UI 안내 문구 */
   log: string;
-  /** 타격감/획득 연출용 (seq가 바뀌면 렌더러가 1회 재생). kind: toll=통행료 지불, gain=월급 등 획득 */
-  fx: { seq: number; amount: number; mul: number; kind: 'toll' | 'gain' } | null;
+  /** 타격감/획득 연출용 (seq가 바뀌면 렌더러가 1회 재생). kind: toll=통행료, gain=획득, bankrupt=파산. from=낸사람, to=받는사람 */
+  fx: { seq: number; amount: number; mul: number; kind: 'toll' | 'gain' | 'bankrupt'; from?: string; to?: string; nick?: string } | null;
   /** 세계여행 비행기 애니 (seq 바뀌면 from→to 비행 재생) */
   travelFx: { seq: number; by: string; from: number; to: number } | null;
 }

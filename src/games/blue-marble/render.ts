@@ -21,6 +21,7 @@ export interface BMRenderCallbacks {
   onUseHeld(cardId: number): void;
   onPickCity(tile: number): void;       // 올림픽 개최 / 추가 건설: 내 도시 선택
   onTravelTo(tile: number): void;       // 세계여행: 목적지 칸 선택
+  onEventOk(): void;                    // 세금 등 이벤트 창 확인
   onBonusStart(stake: number): void;    // 오락실: 판돈 걸고 시작(0=안 함)
   onBonusPick(choice: number): void;    // 오락실 2지선다
   onBonusStop(): void;                  // 오락실: 받고 종료
@@ -272,20 +273,32 @@ export class BlueMarbleRenderer {
     // 통행료 타격감 — 이동/시퀀스 끝난 뒤 1회 재생
     if (!this.busy && state.fx && state.fx.seq !== this.lastFxSeq) {
       this.lastFxSeq = state.fx.seq;
-      this.playFx(state.fx.amount, state.fx.mul, state.fx.kind);
+      this.playFx(state.fx);
     }
     if (!this.busy) this.cb.onSettled();   // idle → 더미 진행 트리거
   }
 
-  /** 타격감/획득 연출. gain(월급)=초록 +₩ 팝업, toll(통행료)=흔들림+동전 */
-  private playFx(amount: number, mul: number, kind: 'toll' | 'gain'): void {
+  /** 타격감/획득 연출. gain=초록 +₩, toll=낸사람 −₩(흔들림)·받는사람 +₩, bankrupt=파산! */
+  private playFx(fx: NonNullable<BMState['fx']>): void {
     if (this.destroyed) return;
-    if (kind === 'gain') {
+    const { amount, mul, kind } = fx;
+    // 통행료를 "내가 받는" 경우 → 초록 +₩ (흔들림/동전 없음)
+    const iReceive = kind === 'toll' && fx.to === this.myId;
+    if (kind === 'gain' || iReceive) {
       const g = document.createElement('div');
       g.className = 'bm-fxnum gain';
       g.innerHTML = `<span>+₩${amount.toLocaleString()}</span>`;
       this.root.appendChild(g);
       window.setTimeout(() => g.remove(), 1300);
+      return;
+    }
+    if (kind === 'bankrupt') {
+      const b = document.createElement('div'); b.className = 'bm-fxnum fire';
+      b.innerHTML = `<span>${fx.nick ? fx.nick + ' ' : ''}파산!</span>`;
+      this.root.classList.remove('bm-shake', 'bm-shake-strong'); void this.root.offsetWidth;
+      this.root.classList.add('bm-shake-strong');
+      window.setTimeout(() => this.root.classList.remove('bm-shake-strong'), 620);
+      this.root.appendChild(b); window.setTimeout(() => b.remove(), 1600);
       return;
     }
     const strong = mul >= 3;
@@ -436,6 +449,10 @@ export class BlueMarbleRenderer {
       tile.querySelector('.bm-oly')?.remove();
       const o = state.owner[i];
       const t = BOARD[i];
+      // 소유 표시 — 주인 색 테두리 (내 땅/상대 땅 한눈에)
+      if (o !== undefined && (t.type === 'city' || t.type === 'island')) {
+        tile.style.outline = `3.5px solid ${colorOf(state, o)}`; tile.style.outlineOffset = '-3.5px';
+      } else { tile.style.outline = ''; }
       // 통행료 배수 뱃지 + 컬러 독점 glow + 올림픽 팡파레
       let mul = 1;
       if (o !== undefined && t.type === 'city') { mul = colorMonopolyMul(state, i, o) * (state.olympic[i] ?? 1); tile.classList.toggle('bm-mono', ownsGroup(state, o, t.group)); }
@@ -533,6 +550,8 @@ export class BlueMarbleRenderer {
     if (p.kind === 'info') { this.travelMode = false; this.setPickMode(null); this.showInfo(p.tile, p.text); return; }
     const cur = state.order[state.turnIdx]!;
     const mine = cur === myPeerId && !isSpectator;
+    // 세금 등 이벤트 — 모두에게 창, 밟은 사람(cur)만 확인해 닫음
+    if (p.kind === 'event') { this.travelMode = false; this.setPickMode(null); this.eventModal(p.tile, p.text, mine, state.players[cur]!.nickname); return; }
     // 세계여행 = 아무 칸 클릭 / 올림픽·추가건설 = 내 땅만 클릭(나머지 어둡게)
     this.travelMode = p.kind === 'travel' && mine;
     let pick: number[] | null = null;
@@ -557,6 +576,22 @@ export class BlueMarbleRenderer {
     else if (p.kind === 'card') this.cardModal(state, p.card);
     else if (p.kind === 'bonusOffer') this.bonusOfferModal(state.players[myPeerId]!.money);
     else if (p.kind === 'bonus') this.bonusModal(p.round, p.pot);
+  }
+
+  /** 세금 등 이벤트 창 — 모두에게 표시. 밟은 사람만 확인 버튼, 나머지는 대기 */
+  private eventModal(tile: number, text: string, mine: boolean, curNick: string): void {
+    const key = `event:${tile}`;
+    if (this.openKind === key && this.modalScrim) return;
+    this.closeModal();
+    const t = BOARD[tile] as { name: string };
+    const foot = mine
+      ? `<div class="bm-btns"><button class="bm-yes" style="flex:1">확인</button></div>`
+      : `<div class="bm-actft"><span class="bm-sp"></span><span><b>${curNick}</b>님 확인 대기…</span></div>`;
+    const scrim = document.createElement('div'); scrim.className = 'bm-scrim';
+    scrim.innerHTML = `<div class="bm-modal"><div class="bm-top" style="background:${tileColor(tile)}">${t.name}</div>
+      <div class="bm-body"><div class="bm-cardic">${IC.coin}</div><div class="bm-ctitle">${text}</div>${foot}</div></div>`;
+    document.body.appendChild(scrim); this.modalScrim = scrim; this.openKind = key;
+    scrim.querySelector<HTMLButtonElement>('.bm-yes')?.addEventListener('click', () => this.cb.onEventOk());
   }
 
   /** 오락실: ① 한다/안 한다 → ② 한다면 판돈(100·200·300) 선택 */
@@ -816,14 +851,22 @@ export class BlueMarbleRenderer {
 
   private _lastState: BMState | null = null;
 
+  private endShown = false;
   private showEnd(state: BMState, myPeerId: string): void {
-    if (this.root.querySelector('.bm-end')) return;
+    if (this.endShown) return;
+    this.endShown = true;
     const won2 = state.winnerPeerId;
     const iWon = won2 === myPeerId;
     const name = won2 ? state.players[won2]!.nickname : '';
-    const end = document.createElement('div'); end.className = 'bm-end';
-    end.innerHTML = `<div class="bm-endcard"><div class="bm-endt" style="color:${iWon ? '#ff5a92' : '#4a3a4a'}">${iWon ? '승리!' : name + ' 승리'}</div></div>`;
-    this.root.appendChild(end);
+    const iBankrupt = !!state.players[myPeerId]?.bankrupt;
+    // 통행료/파산 fx 먼저 보이도록 살짝 텀 → 그다음 보드 위 결과 오버레이(패배 화면은 그 뒤에)
+    window.setTimeout(() => {
+      if (this.destroyed) return;
+      const title = iWon ? '승리!' : iBankrupt ? '파산…' : `${name} 승리`;
+      const end = document.createElement('div'); end.className = 'bm-end';
+      end.innerHTML = `<div class="bm-endcard"><div class="bm-endt" style="color:${iWon ? '#ff5a92' : '#4a3a4a'}">${title}</div></div>`;
+      this.root.appendChild(end);
+    }, 1100);
   }
 
   /** index 가 매 render 마다 최신 state 를 넘겨 정보모달 등에 쓰게 */

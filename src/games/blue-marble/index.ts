@@ -22,7 +22,7 @@ import {
 } from './netSync';
 import { BlueMarbleRenderer } from './render';
 
-const END_DELAY_MS = 2600;
+const END_DELAY_MS = 3200;
 
 class BlueMarbleModule implements GameModule {
   private ctx!: GameContext;
@@ -52,6 +52,7 @@ class BlueMarbleModule implements GameModule {
       onUseHeld: (cardId) => this.act({ kind: 'useHeld', cardId }),
       onPickCity: (tile) => this.act({ kind: 'pickCity', tile }),
       onTravelTo: (tile) => this.act({ kind: 'travelTo', tile }),
+      onEventOk: () => this.act({ kind: 'eventOk' }),
       onBonusStart: (stake) => this.act({ kind: 'bonusStart', stake }),
       onBonusPick: (choice) => this.act({ kind: 'bonusPick', choice }),
       onBonusStop: () => this.act({ kind: 'bonusStop' }),
@@ -164,6 +165,7 @@ class BlueMarbleModule implements GameModule {
       const dest = empty.length ? empty[Math.floor(Math.random() * empty.length)]! : Math.floor(Math.random() * BOARD.length);
       this.hostHandle({ kind: 'travelTo', tile: dest, by: DUMMY }, DUMMY);
     }
+    else if (pend.kind === 'event') { this.hostHandle({ kind: 'eventOk', by: DUMMY }, DUMMY); }
     else if (pend.kind === 'bonusOffer') {
       const opts = [0, 100000, 200000, 300000].filter((v) => v === 0 || s.players[DUMMY]!.money >= v);
       this.hostHandle({ kind: 'bonusStart', stake: opts[Math.floor(Math.random() * opts.length)]!, by: DUMMY }, DUMMY);
@@ -259,6 +261,13 @@ class BlueMarbleModule implements GameModule {
       if (s.pending?.kind === 'bonus') this.doBonusPick(by, action.choice);
     } else if (action.kind === 'bonusStop') {
       if (s.pending?.kind === 'bonus') this.doBonusStop(by);
+    } else if (action.kind === 'eventOk') {
+      if (s.pending?.kind === 'event') {
+        const ev = s.pending; s.pending = null;
+        this.pay(by, null, ev.amount);   // 세금 납부(파산 가능)
+        s.log = `${BOARD[ev.tile].name} · ₩${ev.amount.toLocaleString()} 납부`;
+        this.endStep(by);
+      }
     }
     this.afterChange();
   }
@@ -358,7 +367,7 @@ class BlueMarbleModule implements GameModule {
         this.pay(peer, o, toll);
         s.log = `${t.name} 통행료 ${toll.toLocaleString()} → ${s.players[o]!.nickname}`;
         // 타격감 연출용 (배수 클수록 강하게)
-        if (toll > 0) s.fx = { seq: (s.fx?.seq ?? 0) + 1, amount: toll, mul: info.base > 0 ? Math.round(info.total / info.base) : 1, kind: 'toll' };
+        if (toll > 0) s.fx = { seq: (s.fx?.seq ?? 0) + 1, amount: toll, mul: info.base > 0 ? Math.round(info.total / info.base) : 1, kind: 'toll', from: peer, to: o };
         // 도시면 인수 기회(랜드마크·섬 제외)
         if (!p.bankrupt && t.type === 'city') {
           const cost = acquireCost(s, i);
@@ -376,7 +385,12 @@ class BlueMarbleModule implements GameModule {
           this.render(); return;
         }
         s.pending = { kind: 'card', card }; this.render(); return;
-      } else if (t.kind === 'tax') { const amt = t.taxAmount ?? 100; this.pay(peer, null, amt); s.log = `${t.name} ${amt.toLocaleString()} 납부`; }
+      } else if (t.kind === 'tax') {
+        // 세금 — 모두에게 창 표시, 밟은 사람이 확인하면 납부 후 진행
+        const amt = t.taxAmount ?? 100;
+        s.pending = { kind: 'event', tile: i, text: `세금 ₩${amt.toLocaleString()} 납부`, amount: amt };
+        this.render(); return;
+      }
       else if (t.kind === 'concert') { this.pay(peer, null, 50); s.log = '콘서트 관람 ₩50'; }
       else if (t.kind === 'bonus') {
         // 오락실: 할지/판돈 선택 (최소 판돈 있으면)

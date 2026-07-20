@@ -29,7 +29,8 @@ export type BMAction =
   | { kind: 'travelTo'; tile: number }        // 세계여행: 목적지 칸 선택
   | { kind: 'bonusStart'; stake: number }     // 오락실: 판돈 걸고 시작 (0=안 함)
   | { kind: 'bonusPick'; choice: number }     // 오락실 2지선다 (0/1)
-  | { kind: 'bonusStop' };                    // 오락실: 지금까지 딴 것 받고 종료
+  | { kind: 'bonusStop' }                     // 오락실: 지금까지 딴 것 받고 종료
+  | { kind: 'eventOk' };                       // 세금 등 이벤트 창 확인(밟은 사람만)
 
 // ── hello ──
 export function encodeHello(peerId: string): GameMessage {
