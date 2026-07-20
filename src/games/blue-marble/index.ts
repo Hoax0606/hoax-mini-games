@@ -251,13 +251,14 @@ class BlueMarbleModule implements GameModule {
         if (from !== undefined && from !== by && BOARD[their].type === 'city') {
           s.owner[mine] = from; s.owner[their] = by;
           s.log = `${BOARD[mine].name} ↔ ${BOARD[their].name} 교환!`; sound.play('pop');
+          this.cardFxEvt('swap', { tile: mine, tile2: their });
         }
         s.pending = null; this.checkMonopolyWin(by); if (!this.ended) this.endStep(by);
       } else if (s.pending?.kind === 'cardQuake') {
         const tile = action.tile, arr = s.builds[tile];
         if (s.owner[tile] !== undefined && s.owner[tile] !== by && arr && arr.length) {
           const top = (['landmark', 'apt', 'house2', 'villa'] as BuildKind[]).find((k) => arr.includes(k));
-          if (top) { arr.splice(arr.indexOf(top), 1); s.log = `${BOARD[tile].name} 건물 1단계 파괴!`; sound.play('pop'); }
+          if (top) { arr.splice(arr.indexOf(top), 1); s.log = `${BOARD[tile].name} 건물 1단계 파괴!`; sound.play('pop'); this.cardFxEvt('quake', { tile }); }
         }
         s.pending = null; this.endStep(by);
       } else if (s.pending?.kind === 'cardBlackout') {
@@ -532,10 +533,10 @@ class BlueMarbleModule implements GameModule {
         const amt = s.fund; p.money += amt; s.fund = 0; gain(amt);
         s.log = `사회복지기금 ₩${amt.toLocaleString()} 수령`; this.endStep(peer); return;
       }
-      case 'go': s.pos[peer] = 0; this.resolveLanding(peer); return;              // 출발 corner에서 월급 지급
-      case 'jail': this.toDesert(peer); s.pos[peer] = DESERT_TILE; s.log = '무인도 유배!'; this.endStep(peer); return;
-      case 'back3': s.pos[peer] = ((s.pos[peer]! - 3) % BOARD.length + BOARD.length) % BOARD.length; this.resolveLanding(peer); return;
-      case 'topcity': s.pos[peer] = TOP_CITY_TILE; this.resolveLanding(peer); return;
+      case 'go': this.cardMove(peer, 0); this.resolveLanding(peer); return;        // 출발 corner에서 월급 지급
+      case 'jail': { const from = s.pos[peer]!; this.toDesert(peer); s.pos[peer] = DESERT_TILE; this.setCardFly(peer, from, DESERT_TILE); s.log = '무인도 유배!'; this.endStep(peer); return; }
+      case 'back3': this.cardMove(peer, ((s.pos[peer]! - 3) % BOARD.length + BOARD.length) % BOARD.length); this.resolveLanding(peer); return;
+      case 'topcity': this.cardMove(peer, TOP_CITY_TILE); this.resolveLanding(peer); return;
       case 'swap':
         if (this.ownedCities(peer).length && this.opponentCities(peer).length) s.pending = { kind: 'cardSwapMine' };
         else { s.log = '교환할 도시가 없어요'; this.endStep(peer); }
@@ -551,6 +552,21 @@ class BlueMarbleModule implements GameModule {
       default: this.endStep(peer); return;   // (보관형은 이 경로로 안 옴)
     }
   }
+  /** 카드 연출 신호 */
+  private setCardFly(peer: string, from: number, to: number): void {
+    const s = this.state; s.cardFx = { seq: (s.cardFx?.seq ?? 0) + 1, kind: 'fly', by: peer, from, to };
+  }
+  private cardFxEvt(kind: 'quake' | 'swap' | 'toast', extra: { tile?: number; tile2?: number; text?: string }): void {
+    const s = this.state; s.cardFx = { seq: (s.cardFx?.seq ?? 0) + 1, kind, ...extra };
+  }
+  /** 카드로 순간이동 — 말 날아가는 연출 트리거 후 착지는 호출부에서 resolveLanding */
+  private cardMove(peer: string, dest: number): void {
+    const s = this.state; const from = s.pos[peer]!;
+    s.pos[peer] = dest;
+    this.setCardFly(peer, from, dest);
+    this.sync(); this.render();
+  }
+
   /** 보관 카드 사용 (자유 행동 — 턴 안 넘김) */
   private useHeld(peer: string, cardId: number): void {
     const s = this.state; const arr = s.held[peer]; if (!arr) return;
@@ -560,9 +576,9 @@ class BlueMarbleModule implements GameModule {
     if (c.effect === 'olympicGrant' && this.ownedCities(peer).length === 0) { s.log = '개최할 내 도시가 없어요'; return; }
     arr.splice(idx, 1);
     switch (c.effect) {
-      case 'jailFree': p.desertLeft = 0; s.log = '무인도 탈출권 사용!'; break;
-      case 'tollExempt': p.tollExempt = true; s.log = '통행료 면제권 사용 — 다음 통행료 면제'; break;
-      case 'travel': p.travelReady = true; s.log = '세계여행권 사용 — 다음 턴 자유 이동'; break;
+      case 'jailFree': p.desertLeft = 0; s.log = '무인도 탈출권 사용!'; this.cardFxEvt('toast', { text: '무인도 탈출!' }); break;
+      case 'tollExempt': p.tollExempt = true; s.log = '통행료 면제권 사용 — 다음 통행료 면제'; this.cardFxEvt('toast', { text: '통행료 면제권 사용!' }); break;
+      case 'travel': p.travelReady = true; s.log = '세계여행권 사용 — 다음 턴 자유 이동'; this.cardFxEvt('toast', { text: '세계여행 준비!' }); break;
       case 'olympicGrant': s.pending = { kind: 'olympic', free: true }; break;
       default: break;
     }

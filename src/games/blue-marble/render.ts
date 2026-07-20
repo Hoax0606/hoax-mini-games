@@ -173,6 +173,8 @@ export class BlueMarbleRenderer {
   private lastFxSeq = 0;
   /** 마지막으로 재생한 세계여행 비행 seq */
   private lastTravelSeq = 0;
+  /** 마지막으로 재생한 카드 연출 seq */
+  private lastCardSeq = 0;
   /** 이번에 이동하는 말(굴린 사람). 착지 후 턴이 넘어가도 이 말만 애니 */
   private moverId = '';
 
@@ -257,9 +259,10 @@ export class BlueMarbleRenderer {
 
     const key = state.dice ? state.dice.join(',') : '';
     const newRoll = !!state.dice && key !== this.lastDice && !this.busy;
-    // 카드 텔레포트 등 애니 없이 바뀐 위치는 즉시 스냅 (곧 시작될 주사위/비행 애니 대상은 제외)
+    // 카드 텔레포트 등 애니 없이 바뀐 위치는 즉시 스냅 (곧 시작될 주사위/비행/카드이동 애니 대상은 제외)
     const travelPending = !!state.travelFx && state.travelFx.seq !== this.lastTravelSeq;
-    if (!this.busy && !newRoll && !travelPending) { for (const p of state.order) this.dispPos[p] = state.pos[p]!; }
+    const cardFlyPending = !!state.cardFx && state.cardFx.kind === 'fly' && state.cardFx.seq !== this.lastCardSeq;
+    if (!this.busy && !newRoll && !travelPending && !cardFlyPending) { for (const p of state.order) this.dispPos[p] = state.pos[p]!; }
 
     this.renderTiles(state);
     this.renderCenter(state, myPeerId, isSpectator);
@@ -272,6 +275,11 @@ export class BlueMarbleRenderer {
     if (!this.busy && state.travelFx && state.travelFx.seq !== this.lastTravelSeq) {
       this.lastTravelSeq = state.travelFx.seq;
       this.playTravel(state.travelFx.by, state.travelFx.from, state.travelFx.to);
+    }
+    // 카드 연출 (말 이동/지진/교환/토스트)
+    if (!this.busy && state.cardFx && state.cardFx.seq !== this.lastCardSeq) {
+      this.lastCardSeq = state.cardFx.seq;
+      this.playCardFx(state.cardFx);
     }
 
     this.renderPending(state, myPeerId, isSpectator);  // busy면 내부에서 보류
@@ -291,11 +299,13 @@ export class BlueMarbleRenderer {
     // 통행료를 "내가 받는" 경우 → 초록 +₩ (흔들림/동전 없음)
     const iReceive = kind === 'toll' && fx.to === this.myId;
     if (kind === 'gain' || iReceive) {
+      const jackpot = amount >= 1000000;   // 복권 등 대박
       const g = document.createElement('div');
-      g.className = 'bm-fxnum gain';
-      g.innerHTML = `<span>+₩${amount.toLocaleString()}</span>`;
+      g.className = 'bm-fxnum gain' + (jackpot ? ' jackpot' : '');
+      g.innerHTML = `${jackpot ? '<span class="bm-fxmul" style="color:#ffab1c">JACKPOT</span>' : ''}<span>+₩${amount.toLocaleString()}</span>`;
       this.root.appendChild(g);
-      window.setTimeout(() => g.remove(), 1300);
+      window.setTimeout(() => g.remove(), jackpot ? 1800 : 1300);
+      if (jackpot) this.coinShower(18);
       return;
     }
     if (kind === 'bankrupt') {
@@ -319,12 +329,15 @@ export class BlueMarbleRenderer {
     num.innerHTML = `<span class="bm-fxmul">${mul > 1 ? `×${mul}` : ''}</span><span>−₩${amount.toLocaleString()}</span>`;
     this.root.appendChild(num);
     window.setTimeout(() => num.remove(), 1300);
-    // 동전 튀기기
+    this.coinShower(Math.min(14, 5 + mul * 2));
+  }
+
+  /** 화면 중앙에서 동전이 위로 튀는 이펙트 */
+  private coinShower(n: number): void {
     const coins = document.createElement('div'); coins.className = 'bm-coins';
-    const n = Math.min(14, 5 + mul * 2);
     for (let k = 0; k < n; k++) {
       const c = document.createElement('span'); c.className = 'bm-coin';
-      const ang = (k / n) * Math.PI - Math.PI;            // 위쪽으로 부채꼴
+      const ang = (k / n) * Math.PI - Math.PI;
       c.style.setProperty('--dx', `${Math.cos(ang) * (60 + (k % 5) * 22)}px`);
       c.style.setProperty('--dy', `${-90 - (k % 4) * 40}px`);
       c.style.animationDelay = `${(k % 5) * 20}ms`;
@@ -416,6 +429,70 @@ export class BlueMarbleRenderer {
     // 다음 프레임에 목적지로 트랜지션
     requestAnimationFrame(() => { plane.style.left = `${x1}px`; plane.style.top = `${y1}px`; });
     window.setTimeout(() => { plane.remove(); finish(); }, 900);
+  }
+
+  /** 타일 중심의 root 기준 좌표 */
+  private tileCenter(i: number): { x: number; y: number } | null {
+    const el = this.root.querySelector<HTMLElement>(`.bm-tile[data-i="${i}"]`);
+    if (!el) return null;
+    const rr = this.root.getBoundingClientRect(), r = el.getBoundingClientRect();
+    return { x: r.left - rr.left + r.width / 2, y: r.top - rr.top + r.height / 2 };
+  }
+
+  /** 카드 연출 라우팅 */
+  private playCardFx(fx: NonNullable<BMState['cardFx']>): void {
+    if (this.destroyed) return;
+    if (fx.kind === 'fly' && fx.by !== undefined && fx.from !== undefined && fx.to !== undefined) { this.playTokenFly(fx.by, fx.from, fx.to); return; }
+    if (fx.kind === 'quake' && fx.tile !== undefined) { this.playQuake(fx.tile); return; }
+    if (fx.kind === 'swap' && fx.tile !== undefined && fx.tile2 !== undefined) { this.playSwap(fx.tile, fx.tile2); return; }
+    if (fx.kind === 'toast' && fx.text) { this.showToast(fx.text); return; }
+  }
+
+  /** 카드 이동 — 말이 from→to 로 날아감 */
+  private playTokenFly(by: string, from: number, to: number): void {
+    const s = this._lastState; if (!s) return;
+    this.busy = true; this.clearMove();
+    for (const p of s.order) if (p !== by) this.dispPos[p] = s.pos[p]!;
+    this.dispPos[by] = from; this.renderTiles(s);
+    const a = this.tileCenter(from), b = this.tileCenter(to);
+    const finish = (): void => { this.dispPos[by] = to; this.busy = false; const st = this._lastState; if (st) this.render(st, this.myId, this.spec); };
+    if (!a || !b) { window.setTimeout(finish, 150); return; }
+    const fly = document.createElement('div'); fly.className = 'bm-tokfly'; fly.innerHTML = tokenSvg(colorOf(s, by), colorDeep(s, by));
+    fly.style.left = `${a.x}px`; fly.style.top = `${a.y}px`;
+    this.root.appendChild(fly);
+    requestAnimationFrame(() => { fly.style.left = `${b.x}px`; fly.style.top = `${b.y}px`; });
+    window.setTimeout(() => { fly.remove(); finish(); }, 620);
+  }
+
+  /** 지진 — 대상 타일 흔들림 + 파편 */
+  private playQuake(tile: number): void {
+    const el = this.root.querySelector<HTMLElement>(`.bm-tile[data-i="${tile}"]`);
+    if (el) { el.classList.remove('bm-quakeshake'); void el.offsetWidth; el.classList.add('bm-quakeshake'); window.setTimeout(() => el.classList.remove('bm-quakeshake'), 600); }
+    const c = this.tileCenter(tile); if (!c) return;
+    const wrap = document.createElement('div'); wrap.className = 'bm-debris';
+    for (let k = 0; k < 8; k++) {
+      const d = document.createElement('span');
+      d.style.setProperty('--dx', `${(k % 2 ? 1 : -1) * (20 + (k % 4) * 14)}px`);
+      d.style.setProperty('--dy', `${-40 - (k % 3) * 22}px`);
+      d.style.animationDelay = `${(k % 4) * 15}ms`;
+      wrap.appendChild(d);
+    }
+    wrap.style.left = `${c.x}px`; wrap.style.top = `${c.y}px`;
+    this.root.appendChild(wrap); window.setTimeout(() => wrap.remove(), 900);
+  }
+
+  /** 도시 교환 — 두 타일 반짝 강조 */
+  private playSwap(a: number, b: number): void {
+    for (const i of [a, b]) {
+      const el = this.root.querySelector<HTMLElement>(`.bm-tile[data-i="${i}"]`);
+      if (el) { el.classList.remove('bm-swapglow'); void el.offsetWidth; el.classList.add('bm-swapglow'); window.setTimeout(() => el.classList.remove('bm-swapglow'), 900); }
+    }
+  }
+
+  /** 잠깐 뜨는 토스트 (카드 사용 안내) */
+  private showToast(text: string): void {
+    const t = document.createElement('div'); t.className = 'bm-cardtoast'; t.textContent = text;
+    this.root.appendChild(t); window.setTimeout(() => t.remove(), 1400);
   }
 
   /** 도착 후 짧은 텀(360ms)을 두고 결정창/배너 표시 — 착지하자마자 모달이 뜨지 않게 */
@@ -1016,6 +1093,25 @@ function injectStyle(): void {
   transition:left .9s cubic-bezier(.45,.05,.3,1),top .9s cubic-bezier(.45,.05,.3,1);
   transform:translate(-50%,-50%) rotate(var(--rot,0deg));filter:drop-shadow(0 4px 6px rgba(0,0,0,.3));}
 .bm-plane svg{width:100%;height:100%;display:block;}
+/* 카드 이동 — 말 날기 */
+.bm-tokfly{position:absolute;width:22px;height:28px;z-index:31;pointer-events:none;transform:translate(-50%,-60%);
+  transition:left .6s cubic-bezier(.35,.9,.35,1),top .6s cubic-bezier(.35,.9,.35,1);filter:drop-shadow(0 5px 5px rgba(0,0,0,.3));}
+.bm-tokfly svg{width:100%;height:100%;display:block;}
+/* 지진 — 타일 흔들림 + 파편 */
+.bm-tile.bm-quakeshake{animation:bm-qshake .5s cubic-bezier(.36,.07,.19,.97);z-index:7;}
+@keyframes bm-qshake{10%,90%{transform:translate(-2px,1px);}30%,70%{transform:translate(3px,-2px);}50%{transform:translate(-4px,2px);}}
+.bm-debris{position:absolute;z-index:32;pointer-events:none;}
+.bm-debris span{position:absolute;width:7px;height:7px;background:#b08050;border-radius:1px;box-shadow:0 1px 2px rgba(0,0,0,.35);
+  animation:bm-debris .8s ease-out forwards;}
+@keyframes bm-debris{0%{opacity:1;transform:translate(0,0) rotate(0);}100%{opacity:0;transform:translate(var(--dx),calc(var(--dy) * -1 + 60px)) rotate(220deg);}}
+/* 도시 교환 — 두 타일 반짝 */
+.bm-tile.bm-swapglow{z-index:7;animation:bm-swapg .9s ease-in-out;}
+@keyframes bm-swapg{0%,100%{box-shadow:none;}30%,70%{box-shadow:0 0 0 3px #fff,0 0 18px 4px #7950f2;}}
+/* 카드 사용 토스트 */
+.bm-cardtoast{position:absolute;top:32%;left:50%;transform:translate(-50%,-50%);z-index:60;pointer-events:none;
+  background:rgba(74,58,74,.94);color:#fff;font-size:15px;font-weight:800;padding:11px 22px;border-radius:14px;
+  box-shadow:0 12px 30px rgba(0,0,0,.3);animation:bm-fxnum 1.4s cubic-bezier(.2,1.3,.4,1) forwards;}
+.bm-fxnum.jackpot{color:#ffab1c;text-shadow:0 0 18px rgba(255,171,28,.7),0 3px 10px rgba(0,0,0,.3);}
 .bm-toks{position:absolute;bottom:17px;left:0;right:0;display:flex;gap:2px;justify-content:center;flex-wrap:wrap;pointer-events:none;z-index:4;}
 .bm-tok{width:19px;height:24px;display:block;}
 .bm-tok svg{width:100%;height:100%;display:block;filter:drop-shadow(0 2px 2px rgba(0,0,0,.3));}
