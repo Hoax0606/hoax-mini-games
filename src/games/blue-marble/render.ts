@@ -1112,6 +1112,16 @@ function injectStyle(): void {
   background:rgba(74,58,74,.94);color:#fff;font-size:15px;font-weight:800;padding:11px 22px;border-radius:14px;
   box-shadow:0 12px 30px rgba(0,0,0,.3);animation:bm-fxnum 1.4s cubic-bezier(.2,1.3,.4,1) forwards;}
 .bm-fxnum.jackpot{color:#ffab1c;text-shadow:0 0 18px rgba(255,171,28,.7),0 3px 10px rgba(0,0,0,.3);}
+/* 동작 최소화 — 흔들림·비행·파편 등 전정계 자극 애니를 정적/페이드로 대체 */
+@media(prefers-reduced-motion:reduce){
+  .bm-plane,.bm-tokfly{transition:none;}
+  .bm-tile.bm-quakeshake{animation:none;}
+  .bm-debris,.bm-coins{display:none;}
+  .bm-tile.bm-swapglow{animation:none;box-shadow:0 0 0 3px #fff,0 0 14px 3px #7950f2;}
+  .bm-fxnum,.bm-cardtoast,.bm-toast{animation:bm-rmfade .25s ease forwards;}
+  .bm-diceres{transition:opacity .18s;transform:none;}
+}
+@keyframes bm-rmfade{from{opacity:0;}to{opacity:1;}}
 .bm-toks{position:absolute;bottom:17px;left:0;right:0;display:flex;gap:2px;justify-content:center;flex-wrap:wrap;pointer-events:none;z-index:4;}
 .bm-tok{width:19px;height:24px;display:block;}
 .bm-tok svg{width:100%;height:100%;display:block;filter:drop-shadow(0 2px 2px rgba(0,0,0,.3));}
