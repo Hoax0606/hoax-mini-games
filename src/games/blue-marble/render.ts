@@ -32,11 +32,11 @@ const GROUP: Record<GroupColor, string> = {
   tan: '#d9b38c', sky: '#8fc2f0', pink: '#ff9bbb', orange: '#ffb27a', red: '#ff8a8a',
   yellow: '#f2d24c', green: '#8fe0b0', rose: '#e79ad0', teal: '#7fd6d0', navy: '#8a9ef0',
 };
-const ISLAND_BG = '#33a8dd';   // 섬(파랑, 개수 기반)
-const BEACH_BG = '#f56a5a';    // 해변(붉은, 방문 기반)
+const ISLAND_GRAD = 'linear-gradient(155deg,#5fcdf2 0%,#2b8fce 100%)';   // 섬(파랑, 개수 기반)
+const BEACH_GRAD = 'linear-gradient(155deg,#ff9c86 0%,#e8503f 100%)';    // 해변(붉은, 방문 기반)
 const tileColor = (i: number): string => {
   const t = BOARD[i];
-  if (t.type === 'island') return t.spot === 'beach' ? BEACH_BG : ISLAND_BG;
+  if (t.type === 'island') return t.spot === 'beach' ? BEACH_GRAD : ISLAND_GRAD;
   return t.type === 'city' ? GROUP[t.group] : '#ccc';
 };
 
