@@ -240,7 +240,10 @@ class BlueMarbleModule implements GameModule {
       }
     } else if (action.kind === 'travelTo') {
       if (s.pending?.kind === 'travel') {
-        s.pending = null; s.pos[by] = action.tile;   // 세계여행: 출발 통과 월급 없음
+        const from = s.pos[by]!;
+        s.pending = null; s.pos[by] = action.tile;   // 세계여행: 출발 통과 월급 없음(도착 월급은 resolveLanding)
+        s.travelFx = { seq: (s.travelFx?.seq ?? 0) + 1, by, from, to: action.tile };
+        this.sync(); this.render();   // 비행기 애니 트리거
         this.resolveLanding(by);
       }
     } else if (action.kind === 'bonusStart') {

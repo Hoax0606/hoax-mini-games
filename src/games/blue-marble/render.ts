@@ -73,6 +73,10 @@ const BSVG: Record<string, string> = {
 };
 // 섬 소유 표시 — 깃발(천 = 플레이어색 currentColor)
 const FLAG = '<svg viewBox="0 0 24 24"><rect x="6" y="2.5" width="2" height="19" rx="1" fill="#6b5566"/><circle cx="7" cy="2.6" r="1.7" fill="#ffd454"/><path d="M8 3.5 H20 Q16.8 6.5 20 9.5 H8 Z" fill="currentColor" stroke="#fff" stroke-width="1" stroke-linejoin="round"/></svg>';
+// 올림픽 개최 팡파레(파티 크래커 + 색종이)
+const FANFARE = '<svg viewBox="0 0 24 24"><path d="M3 21 L11 13 L14 16 L6 21 Z" fill="#ffb01c" stroke="#c97e10" stroke-width="1" stroke-linejoin="round"/><circle cx="15" cy="6" r="1.5" fill="#ff5a92"/><circle cx="19" cy="9" r="1.5" fill="#5b9be6"/><circle cx="20" cy="4" r="1.3" fill="#7ed957"/><circle cx="12" cy="4" r="1.3" fill="#b89aff"/><path d="M13 12 L21 5" stroke="#ffd454" stroke-width="1.4" stroke-linecap="round"/></svg>';
+// 세계여행 비행기 (오른쪽을 향함 — 진행방향으로 회전)
+const PLANE = '<svg viewBox="0 0 48 48"><path d="M4 26 L40 20 L44 22 L40 24 L30 30 L22 29 L26 24 L16 25 L11 30 L7 29 L10 24 L4 26 Z" fill="#5b9be6" stroke="#2e5f96" stroke-width="1.4" stroke-linejoin="round"/><circle cx="35" cy="22" r="1.6" fill="#fff"/></svg>';
 const GENERIC_LM = '<svg viewBox="0 0 24 24" stroke="#241a30" stroke-width="0.9" stroke-linejoin="round"><path d="M12 1 L14 5.5 H10 Z" fill="#ffd454" stroke="#241a30" stroke-width="0.6"/><rect x="8.5" y="6" width="7" height="15" fill="currentColor"/><rect x="8.5" y="6" width="7" height="2.6" fill="#ffd454" stroke="none"/><rect x="6" y="18" width="12" height="3" fill="currentColor"/><g fill="#fff" stroke="none" opacity=".9"><rect x="10" y="10" width="4" height="2"/><rect x="10" y="13.5" width="4" height="2"/></g></svg>';
 const LM_ATTR = 'viewBox="0 0 24 24" stroke="#241a30" stroke-width="0.9" stroke-linejoin="round"';
 const LANDMARK: Record<string, string> = {
@@ -136,6 +140,8 @@ export class BlueMarbleRenderer {
   private pickTiles: number[] = [];
   /** 마지막으로 재생한 타격감 fx seq (중복 재생 방지) */
   private lastFxSeq = 0;
+  /** 마지막으로 재생한 세계여행 비행 seq */
+  private lastTravelSeq = 0;
   /** 이번에 이동하는 말(굴린 사람). 착지 후 턴이 넘어가도 이 말만 애니 */
   private moverId = '';
 
@@ -229,6 +235,11 @@ export class BlueMarbleRenderer {
 
     if (newRoll) { this.lastDice = key; this.startSequence(state); }   // ① 주사위 → ② 이동 → ③ 결정
     else if (!state.dice) { this.lastDice = ''; this.setDie('#bm-d1', 1); this.setDie('#bm-d2', 1); this.setDiceRes(null); }
+    // 세계여행 비행기 애니 (주사위 이동과 별개 트리거)
+    if (!this.busy && state.travelFx && state.travelFx.seq !== this.lastTravelSeq) {
+      this.lastTravelSeq = state.travelFx.seq;
+      this.playTravel(state.travelFx.by, state.travelFx.from, state.travelFx.to);
+    }
 
     this.renderPending(state, myPeerId, isSpectator);  // busy면 내부에서 보류
     if (state.phase === 'ended') this.showEnd(state, myPeerId);
@@ -333,6 +344,33 @@ export class BlueMarbleRenderer {
     }, 160);
   }
 
+  /** 세계여행: from 칸 → to 칸으로 비행기가 날아가는 연출 후 도착 처리 */
+  private playTravel(by: string, from: number, to: number): void {
+    const s = this._lastState; if (!s) return;
+    this.busy = true; this.clearMove();
+    for (const p of s.order) if (p !== by) this.dispPos[p] = s.pos[p]!;
+    this.dispPos[by] = from;                 // 출발 칸에 말 유지(비행 중)
+    this.renderTiles(s);
+    const fromEl = this.root.querySelector<HTMLElement>(`.bm-tile[data-i="${from}"]`);
+    const toEl = this.root.querySelector<HTMLElement>(`.bm-tile[data-i="${to}"]`);
+    const finish = (): void => {
+      this.dispPos[by] = to; this.busy = false;
+      const st = this._lastState; if (st) this.render(st, this.myId, this.spec);
+    };
+    if (!fromEl || !toEl) { window.setTimeout(finish, 200); return; }
+    const rr = this.root.getBoundingClientRect(), fr = fromEl.getBoundingClientRect(), tr = toEl.getBoundingClientRect();
+    const x0 = fr.left - rr.left + fr.width / 2, y0 = fr.top - rr.top + fr.height / 2;
+    const x1 = tr.left - rr.left + tr.width / 2, y1 = tr.top - rr.top + tr.height / 2;
+    const ang = Math.atan2(y1 - y0, x1 - x0) * 180 / Math.PI;
+    const plane = document.createElement('div'); plane.className = 'bm-plane'; plane.innerHTML = PLANE;
+    plane.style.setProperty('--rot', `${ang}deg`);
+    plane.style.left = `${x0}px`; plane.style.top = `${y0}px`;
+    this.root.appendChild(plane);
+    // 다음 프레임에 목적지로 트랜지션
+    requestAnimationFrame(() => { plane.style.left = `${x1}px`; plane.style.top = `${y1}px`; });
+    window.setTimeout(() => { plane.remove(); finish(); }, 900);
+  }
+
   /** 도착 후 짧은 텀(360ms)을 두고 결정창/배너 표시 — 착지하자마자 모달이 뜨지 않게 */
   private settle(): void {
     if (this.settleTimer !== null) window.clearTimeout(this.settleTimer);
@@ -367,13 +405,17 @@ export class BlueMarbleRenderer {
       tile.querySelector('.bm-iflag')?.remove();
       tile.querySelector('.bm-toks')?.remove();
       tile.querySelector('.bm-mulbadge')?.remove();
+      tile.querySelector('.bm-oly')?.remove();
       const o = state.owner[i];
       const t = BOARD[i];
-      // 통행료 배수 뱃지 + 컬러 독점 glow
+      // 통행료 배수 뱃지 + 컬러 독점 glow + 올림픽 팡파레
       let mul = 1;
       if (o !== undefined && t.type === 'city') { mul = colorMonopolyMul(state, i, o) * (state.olympic[i] ?? 1); tile.classList.toggle('bm-mono', ownsGroup(state, o, t.group)); }
       else if (o !== undefined && t.type === 'island') { mul = state.islandBoost[o] ?? 1; }
       else tile.classList.remove('bm-mono');
+      if ((state.olympic[i] ?? 1) > 1) {   // 올림픽 개최지 → 팡파레 데코
+        const oly = document.createElement('div'); oly.className = 'bm-oly'; oly.innerHTML = FANFARE; tile.appendChild(oly);
+      }
       if (mul > 1) {
         const bd = document.createElement('div');
         bd.className = `bm-mulbadge ${mul >= 4 ? 'fire' : mul >= 3 ? 'hot' : ''}`;
@@ -488,24 +530,30 @@ export class BlueMarbleRenderer {
     else if (p.kind === 'bonus') this.bonusModal(p.round, p.pot);
   }
 
-  /** 오락실: 할지/판돈(100·200·300) 선택 */
+  /** 오락실: ① 한다/안 한다 → ② 한다면 판돈(100·200·300) 선택 */
   private bonusOfferModal(money: number): void {
     this.closeModal();
-    const stakes = [100, 200, 300];
-    const btns = stakes.map((v) => `<button class="bm-bchoice" data-s="${v}" ${money < v ? 'disabled' : ''}>₩${v}</button>`).join('');
     const scrim = document.createElement('div'); scrim.className = 'bm-scrim';
     scrim.innerHTML = `<div class="bm-modal" style="width:300px"><div class="bm-top" style="background:linear-gradient(90deg,#b89aff,#8a5fd0)">보너스 게임</div>
-      <div class="bm-body">
-        <div class="bm-sub">판돈을 걸고 2지선다! 맞히면 ×2씩(최대 8배)</div>
-        <div class="bm-bonuspot">판돈을 골라요</div>
-        <div class="bm-bchoices">${btns}</div>
-        <div class="bm-btns"><button class="bm-no" style="flex:1">안 할래</button></div>
-      </div></div>`;
+      <div class="bm-body" id="bm-bonusbody"></div></div>`;
     document.body.appendChild(scrim); this.modalScrim = scrim; this.openKind = 'bonusOffer:';
-    scrim.querySelectorAll<HTMLButtonElement>('.bm-bchoice').forEach((b) => {
-      b.onclick = () => this.cb.onBonusStart(Number(b.dataset.s));
-    });
-    scrim.querySelector<HTMLButtonElement>('.bm-no')!.onclick = () => this.cb.onBonusStart(0);
+    const body = scrim.querySelector<HTMLElement>('#bm-bonusbody')!;
+    const askStep = (): void => {
+      body.innerHTML = `<div class="bm-sub">판돈을 걸고 2지선다! 맞히면 ×2씩(최대 8배)</div>
+        <div class="bm-bonuspot">할래요?</div>
+        <div class="bm-bchoices"><button class="bm-bchoice" data-a="yes">한다</button><button class="bm-bchoice bm-bchoice-no" data-a="no">안 한다</button></div>`;
+      body.querySelector<HTMLButtonElement>('[data-a="yes"]')!.onclick = stakeStep;
+      body.querySelector<HTMLButtonElement>('[data-a="no"]')!.onclick = () => this.cb.onBonusStart(0);
+    };
+    const stakeStep = (): void => {
+      const btns = [100, 200, 300].map((v) => `<button class="bm-bchoice" data-s="${v}" ${money < v ? 'disabled' : ''}>₩${v}</button>`).join('');
+      body.innerHTML = `<div class="bm-sub">판돈을 골라요</div>
+        <div class="bm-bchoices">${btns}</div>
+        <div class="bm-btns"><button class="bm-no" style="flex:1">안 한다</button></div>`;
+      body.querySelectorAll<HTMLButtonElement>('.bm-bchoice').forEach((b) => { b.onclick = () => this.cb.onBonusStart(Number(b.dataset.s)); });
+      body.querySelector<HTMLButtonElement>('.bm-no')!.onclick = () => this.cb.onBonusStart(0);
+    };
+    askStep();
   }
 
   /** 보드 칸 선택 모드 — tiles 만 밝게+클릭 가능, 나머지 어둡게 (없으면 해제) */
@@ -830,6 +878,11 @@ function injectStyle(): void {
   border:1.5px solid rgba(255,255,255,.9);box-shadow:0 2px 7px rgba(160,90,10,.55);animation:bm-bob 1.5s ease-in-out infinite;pointer-events:none;}
 .bm-mulbadge.hot{background:linear-gradient(135deg,#ff9f1c,#ff5a3c);box-shadow:0 3px 10px rgba(255,90,60,.6);}
 .bm-mulbadge.fire{background:linear-gradient(135deg,#ff6a3c,#ff2d55);box-shadow:0 0 12px rgba(255,60,90,.85);animation:bm-bob 1.1s ease-in-out infinite, bm-flame .5s ease-in-out infinite alternate;}
+/* 올림픽 개최 팡파레 */
+.bm-oly{position:absolute;top:2px;left:2px;z-index:8;width:20px;height:20px;pointer-events:none;animation:bm-twinkle 1.4s ease-in-out infinite;}
+.bm-oly svg{width:100%;height:100%;filter:drop-shadow(0 1px 2px rgba(0,0,0,.3));}
+@keyframes bm-twinkle{0%,100%{transform:scale(1) rotate(-4deg);}50%{transform:scale(1.18) rotate(4deg);}}
+@media(prefers-reduced-motion:reduce){.bm-oly{animation:none;}}
 @keyframes bm-bob{0%,100%{transform:translateY(0);}50%{transform:translateY(-4px);}}
 @keyframes bm-flame{from{filter:brightness(1);}to{filter:brightness(1.35) saturate(1.3);}}
 /* 컬러 독점 타일 바닥 빛남 */
@@ -859,6 +912,11 @@ function injectStyle(): void {
 @keyframes bm-coin{0%{opacity:1;transform:translate(0,0) scale(.5);}30%{opacity:1;transform:translate(calc(var(--dx) * .6),var(--dy)) scale(1);}100%{opacity:0;transform:translate(var(--dx),120px) scale(.9);}}
 /* 상세창 최종 통행료 강조 */
 .bm-mrow.tollfinal b{color:#ff2d55;font-size:16px;text-shadow:0 1px 6px rgba(255,60,90,.35);}
+/* 세계여행 비행기 */
+.bm-plane{position:absolute;width:44px;height:44px;z-index:30;pointer-events:none;
+  transition:left .9s cubic-bezier(.45,.05,.3,1),top .9s cubic-bezier(.45,.05,.3,1);
+  transform:translate(-50%,-50%) rotate(var(--rot,0deg));filter:drop-shadow(0 4px 6px rgba(0,0,0,.3));}
+.bm-plane svg{width:100%;height:100%;display:block;}
 .bm-toks{position:absolute;bottom:17px;left:0;right:0;display:flex;gap:2px;justify-content:center;flex-wrap:wrap;pointer-events:none;z-index:4;}
 .bm-tok{width:19px;height:24px;display:block;}
 .bm-tok svg{width:100%;height:100%;display:block;filter:drop-shadow(0 2px 2px rgba(0,0,0,.3));}
@@ -918,6 +976,7 @@ function injectStyle(): void {
 .bm-bchoices{display:flex;gap:10px;margin-bottom:6px;}
 .bm-bchoice{flex:1;font:inherit;font-weight:800;font-size:15px;color:#fff;background:linear-gradient(135deg,#b89aff,#8a5fd0);border:none;border-radius:14px;padding:16px 0;cursor:pointer;box-shadow:0 6px 16px rgba(138,95,208,.34);transition:transform .1s;}
 .bm-bchoice:active{transform:scale(.96);}
+.bm-bchoice.bm-bchoice-no{background:#efe9f2;color:#7a6a7a;box-shadow:none;}
 .bm-itable{width:100%;font-size:11.5px;border-collapse:collapse;margin-top:2px;} .bm-itable td{padding:3.5px 6px;border-bottom:1px solid #f2eaf4;} .bm-itable td:last-child{text-align:right;font-weight:800;} .bm-itable td:first-child{color:#6a5a6a;}
 .bm-ihdr{font-size:11.5px;font-weight:800;color:#8a7a8a;margin-top:10px;}
 .bm-curbox{background:#fff6fa;border:1px solid #ffd6e6;border-radius:12px;padding:8px 11px;margin:8px 0;}

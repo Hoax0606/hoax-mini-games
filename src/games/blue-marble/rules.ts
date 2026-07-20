@@ -251,6 +251,8 @@ export interface BMState {
   log: string;
   /** 타격감/획득 연출용 (seq가 바뀌면 렌더러가 1회 재생). kind: toll=통행료 지불, gain=월급 등 획득 */
   fx: { seq: number; amount: number; mul: number; kind: 'toll' | 'gain' } | null;
+  /** 세계여행 비행기 애니 (seq 바뀌면 from→to 비행 재생) */
+  travelFx: { seq: number; by: string; from: number; to: number } | null;
 }
 
 // ============================================
@@ -358,6 +360,6 @@ export function createInitialState(players: Array<{ peerId: string; nickname: st
     order, players: pmap, pos, owner: {}, builds: {}, held,
     turnIdx: 0, dice: null, doubles: 0, pending: null, fund: 0,
     olympic: {}, islandBoost,
-    phase: 'playing', winnerPeerId: null, log: '', fx: null,
+    phase: 'playing', winnerPeerId: null, log: '', fx: null, travelFx: null,
   };
 }
