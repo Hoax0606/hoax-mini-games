@@ -166,6 +166,9 @@ class BlueMarbleModule implements GameModule {
       this.hostHandle({ kind: 'travelTo', tile: dest, by: DUMMY }, DUMMY);
     }
     else if (pend.kind === 'event') { this.hostHandle({ kind: 'eventOk', by: DUMMY }, DUMMY); }
+    else if (pend.kind === 'cardSwapMine') { const c = this.ownedCities(DUMMY); this.hostHandle({ kind: 'pickCity', tile: c[0] ?? -1, by: DUMMY }, DUMMY); }
+    else if (pend.kind === 'cardSwapTheirs' || pend.kind === 'cardBlackout') { const t = this.opponentCities(DUMMY); this.hostHandle({ kind: 'pickCity', tile: t[0] ?? -1, by: DUMMY }, DUMMY); }
+    else if (pend.kind === 'cardQuake') { const t = this.opponentCities(DUMMY).filter((i) => (this.state.builds[i]?.length ?? 0) > 0); this.hostHandle({ kind: 'pickCity', tile: t[0] ?? -1, by: DUMMY }, DUMMY); }
     else if (pend.kind === 'bonusOffer') {
       const opts = [0, 100000, 200000, 300000].filter((v) => v === 0 || s.players[DUMMY]!.money >= v);
       this.hostHandle({ kind: 'bonusStart', stake: opts[Math.floor(Math.random() * opts.length)]!, by: DUMMY }, DUMMY);
@@ -240,6 +243,27 @@ class BlueMarbleModule implements GameModule {
         if (s.owner[action.tile] === by && BOARD[action.tile].type === 'city' && this.cityBuildable(by, action.tile)) {
           s.pending = { kind: 'build', tile: action.tile };   // 추가 건설 → 건설 메뉴
         } else { s.pending = null; this.endStep(by); }
+      } else if (s.pending?.kind === 'cardSwapMine') {
+        if (s.owner[action.tile] === by && BOARD[action.tile].type === 'city') s.pending = { kind: 'cardSwapTheirs', mine: action.tile };
+        else { s.pending = null; this.endStep(by); }
+      } else if (s.pending?.kind === 'cardSwapTheirs') {
+        const mine = s.pending.mine, their = action.tile, from = s.owner[their];
+        if (from !== undefined && from !== by && BOARD[their].type === 'city') {
+          s.owner[mine] = from; s.owner[their] = by;
+          s.log = `${BOARD[mine].name} ↔ ${BOARD[their].name} 교환!`; sound.play('pop');
+        }
+        s.pending = null; this.checkMonopolyWin(by); if (!this.ended) this.endStep(by);
+      } else if (s.pending?.kind === 'cardQuake') {
+        const tile = action.tile, arr = s.builds[tile];
+        if (s.owner[tile] !== undefined && s.owner[tile] !== by && arr && arr.length) {
+          const top = (['landmark', 'apt', 'house2', 'villa'] as BuildKind[]).find((k) => arr.includes(k));
+          if (top) { arr.splice(arr.indexOf(top), 1); s.log = `${BOARD[tile].name} 건물 1단계 파괴!`; sound.play('pop'); }
+        }
+        s.pending = null; this.endStep(by);
+      } else if (s.pending?.kind === 'cardBlackout') {
+        const tile = action.tile;
+        if (s.owner[tile] !== undefined && s.owner[tile] !== by && BOARD[tile].type === 'city') { s.blackout[tile] = 3; s.log = `${BOARD[tile].name} 정전! 3턴 통행료 0`; sound.play('pop'); }
+        s.pending = null; this.endStep(by);
       }
     } else if (action.kind === 'travelTo') {
       if (s.pending?.kind === 'travel') {
@@ -276,6 +300,10 @@ class BlueMarbleModule implements GameModule {
   private ownedCities(peer: string): number[] {
     const s = this.state;
     return Object.keys(s.owner).map(Number).filter((i) => s.owner[i] === peer && BOARD[i].type === 'city');
+  }
+  private opponentCities(peer: string): number[] {
+    const s = this.state;
+    return Object.keys(s.owner).map(Number).filter((i) => s.owner[i] !== undefined && s.owner[i] !== peer && BOARD[i].type === 'city');
   }
   private cityBuildable(peer: string, tile: number): boolean {
     return (['villa', 'house2', 'apt', 'landmark'] as BuildKind[]).some((k) => canBuild(this.state, tile, peer, k));
@@ -435,6 +463,8 @@ class BlueMarbleModule implements GameModule {
 
   private advanceTurn(): void {
     const s = this.state;
+    // 정전 디버프 카운트다운
+    for (const k of Object.keys(s.blackout)) { const n = (s.blackout[+k] ?? 0) - 1; if (n > 0) s.blackout[+k] = n; else delete s.blackout[+k]; }
     s.doubles = 0; s.pending = null; s.dice = null;
     s.turnIdx = nextTurnIdx(s);
     // 세계여행 대기자의 턴이면 → 원하는 칸 선택(travel)으로 시작
@@ -506,6 +536,18 @@ class BlueMarbleModule implements GameModule {
       case 'jail': this.toDesert(peer); s.pos[peer] = DESERT_TILE; s.log = '무인도 유배!'; this.endStep(peer); return;
       case 'back3': s.pos[peer] = ((s.pos[peer]! - 3) % BOARD.length + BOARD.length) % BOARD.length; this.resolveLanding(peer); return;
       case 'topcity': s.pos[peer] = TOP_CITY_TILE; this.resolveLanding(peer); return;
+      case 'swap':
+        if (this.ownedCities(peer).length && this.opponentCities(peer).length) s.pending = { kind: 'cardSwapMine' };
+        else { s.log = '교환할 도시가 없어요'; this.endStep(peer); }
+        return;
+      case 'quake':
+        if (this.opponentCities(peer).some((i) => (s.builds[i]?.length ?? 0) > 0)) s.pending = { kind: 'cardQuake' };
+        else { s.log = '부술 상대 건물이 없어요'; this.endStep(peer); }
+        return;
+      case 'blackout':
+        if (this.opponentCities(peer).length) s.pending = { kind: 'cardBlackout' };
+        else { s.log = '정전시킬 상대 도시가 없어요'; this.endStep(peer); }
+        return;
       default: this.endStep(peer); return;   // (보관형은 이 경로로 안 옴)
     }
   }

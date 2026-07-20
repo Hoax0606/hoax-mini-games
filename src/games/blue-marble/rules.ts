@@ -176,7 +176,10 @@ export type CardEffect =
   | 'olympicGrant' // (보관) 내 도시 올림픽 개최
   | 'tollExempt'   // (보관) 다음 통행료 1회 면제
   | 'jailFree'     // (보관) 무인도 즉시 탈출
-  | 'travel';      // (보관) 세계여행 대기
+  | 'travel'       // (보관) 세계여행 대기
+  | 'swap'         // [공격] 내 도시 ↔ 상대 도시 소유권 교환
+  | 'quake'        // [공격] 상대 도시 건물 한 단계 파괴
+  | 'blackout';    // [공격] 상대 도시 통행료 3턴간 0
 export interface GoldCard {
   id: number;
   title: string;
@@ -208,6 +211,9 @@ export const CARDS: GoldCard[] = [
   { id: 13, title: '통행료 면제권', desc: '다음 통행료 1회 면제', icon: 'ticket', effect: 'tollExempt', keep: true, weight: 6 },
   { id: 14, title: '무인도 탈출권', desc: '무인도 즉시 탈출', icon: 'island', effect: 'jailFree', keep: true, weight: 4 },
   { id: 15, title: '세계여행권', desc: '다음 턴에 원하는 칸으로', icon: 'rocket', effect: 'travel', keep: true, weight: 4 },
+  { id: 16, title: '도시 교환', desc: '내 도시 ↔ 상대 도시 맞바꾸기', icon: 'swap', effect: 'swap', weight: 3 },
+  { id: 17, title: '지진', desc: '상대 도시 건물 1단계 파괴', icon: 'quake', effect: 'quake', weight: 3 },
+  { id: 18, title: '정전', desc: '상대 도시 통행료 3턴간 0', icon: 'blackout', effect: 'blackout', weight: 3 },
 ];
 /** 가중치 뽑기 (rng: 0~1) → 카드 id */
 export function drawCardId(rng: number): number {
@@ -249,6 +255,10 @@ export type Pending =
   | { kind: 'card'; card: number }
   | { kind: 'info'; tile: number; text: string }   // 잠깐 안내(돈 부족 등) 후 자동으로 턴 넘김
   | { kind: 'event'; tile: number; text: string; amount: number }  // 세금 등 — 모두에게 창, 밟은 사람만 확인해 닫음
+  | { kind: 'cardSwapMine' }                        // 도시 교환: 내 도시 선택
+  | { kind: 'cardSwapTheirs'; mine: number }        // 도시 교환: 바꿀 상대 도시 선택
+  | { kind: 'cardQuake' }                           // 지진: 부술 상대 도시 선택
+  | { kind: 'cardBlackout' }                        // 정전: 마비시킬 상대 도시 선택
   | { kind: 'olympic'; free?: boolean }             // 올림픽 도착(또는 카드=free) → 내 도시 하나에 개최
   | { kind: 'travel' }                              // 세계여행 → 원하는 칸 선택해 이동
   | { kind: 'startBuild' }                          // 출발 정확히 멈춤 → 내 도시 하나 추가 건설
@@ -282,6 +292,8 @@ export interface BMState {
   olympic: Record<number, number>;
   /** 해변 관광지 index → 방문 횟수(1~3). 누가 밟든 +1 (통행료 배수) */
   beachVisits: Record<number, number>;
+  /** 정전(디버프) 도시 index → 남은 턴 수. >0이면 통행료 0 */
+  blackout: Record<number, number>;
   phase: 'playing' | 'ended';
   /** 승자 peerId (phase==='ended') */
   winnerPeerId: string | null;
@@ -316,6 +328,7 @@ export function tollBreakdown(state: BMState, tile: number, byPeerId: string): T
   const t = BOARD[tile];
   const o = state.owner[tile];
   if (o === undefined || o === byPeerId) return { base: 0, parts: [], total: 0 };
+  if ((state.blackout[tile] ?? 0) > 0) return { base: 0, parts: [{ label: '정전 — 통행료 0', mul: 0 }], total: 0 };
   const parts: TollPart[] = [];
   if (t.type === 'island') {
     const base = Math.round(t.price * 0.5);
@@ -417,7 +430,7 @@ export function createInitialState(players: Array<{ peerId: string; nickname: st
   return {
     order, players: pmap, pos, owner: {}, builds: {}, held,
     turnIdx: 0, dice: null, doubles: 0, pending: null, fund: 0,
-    olympic: {}, beachVisits: {},
+    olympic: {}, beachVisits: {}, blackout: {},
     phase: 'playing', winnerPeerId: null, log: '', fx: null, travelFx: null,
   };
 }

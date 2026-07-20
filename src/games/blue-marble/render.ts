@@ -49,6 +49,9 @@ const IC: Record<string, string> = {
   sos: '<svg viewBox="0 0 24 24"><ellipse cx="12" cy="20" rx="10" ry="2.4" fill="#c99a52"/><path d="M8 19 V8" stroke="#7a5a38" stroke-width="1.6"/><path d="M8 8 h7 l-2 2.2 2 2.2 h-7 Z" fill="#ee334e" stroke="#c31f38" stroke-width="0.7" stroke-linejoin="round"/><path d="M4 19 q2 -3 4 -3 M20 19 q-2 -3 -4 -3" stroke="#57c777" stroke-width="1.6" fill="none" stroke-linecap="round"/></svg>',
   // 관광지(섬) — 해변 파라솔 (무인도 야자섬과 구분)
   parasol: '<svg viewBox="0 0 24 24"><path d="M12 20 V10" stroke="#8a6b4a" stroke-width="1.6" stroke-linecap="round"/><path d="M12 4.5 C6.5 4.5 3 8.5 3 11 H21 C21 8.5 17.5 4.5 12 4.5Z" fill="#ff5a92" stroke="#d63f74" stroke-width="0.8" stroke-linejoin="round"/><path d="M12 4.5 C10 4.5 9 8 9 11 M12 4.5 C14 4.5 15 8 15 11" stroke="#fff" stroke-width="1" fill="none"/><circle cx="12" cy="4.5" r="1" fill="#ffd454"/><path d="M12 20 q2 0 2.4 -1.6" stroke="#8a6b4a" stroke-width="1.4" fill="none" stroke-linecap="round"/></svg>',
+  swap: '<svg viewBox="0 0 24 24" fill="none" stroke="#5b9be6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9 H17 l-3 -3 M18 15 H7 l3 3"/></svg>',
+  quake: '<svg viewBox="0 0 24 24"><rect x="7" y="9" width="10" height="11" fill="#c99a52" stroke="#8a5f2a" stroke-width="1.2"/><path d="M9 9 L11 3 L13 8 L15 4 L16 9" fill="none" stroke="#8a5f2a" stroke-width="1.2" stroke-linejoin="round"/><path d="M10 12 L13 16 M13 12 L11 20" stroke="#e0640f" stroke-width="1.6" stroke-linecap="round"/></svg>',
+  blackout: '<svg viewBox="0 0 24 24"><path d="M13 2 L5 13 h6 l-2 9 10 -13 h-6 z" fill="#ffd454" stroke="#e0a91c" stroke-width="1" stroke-linejoin="round"/></svg>',
   // 올림픽 오륜기
   rings: '<svg viewBox="0 0 24 24" fill="none" stroke-width="1.7"><circle cx="6.5" cy="9.5" r="3.3" stroke="#0081c8"/><circle cx="12" cy="9.5" r="3.3" stroke="#1a1a1a"/><circle cx="17.5" cy="9.5" r="3.3" stroke="#ee334e"/><circle cx="9.25" cy="14" r="3.3" stroke="#f9a01b"/><circle cx="14.75" cy="14" r="3.3" stroke="#00a651"/></svg>',
   gift: '<svg viewBox="0 0 24 24"><rect x="4.5" y="10" width="15" height="10" rx="1.5" fill="#ff9bbb"/><rect x="4.5" y="8" width="15" height="4" rx="1" fill="#ff7aa5"/><rect x="10.5" y="8" width="3" height="12" fill="#fff" opacity=".85"/><path d="M12 8 C10 4.5 6.5 5.5 8 8 M12 8 C14 4.5 17.5 5.5 16 8" stroke="#ff7aa5" stroke-width="1.6" fill="none"/></svg>',
@@ -450,6 +453,8 @@ export class BlueMarbleRenderer {
       tile.querySelector('.bm-toks')?.remove();
       tile.querySelector('.bm-mulbadge')?.remove();
       tile.querySelector('.bm-oly')?.remove();
+      tile.querySelector('.bm-blackout')?.remove();
+      if ((state.blackout[i] ?? 0) > 0) { const bo = document.createElement('div'); bo.className = 'bm-blackout'; bo.innerHTML = IC.blackout; tile.appendChild(bo); }
       const o = state.owner[i];
       const t = BOARD[i];
       // 소유 표시 — 주인 색 두꺼운 테두리. 내 땅은 안쪽 흰 라인으로 한 번 더 강조
@@ -558,17 +563,25 @@ export class BlueMarbleRenderer {
     if (p.kind === 'event') { this.travelMode = false; this.setPickMode(null); this.eventModal(p.tile, p.text, mine, state.players[cur]!.nickname); return; }
     // 세계여행 = 아무 칸 클릭 / 올림픽·추가건설 = 내 땅만 클릭(나머지 어둡게)
     this.travelMode = p.kind === 'travel' && mine;
+    const owned = (owner: string): number[] => Object.keys(state.owner).map(Number).filter((i) => state.owner[i] === owner && BOARD[i].type === 'city');
+    const oppCities = (): number[] => Object.keys(state.owner).map(Number).filter((i) => state.owner[i] !== undefined && state.owner[i] !== myPeerId && BOARD[i].type === 'city');
     let pick: number[] | null = null;
-    if (mine && (p.kind === 'olympic' || p.kind === 'startBuild')) {
-      pick = Object.keys(state.owner).map(Number).filter((i) =>
-        state.owner[i] === myPeerId && BOARD[i].type === 'city'
-        && (p.kind === 'olympic' || (['villa', 'house2', 'apt', 'landmark'] as BuildKind[]).some((k) => canBuild(state, i, myPeerId, k))));
+    if (mine) {
+      if (p.kind === 'olympic') pick = owned(myPeerId);
+      else if (p.kind === 'startBuild') pick = owned(myPeerId).filter((i) => (['villa', 'house2', 'apt', 'landmark'] as BuildKind[]).some((k) => canBuild(state, i, myPeerId, k)));
+      else if (p.kind === 'cardSwapMine') pick = owned(myPeerId);
+      else if (p.kind === 'cardSwapTheirs' || p.kind === 'cardBlackout') pick = oppCities();
+      else if (p.kind === 'cardQuake') pick = oppCities().filter((i) => (state.builds[i]?.length ?? 0) > 0);
     }
     this.setPickMode(pick);
     if (!mine) { this.showActing(state, p, cur); return; }
     if (p.kind === 'travel') { this.showBanner('이동할 칸을 클릭하세요', false); return; }
     if (p.kind === 'olympic') { this.showBanner('개최할 내 땅을 클릭하세요', true); return; }
     if (p.kind === 'startBuild') { this.showBanner('건설할 내 땅을 클릭하세요', true); return; }
+    if (p.kind === 'cardSwapMine') { this.showBanner('바꿀 내 도시를 클릭', false); return; }
+    if (p.kind === 'cardSwapTheirs') { this.showBanner('바꿔올 상대 도시를 클릭', false); return; }
+    if (p.kind === 'cardQuake') { this.showBanner('부술 상대 건물을 클릭', false); return; }
+    if (p.kind === 'cardBlackout') { this.showBanner('정전시킬 상대 도시를 클릭', false); return; }
     // 내 결정 모달 (이미 같은 종류 열려있으면 유지)
     const disc = p.kind === 'bonus' ? `${p.round}:${p.pot}` : ('tile' in p ? p.tile : '');
     const kind = `${p.kind}:${disc}`;
@@ -914,7 +927,8 @@ const cardDesc = (id: number): string => CARDS[id]?.desc ?? '';
 const pendingLabel = (p: NonNullable<BMState['pending']>): string =>
   p.kind === 'buy' ? '구매 고민' : p.kind === 'build' ? '건설' : p.kind === 'acquire' ? '인수 고민'
   : p.kind === 'olympic' ? '올림픽 개최' : p.kind === 'travel' ? '세계여행'
-  : p.kind === 'startBuild' ? '추가 건설' : p.kind === 'bonus' || p.kind === 'bonusOffer' ? '보너스 게임' : '카드 확인';
+  : p.kind === 'startBuild' ? '추가 건설' : p.kind === 'bonus' || p.kind === 'bonusOffer' ? '보너스 게임'
+  : p.kind === 'cardSwapMine' || p.kind === 'cardSwapTheirs' ? '도시 교환' : p.kind === 'cardQuake' ? '지진' : p.kind === 'cardBlackout' ? '정전' : '카드 확인';
 
 // ============================================
 // CSS (1회 주입)
@@ -963,6 +977,9 @@ function injectStyle(): void {
 /* 올림픽 개최 팡파레 */
 .bm-oly{position:absolute;top:2px;left:2px;z-index:8;width:20px;height:20px;pointer-events:none;animation:bm-twinkle 1.4s ease-in-out infinite;}
 .bm-oly svg{width:100%;height:100%;filter:drop-shadow(0 1px 2px rgba(0,0,0,.3));}
+/* 정전(디버프) — 어둡게 + 번개 */
+.bm-blackout{position:absolute;inset:0;z-index:3;background:rgba(20,20,40,.5);display:flex;align-items:center;justify-content:center;pointer-events:none;}
+.bm-blackout svg{width:34px;height:34px;filter:drop-shadow(0 1px 3px rgba(0,0,0,.6));}
 @keyframes bm-twinkle{0%,100%{transform:scale(1) rotate(-4deg);}50%{transform:scale(1.18) rotate(4deg);}}
 @media(prefers-reduced-motion:reduce){.bm-oly{animation:none;}}
 @keyframes bm-bob{0%,100%{transform:translateY(0);}50%{transform:translateY(-4px);}}
