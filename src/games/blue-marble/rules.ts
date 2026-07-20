@@ -163,29 +163,63 @@ export function monopolyWin(state: BMState, peer: string): string | null {
   return null;
 }
 
-// ── 황금열쇠 카드 ──
-/** effect: money(+받음/-냄), moveTo(칸 이동), pass(이동 시 출발 통과 월급), keep(보관 가능) */
+// ── 황금열쇠 / 포춘카드 ──
+export type CardEffect =
+  | 'money'        // money>0 받음 / <0 냄
+  | 'birthday'     // 나 뺀 모두가 나에게 money씩
+  | 'proptax'      // 보유 현금의 10% 납부
+  | 'fund'         // 사회복지기금 전액 수령
+  | 'go'           // 출발로 이동(+월급)
+  | 'jail'         // 무인도 유배(3턴)
+  | 'back3'        // 뒤로 3칸
+  | 'topcity'      // 최고가 도시로 강제 이동
+  | 'olympicGrant' // (보관) 내 도시 올림픽 개최
+  | 'tollExempt'   // (보관) 다음 통행료 1회 면제
+  | 'jailFree'     // (보관) 무인도 즉시 탈출
+  | 'travel';      // (보관) 세계여행 대기
 export interface GoldCard {
   id: number;
   title: string;
+  desc: string;
   /** UI 아이콘 키 (render 에서 SVG 매핑) */
   icon: string;
+  effect: CardEffect;
+  /** money 계열 금액 (birthday=1인당) */
   money?: number;
-  moveTo?: number;
-  pass?: boolean;
+  /** 뽑기 가중치 (클수록 자주) */
+  weight: number;
+  /** 즉시 사용 불가 → 자동 보관 */
   keep?: boolean;
 }
 export const CARDS: GoldCard[] = [
-  { id: 0, title: '은행 이자', icon: 'coin', money: 150000 },
-  { id: 1, title: '생일 축하', icon: 'cake', money: 120000 },
-  { id: 2, title: '복권 당첨', icon: 'ticket', money: 300000 },
-  { id: 3, title: '병원비', icon: 'cross', money: -100000 },
-  { id: 4, title: '속도위반 벌금', icon: 'siren', money: -80000 },
-  { id: 5, title: '출발로 이동', icon: 'flag', moveTo: 0, pass: true },
-  { id: 6, title: '통행료 면제권', icon: 'ticket', keep: true },
-  { id: 7, title: '무인도 탈출권', icon: 'island', keep: true },
-  { id: 8, title: '세계여행권', icon: 'rocket', moveTo: 24, keep: true },
+  { id: 0, title: '은행 이자', desc: '은행에서 ₩150,000 받기', icon: 'coin', effect: 'money', money: 150000, weight: 13 },
+  { id: 1, title: '보너스 마블', desc: '보너스 ₩250,000 받기', icon: 'coin', effect: 'money', money: 250000, weight: 8 },
+  { id: 2, title: '복권 당첨', desc: '대박! ₩1,500,000 획득', icon: 'ticket', effect: 'money', money: 1500000, weight: 2 },
+  { id: 3, title: '생일 축하', desc: '다른 모두에게 각 ₩100,000 받기', icon: 'cake', effect: 'birthday', money: 100000, weight: 6 },
+  { id: 4, title: '병원비', desc: '₩120,000 납부', icon: 'cross', effect: 'money', money: -120000, weight: 9 },
+  { id: 5, title: '속도위반 벌금', desc: '₩80,000 납부', icon: 'siren', effect: 'money', money: -80000, weight: 9 },
+  { id: 6, title: '재산세', desc: '보유 현금의 10% 납부', icon: 'coin', effect: 'proptax', weight: 6 },
+  { id: 7, title: '사회복지기금', desc: '쌓인 기금 전액 수령', icon: 'coin', effect: 'fund', weight: 4 },
+  { id: 8, title: '출발로 이동', desc: '출발로 이동하고 월급 받기', icon: 'flag', effect: 'go', weight: 6 },
+  { id: 9, title: '무인도 유배', desc: '무인도로! 3턴 갇힘', icon: 'island', effect: 'jail', weight: 4 },
+  { id: 10, title: '뒤로 3칸', desc: '뒤로 3칸 이동', icon: 'flag', effect: 'back3', weight: 5 },
+  { id: 11, title: '최고가 도시로', desc: '가장 비싼 도시로 강제 이동', icon: 'flag', effect: 'topcity', weight: 3 },
+  { id: 12, title: '올림픽 개최권', desc: '내 도시 한 곳에 올림픽 개최', icon: 'rings', effect: 'olympicGrant', keep: true, weight: 5 },
+  { id: 13, title: '통행료 면제권', desc: '다음 통행료 1회 면제', icon: 'ticket', effect: 'tollExempt', keep: true, weight: 6 },
+  { id: 14, title: '무인도 탈출권', desc: '무인도 즉시 탈출', icon: 'island', effect: 'jailFree', keep: true, weight: 4 },
+  { id: 15, title: '세계여행권', desc: '다음 턴에 원하는 칸으로', icon: 'rocket', effect: 'travel', keep: true, weight: 4 },
 ];
+/** 가중치 뽑기 (rng: 0~1) → 카드 id */
+export function drawCardId(rng: number): number {
+  const total = CARDS.reduce((s, c) => s + c.weight, 0);
+  let x = rng * total;
+  for (const c of CARDS) { if ((x -= c.weight) < 0) return c.id; }
+  return CARDS[0]!.id;
+}
+/** 가장 비싼 도시 칸 index */
+export const TOP_CITY_TILE = BOARD.reduce((best, t, i) => (t.type === 'city' && t.price > ((BOARD[best] as CityTile | undefined)?.price ?? -1) ? i : best), -1);
+/** 무인도 칸 index */
+export const DESERT_TILE = BOARD.findIndex((t) => t.type === 'corner' && t.kind === 'desert');
 
 // ============================================
 // 상태
@@ -203,6 +237,8 @@ export interface BMPlayer {
   laps: number;
   /** 세계여행권 대기 — true면 다음 턴에 원하는 칸으로 이동 */
   travelReady: boolean;
+  /** 통행료 면제권 사용 — true면 다음 통행료 1회 면제 */
+  tollExempt: boolean;
 }
 
 /** 현재 턴 플레이어가 "결정"해야 하는 상황 (구매/건설/인수/카드). 없으면 null */
@@ -213,7 +249,7 @@ export type Pending =
   | { kind: 'card'; card: number }
   | { kind: 'info'; tile: number; text: string }   // 잠깐 안내(돈 부족 등) 후 자동으로 턴 넘김
   | { kind: 'event'; tile: number; text: string; amount: number }  // 세금 등 — 모두에게 창, 밟은 사람만 확인해 닫음
-  | { kind: 'olympic' }                             // 올림픽 도착 → 내 도시 하나에 개최
+  | { kind: 'olympic'; free?: boolean }             // 올림픽 도착(또는 카드=free) → 내 도시 하나에 개최
   | { kind: 'travel' }                              // 세계여행 → 원하는 칸 선택해 이동
   | { kind: 'startBuild' }                          // 출발 정확히 멈춤 → 내 도시 하나 추가 건설
   | { kind: 'bonusOffer' }                          // 오락실: 할지/판돈(100·200·300) 선택
@@ -374,7 +410,7 @@ export function createInitialState(players: Array<{ peerId: string; nickname: st
   const pos: Record<string, number> = {};
   const held: Record<string, number[]> = {};
   for (const p of players) {
-    pmap[p.peerId] = { peerId: p.peerId, nickname: p.nickname, money: START_MONEY, bankrupt: false, desertLeft: 0, laps: 0, travelReady: false };
+    pmap[p.peerId] = { peerId: p.peerId, nickname: p.nickname, money: START_MONEY, bankrupt: false, desertLeft: 0, laps: 0, travelReady: false, tollExempt: false };
     pos[p.peerId] = 0;
     held[p.peerId] = [];
   }

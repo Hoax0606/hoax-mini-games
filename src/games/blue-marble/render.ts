@@ -7,7 +7,7 @@
 
 import {
   BOARD, BUILD_TYPES, ISLAND_TILES, BASE_TOLL_MUL, DESERT_ESCAPE,
-  buildMeta, buildCostOf, acquireCost, islandCount, seaIslandCount, hasAllHouses, canBuild, SALARY,
+  buildMeta, buildCostOf, acquireCost, islandCount, seaIslandCount, hasAllHouses, canBuild, SALARY, CARDS,
   colorMonopolyMul, ownsGroup, tollBreakdown,
   type BMState, type BuildKind, type GroupColor,
 } from './rules';
@@ -73,7 +73,7 @@ function tileIcon(i: number): string {
   return '';
 }
 /** 카드 id → 아이콘 키 */
-const CARD_IC = ['coin', 'cake', 'ticket', 'cross', 'siren', 'flag', 'ticket', 'island', 'rocket'];
+const cardIcon = (id: number): string => IC[CARDS[id]?.icon ?? 'coin'] ?? IC.coin!;
 
 // ── 건물 SVG (소유자 색 currentColor) ──
 const BSVG: Record<string, string> = {
@@ -254,6 +254,9 @@ export class BlueMarbleRenderer {
 
     const key = state.dice ? state.dice.join(',') : '';
     const newRoll = !!state.dice && key !== this.lastDice && !this.busy;
+    // 카드 텔레포트 등 애니 없이 바뀐 위치는 즉시 스냅 (곧 시작될 주사위/비행 애니 대상은 제외)
+    const travelPending = !!state.travelFx && state.travelFx.seq !== this.lastTravelSeq;
+    if (!this.busy && !newRoll && !travelPending) { for (const p of state.order) this.dispPos[p] = state.pos[p]!; }
 
     this.renderTiles(state);
     this.renderCenter(state, myPeerId, isSpectator);
@@ -535,7 +538,7 @@ export class BlueMarbleRenderer {
     const el = this.root.querySelector<HTMLElement>('#bm-held')!;
     const cards = state.held[myPeerId] ?? [];
     if (!cards.length) { el.innerHTML = '<div class="bm-empty">보관한 카드가 없어요</div>'; return; }
-    el.innerHTML = cards.map((cid) => `<div class="bm-hcard"><span class="bm-hic">${IC[CARD_IC[cid]!]}</span>
+    el.innerHTML = cards.map((cid) => `<div class="bm-hcard"><span class="bm-hic">${cardIcon(cid)}</span>
       <span class="bm-htxt">${cardTitle(cid)}</span><button class="bm-huse" data-cid="${cid}">사용</button></div>`).join('');
     el.querySelectorAll<HTMLButtonElement>('.bm-huse').forEach((b) => {
       b.onclick = () => this.cb.onUseHeld(Number(b.dataset.cid));
@@ -672,7 +675,7 @@ export class BlueMarbleRenderer {
     let head: string, body: string;
     if (p.kind === 'card') {
       head = `<div class="bm-top" style="background:linear-gradient(90deg,#ffd454,#ffb02e)">${IC.key} 황금열쇠</div>`;
-      body = `<div class="bm-body"><div class="bm-cardic">${IC[CARD_IC[p.card]!] ?? IC.key}</div><div class="bm-ctitle">${cardTitle(p.card)}</div>${foot}</div>`;
+      body = `<div class="bm-body"><div class="bm-cardic">${cardIcon(p.card)}</div><div class="bm-ctitle">${cardTitle(p.card)}</div>${foot}</div>`;
     } else if ('tile' in p) {
       const tile = p.tile;
       const label = p.kind === 'acquire' ? '인수' : p.kind === 'build' ? '건설' : (BOARD[tile].type === 'island' ? '섬 구매' : '도시 구매');
@@ -790,7 +793,7 @@ export class BlueMarbleRenderer {
       ? `<div class="bm-btns"><button class="bm-yes">지금 쓰기</button><button class="bm-no" style="background:#fff0d0;color:#b8860b">보관</button></div>`
       : `<div class="bm-btns"><button class="bm-yes" style="background:#b89aff;color:#fff">확인</button></div>`;
     scrim.innerHTML = `<div class="bm-modal"><div class="bm-top" style="background:linear-gradient(90deg,#ffd454,#ffb02e)">${IC.key} 황금열쇠</div>
-      <div class="bm-body"><div class="bm-cardic">${IC[CARD_IC[cardId]!]}</div>
+      <div class="bm-body"><div class="bm-cardic">${cardIcon(cardId)}</div>
         <div class="bm-ctitle">${cardTitle(cardId)}</div><div class="bm-cdesc">${cardDesc(cardId)}</div>${btns}</div></div>`;
     document.body.appendChild(scrim); this.modalScrim = scrim; this.openKind = `card:${cardId}`;
     scrim.querySelector<HTMLButtonElement>('.bm-yes')!.onclick = () => this.cb.onCard(false);
@@ -906,10 +909,8 @@ function deedHTML(state: BMState, tile: number): string {
   return `<div class="bm-deed" style="--bd:${tileColor(tile)}"><div class="bm-deedb"></div>
     <div class="bm-deedn">${t.name}</div><div class="bm-deedi">가격 ${won(t.price)}<br>${info}</div></div>`;
 }
-const CARD_TITLES = ['은행 이자', '생일 축하', '복권 당첨', '병원비', '속도위반 벌금', '출발로 이동', '통행료 면제권', '무인도 탈출권', '우주여행권'];
-const CARD_DESCS = ['₩150 받기', '₩120 받기', '₩300 받기', '₩100 납부', '₩80 납부', '월급 ₩200 받기', '통행료 1회 면제 · 보관 가능', '무인도 탈출 · 보관 가능', '원하는 곳으로 · 보관 가능'];
-const cardTitle = (id: number): string => CARD_TITLES[id] ?? '카드';
-const cardDesc = (id: number): string => CARD_DESCS[id] ?? '';
+const cardTitle = (id: number): string => CARDS[id]?.title ?? '카드';
+const cardDesc = (id: number): string => CARDS[id]?.desc ?? '';
 const pendingLabel = (p: NonNullable<BMState['pending']>): string =>
   p.kind === 'buy' ? '구매 고민' : p.kind === 'build' ? '건설' : p.kind === 'acquire' ? '인수 고민'
   : p.kind === 'olympic' ? '올림픽 개최' : p.kind === 'travel' ? '세계여행'

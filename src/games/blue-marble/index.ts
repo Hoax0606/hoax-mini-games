@@ -10,7 +10,7 @@ import type { GameModule, GameContext, GameMessage, GameResult, Player } from '.
 import { sound } from '../../core/sound';
 import {
   BOARD, CARDS, SALARY, DESERT_TURNS, DESERT_ESCAPE, TRAVEL_COST, BONUS_STAKE, buildCostOf, canBuild, acquireCost,
-  tollBreakdown, alivePeers, nextTurnIdx, createInitialState, monopolyWin,
+  tollBreakdown, alivePeers, nextTurnIdx, createInitialState, monopolyWin, drawCardId, TOP_CITY_TILE, DESERT_TILE,
   type BMState, type BuildKind,
 } from './rules';
 
@@ -149,7 +149,7 @@ class BlueMarbleModule implements GameModule {
     if (!pend) { this.hostHandle({ kind: 'roll', by: DUMMY }, DUMMY); return; }
     if (pend.kind === 'buy') this.hostHandle({ kind: 'decision', accept: Math.random() < 0.75, by: DUMMY }, DUMMY);
     else if (pend.kind === 'acquire') this.hostHandle({ kind: 'decision', accept: Math.random() < 0.35, by: DUMMY }, DUMMY);
-    else if (pend.kind === 'card') this.hostHandle({ kind: 'card', keep: !!CARDS[pend.card]!.keep && Math.random() < 0.5, by: DUMMY }, DUMMY);
+    else if (pend.kind === 'card') this.hostHandle({ kind: 'card', keep: false, by: DUMMY }, DUMMY);
     else if (pend.kind === 'build') {
       const picks = (['villa', 'house2', 'apt'] as BuildKind[]).filter((k) => canBuild(s, pend.tile, DUMMY, k));
       this.hostHandle({ kind: 'build', builds: picks.length ? [picks[0]!] : [], by: DUMMY }, DUMMY);
@@ -193,7 +193,7 @@ class BlueMarbleModule implements GameModule {
     const cur = s.order[s.turnIdx];
     if (by !== cur || s.players[by]?.bankrupt) return; // 내 차례 아닌 사람 무시
 
-    if (action.kind === 'useHeld') { this.useHeld(by, action.cardId); this.afterChange(); return; }
+    if (action.kind === 'useHeld') { if (!s.pending) { this.useHeld(by, action.cardId); this.afterChange(); } return; }
 
     if (action.kind === 'desertPay') {
       // 무인도: 돈 내고 즉시 탈출 (턴 유지 → 이어서 주사위 굴림)
@@ -231,10 +231,11 @@ class BlueMarbleModule implements GameModule {
         s.pending = null; this.endStep(by);   // 완료 → 턴 마무리
       }
     } else if (action.kind === 'card') {
-      if (s.pending?.kind === 'card') { this.resolveCard(by, s.pending.card, action.keep); s.pending = null; this.endStep(by); }
+      if (s.pending?.kind === 'card') { const card = s.pending.card; s.pending = null; this.applyCard(by, card); }
     } else if (action.kind === 'pickCity') {
       if (s.pending?.kind === 'olympic') {
-        this.doOlympic(by, action.tile); s.pending = null; this.endStep(by);
+        const free = s.pending.free; this.doOlympic(by, action.tile); s.pending = null;
+        if (!free) this.endStep(by);   // 카드로 개최한 free는 턴 안 넘김
       } else if (s.pending?.kind === 'startBuild') {
         if (s.owner[action.tile] === by && BOARD[action.tile].type === 'city' && this.cityBuildable(by, action.tile)) {
           s.pending = { kind: 'build', tile: action.tile };   // 추가 건설 → 건설 메뉴
@@ -361,6 +362,10 @@ class BlueMarbleModule implements GameModule {
         if (t.type === 'city' && (['villa', 'house2', 'apt', 'landmark'] as BuildKind[]).some((k) => canBuild(s, i, peer, k))) {
           s.pending = { kind: 'build', tile: i }; this.render(); return;
         }
+      } else if (p.tollExempt) {
+        // 통행료 면제권 사용 중 → 이번 통행료 면제
+        p.tollExempt = false;
+        s.log = `${t.name} — 통행료 면제권 사용!`;
       } else {
         const info = tollBreakdown(s, i, peer);
         const toll = info.total;
@@ -376,7 +381,7 @@ class BlueMarbleModule implements GameModule {
       }
     } else if (t.type === 'special') {
       if (t.kind === 'goldkey') {
-        const card = Math.floor(Math.random() * CARDS.length);
+        const card = drawCardId(Math.random());
         // 보관형 카드(무인도 탈출권 등)는 즉시 쓸 수 없으니 자동으로 보관함에 저장
         if (CARDS[card]!.keep) {
           (s.held[peer] ??= []).push(card);
@@ -475,24 +480,50 @@ class BlueMarbleModule implements GameModule {
     s.log = `${s.players[peer]!.nickname} · ${reason} 달성 — 승리!`;
     this.finishGame();
   }
-  private resolveCard(peer: string, cardId: number, keep: boolean): void {
-    const s = this.state; const c = CARDS[cardId]!;
-    if (c.keep && keep) { (s.held[peer] ??= []).push(cardId); s.log = `황금열쇠 보관 · ${c.title}`; return; }
-    this.applyCard(peer, cardId);
+  /** 뽑은 즉발 카드 적용 (이동 카드는 내부에서 resolveLanding, 그 외엔 endStep) */
+  private applyCard(peer: string, cardId: number): void {
+    const s = this.state; const c = CARDS[cardId]!; const p = s.players[peer]!;
+    const gain = (amt: number): void => { s.fx = { seq: (s.fx?.seq ?? 0) + 1, amount: amt, mul: 1, kind: 'gain', to: peer }; };
+    const loss = (amt: number): void => { s.fx = { seq: (s.fx?.seq ?? 0) + 1, amount: amt, mul: 1, kind: 'toll', from: peer }; };
+    switch (c.effect) {
+      case 'money':
+        if ((c.money ?? 0) < 0) { this.pay(peer, null, -c.money!); loss(-c.money!); } else { p.money += c.money!; gain(c.money!); }
+        s.log = `${c.title}`; this.endStep(peer); return;
+      case 'birthday': {
+        let got = 0;
+        for (const o of alivePeers(s)) if (o !== peer) { const amt = Math.min(s.players[o]!.money, c.money!); s.players[o]!.money -= amt; got += amt; }
+        p.money += got; gain(got); s.log = `생일 축하 · ₩${got.toLocaleString()} 받음`; this.endStep(peer); return;
+      }
+      case 'proptax': {
+        const tax = Math.floor(p.money * 0.1); this.pay(peer, null, tax); loss(tax);
+        s.log = `재산세 ₩${tax.toLocaleString()} 납부`; this.endStep(peer); return;
+      }
+      case 'fund': {
+        const amt = s.fund; p.money += amt; s.fund = 0; gain(amt);
+        s.log = `사회복지기금 ₩${amt.toLocaleString()} 수령`; this.endStep(peer); return;
+      }
+      case 'go': s.pos[peer] = 0; this.resolveLanding(peer); return;              // 출발 corner에서 월급 지급
+      case 'jail': this.toDesert(peer); s.pos[peer] = DESERT_TILE; s.log = '무인도 유배!'; this.endStep(peer); return;
+      case 'back3': s.pos[peer] = ((s.pos[peer]! - 3) % BOARD.length + BOARD.length) % BOARD.length; this.resolveLanding(peer); return;
+      case 'topcity': s.pos[peer] = TOP_CITY_TILE; this.resolveLanding(peer); return;
+      default: this.endStep(peer); return;   // (보관형은 이 경로로 안 옴)
+    }
   }
+  /** 보관 카드 사용 (자유 행동 — 턴 안 넘김) */
   private useHeld(peer: string, cardId: number): void {
     const s = this.state; const arr = s.held[peer]; if (!arr) return;
     const idx = arr.indexOf(cardId); if (idx < 0) return;
+    const c = CARDS[cardId]!; const p = s.players[peer]!;
+    // 사용 조건 없는 카드는 바로, olympicGrant는 도시 있어야
+    if (c.effect === 'olympicGrant' && this.ownedCities(peer).length === 0) { s.log = '개최할 내 도시가 없어요'; return; }
     arr.splice(idx, 1);
-    this.applyCard(peer, cardId);
-    s.log = `보관 카드 사용 · ${CARDS[cardId]!.title}`;
-  }
-  private applyCard(peer: string, cardId: number): void {
-    const s = this.state; const c = CARDS[cardId]!; const p = s.players[peer]!;
-    if (c.money) { if (c.money < 0) this.pay(peer, null, -c.money); else p.money += c.money; }
-    if (c.moveTo !== undefined) { if (c.pass && c.moveTo <= s.pos[peer]!) { p.money += SALARY; p.laps += 1; } s.pos[peer] = c.moveTo; }
-    if (cardId === 7) p.desertLeft = 0; // 무인도 탈출권
-    if (!c.money && !c.moveTo && cardId !== 7) s.log = `${c.title}`;
+    switch (c.effect) {
+      case 'jailFree': p.desertLeft = 0; s.log = '무인도 탈출권 사용!'; break;
+      case 'tollExempt': p.tollExempt = true; s.log = '통행료 면제권 사용 — 다음 통행료 면제'; break;
+      case 'travel': p.travelReady = true; s.log = '세계여행권 사용 — 다음 턴 자유 이동'; break;
+      case 'olympicGrant': s.pending = { kind: 'olympic', free: true }; break;
+      default: break;
+    }
   }
 
   private toDesert(peer: string): void { this.state.players[peer]!.desertLeft = DESERT_TURNS; }
