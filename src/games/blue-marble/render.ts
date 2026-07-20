@@ -877,7 +877,8 @@ export class BlueMarbleRenderer {
 // ── 렌더 밖 헬퍼 ──
 function colorOf(state: BMState, peerId: string): string {
   const idx = state.order.indexOf(peerId);
-  return ['#6ed9b3', '#ff5a92', '#5b9be6', '#f2c94c', '#b89aff', '#ff8a5b', '#7ed957', '#e07aff', '#4fd0d9', '#ffb12e'][idx % 10]!;
+  // 파스텔 도시색 위에서 확실히 튀도록 진한 채도. 앞 4개(2~4인)를 최대한 대비되게.
+  return ['#0ca678', '#e64980', '#3b5bdb', '#f59f00', '#7950f2', '#e8590c', '#2f9e44', '#1098ad', '#c2255c', '#f783ac'][idx % 10]!;
 }
 /** hex 를 f배 어둡게 (0~1). 건물 색을 진하게 해서 가독성↑ */
 function shade(hex: string, f: number): string {
