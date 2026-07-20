@@ -198,7 +198,6 @@ export class BlueMarbleRenderer {
       <div class="bm-turn" id="bm-turn"></div>
       <button class="bm-roll" id="bm-roll">${IC.dice} 주사위 굴리기</button>
       <button class="bm-escape" id="bm-escape" style="display:none"></button>
-      <div class="bm-hint" id="bm-hint"></div>
     </div>`;
     return `<div class="bm-board">${tiles}${center}</div>
       <div class="bm-panel">
@@ -474,7 +473,6 @@ export class BlueMarbleRenderer {
     } else {
       roll.innerHTML = `${IC.dice} 주사위 굴리기`;
     }
-    this.root.querySelector<HTMLElement>('#bm-hint')!.textContent = state.log || '';
   }
 
   private renderPanel(state: BMState, myPeerId: string): void {
@@ -947,7 +945,6 @@ function injectStyle(): void {
 .bm-roll svg{width:18px;height:18px;} .bm-roll:disabled{opacity:.45;cursor:default;}
 .bm-escape{font:inherit;font-weight:800;font-size:13px;color:#7a5a10;background:linear-gradient(135deg,#ffe7a0,#ffcf4a);border:none;border-radius:999px;padding:8px 18px;cursor:pointer;box-shadow:0 5px 14px rgba(200,150,30,.32);align-items:center;justify-content:center;}
 .bm-escape:disabled{opacity:.45;cursor:default;}
-.bm-hint{font-size:12px;color:#8a7a8a;min-height:15px;text-align:center;}
 .bm-panel{width:262px;display:flex;flex-direction:column;gap:12px;}
 .bm-pcard{background:rgba(255,255,255,.72);border:1px solid rgba(216,199,255,.7);border-radius:14px;padding:12px;box-shadow:0 4px 14px rgba(120,80,140,.08);}
 .bm-pcard h3{margin:0 0 8px;font-size:12px;color:#8a7a8a;font-weight:800;}
