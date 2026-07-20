@@ -338,6 +338,9 @@ class BlueMarbleModule implements GameModule {
     const t = BOARD[i];
     const p = s.players[peer]!;
 
+    // 해변 관광지 — 누가 밟든 방문 횟수 +1 (최대 3, 통행료 배수)
+    if (t.type === 'island' && t.spot === 'beach') s.beachVisits[i] = Math.min(3, (s.beachVisits[i] ?? 0) + 1);
+
     if (t.type === 'city' || t.type === 'island') {
       const o = s.owner[i];
       if (o === undefined) {
@@ -346,11 +349,6 @@ class BlueMarbleModule implements GameModule {
         s.log = `${t.name} — 살 돈이 부족해요`;
         s.pending = { kind: 'info', tile: i, text: '살 돈이 부족해요' }; this.render(); return;
       } else if (o === peer) {
-        // 내 섬 재도착 → 관광지 패시브 ×2 누적 (내 모든 섬 통행료 상승)
-        if (t.type === 'island') {
-          s.islandBoost[peer] = Math.min(4, (s.islandBoost[peer] ?? 1) + 1);   // ×2 → ×3 → ×4 (누적 아님)
-          s.log = `${t.name} — 관광지 통행료 ×${s.islandBoost[peer]}!`;
-        }
         if (t.type === 'city' && (['villa', 'house2', 'apt', 'landmark'] as BuildKind[]).some((k) => canBuild(s, i, peer, k))) {
           s.pending = { kind: 'build', tile: i }; this.render(); return;
         }

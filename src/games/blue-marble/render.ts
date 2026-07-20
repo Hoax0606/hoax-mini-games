@@ -7,7 +7,7 @@
 
 import {
   BOARD, BUILD_TYPES, ISLAND_TILES, BASE_TOLL_MUL, DESERT_ESCAPE,
-  buildMeta, buildCostOf, acquireCost, islandCount, hasAllHouses, canBuild, SALARY,
+  buildMeta, buildCostOf, acquireCost, islandCount, seaIslandCount, hasAllHouses, canBuild, SALARY,
   colorMonopolyMul, ownsGroup, tollBreakdown,
   type BMState, type BuildKind, type GroupColor,
 } from './rules';
@@ -32,16 +32,20 @@ const GROUP: Record<GroupColor, string> = {
   tan: '#d9b38c', sky: '#8fc2f0', pink: '#ff9bbb', orange: '#ffb27a', red: '#ff8a8a',
   yellow: '#f2d24c', green: '#8fe0b0', rose: '#e79ad0', teal: '#7fd6d0', navy: '#8a9ef0',
 };
-const ISLAND_BG = '#ffd98a';   // 관광지(섬) — 도시(청록/파랑)와 확실히 구분되는 모래빛
+const ISLAND_BG = '#33a8dd';   // 섬(파랑, 개수 기반)
+const BEACH_BG = '#f56a5a';    // 해변(붉은, 방문 기반)
 const tileColor = (i: number): string => {
   const t = BOARD[i];
-  return t.type === 'island' ? ISLAND_BG : t.type === 'city' ? GROUP[t.group] : '#ccc';
+  if (t.type === 'island') return t.spot === 'beach' ? BEACH_BG : ISLAND_BG;
+  return t.type === 'city' ? GROUP[t.group] : '#ccc';
 };
 
 // ── 아이콘 (코너/특수/카드) ──
 const IC: Record<string, string> = {
   flag: '<svg viewBox="0 0 24 24"><rect x="5" y="3" width="2.2" height="18" rx="1.1" fill="#8a7a8a"/><path d="M7.2 4 H18 L15 8 L18 12 H7.2 Z" fill="#57c777" stroke="#3f9e57" stroke-width="0.6"/></svg>',
   island: '<svg viewBox="0 0 24 24"><ellipse cx="12" cy="19" rx="9" ry="2.6" fill="#c99a52"/><path d="M11.5 18 V9" stroke="#8a6a4a" stroke-width="1.8"/><path d="M11.5 8.5 C8.5 6 6 7 4.5 9.5 C7.5 8.5 9 9.5 11.5 9.5 C14 7 17 7 19 9.5 C17 6 14 6 11.5 8.5Z" fill="#57c777"/></svg>',
+  // 무인도 — 표류(SOS 깃발) 섬 (관광지 아이콘과 구분)
+  sos: '<svg viewBox="0 0 24 24"><ellipse cx="12" cy="20" rx="10" ry="2.4" fill="#c99a52"/><path d="M8 19 V8" stroke="#7a5a38" stroke-width="1.6"/><path d="M8 8 h7 l-2 2.2 2 2.2 h-7 Z" fill="#ee334e" stroke="#c31f38" stroke-width="0.7" stroke-linejoin="round"/><path d="M4 19 q2 -3 4 -3 M20 19 q-2 -3 -4 -3" stroke="#57c777" stroke-width="1.6" fill="none" stroke-linecap="round"/></svg>',
   // 관광지(섬) — 해변 파라솔 (무인도 야자섬과 구분)
   parasol: '<svg viewBox="0 0 24 24"><path d="M12 20 V10" stroke="#8a6b4a" stroke-width="1.6" stroke-linecap="round"/><path d="M12 4.5 C6.5 4.5 3 8.5 3 11 H21 C21 8.5 17.5 4.5 12 4.5Z" fill="#ff5a92" stroke="#d63f74" stroke-width="0.8" stroke-linejoin="round"/><path d="M12 4.5 C10 4.5 9 8 9 11 M12 4.5 C14 4.5 15 8 15 11" stroke="#fff" stroke-width="1" fill="none"/><circle cx="12" cy="4.5" r="1" fill="#ffd454"/><path d="M12 20 q2 0 2.4 -1.6" stroke="#8a6b4a" stroke-width="1.4" fill="none" stroke-linecap="round"/></svg>',
   // 올림픽 오륜기
@@ -63,7 +67,7 @@ const IC: Record<string, string> = {
 /** 특수/코너 칸 → 아이콘 키 */
 function tileIcon(i: number): string {
   const t = BOARD[i];
-  if (t.type === 'corner') return { start: 'flag', desert: 'island', welfare: 'rings', space: 'rocket' }[t.kind];
+  if (t.type === 'corner') return { start: 'flag', desert: 'sos', welfare: 'rings', space: 'rocket' }[t.kind];
   if (t.type === 'special') return t.kind === 'goldkey' ? 'key' : t.kind === 'tax' ? 'coin' : 'music';
   return '';
 }
@@ -182,8 +186,8 @@ export class BlueMarbleRenderer {
         tiles += `<div class="bm-tile bm-prop" data-i="${i}" style="${style};background:${GROUP[t.group]}">
           <div class="bm-cinfo"><div class="bm-cnm">${t.name}</div></div></div>`;
       } else if (t.type === 'island') {
-        tiles += `<div class="bm-tile bm-prop" data-i="${i}" style="${style};background:${ISLAND_BG}">
-          <span class="bm-islandic">${IC.parasol}</span>
+        tiles += `<div class="bm-tile bm-prop bm-isle" data-i="${i}" style="${style};background:${tileColor(i)}">
+          <span class="bm-islandic">${t.spot === 'beach' ? IC.parasol : IC.island}</span>
           <div class="bm-cinfo"><div class="bm-cnm">${t.name}</div></div></div>`;
       } else {
         const cls = t.type === 'corner' ? 'bm-corner' : 'bm-special';
@@ -417,7 +421,9 @@ export class BlueMarbleRenderer {
       // 통행료 배수 뱃지 + 컬러 독점 glow + 올림픽 팡파레
       let mul = 1;
       if (o !== undefined && t.type === 'city') { mul = colorMonopolyMul(state, i, o) * (state.olympic[i] ?? 1); tile.classList.toggle('bm-mono', ownsGroup(state, o, t.group)); }
-      else if (o !== undefined && t.type === 'island') { mul = state.islandBoost[o] ?? 1; }
+      else if (o !== undefined && t.type === 'island') {
+        mul = t.spot === 'island' ? Math.pow(2, Math.max(0, seaIslandCount(state, o) - 1)) : Math.min(3, state.beachVisits[i] ?? 1);
+      }
       else tile.classList.remove('bm-mono');
       if ((state.olympic[i] ?? 1) > 1) {   // 올림픽 개최지 → 팡파레 데코
         const oly = document.createElement('div'); oly.className = 'bm-oly'; oly.innerHTML = FANFARE; tile.appendChild(oly);
@@ -751,14 +757,19 @@ export class BlueMarbleRenderer {
     const info = o !== undefined ? tollBreakdown(state, tile, '') : { base: 0, parts: [], total: 0 };
     const partsHtml = info.parts.map((pt) => `<div class="bm-mrow"><span>${pt.label}</span><b style="color:#ff5a92">×${pt.mul}</b></div>`).join('');
     if (t.type === 'island') {
-      const base = Math.round(t.price * 0.5), cnt = o !== undefined ? islandCount(state, o) : 0;
+      const base = Math.round(t.price * 0.5);
+      const isBeach = t.spot === 'beach';
+      const statLabel = isBeach ? '해변 방문' : '보유 섬';
+      const statVal = isBeach ? `${Math.min(3, state.beachVisits[tile] ?? 0)}회` : `${o !== undefined ? seaIslandCount(state, o) : 0}개`;
       cur = o !== undefined
-        ? `<div class="bm-curbox"><div class="bm-mrow"><span>보유 섬</span><b>${cnt}개</b></div>
-             <div class="bm-mrow"><span>기본 통행료</span><b>${won(base * cnt)}</b></div>${partsHtml}
+        ? `<div class="bm-curbox"><div class="bm-mrow"><span>${statLabel}</span><b>${statVal}</b></div>
+             <div class="bm-mrow"><span>기본 통행료</span><b>${won(base)}</b></div>${partsHtml}
              <div class="bm-mrow big tollfinal"><span>최종 통행료</span><b>${won(info.total)}</b></div>
              <div class="bm-mrow"><span>인수</span><b>불가</b></div></div>`
         : `<div class="bm-curbox"><div class="bm-mrow big"><span>구매가</span><b>${won(t.price)}</b></div></div>`;
-      rows = `<div class="bm-ihdr">통행료 (보유 섬 수)</div><table class="bm-itable">${[1, 2, 3, 4].map((n) => `<tr><td>섬 ${n}개</td><td>${won(base * n)}</td></tr>`).join('')}</table>`;
+      rows = isBeach
+        ? `<div class="bm-ihdr">해변 통행료 (방문 횟수)</div><table class="bm-itable">${[1, 2, 3].map((n) => `<tr><td>${n}회</td><td>${won(base * n)}</td></tr>`).join('')}</table>`
+        : `<div class="bm-ihdr">섬 통행료 (보유 섬 수)</div><table class="bm-itable">${[1, 2, 3].map((n) => `<tr><td>${n}개</td><td>${won(base * Math.pow(2, n - 1))}</td></tr>`).join('')}</table>`;
     } else {
       const arr = state.builds[tile] ?? [];
       const builtTxt = arr.length ? arr.map((k) => buildMeta(k).name).join('·') : '땅만';
@@ -866,6 +877,7 @@ function injectStyle(): void {
 @media(prefers-reduced-motion:reduce){.bm-root.bm-picking .bm-tile.bm-pickable{animation:none;}}
 .bm-cinfo{position:absolute;bottom:0;left:0;right:0;padding:3px 3px 4px;text-align:center;z-index:1;}
 .bm-cnm{font-size:13px;font-weight:800;color:#2c2136;text-shadow:0 1px 0 rgba(255,255,255,.45);line-height:1.1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.bm-isle .bm-cnm{color:#fff;text-shadow:0 1px 2px rgba(0,0,0,.5);}
 .bm-special,.bm-corner{align-items:center;justify-content:center;text-align:center;background:#fffdf7;}
 .bm-corner{background:linear-gradient(135deg,#fff,#fff4fa);}
 .bm-ic svg{width:17px;height:17px;} .bm-corner .bm-ic svg{width:25px;height:25px;}

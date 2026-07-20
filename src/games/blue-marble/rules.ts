@@ -15,7 +15,8 @@ export type GroupColor = 'tan' | 'sky' | 'pink' | 'orange' | 'red' | 'yellow' | 
 export type TileType = 'city' | 'island' | 'special' | 'corner';
 
 export interface CityTile { type: 'city'; name: string; group: GroupColor; price: number; }
-export interface IslandTile { type: 'island'; name: string; price: number; }
+/** spot: island=섬(파랑, 보유 개수 기반) / beach=해변(붉은, 방문 횟수 기반) */
+export interface IslandTile { type: 'island'; name: string; price: number; spot: 'island' | 'beach'; }
 /** special.kind: goldkey=황금열쇠 / tax=세금 / concert=콘서트홀 */
 export interface SpecialTile { type: 'special'; name: string; kind: 'goldkey' | 'tax' | 'concert' | 'bonus'; taxAmount?: number; }
 /** corner.kind: start=출발 / desert=무인도 / welfare=사회복지기금 / space=우주여행 */
@@ -78,23 +79,23 @@ export const BOARD: Tile[] = [
   { type: 'city', group: 'green', name: '방콕', price: 50000 },
   { type: 'special', kind: 'bonus', name: '보너스 게임' },
   { type: 'city', group: 'green', name: '베이징', price: 60000 },
-  { type: 'island', name: '독도', price: 80000 },
+  { type: 'island', name: '독도', price: 80000, spot: 'island' },
   { type: 'city', group: 'teal', name: '타이베이', price: 65000 },
   { type: 'city', group: 'teal', name: '두바이', price: 72000 },
   { type: 'city', group: 'teal', name: '카이로', price: 80000 },
   { type: 'corner', kind: 'desert', name: '무인도' },
   // 2라인 (좌측) — 대지 10~15만
-  { type: 'island', name: '발리', price: 110000 },
+  { type: 'island', name: '발리', price: 110000, spot: 'beach' },
   { type: 'city', group: 'sky', name: '도쿄', price: 100000 },
   { type: 'city', group: 'sky', name: '시드니', price: 115000 },
   { type: 'special', kind: 'goldkey', name: '황금열쇠' },
   { type: 'city', group: 'navy', name: '퀘벡', price: 130000 },
-  { type: 'island', name: '하와이', price: 140000 },
+  { type: 'island', name: '하와이', price: 140000, spot: 'island' },
   { type: 'city', group: 'navy', name: '상파울루', price: 150000 },
   { type: 'corner', kind: 'welfare', name: '올림픽' },
   // 3라인 (상단) — 대지 18~25만
   { type: 'city', group: 'pink', name: '프라하', price: 180000 },
-  { type: 'island', name: '푸껫', price: 210000 },
+  { type: 'island', name: '푸껫', price: 210000, spot: 'island' },
   { type: 'city', group: 'pink', name: '베를린', price: 200000 },
   { type: 'special', kind: 'goldkey', name: '황금열쇠' },
   { type: 'city', group: 'rose', name: '모스크바', price: 215000 },
@@ -102,7 +103,7 @@ export const BOARD: Tile[] = [
   { type: 'city', group: 'rose', name: '로마', price: 250000 },
   { type: 'corner', kind: 'space', name: '세계여행' },
   // 4라인 (우측) — 대지 30~40만
-  { type: 'island', name: '타히티', price: 350000 },
+  { type: 'island', name: '타히티', price: 350000, spot: 'beach' },
   { type: 'city', group: 'orange', name: '런던', price: 300000 },
   { type: 'city', group: 'orange', name: '파리', price: 330000 },
   { type: 'special', kind: 'goldkey', name: '황금열쇠' },
@@ -242,8 +243,8 @@ export interface BMState {
   fund: number;
   /** 도시 index → 올림픽 개최 배수(2~5). 올림픽 칸 도착 후 내 도시에 개최하면 누적 */
   olympic: Record<number, number>;
-  /** peerId → 관광지 패시브 배수(1,2,4,8…). 내 섬을 다시 밟을 때마다 ×2 누적 */
-  islandBoost: Record<string, number>;
+  /** 해변 관광지 index → 방문 횟수(1~3). 누가 밟든 +1 (통행료 배수) */
+  beachVisits: Record<number, number>;
   phase: 'playing' | 'ended';
   /** 승자 peerId (phase==='ended') */
   winnerPeerId: string | null;
@@ -259,9 +260,13 @@ export interface BMState {
 // 순수 계산 함수
 // ============================================
 
-/** 소유자가 가진 섬 개수 */
+/** 소유자가 가진 관광지 총 개수(섬+해변) */
 export function islandCount(state: BMState, peerId: string): number {
   return ISLAND_TILES.filter((i) => state.owner[i] === peerId).length;
+}
+/** 소유자가 가진 "섬(파랑, 개수기반)" 개수 — 섬 통행료 배수용 */
+export function seaIslandCount(state: BMState, peerId: string): number {
+  return ISLAND_TILES.filter((i) => state.owner[i] === peerId && (BOARD[i] as IslandTile).spot === 'island').length;
 }
 
 /** 통행료 배수 한 줄 (UI 상세 표시용) */
@@ -276,10 +281,18 @@ export function tollBreakdown(state: BMState, tile: number, byPeerId: string): T
   if (o === undefined || o === byPeerId) return { base: 0, parts: [], total: 0 };
   const parts: TollPart[] = [];
   if (t.type === 'island') {
-    const base = Math.round(t.price * 0.5) * islandCount(state, o);
-    const boost = state.islandBoost[o] ?? 1;
-    if (boost > 1) parts.push({ label: `관광지 패시브 ×${boost}`, mul: boost });
-    return { base, parts, total: Math.round(base * boost) };
+    const base = Math.round(t.price * 0.5);
+    if (t.spot === 'island') {
+      // 섬(파랑): 보유 섬 수에 따라 1개×1·2개×2·3개×4
+      const n = seaIslandCount(state, o);
+      const mul = Math.pow(2, Math.max(0, n - 1));
+      if (mul > 1) parts.push({ label: `섬 ${n}개 ×${mul}`, mul });
+      return { base, parts, total: Math.round(base * mul) };
+    }
+    // 해변(붉은): 방문 횟수에 따라 ×1~×3
+    const v = Math.min(3, Math.max(1, state.beachVisits[tile] ?? 1));
+    if (v > 1) parts.push({ label: `해변 방문 ×${v}`, mul: v });
+    return { base, parts, total: Math.round(base * v) };
   }
   if (t.type === 'city') {
     const arr = state.builds[tile] ?? [];
@@ -364,12 +377,10 @@ export function createInitialState(players: Array<{ peerId: string; nickname: st
     pos[p.peerId] = 0;
     held[p.peerId] = [];
   }
-  const islandBoost: Record<string, number> = {};
-  for (const p of players) islandBoost[p.peerId] = 1;
   return {
     order, players: pmap, pos, owner: {}, builds: {}, held,
     turnIdx: 0, dice: null, doubles: 0, pending: null, fund: 0,
-    olympic: {}, islandBoost,
+    olympic: {}, beachVisits: {},
     phase: 'playing', winnerPeerId: null, log: '', fx: null, travelFx: null,
   };
 }
