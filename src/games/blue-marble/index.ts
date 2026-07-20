@@ -52,6 +52,7 @@ class BlueMarbleModule implements GameModule {
       onUseHeld: (cardId) => this.act({ kind: 'useHeld', cardId }),
       onPickCity: (tile) => this.act({ kind: 'pickCity', tile }),
       onTravelTo: (tile) => this.act({ kind: 'travelTo', tile }),
+      onBonusStart: (stake) => this.act({ kind: 'bonusStart', stake }),
       onBonusPick: (choice) => this.act({ kind: 'bonusPick', choice }),
       onBonusStop: () => this.act({ kind: 'bonusStop' }),
       onSettled: () => this.maybeAutoPlay(),  // 애니 끝난 뒤 더미 진행
@@ -163,6 +164,10 @@ class BlueMarbleModule implements GameModule {
       const dest = empty.length ? empty[Math.floor(Math.random() * empty.length)]! : Math.floor(Math.random() * BOARD.length);
       this.hostHandle({ kind: 'travelTo', tile: dest, by: DUMMY }, DUMMY);
     }
+    else if (pend.kind === 'bonusOffer') {
+      const opts = [0, 100, 200, 300].filter((v) => v === 0 || s.players[DUMMY]!.money >= v);
+      this.hostHandle({ kind: 'bonusStart', stake: opts[Math.floor(Math.random() * opts.length)]!, by: DUMMY }, DUMMY);
+    }
     else if (pend.kind === 'bonus') {
       if (pend.round >= 1 && Math.random() < 0.5) this.hostHandle({ kind: 'bonusStop', by: DUMMY }, DUMMY);
       else this.hostHandle({ kind: 'bonusPick', choice: Math.floor(Math.random() * 2), by: DUMMY }, DUMMY);
@@ -238,6 +243,15 @@ class BlueMarbleModule implements GameModule {
         s.pending = null; s.pos[by] = action.tile;   // 세계여행: 출발 통과 월급 없음
         this.resolveLanding(by);
       }
+    } else if (action.kind === 'bonusStart') {
+      if (s.pending?.kind === 'bonusOffer') {
+        const stake = action.stake;
+        if (stake > 0 && s.players[by]!.money >= stake) {
+          s.players[by]!.money -= stake;
+          s.pending = { kind: 'bonus', stake, round: 0, pot: stake };
+          s.log = `보너스 게임 시작! 판돈 ₩${stake.toLocaleString()}`;
+        } else { s.pending = null; this.endStep(by); }   // 안 함
+      }
     } else if (action.kind === 'bonusPick') {
       if (s.pending?.kind === 'bonus') this.doBonusPick(by, action.choice);
     } else if (action.kind === 'bonusStop') {
@@ -307,8 +321,9 @@ class BlueMarbleModule implements GameModule {
     for (let k = 0; k < steps; k++) {
       s.pos[peer] = (s.pos[peer]! + 1) % BOARD.length;
       if (s.pos[peer] === 0) {
-        s.players[peer]!.money += SALARY; s.players[peer]!.laps += 1;
-        s.fx = { seq: (s.fx?.seq ?? 0) + 1, amount: SALARY, mul: 1, kind: 'gain' };   // 월급 획득 팝업
+        s.players[peer]!.laps += 1;
+        // 출발 "통과" 월급 (도착 월급은 resolveLanding start 에서 — 중복 방지)
+        if (k < steps - 1) { s.players[peer]!.money += SALARY; s.fx = { seq: (s.fx?.seq ?? 0) + 1, amount: SALARY, mul: 1, kind: 'gain' }; }
       }
     }
   }
@@ -356,20 +371,16 @@ class BlueMarbleModule implements GameModule {
       } else if (t.kind === 'tax') { const amt = t.taxAmount ?? 100; this.pay(peer, null, amt); s.log = `${t.name} ${amt.toLocaleString()} 납부`; }
       else if (t.kind === 'concert') { this.pay(peer, null, 50); s.log = '콘서트 관람 ₩50'; }
       else if (t.kind === 'bonus') {
-        // 오락실: 판돈을 걸고 2지선다 시작 (돈 있으면)
-        if (p.money >= BONUS_STAKE) {
-          p.money -= BONUS_STAKE;
-          s.pending = { kind: 'bonus', stake: BONUS_STAKE, round: 0, pot: BONUS_STAKE };
-          this.render(); return;
-        }
+        // 오락실: 할지/판돈 선택 (최소 판돈 있으면)
+        if (p.money >= BONUS_STAKE) { s.pending = { kind: 'bonusOffer' }; this.render(); return; }
         s.log = '보너스 게임 — 판돈이 부족해요';
       }
     } else if (t.type === 'corner') {
       if (t.kind === 'start') {
-        // 월급은 move()에서 출발 통과 시 이미 지급됨. 여기선 추가 건설만.
-        s.log = '출발 도착! 추가 건설 기회';
+        // 출발에 "도착"(딱 멈춤/세계여행) → 월급 + 추가 건설 기회
+        p.money += SALARY; s.log = '출발 도착! 월급';
+        s.fx = { seq: (s.fx?.seq ?? 0) + 1, amount: SALARY, mul: 1, kind: 'gain' };
         if (this.hasBuildableCity(peer)) { s.pending = { kind: 'startBuild' }; this.render(); return; }
-        s.log = '출발 도착! 월급';
       }
       else if (t.kind === 'welfare') {
         // 올림픽 개최 — 내 도시 하나에 개최(통행료 배수 누적). 도시 없으면 스킵

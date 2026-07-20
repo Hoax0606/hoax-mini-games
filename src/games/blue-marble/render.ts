@@ -21,6 +21,7 @@ export interface BMRenderCallbacks {
   onUseHeld(cardId: number): void;
   onPickCity(tile: number): void;       // 올림픽 개최 / 추가 건설: 내 도시 선택
   onTravelTo(tile: number): void;       // 세계여행: 목적지 칸 선택
+  onBonusStart(stake: number): void;    // 오락실: 판돈 걸고 시작(0=안 함)
   onBonusPick(choice: number): void;    // 오락실 2지선다
   onBonusStop(): void;                  // 오락실: 받고 종료
   /** 주사위·이동 시퀀스가 끝나 화면이 idle 이 됨(호스트가 더미 진행 타이밍에 사용) */
@@ -483,7 +484,28 @@ export class BlueMarbleRenderer {
     else if (p.kind === 'acquire') this.buyOrAcquireModal(state, p.tile, true);
     else if (p.kind === 'build') this.buildMenuModal(state, p.tile);
     else if (p.kind === 'card') this.cardModal(state, p.card);
+    else if (p.kind === 'bonusOffer') this.bonusOfferModal(state.players[myPeerId]!.money);
     else if (p.kind === 'bonus') this.bonusModal(p.round, p.pot);
+  }
+
+  /** 오락실: 할지/판돈(100·200·300) 선택 */
+  private bonusOfferModal(money: number): void {
+    this.closeModal();
+    const stakes = [100, 200, 300];
+    const btns = stakes.map((v) => `<button class="bm-bchoice" data-s="${v}" ${money < v ? 'disabled' : ''}>₩${v}</button>`).join('');
+    const scrim = document.createElement('div'); scrim.className = 'bm-scrim';
+    scrim.innerHTML = `<div class="bm-modal" style="width:300px"><div class="bm-top" style="background:linear-gradient(90deg,#b89aff,#8a5fd0)">보너스 게임</div>
+      <div class="bm-body">
+        <div class="bm-sub">판돈을 걸고 2지선다! 맞히면 ×2씩(최대 8배)</div>
+        <div class="bm-bonuspot">판돈을 골라요</div>
+        <div class="bm-bchoices">${btns}</div>
+        <div class="bm-btns"><button class="bm-no" style="flex:1">안 할래</button></div>
+      </div></div>`;
+    document.body.appendChild(scrim); this.modalScrim = scrim; this.openKind = 'bonusOffer:';
+    scrim.querySelectorAll<HTMLButtonElement>('.bm-bchoice').forEach((b) => {
+      b.onclick = () => this.cb.onBonusStart(Number(b.dataset.s));
+    });
+    scrim.querySelector<HTMLButtonElement>('.bm-no')!.onclick = () => this.cb.onBonusStart(0);
   }
 
   /** 보드 칸 선택 모드 — tiles 만 밝게+클릭 가능, 나머지 어둡게 (없으면 해제) */
@@ -764,7 +786,7 @@ const cardDesc = (id: number): string => CARD_DESCS[id] ?? '';
 const pendingLabel = (p: NonNullable<BMState['pending']>): string =>
   p.kind === 'buy' ? '구매 고민' : p.kind === 'build' ? '건설' : p.kind === 'acquire' ? '인수 고민'
   : p.kind === 'olympic' ? '올림픽 개최' : p.kind === 'travel' ? '세계여행'
-  : p.kind === 'startBuild' ? '추가 건설' : p.kind === 'bonus' ? '보너스 게임' : '카드 확인';
+  : p.kind === 'startBuild' ? '추가 건설' : p.kind === 'bonus' || p.kind === 'bonusOffer' ? '보너스 게임' : '카드 확인';
 
 // ============================================
 // CSS (1회 주입)

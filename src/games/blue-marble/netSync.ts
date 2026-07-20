@@ -27,6 +27,7 @@ export type BMAction =
   | { kind: 'useHeld'; cardId: number }       // 보관 카드 사용
   | { kind: 'pickCity'; tile: number }        // 올림픽 개최 / 출발 추가건설: 내 도시 선택
   | { kind: 'travelTo'; tile: number }        // 세계여행: 목적지 칸 선택
+  | { kind: 'bonusStart'; stake: number }     // 오락실: 판돈 걸고 시작 (0=안 함)
   | { kind: 'bonusPick'; choice: number }     // 오락실 2지선다 (0/1)
   | { kind: 'bonusStop' };                    // 오락실: 지금까지 딴 것 받고 종료
 

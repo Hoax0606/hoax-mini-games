@@ -214,6 +214,7 @@ export type Pending =
   | { kind: 'olympic' }                             // 올림픽 도착 → 내 도시 하나에 개최
   | { kind: 'travel' }                              // 세계여행 → 원하는 칸 선택해 이동
   | { kind: 'startBuild' }                          // 출발 정확히 멈춤 → 내 도시 하나 추가 건설
+  | { kind: 'bonusOffer' }                          // 오락실: 할지/판돈(100·200·300) 선택
   | { kind: 'bonus'; stake: number; round: number; pot: number }  // 오락실 2지선다
   | null;
 
