@@ -40,10 +40,10 @@ function winnerVisuals(myWinner: 'me' | 'opponent' | null): {
   title: string;
   titleClass: string;
 } {
-  // 승리 트로피는 Solar 아이콘으로(나머지 이모지와 톤 통일). 패배/무승부는 대응 아이콘이 없어 이모지 유지.
-  if (myWinner === 'me')       return { emoji: icon('trophy', { size: 68, hue: '#ffb020' }), title: '승리!',   titleClass: 'result-title-win' };
-  if (myWinner === 'opponent') return { emoji: '💫', title: '패배', titleClass: 'result-title-lose' };
-  return                              { emoji: '⚖️', title: '무승부',   titleClass: 'result-title-draw' };
+  // 이모지 대신 Solar 아이콘으로 톤 통일(승=트로피/금, 패=메달/뮤트, 무=사람/중립)
+  if (myWinner === 'me')       return { emoji: icon('trophy', { size: 64, hue: '#ffb020' }), title: '승리!',   titleClass: 'result-title-win' };
+  if (myWinner === 'opponent') return { emoji: icon('medal',  { size: 60, hue: '#b3a9bf' }), title: '패배',    titleClass: 'result-title-lose' };
+  return                              { emoji: icon('users',  { size: 60, hue: '#9db4d6' }), title: '무승부',  titleClass: 'result-title-draw' };
 }
 
 /** 액션 영역 HTML (호스트=다시하기/다른게임/메뉴, 게스트=대기/메뉴)
@@ -1443,6 +1443,79 @@ function buildDodgeResultHTML(args: {
 }
 
 // ============================================
+// 브루마블 전용 결과 HTML (최종 자산 순위)
+// ============================================
+
+interface BMResultEntry { peerId: string; nickname: string; money: number; bankrupt: boolean; }
+
+function parseBlueMarbleSummary(summary: Record<string, unknown>): {
+  myPeerId: string; winnerPeerId: string | null; players: BMResultEntry[];
+} | null {
+  if (summary['gameId'] !== 'blue-marble') return null;
+  const myPeerId = typeof summary['myPeerId'] === 'string' ? (summary['myPeerId'] as string) : null;
+  if (!myPeerId) return null;
+  const raw = summary['players'] as unknown;
+  const players: BMResultEntry[] = Array.isArray(raw)
+    ? (raw as Array<Partial<BMResultEntry>>)
+        .filter((p) => typeof p.peerId === 'string' && typeof p.nickname === 'string' && typeof p.money === 'number')
+        .map((p) => ({ peerId: p.peerId!, nickname: p.nickname!, money: p.money!, bankrupt: !!p.bankrupt }))
+    : [];
+  if (!players.length) return null;
+  const winnerPeerId = typeof summary['winnerPeerId'] === 'string' ? (summary['winnerPeerId'] as string) : null;
+  return { myPeerId, winnerPeerId, players };
+}
+
+function buildBlueMarbleResultHTML(args: {
+  myWinner: 'me' | 'opponent' | null;
+  summary: ReturnType<typeof parseBlueMarbleSummary>;
+  isHost: boolean;
+  isSpectator: boolean;
+}): string {
+  const { myWinner, summary, isHost, isSpectator } = args;
+  if (!summary) return '';
+  const { emoji, title, titleClass } = isSpectator
+    ? { emoji: icon('globe', { size: 60, hue: '#9db4d6' }), title: '브루마블 종료', titleClass: 'result-title-draw' }
+    : winnerVisuals(myWinner);
+  const actionsHTML = buildActionsHTML(isHost);
+  // 자산 순위 (파산은 뒤로, 그 외 자산 많은 순)
+  const ranked = [...summary.players].sort((a, b) => (a.bankrupt ? 1 : 0) - (b.bankrupt ? 1 : 0) || b.money - a.money);
+  const asset = (p: BMResultEntry): string => (p.bankrupt ? '파산' : `₩${p.money.toLocaleString()}`);
+  const rowsHTML = ranked.map((p, idx) => {
+    const rank = idx + 1;
+    const isMe = p.peerId === summary.myPeerId;
+    const isWin = p.peerId === summary.winnerPeerId;
+    const badgeClass = rank <= 3 ? `rank-${rank}` : '';
+    return `
+      <div class="result-tetris-rank-row ${isMe ? 'is-me' : ''}">
+        <span class="result-tetris-rank-badge ${badgeClass}">${rank}</span>
+        <span class="result-tetris-rank-name">${isWin ? icon('crown', { size: 15, hue: '#ffb020' }) + ' ' : ''}${escapeHtml(p.nickname)}</span>
+        <span class="result-apple-rank-score">${asset(p)}</span>
+        ${isMe ? '<span class="result-tetris-rank-me-tag">나</span>' : ''}
+      </div>`;
+  }).join('');
+  const myEntry = ranked.find((p) => p.peerId === summary.myPeerId);
+  const myBlock = isSpectator || !myEntry ? '' : `
+    <div class="result-apple-myscore">
+      <div class="result-apple-myscore-label">${icon('chart', { size: 16, hue: '#5b9dff' })} 내 최종 자산</div>
+      <div class="result-apple-myscore-value">${asset(myEntry)}</div>
+    </div>`;
+  return `
+    <div class="result-card result-card-tetris">
+      <div class="result-emoji">${emoji}</div>
+      <div class="result-title ${titleClass}">${title}</div>
+      ${myBlock}
+      <div class="result-tetris-rankings">
+        <div class="result-tetris-rankings-title">${icon('medal', { size: 18, hue: '#ffb12e' })} 자산 순위</div>
+        ${rowsHTML}
+      </div>
+      <div class="result-actions">
+        ${actionsHTML}
+      </div>
+    </div>
+  `;
+}
+
+// ============================================
 // 원카드 전용 결과 HTML
 // ============================================
 
@@ -1557,6 +1630,7 @@ export function createResultScreenAsHostScreen(args: ResultScreenAsHostArgs): Sc
       const bomb = parseBombSummary(result.summary);
       const dodge = parseDodgeSummary(result.summary);
       const onecard = parseOneCardSummary(result.summary);
+      const blueMarble = parseBlueMarbleSummary(result.summary);
       if (tetris) {
         el.innerHTML = buildTetrisResultHTML({
           myWinner: result.winner,
@@ -1663,6 +1737,8 @@ export function createResultScreenAsHostScreen(args: ResultScreenAsHostArgs): Sc
           isHost: true,
           isSpectator: false, // 호스트는 항상 플레이어
         });
+      } else if (blueMarble) {
+        el.innerHTML = buildBlueMarbleResultHTML({ myWinner: result.winner, summary: blueMarble, isHost: true, isSpectator: false });
       } else if (isStoryDrawSummary(result.summary)) {
         el.innerHTML = buildStoryDrawResultHTML(true);
       } else {
@@ -1827,6 +1903,7 @@ export function createResultScreenAsGuestScreen(args: ResultScreenAsGuestArgs): 
       const bomb = parseBombSummary(result.summary);
       const dodge = parseDodgeSummary(result.summary);
       const onecard = parseOneCardSummary(result.summary);
+      const blueMarble = parseBlueMarbleSummary(result.summary);
       // 관전자는 summary.myPeerId 가 자기가 아닐 수 있음 — 자기 peerId 는 guest.myPeerId.
       // rankings 에 "나" 가 없으면 관전자로 간주.
       const myPeerIdForResult = guest.myPeerId;
@@ -1959,6 +2036,8 @@ export function createResultScreenAsGuestScreen(args: ResultScreenAsGuestArgs): 
           isHost: false,
           isSpectator: isSpec,
         });
+      } else if (blueMarble) {
+        el.innerHTML = buildBlueMarbleResultHTML({ myWinner: result.winner, summary: blueMarble, isHost: false, isSpectator: isSpec });
       } else if (isStoryDrawSummary(result.summary)) {
         el.innerHTML = buildStoryDrawResultHTML(false);
       } else {
