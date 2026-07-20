@@ -25,17 +25,17 @@ export type Tile = CityTile | IslandTile | SpecialTile | CornerTile;
 // ── 상수 ──
 export const BOARD_SIZE = 32;
 /** 출발 통과/도착 시 받는 월급 */
-export const SALARY = 200;
-/** 시작 자금 */
-export const START_MONEY = 2000;
+export const SALARY = 200000;
+/** 시작 자금 (300만원) */
+export const START_MONEY = 3000000;
 /** 무인도에 갇히는 최대 턴 수 */
 export const DESERT_TURNS = 3;
 /** 무인도 탈출 비용 (돈 내고 즉시 탈출) */
-export const DESERT_ESCAPE = 300;
+export const DESERT_ESCAPE = 300000;
 /** 세계여행 비용 */
-export const TRAVEL_COST = 300;
-/** 오락실(보너스 게임) 기본 판돈 */
-export const BONUS_STAKE = 100;
+export const TRAVEL_COST = 400000;
+/** 오락실(보너스 게임) 기본(최소) 판돈 */
+export const BONUS_STAKE = 100000;
 
 // ── 건물 종류 (각각 따로 지음) ──
 export type BuildKind = 'villa' | 'house2' | 'apt' | 'landmark';
@@ -74,41 +74,41 @@ export function hasAllHouses(builds: BuildKind[]): boolean {
  */
 export const BOARD: Tile[] = [
   { type: 'corner', kind: 'start', name: '출발' },
-  // 하단 (초록)
-  { type: 'city', group: 'green', name: '홍콩', price: 80 },
+  // 하단 (초록) — 1라인 (대지 5~8만)
+  { type: 'city', group: 'green', name: '홍콩', price: 50000 },
   { type: 'special', kind: 'bonus', name: '보너스 게임' },
-  { type: 'city', group: 'green', name: '베이징', price: 100 },
-  { type: 'island', name: '독도', price: 130 },
-  { type: 'city', group: 'teal', name: '타이베이', price: 120 },
-  { type: 'city', group: 'teal', name: '두바이', price: 140 },
-  { type: 'city', group: 'teal', name: '카이로', price: 160 },
+  { type: 'city', group: 'green', name: '베이징', price: 60000 },
+  { type: 'island', name: '독도', price: 80000 },
+  { type: 'city', group: 'teal', name: '타이베이', price: 65000 },
+  { type: 'city', group: 'teal', name: '두바이', price: 72000 },
+  { type: 'city', group: 'teal', name: '카이로', price: 80000 },
   { type: 'corner', kind: 'desert', name: '무인도' },
-  // 좌측 (파랑)
-  { type: 'island', name: '라하바나', price: 170 },
-  { type: 'city', group: 'sky', name: '시드니', price: 180 },
+  // 좌측 (파랑) — 2라인 (대지 10~15만)
+  { type: 'island', name: '라하바나', price: 110000 },
+  { type: 'city', group: 'sky', name: '시드니', price: 100000 },
   { type: 'special', kind: 'goldkey', name: '황금열쇠' },
-  { type: 'city', group: 'sky', name: '밴쿠버', price: 200 },
-  { type: 'island', name: '하와이', price: 210 },
-  { type: 'city', group: 'navy', name: '상파울로', price: 220 },
-  { type: 'city', group: 'navy', name: '오클랜드', price: 240 },
+  { type: 'city', group: 'sky', name: '밴쿠버', price: 115000 },
+  { type: 'island', name: '하와이', price: 140000 },
+  { type: 'city', group: 'navy', name: '상파울로', price: 130000 },
+  { type: 'city', group: 'navy', name: '오클랜드', price: 150000 },
   { type: 'corner', kind: 'welfare', name: '올림픽' },
-  // 상단 (핑크·보라)
-  { type: 'city', group: 'pink', name: '프라하', price: 260 },
-  { type: 'city', group: 'pink', name: '부다페스트', price: 280 },
-  { type: 'city', group: 'pink', name: '베를린', price: 300 },
+  // 상단 (핑크·보라) — 3라인 (대지 18~25만)
+  { type: 'city', group: 'pink', name: '프라하', price: 180000 },
+  { type: 'city', group: 'pink', name: '부다페스트', price: 195000 },
+  { type: 'city', group: 'pink', name: '베를린', price: 210000 },
   { type: 'special', kind: 'goldkey', name: '황금열쇠' },
-  { type: 'city', group: 'rose', name: '모스크바', price: 320 },
-  { type: 'city', group: 'rose', name: '제네바', price: 340 },
-  { type: 'city', group: 'rose', name: '로마', price: 360 },
+  { type: 'city', group: 'rose', name: '모스크바', price: 220000 },
+  { type: 'city', group: 'rose', name: '제네바', price: 235000 },
+  { type: 'city', group: 'rose', name: '로마', price: 250000 },
   { type: 'corner', kind: 'space', name: '세계여행' },
-  // 우측 (주황·빨강)
-  { type: 'island', name: '타이티', price: 300 },
-  { type: 'city', group: 'orange', name: '런던', price: 380 },
-  { type: 'city', group: 'orange', name: '파리', price: 400 },
+  // 우측 (주황·빨강) — 4라인 (대지 30~40만)
+  { type: 'island', name: '타이티', price: 300000 },
+  { type: 'city', group: 'orange', name: '런던', price: 300000 },
+  { type: 'city', group: 'orange', name: '파리', price: 330000 },
   { type: 'special', kind: 'goldkey', name: '황금열쇠' },
-  { type: 'city', group: 'red', name: '뉴욕', price: 450 },
-  { type: 'city', group: 'red', name: '서울', price: 500 },
-  { type: 'special', kind: 'tax', name: '국세청', taxAmount: 200 },
+  { type: 'city', group: 'red', name: '뉴욕', price: 370000 },
+  { type: 'city', group: 'red', name: '서울', price: 400000 },
+  { type: 'special', kind: 'tax', name: '국세청', taxAmount: 300000 },
 ];
 
 /** 섬 칸 인덱스 목록 (개수별 통행료 계산용) */
@@ -175,11 +175,11 @@ export interface GoldCard {
   keep?: boolean;
 }
 export const CARDS: GoldCard[] = [
-  { id: 0, title: '은행 이자', icon: 'coin', money: 150 },
-  { id: 1, title: '생일 축하', icon: 'cake', money: 120 },
-  { id: 2, title: '복권 당첨', icon: 'ticket', money: 300 },
-  { id: 3, title: '병원비', icon: 'cross', money: -100 },
-  { id: 4, title: '속도위반 벌금', icon: 'siren', money: -80 },
+  { id: 0, title: '은행 이자', icon: 'coin', money: 150000 },
+  { id: 1, title: '생일 축하', icon: 'cake', money: 120000 },
+  { id: 2, title: '복권 당첨', icon: 'ticket', money: 300000 },
+  { id: 3, title: '병원비', icon: 'cross', money: -100000 },
+  { id: 4, title: '속도위반 벌금', icon: 'siren', money: -80000 },
   { id: 5, title: '출발로 이동', icon: 'flag', moveTo: 0, pass: true },
   { id: 6, title: '통행료 면제권', icon: 'ticket', keep: true },
   { id: 7, title: '무인도 탈출권', icon: 'island', keep: true },
@@ -299,11 +299,21 @@ export function tollFor(state: BMState, tile: number, byPeerId: string): number 
   return tollBreakdown(state, tile, byPeerId).total;
 }
 
-/** 특정 건물 건설비 = 도시가격 × costMul */
+/** 라인(변)별 건물 건설비. 0=1라인(가장 쌈) … 3=4라인(가장 비쌈). 대지값과 별개 고정. */
+export const LINE_BUILD: Record<BuildKind, number>[] = [
+  { villa: 80000,  house2: 170000, apt: 270000,  landmark: 400000 },   // 1라인
+  { villa: 180000, house2: 350000, apt: 450000,  landmark: 650000 },   // 2라인
+  { villa: 350000, house2: 570000, apt: 750000,  landmark: 1000000 },  // 3라인
+  { villa: 500000, house2: 780000, apt: 950000,  landmark: 1300000 },  // 4라인
+];
+/** 칸 index → 라인(0~3). 보드 배치(9×9, 반시계) 기준: 하단·좌·상·우 */
+export function lineOf(tile: number): number {
+  return tile <= 8 ? 0 : tile <= 16 ? 1 : tile <= 24 ? 2 : 3;
+}
+/** 특정 건물 건설비 = 라인별 고정 건설비 */
 export function buildCostOf(tile: number, kind: BuildKind): number {
-  const t = BOARD[tile];
-  if (t.type !== 'city') return 0;
-  return Math.round(t.price * buildMeta(kind).costMul);
+  if (BOARD[tile].type !== 'city') return 0;
+  return LINE_BUILD[lineOf(tile)]![kind];
 }
 
 /** 이 플레이어가 이 도시에 이 건물을 "지금" 지을 수 있는지 (미보유·바퀴해금·랜드마크전제·돈) */

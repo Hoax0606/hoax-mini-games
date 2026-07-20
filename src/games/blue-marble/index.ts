@@ -165,7 +165,7 @@ class BlueMarbleModule implements GameModule {
       this.hostHandle({ kind: 'travelTo', tile: dest, by: DUMMY }, DUMMY);
     }
     else if (pend.kind === 'bonusOffer') {
-      const opts = [0, 100, 200, 300].filter((v) => v === 0 || s.players[DUMMY]!.money >= v);
+      const opts = [0, 100000, 200000, 300000].filter((v) => v === 0 || s.players[DUMMY]!.money >= v);
       this.hostHandle({ kind: 'bonusStart', stake: opts[Math.floor(Math.random() * opts.length)]!, by: DUMMY }, DUMMY);
     }
     else if (pend.kind === 'bonus') {

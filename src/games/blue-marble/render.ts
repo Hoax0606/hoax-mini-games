@@ -549,7 +549,7 @@ export class BlueMarbleRenderer {
       body.querySelector<HTMLButtonElement>('[data-a="no"]')!.onclick = () => this.cb.onBonusStart(0);
     };
     const stakeStep = (): void => {
-      const btns = [100, 200, 300].map((v) => `<button class="bm-bchoice" data-s="${v}" ${money < v ? 'disabled' : ''}>₩${v}</button>`).join('');
+      const btns = [100000, 200000, 300000].map((v) => `<button class="bm-bchoice" data-s="${v}" ${money < v ? 'disabled' : ''}>₩${v.toLocaleString()}</button>`).join('');
       body.innerHTML = `<div class="bm-sub">판돈을 골라요</div>
         <div class="bm-bchoices">${btns}</div>
         <div class="bm-btns"><button class="bm-no" style="flex:1">안 한다</button></div>`;
