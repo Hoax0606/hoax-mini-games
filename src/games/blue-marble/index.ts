@@ -325,8 +325,8 @@ class BlueMarbleModule implements GameModule {
       s.pos[peer] = (s.pos[peer]! + 1) % BOARD.length;
       if (s.pos[peer] === 0) {
         s.players[peer]!.laps += 1;
-        // 출발 "통과" 월급 (도착 월급은 resolveLanding start 에서 — 중복 방지)
-        if (k < steps - 1) { s.players[peer]!.money += SALARY; s.fx = { seq: (s.fx?.seq ?? 0) + 1, amount: SALARY, mul: 1, kind: 'gain' }; }
+        // 출발 "통과" 월급 (팝업은 렌더러가 통과하는 순간 표시 — 도착 땅에서 뜨지 않게). 도착 월급은 resolveLanding start.
+        if (k < steps - 1) s.players[peer]!.money += SALARY;
       }
     }
   }
@@ -348,8 +348,8 @@ class BlueMarbleModule implements GameModule {
       } else if (o === peer) {
         // 내 섬 재도착 → 관광지 패시브 ×2 누적 (내 모든 섬 통행료 상승)
         if (t.type === 'island') {
-          s.islandBoost[peer] = (s.islandBoost[peer] ?? 1) * 2;
-          s.log = `${t.name} — 관광지 패시브 ×${s.islandBoost[peer]}!`;
+          s.islandBoost[peer] = Math.min(4, (s.islandBoost[peer] ?? 1) + 1);   // ×2 → ×3 → ×4 (누적 아님)
+          s.log = `${t.name} — 관광지 통행료 ×${s.islandBoost[peer]}!`;
         }
         if (t.type === 'city' && (['villa', 'house2', 'apt', 'landmark'] as BuildKind[]).some((k) => canBuild(s, i, peer, k))) {
           s.pending = { kind: 'build', tile: i }; this.render(); return;

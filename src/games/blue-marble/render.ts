@@ -7,7 +7,7 @@
 
 import {
   BOARD, BUILD_TYPES, ISLAND_TILES, BASE_TOLL_MUL, DESERT_ESCAPE,
-  buildMeta, buildCostOf, acquireCost, islandCount, hasAllHouses,
+  buildMeta, buildCostOf, acquireCost, islandCount, hasAllHouses, canBuild, SALARY,
   colorMonopolyMul, ownsGroup, tollBreakdown,
   type BMState, type BuildKind, type GroupColor,
 } from './rules';
@@ -43,6 +43,7 @@ const IC: Record<string, string> = {
   flag: '<svg viewBox="0 0 24 24"><rect x="5" y="3" width="2.2" height="18" rx="1.1" fill="#8a7a8a"/><path d="M7.2 4 H18 L15 8 L18 12 H7.2 Z" fill="#57c777" stroke="#3f9e57" stroke-width="0.6"/></svg>',
   island: '<svg viewBox="0 0 24 24"><ellipse cx="12" cy="19" rx="9" ry="2.6" fill="#f2d24c"/><path d="M11.5 18 V9" stroke="#8a6a4a" stroke-width="1.8"/><path d="M11.5 8.5 C8.5 6 6 7 4.5 9.5 C7.5 8.5 9 9.5 11.5 9.5 C14 7 17 7 19 9.5 C17 6 14 6 11.5 8.5Z" fill="#57c777"/></svg>',
   gift: '<svg viewBox="0 0 24 24"><rect x="4.5" y="10" width="15" height="10" rx="1.5" fill="#ff9bbb"/><rect x="4.5" y="8" width="15" height="4" rx="1" fill="#ff7aa5"/><rect x="10.5" y="8" width="3" height="12" fill="#fff" opacity=".85"/><path d="M12 8 C10 4.5 6.5 5.5 8 8 M12 8 C14 4.5 17.5 5.5 16 8" stroke="#ff7aa5" stroke-width="1.6" fill="none"/></svg>',
+  torch: '<svg viewBox="0 0 24 24"><rect x="10.4" y="12" width="3.2" height="9" rx="1" fill="#b98a4a" stroke="#8a5f2a" stroke-width="0.8"/><path d="M12 2 C15.2 6 16.2 8.4 15 11.2 C14.2 13.2 9.8 13.2 9 11.2 C7.8 8.4 8.8 6 12 2 Z" fill="#ff8a1c" stroke="#e0640f" stroke-width="0.8" stroke-linejoin="round"/><path d="M12 5 C13.6 7.6 14 9.2 13.2 10.8 C12.8 11.8 11.2 11.8 10.8 10.8 C10 9.2 10.4 7.6 12 5 Z" fill="#ffd454"/></svg>',
   rocket: '<svg viewBox="0 0 24 24"><path d="M12 2.5 C16 5.5 16 11 14 15 H10 C8 11 8 5.5 12 2.5Z" fill="#9cc6f2" stroke="#5b9be6" stroke-width="1"/><circle cx="12" cy="8" r="1.9" fill="#fff"/><path d="M10 14 L7.5 18.5 L10.2 16.5Z M14 14 L16.5 18.5 L13.8 16.5Z" fill="#ff8a5b"/><path d="M11 15 h2 l-1 4.5Z" fill="#ffb845"/></svg>',
   key: '<svg viewBox="0 0 24 24"><circle cx="8.5" cy="8.5" r="4.6" fill="none" stroke="#f2c94c" stroke-width="2.6"/><path d="M11.5 11.5 L19 19 M16 16 l2 2 M18.5 13.5 l1.5 1.5" stroke="#f2c94c" stroke-width="2.6" fill="none" stroke-linecap="round"/></svg>',
   coin: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.6" fill="#f2c94c" stroke="#d9a93c" stroke-width="1.3"/><text x="12" y="16" font-size="11" font-weight="900" fill="#8a5a00" text-anchor="middle" font-family="sans-serif">₩</text></svg>',
@@ -58,7 +59,7 @@ const IC: Record<string, string> = {
 /** 특수/코너 칸 → 아이콘 키 */
 function tileIcon(i: number): string {
   const t = BOARD[i];
-  if (t.type === 'corner') return { start: 'flag', desert: 'island', welfare: 'gift', space: 'rocket' }[t.kind];
+  if (t.type === 'corner') return { start: 'flag', desert: 'island', welfare: 'torch', space: 'rocket' }[t.kind];
   if (t.type === 'special') return t.kind === 'goldkey' ? 'key' : t.kind === 'tax' ? 'coin' : 'music';
   return '';
 }
@@ -73,8 +74,8 @@ const BSVG: Record<string, string> = {
 };
 // 섬 소유 표시 — 깃발(천 = 플레이어색 currentColor)
 const FLAG = '<svg viewBox="0 0 24 24"><rect x="6" y="2.5" width="2" height="19" rx="1" fill="#6b5566"/><circle cx="7" cy="2.6" r="1.7" fill="#ffd454"/><path d="M8 3.5 H20 Q16.8 6.5 20 9.5 H8 Z" fill="currentColor" stroke="#fff" stroke-width="1" stroke-linejoin="round"/></svg>';
-// 올림픽 개최 팡파레(파티 크래커 + 색종이)
-const FANFARE = '<svg viewBox="0 0 24 24"><path d="M3 21 L11 13 L14 16 L6 21 Z" fill="#ffb01c" stroke="#c97e10" stroke-width="1" stroke-linejoin="round"/><circle cx="15" cy="6" r="1.5" fill="#ff5a92"/><circle cx="19" cy="9" r="1.5" fill="#5b9be6"/><circle cx="20" cy="4" r="1.3" fill="#7ed957"/><circle cx="12" cy="4" r="1.3" fill="#b89aff"/><path d="M13 12 L21 5" stroke="#ffd454" stroke-width="1.4" stroke-linecap="round"/></svg>';
+// 올림픽 개최지 표시 — 성화(횃불)
+const FANFARE = '<svg viewBox="0 0 24 24"><rect x="10.4" y="12" width="3.2" height="9" rx="1" fill="#b98a4a" stroke="#8a5f2a" stroke-width="0.8"/><path d="M12 2 C15.2 6 16.2 8.4 15 11.2 C14.2 13.2 9.8 13.2 9 11.2 C7.8 8.4 8.8 6 12 2 Z" fill="#ff8a1c" stroke="#e0640f" stroke-width="0.8" stroke-linejoin="round"/><path d="M12 5 C13.6 7.6 14 9.2 13.2 10.8 C12.8 11.8 11.2 11.8 10.8 10.8 C10 9.2 10.4 7.6 12 5 Z" fill="#ffd454"/></svg>';
 // 세계여행 비행기 (오른쪽을 향함 — 진행방향으로 회전)
 const PLANE = '<svg viewBox="0 0 48 48"><path d="M4 26 L40 20 L44 22 L40 24 L30 30 L22 29 L26 24 L16 25 L11 30 L7 29 L10 24 L4 26 Z" fill="#5b9be6" stroke="#2e5f96" stroke-width="1.4" stroke-linejoin="round"/><circle cx="35" cy="22" r="1.6" fill="#fff"/></svg>';
 const GENERIC_LM = '<svg viewBox="0 0 24 24" stroke="#241a30" stroke-width="0.9" stroke-linejoin="round"><path d="M12 1 L14 5.5 H10 Z" fill="#ffd454" stroke="#241a30" stroke-width="0.6"/><rect x="8.5" y="6" width="7" height="15" fill="currentColor"/><rect x="8.5" y="6" width="7" height="2.6" fill="#ffd454" stroke="none"/><rect x="6" y="18" width="12" height="3" fill="currentColor"/><g fill="#fff" stroke="none" opacity=".9"><rect x="10" y="10" width="4" height="2"/><rect x="10" y="13.5" width="4" height="2"/></g></svg>';
@@ -339,9 +340,11 @@ export class BlueMarbleRenderer {
       const st = this._lastState; if (this.destroyed || !st) { this.clearMove(); return; }
       this.dispPos[active] = (this.dispPos[active]! + 1) % BOARD.length;
       this.renderTokens(st);
+      // 출발(0)을 "통과"하는 순간 월급 팝업 (도착 칸이 아니라 지나갈 때)
+      if (this.dispPos[active] === 0 && this.dispPos[active] !== st.pos[active]) this.playFx(SALARY, 1, 'gain');
       // 마지막 칸에 도착 → 말이 잠시 머문 뒤에 결정창(구매/황금열쇠) 표시
       if (this.dispPos[active] === st.pos[active]) { this.clearMove(); this.settle(); }
-    }, 160);
+    }, 230);
   }
 
   /** 세계여행: from 칸 → to 칸으로 비행기가 날아가는 연출 후 도착 처리 */
