@@ -95,7 +95,7 @@ export const BOARD: Tile[] = [
   { type: 'corner', kind: 'welfare', name: '올림픽' },
   // 3라인 (상단) — 대지 18~25만
   { type: 'city', group: 'pink', name: '프라하', price: 180000 },
-  { type: 'island', name: '푸껫', price: 210000, spot: 'island' },
+  { type: 'island', name: '푸켓', price: 210000, spot: 'island' },
   { type: 'city', group: 'pink', name: '베를린', price: 200000 },
   { type: 'special', kind: 'goldkey', name: '황금열쇠' },
   { type: 'city', group: 'rose', name: '모스크바', price: 215000 },
