@@ -433,6 +433,22 @@ class StoryDrawGameModule implements GameModule {
     }
   }
 
+  /** 나간 플레이어 추적 (활성 인원 계산용) */
+  private leftPeers = new Set<string>();
+
+  /** 플레이어 이탈 — 호스트 처리.
+   *  나간 좌석은 "제출됨"으로 간주해 그 사람 그림을 기다리지 않는다(최대 durationMs 대기 방지).
+   *  활성 1명 이하면 즉시 감상(reveal)으로. 나간 좌석 제외 전원 제출됐으면 이번 턴 즉시 마감. */
+  onPeerLeft(peerId: string): void {
+    if (!this.isHost || !this.game || this.game.phase !== 'drawing') return;
+    this.leftPeers.add(peerId);
+    const seat = this.game.seats.findIndex((s) => s.peerId === peerId);
+    if (seat >= 0) this.hostSubmitted.add(seat);
+    const active = this.game.seats.filter((s) => !this.leftPeers.has(s.peerId)).length;
+    if (active <= 1) { this.revealAsHost(); return; }
+    if (this.hostSubmitted.size >= this.game.seats.length) this.finalizeTurnAsHost();
+  }
+
   private revealAsHost(): void {
     if (!this.game) return;
     this.game.phase = 'reveal';

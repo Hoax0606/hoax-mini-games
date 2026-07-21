@@ -337,6 +337,25 @@ class WordChainGameModule implements GameModule {
     this.refreshInputEnabled();
   }
 
+  /** 플레이어 이탈 — 호스트가 그 사람을 탈락시키고(타임아웃과 동일 처리) 턴을 넘긴다.
+   *  eliminatePlayer 가 currentTurn 보정 + 생존 1명 시 종료(winnerPeerId)까지 처리하므로
+   *  handleTimeoutAsHost 와 같은 broadcast(encodeTimeout)로 게스트에 반영된다. */
+  onPeerLeft(peerId: string): void {
+    if (!this.isHost || this.game.phase !== 'aiming') return;
+    const victim = this.game.players.find((p) => p.peerId === peerId);
+    if (!victim || !victim.alive) return; // 관전자이거나 이미 탈락
+    const now = performance.now();
+    const { ended } = eliminatePlayer(this.game, victim.index, 'timeout', now);
+    this.ctx.sendToPeer(encodeTimeout({
+      victimIndex: victim.index,
+      nextTurn: ended ? -1 : this.game.currentTurn,
+      turnStartedAt: now,
+      winnerPeerId: ended ? this.game.winnerPeerId : null,
+    }));
+    if (ended) this.finishAsHost();
+    this.refreshInputEnabled();
+  }
+
   private handleTimeoutAsHost(now: number): void {
     const victim = this.game.currentTurn;
     const { ended } = eliminatePlayer(this.game, victim, 'timeout', now);

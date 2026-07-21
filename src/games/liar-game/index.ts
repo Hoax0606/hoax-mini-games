@@ -452,6 +452,19 @@ class LiarGameModule implements GameModule {
   // 종료
   // ============================================
 
+  /** 나간 플레이어 추적 (활성 인원 계산용) */
+  private leftPeers = new Set<string>();
+
+  /** 플레이어 이탈 — 호스트 처리.
+   *  활성 인원이 1명 이하가 되면 현재 점수로 최종 집계(사실상 남은 사람 승).
+   *  2명 이상이면 계속 — 나간 사람의 힌트/투표 차례는 각 phase 타임아웃이 자동으로 넘긴다. */
+  onPeerLeft(peerId: string): void {
+    if (!this.isHost || this.gameFinished) return;
+    this.leftPeers.add(peerId);
+    const active = this.ctx.players.filter((p) => p.role === 'player' && !this.leftPeers.has(p.peerId));
+    if (active.length <= 1) this.finishAsHost();
+  }
+
   private finishAsHost(): void {
     if (this.gameFinished) return;
     this.gameFinished = true;

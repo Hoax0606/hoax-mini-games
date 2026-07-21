@@ -496,6 +496,46 @@ class FortressGameModule implements GameModule {
   };
 
   /** 호스트: 시간 초과한 현재 턴을 발사 없이 넘긴다. 착탄 없는 impact(변화 0)로 전원 동기화. */
+  /** 플레이어 이탈 — 호스트 처리.
+   *  나간 사람 소유 포대를 전부 파괴하고, 생존 소유자가 1(팀) 이하면 종료(applyBlast 종료 로직 재현).
+   *  아니면 그 사람이 현재 턴이었을 때만 턴을 넘기고, 갱신된 상태를 sync 한다. */
+  onPeerLeft(peerId: string): void {
+    if (!this.isHost || this.game.phase === 'ended') return;
+    const hadAliveFort = this.game.forts.some((f) => f.ownerPeerId === peerId && f.alive);
+    if (!hadAliveFort) return; // 관전자이거나 이미 전멸
+    for (const f of this.game.forts) {
+      if (f.ownerPeerId === peerId) { f.alive = false; f.hp = 0; }
+    }
+    const survivorOwners = [...new Set(this.game.forts.filter((f) => f.alive).map((f) => f.ownerPeerId))];
+    if (survivorOwners.length <= 1) {
+      // 남은 사람 승 (0명이면 무승부 빈 배열) — applyBlast 종료와 동일
+      this.game.phase = 'ended';
+      this.game.winnerPeerIds = survivorOwners;
+      this.ctx.sendToPeer(encodeImpact({
+        blasts: [], hp: this.hpMap(), ended: true,
+        nextTurn: -1, nextWind: this.randomWind(), winnerPeerIds: survivorOwners,
+      }));
+      this.finishAsHost();
+      return;
+    }
+    // 계속 — 나간 사람이 현재 턴(포대)이었으면 다음 생존 포대로 넘김
+    const curFort = this.game.forts.find((f) => f.id === this.game.currentTurn);
+    if (this.game.phase === 'aiming' && (!curFort || !curFort.alive)) {
+      const nextWind = this.randomWind();
+      advanceTurn(this.game, nextWind, performance.now());
+      this.turnStartedAt = performance.now();
+      this.fuelLeft = FUEL_PER_TURN;
+      this.ctx.sendToPeer(encodeImpact({
+        blasts: [], hp: this.hpMap(), ended: false,
+        nextTurn: this.game.currentTurn, nextWind, winnerPeerIds: [],
+      }));
+      this.refreshWeaponBar();
+    } else {
+      // 포탄 비행 중이거나 현재 턴 유지 — 갱신된 hp/alive 전체 sync (착탄 시 getNextTurn 이 죽은 포대 스킵)
+      this.ctx.sendToPeer(encodeSync({ game: this.game, craters: this.craters }));
+    }
+  }
+
   private skipTurnAsHost(): void {
     const nextWind = this.randomWind();
     advanceTurn(this.game, nextWind, performance.now());

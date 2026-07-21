@@ -12,7 +12,7 @@
 import type { GameModule, GameContext, GameMessage, GameResult, Player } from '../types';
 import { sound } from '../../core/sound';
 import {
-  createInitialGame, validateSubmission, applySubmission, seedFromPeers,
+  createInitialGame, validateSubmission, applySubmission, seedFromPeers, getNextTurn,
   type WordChainGame, type PlayerIndex,
 } from '../word-chain/rules';
 import { randomBombMs, startTurnFromPeers } from './rules';
@@ -245,9 +245,31 @@ class BombWordChainModule implements GameModule {
     this.refreshInputEnabled();
   }
 
-  private explodeAsHost(): void {
+  /** 플레이어 이탈 — 호스트 처리.
+   *  나간 사람을 순환에서 빼고(alive=false), 폭탄을 들고 있었으면 다음 생존자에게 넘긴다.
+   *  생존자가 1명 이하가 되면 나간 사람을 패자로 확정해 남은 사람 승으로 종료. */
+  onPeerLeft(peerId: string): void {
+    if (!this.isHost || this.game.phase !== 'aiming') return;
+    const victim = this.game.players.find((p) => p.peerId === peerId);
+    if (!victim || !victim.alive) return; // 관전자이거나 이미 빠짐
+    victim.alive = false;
+    if (this.game.currentTurn === victim.index) {
+      this.game.currentTurn = getNextTurn(this.game); // 폭탄 이월
+    }
+    const survivors = this.game.players.filter((p) => p.alive);
+    if (survivors.length <= 1) {
+      this.explodeAsHost(peerId); // 남은 사람 승 (나간 사람을 패자로)
+      return;
+    }
+    this.ctx.sendToPeer(encodeSync(this.game)); // 갱신된 alive/currentTurn 반영
+    this.refreshInputEnabled();
+  }
+
+  private explodeAsHost(forcedLoserId?: string): void {
     if (this.gameFinished) return;
-    const holder = this.game.players.find((p) => p.index === this.game.currentTurn);
+    const holder = forcedLoserId
+      ? this.game.players.find((p) => p.peerId === forcedLoserId)
+      : this.game.players.find((p) => p.index === this.game.currentTurn);
     this.loserPeerId = holder?.peerId ?? null;
     this.game.phase = 'ended';
     this.gameFinished = true;

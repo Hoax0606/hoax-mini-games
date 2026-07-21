@@ -552,6 +552,22 @@ class DrawQuizGameModule implements GameModule {
     this.refreshUI();
   }
 
+  /** 나간 플레이어 추적 (활성 인원 계산용) */
+  private leftPeers = new Set<string>();
+
+  /** 플레이어 이탈 — 호스트 처리.
+   *  활성 1명 이하면 현재 점수로 최종 집계(남은 사람 승). 그 이상이면 계속하되,
+   *  나간 사람이 현재 출제자면 그리기 phase 를 최대 70초 기다리지 않게 즉시 라운드 종료. */
+  onPeerLeft(peerId: string): void {
+    if (!this.isHost || this.gameFinished) return;
+    this.leftPeers.add(peerId);
+    const active = this.ctx.players.filter((p) => p.role === 'player' && !this.leftPeers.has(p.peerId));
+    if (active.length <= 1) { this.finishAsHost(); return; }
+    if (this.game.phase !== 'ended' && peerId === this.game.drawerPeerId) {
+      this.endRoundAsHost();
+    }
+  }
+
   private finishAsHost(): void {
     if (this.gameFinished) return;
     this.gameFinished = true;
