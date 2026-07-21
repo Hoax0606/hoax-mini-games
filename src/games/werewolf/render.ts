@@ -47,6 +47,8 @@ export interface WwCallbacks {
   onSetupAdd(role: Role): void;
   onSetupRemove(role: Role): void;
   onSetupStart(): void;
+  /** 결과 화면 "다음" — 결과 화면으로 이동 */
+  onResultNext(): void;
 }
 
 // ── 역할 일러스트 (인라인 SVG, viewBox 48 — 카드리빌 56px ~ 스텝 15px 까지 스케일) ──
@@ -266,6 +268,7 @@ const CSS = `
 .ww-log-list{width:100%;max-width:440px;margin:0 auto;display:flex;flex-direction:column;gap:4px;}
 .ww-log-row{font-size:12.5px;color:#5a5070;background:#fff;border:1px solid #ece3f7;border-radius:10px;padding:6px 11px;line-height:1.45;}
 .ww-winners{font-size:14px;font-weight:800;color:#43384f;text-align:center;}
+.ww-result-next{margin:18px auto 4px;}
 
 @media (prefers-reduced-motion: reduce){
   .ww-choice,.ww-btn,.ww-vote-btn{transition:none;}
@@ -448,15 +451,23 @@ export class WerewolfRenderer {
 
   private renderMyCard(rs: WwRenderState): void {
     if (rs.isSpectator || !rs.myOrigRole) { this.mycardEl.hidden = true; return; }
-    const r = rs.myOrigRole;
-    const t = teamOf(r);
+    const orig = rs.myOrigRole;
+    // 내가 밤에 "알게 된" 현재 카드 반영 (강도=뺏은 카드 / 수면증=최종 / 도플갱어=복사). 본인만 아는 정보라 안전.
+    let known = orig;
+    for (const m of rs.memos) {
+      if (m.kind === 'robbed') known = m.newRole;
+      else if (m.kind === 'insomniac') known = m.role;
+      else if (m.kind === 'doppelCopied') known = m.role;
+    }
+    const changed = known !== orig;
+    const t = teamOf(known);
     this.mycardEl.hidden = false;
     this.mycardEl.className = `ww-mycard ${t}`;
     this.mycardEl.innerHTML =
-      `<span class="ic">${ROLE_SVG[r]}</span>` +
-      `<div><div><span class="nm">${ROLE_META[r].name}</span>` +
+      `<span class="ic">${ROLE_SVG[known]}</span>` +
+      `<div><div><span class="nm">${ROLE_META[known].name}</span>` +
       `<span class="tm ${t}">${t === 'wolf' ? '늑대' : t === 'tanner' ? '단독' : '시민'}</span></div>` +
-      `<div class="ab">처음 받은 카드</div></div>`;
+      `<div class="ab">${changed ? `지금 내 카드 · 처음: ${ROLE_META[orig].name}` : '처음 받은 카드'}</div></div>`;
   }
 
   private renderMemo(rs: WwRenderState): void {
@@ -923,7 +934,9 @@ export class WerewolfRenderer {
       `<div class="ww-reveal-h">가운데 카드</div><div class="ww-center-reveal">${centerCards}</div>` +
       logBlock('밤에 일어난 일', rv.nightLog) +
       logBlock('카드 교환', rv.swapLog) +
-      `<div class="ww-reveal-h">승리한 사람</div><div class="ww-winners">${esc(winnersTxt)}</div>`;
+      `<div class="ww-reveal-h">승리한 사람</div><div class="ww-winners">${esc(winnersTxt)}</div>` +
+      `<button class="ww-btn ww-result-next" id="ww-next">다음 →</button>`;
+    this.resultEl.querySelector<HTMLButtonElement>('#ww-next')?.addEventListener('click', () => this.cb.onResultNext());
   }
 }
 

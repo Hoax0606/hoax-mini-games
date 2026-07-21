@@ -94,6 +94,8 @@ class WerewolfModule implements GameModule {
   private destroyed = false;
   private ended = false;
   private endScheduled = false;
+  /** 결과 화면에서 "다음"을 누르면 이 결과로 결과 화면 이동 (타이머 자동 이동 대신) */
+  private pendingResult: GameResult | null = null;
   private paused = false;
   private pauseStart = 0;
 
@@ -117,6 +119,7 @@ class WerewolfModule implements GameModule {
       onSetupAdd: (r) => this.setupAdd(r),
       onSetupRemove: (r) => this.setupRemove(r),
       onSetupStart: () => this.setupStart(),
+      onResultNext: () => this.doResultNext(),
     });
     sound.startBgm('apple-game');
 
@@ -174,7 +177,7 @@ class WerewolfModule implements GameModule {
     }
 
     const end = decodeEnd(msg);
-    if (end) { if (!this.isHost) this.scheduleEnd(end); return; }
+    if (end) { if (!this.isHost) { this.pendingResult = end; this.render(); } return; }
 
     // 호스트만 처리하는 클라 요청
     if (this.isHost) {
@@ -697,7 +700,14 @@ class WerewolfModule implements GameModule {
         { target: p.peerId },
       );
     }
-    this.scheduleEnd(this.resultFor(reveal, this.myPeerId, this.isSpectator), RESULT_SHOW_MS);
+    // 자동 이동 대신 결과 화면의 "다음" 버튼으로 각자 이동 (원하는 만큼 결과를 봄)
+    this.pendingResult = this.resultFor(reveal, this.myPeerId, this.isSpectator);
+    this.render();
+  }
+
+  /** 결과 화면 "다음" — 각 클라가 자기 결과 화면으로 이동 */
+  private doResultNext(): void {
+    if (this.pendingResult && !this.destroyed) this.ctx.endGame(this.pendingResult);
   }
 
   private resultFor(reveal: RevealData, peerId: string, spectator: boolean): GameResult {
