@@ -9,7 +9,7 @@
 import type { GameModule, GameContext, GameMessage, GameResult, Player } from '../types';
 import { sound } from '../../core/sound';
 import {
-  BOARD, CARDS, SALARY, DESERT_TURNS, DESERT_ESCAPE, TRAVEL_COST, BONUS_STAKE, buildCostOf, canBuild, acquireCost,
+  BOARD, CARDS, SALARY, DESERT_TURNS, DESERT_ESCAPE, TRAVEL_COST, BONUS_STAKE, buildCostOf, canBuild, acquireCost, sellRefund,
   tollBreakdown, alivePeers, nextTurnIdx, createInitialState, monopolyWin, drawCardId, TOP_CITY_TILE, DESERT_TILE, SPACE_TILE,
   type BMState, type BuildKind,
 } from './rules';
@@ -56,6 +56,9 @@ class BlueMarbleModule implements GameModule {
       onBonusStart: (stake) => this.act({ kind: 'bonusStart', stake }),
       onBonusPick: (choice) => this.act({ kind: 'bonusPick', choice }),
       onBonusStop: () => this.act({ kind: 'bonusStop' }),
+      onSell: (tile) => this.act({ kind: 'sell', tile }),
+      onPayDebt: () => this.act({ kind: 'payDebt' }),
+      onGiveUp: () => this.act({ kind: 'giveUp' }),
       onSettled: () => this.maybeAutoPlay(),  // 애니 끝난 뒤 더미 진행
     });
     sound.startBgm('apple-game');
@@ -166,6 +169,14 @@ class BlueMarbleModule implements GameModule {
       this.hostHandle({ kind: 'travelTo', tile: dest, by: DUMMY }, DUMMY);
     }
     else if (pend.kind === 'event') { this.hostHandle({ kind: 'eventOk', by: DUMMY }, DUMMY); }
+    else if (pend.kind === 'raiseFunds') {
+      if (s.players[DUMMY]!.money >= pend.amount) this.hostHandle({ kind: 'payDebt', by: DUMMY }, DUMMY);
+      else {
+        const mine = Object.keys(s.owner).map(Number).filter((i) => s.owner[i] === DUMMY);
+        if (mine.length) this.hostHandle({ kind: 'sell', tile: mine[0]!, by: DUMMY }, DUMMY);
+        else this.hostHandle({ kind: 'giveUp', by: DUMMY }, DUMMY);
+      }
+    }
     else if (pend.kind === 'cardSwapMine') { const c = this.ownedCities(DUMMY); this.hostHandle({ kind: 'pickCity', tile: c[0] ?? -1, by: DUMMY }, DUMMY); }
     else if (pend.kind === 'cardSwapTheirs' || pend.kind === 'cardBlackout') { const t = this.opponentCities(DUMMY); this.hostHandle({ kind: 'pickCity', tile: t[0] ?? -1, by: DUMMY }, DUMMY); }
     else if (pend.kind === 'cardQuake') { const t = this.opponentCities(DUMMY).filter((i) => (this.state.builds[i]?.length ?? 0) > 0); this.hostHandle({ kind: 'pickCity', tile: t[0] ?? -1, by: DUMMY }, DUMMY); }
@@ -300,9 +311,33 @@ class BlueMarbleModule implements GameModule {
     } else if (action.kind === 'eventOk') {
       if (s.pending?.kind === 'event') {
         const ev = s.pending; s.pending = null;
-        this.pay(by, null, ev.amount);   // 세금 납부(파산 가능)
-        s.log = `${BOARD[ev.tile].name} · ₩${ev.amount.toLocaleString()} 납부`;
+        // 세금 낼 돈 부족 + 팔 땅 있으면 → 마련 페이즈, 아니면 납부(파산 가능)
+        if (s.players[by]!.money < ev.amount && this.hasSellable(by)) {
+          s.pending = { kind: 'raiseFunds', to: null, amount: ev.amount };
+          s.log = `세금 ₩${ev.amount.toLocaleString()} — 낼 돈이 부족해요. 땅을 파세요`;
+        } else {
+          this.pay(by, null, ev.amount);
+          s.log = `${BOARD[ev.tile].name} · ₩${ev.amount.toLocaleString()} 납부`;
+          this.endStep(by);
+        }
+      }
+    } else if (action.kind === 'sell') {
+      // 내 땅 판매 — 내 소유이고, 자유(대기 없음) 또는 자금 마련 중일 때
+      if (s.owner[action.tile] === by && (s.pending === null || s.pending.kind === 'raiseFunds')) {
+        this.doSell(by, action.tile);
+      }
+    } else if (action.kind === 'payDebt') {
+      if (s.pending?.kind === 'raiseFunds' && s.players[by]!.money >= s.pending.amount) {
+        const { to, amount } = s.pending;
+        s.pending = null;
+        this.pay(by, to, amount);
         this.endStep(by);
+      }
+    } else if (action.kind === 'giveUp') {
+      if (s.pending?.kind === 'raiseFunds') {
+        s.pending = null;
+        this.bankrupt(by);
+        if (!this.ended) this.endStep(by);
       }
     }
     this.afterChange();
@@ -315,6 +350,22 @@ class BlueMarbleModule implements GameModule {
   private opponentCities(peer: string): number[] {
     const s = this.state;
     return Object.keys(s.owner).map(Number).filter((i) => s.owner[i] !== undefined && s.owner[i] !== peer && BOARD[i].type === 'city');
+  }
+  /** 이 플레이어가 팔 수 있는 땅(도시/섬)을 하나라도 가졌는지 */
+  private hasSellable(peer: string): boolean {
+    return Object.keys(this.state.owner).some((k) => this.state.owner[+k] === peer);
+  }
+  /** 내 땅 판매 → 땅값+건물비 전액 회수, 소유/건물/올림픽 해제 */
+  private doSell(peer: string, tile: number): void {
+    const s = this.state;
+    if (s.owner[tile] !== peer) return;
+    const refund = sellRefund(s, tile);
+    s.players[peer]!.money += refund;
+    delete s.owner[tile];
+    delete s.builds[tile];
+    delete s.olympic[tile];
+    s.log = `${BOARD[tile].name} 판매 → ₩${refund.toLocaleString()} 회수`;
+    sound.play('pop');
   }
   private cityBuildable(peer: string, tile: number): boolean {
     return (['villa', 'house2', 'apt', 'landmark'] as BuildKind[]).some((k) => canBuild(this.state, tile, peer, k));
@@ -417,6 +468,12 @@ class BlueMarbleModule implements GameModule {
       } else {
         const info = tollBreakdown(s, i, peer);
         const toll = info.total;
+        // 낼 돈 부족 + 팔 땅 있으면 → 자금 마련 페이즈(파산 대신 땅 팔 기회)
+        if (toll > 0 && p.money < toll && this.hasSellable(peer)) {
+          s.pending = { kind: 'raiseFunds', to: o, amount: toll };
+          s.log = `${t.name} 통행료 ₩${toll.toLocaleString()} — 낼 돈이 부족해요. 땅을 파세요`;
+          this.render(); return;
+        }
         this.pay(peer, o, toll);
         s.log = `${t.name} 통행료 ${toll.toLocaleString()} → ${s.players[o]!.nickname}`;
         // 타격감 연출용 (배수 클수록 강하게)

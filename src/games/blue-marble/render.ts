@@ -7,7 +7,7 @@
 
 import {
   BOARD, BUILD_TYPES, ISLAND_TILES, BASE_TOLL_MUL, DESERT_ESCAPE,
-  buildMeta, buildCostOf, acquireCost, islandCount, seaIslandCount, hasAllHouses, canBuild, SALARY, CARDS,
+  buildMeta, buildCostOf, acquireCost, sellRefund, islandCount, seaIslandCount, hasAllHouses, canBuild, SALARY, CARDS,
   colorMonopolyMul, ownsGroup, tollBreakdown,
   type BMState, type BuildKind, type GroupColor,
 } from './rules';
@@ -25,6 +25,9 @@ export interface BMRenderCallbacks {
   onBonusStart(stake: number): void;    // 오락실: 판돈 걸고 시작(0=안 함)
   onBonusPick(choice: number): void;    // 오락실 2지선다
   onBonusStop(): void;                  // 오락실: 받고 종료
+  onSell(tile: number): void;           // 내 땅 판매
+  onPayDebt(): void;                    // 자금 마련 후 지불
+  onGiveUp(): void;                     // 자금 마련 포기 → 파산
   /** 주사위·이동 시퀀스가 끝나 화면이 idle 이 됨(호스트가 더미 진행 타이밍에 사용) */
   onSettled(): void;
 }
@@ -226,6 +229,7 @@ export class BlueMarbleRenderer {
       <div class="bm-turn" id="bm-turn"></div>
       <button class="bm-roll" id="bm-roll">${IC.dice} 주사위 굴리기</button>
       <button class="bm-escape" id="bm-escape" style="display:none"></button>
+      <button class="bm-sellbtn" id="bm-sell" style="display:none">🏷️ 내 땅 팔기</button>
     </div>`;
     return `<div class="bm-board">${tiles}${center}</div>
       <div class="bm-panel">
@@ -237,6 +241,7 @@ export class BlueMarbleRenderer {
   private wireStatic(): void {
     this.root.querySelector('#bm-roll')!.addEventListener('click', () => this.cb.onRoll());
     this.root.querySelector('#bm-escape')!.addEventListener('click', () => this.cb.onDesertPay());
+    this.root.querySelector('#bm-sell')!.addEventListener('click', () => { if (this._lastState) this.sellModal(this._lastState, null); });
     // 타일 클릭 → 세계여행 모드면 이동, 아니면 정보(구매 가능 칸만)
     this.root.querySelectorAll<HTMLElement>('.bm-tile').forEach((el) => {
       el.addEventListener('click', () => {
@@ -589,6 +594,10 @@ export class BlueMarbleRenderer {
     const roll = this.root.querySelector<HTMLButtonElement>('#bm-roll')!;
     const canAct = isMine && !state.pending && state.phase === 'playing';
     roll.disabled = !canAct;
+    // 내 땅 팔기 — 내 차례+대기없음+소유한 땅 있을 때 (자금 마련용 자발적 판매)
+    const sellBtn = this.root.querySelector<HTMLButtonElement>('#bm-sell')!;
+    const ownsLand = Object.keys(state.owner).some((k) => state.owner[+k] === cur);
+    sellBtn.style.display = (canAct && ownsLand) ? 'flex' : 'none';
     // 무인도(감옥): 돈 내고 탈출 버튼 + 주사위(더블) 탈출 안내
     const inDesert = canAct && curP.desertLeft > 0;
     const esc = this.root.querySelector<HTMLButtonElement>('#bm-escape')!;
@@ -641,12 +650,25 @@ export class BlueMarbleRenderer {
     // 주사위/이동 시퀀스 중엔 결정창/배너 보류 (완료 후 render 재호출에서 표시)
     if (this.busy) { this.travelMode = false; this.setPickMode(null); this.closeModal(); return; }
     const p = state.pending;
-    if (!p) { this.travelMode = false; this.setPickMode(null); this.closeModal(); return; }
+    if (!p) {
+      this.travelMode = false; this.setPickMode(null);
+      // 자발적 판매 모달은 대기(pending) 없이 떠 있으므로 유지·갱신 (판매 시 잔액/목록 갱신)
+      if (this.openKind.startsWith('sell:') && this._lastState) this.sellModal(state, null);
+      else this.closeModal();
+      return;
+    }
     if (p.kind === 'info') { this.travelMode = false; this.setPickMode(null); this.showInfo(p.tile, p.text); return; }
     const cur = state.order[state.turnIdx]!;
     const mine = cur === myPeerId && !isSpectator;
     // 세금 등 이벤트 — 모두에게 창, 밟은 사람(cur)만 확인해 닫음
     if (p.kind === 'event') { this.travelMode = false; this.setPickMode(null); this.eventModal(p.tile, p.text, mine, state.players[cur]!.nickname); return; }
+    // 자금 마련(통행료/세금 부족) — 밟은 사람은 판매 모달, 나머지는 대기
+    if (p.kind === 'raiseFunds') {
+      this.travelMode = false; this.setPickMode(null);
+      if (mine) this.sellModal(state, p.amount);
+      else { this.closeModal(); this.showActing(state, p, cur); }
+      return;
+    }
     // 세계여행 = 아무 칸 클릭 / 올림픽·추가건설 = 내 땅만 클릭(나머지 어둡게)
     this.travelMode = p.kind === 'travel' && mine;
     const owned = (owner: string): number[] => Object.keys(state.owner).map(Number).filter((i) => state.owner[i] === owner && BOARD[i].type === 'city');
@@ -695,6 +717,33 @@ export class BlueMarbleRenderer {
       <div class="bm-body"><div class="bm-cardic">${IC.coin}</div><div class="bm-ctitle">${text}</div>${foot}</div></div>`;
     document.body.appendChild(scrim); this.modalScrim = scrim; this.openKind = key;
     scrim.querySelector<HTMLButtonElement>('.bm-yes')?.addEventListener('click', () => this.cb.onEventOk());
+  }
+
+  /** 땅 판매 모달. raiseAmount!=null 이면 자금 마련(지불/파산), null 이면 자발적 판매(닫기). */
+  private sellModal(state: BMState, raiseAmount: number | null): void {
+    const me = this.myId;
+    const money = state.players[me]?.money ?? 0;
+    const mine = Object.keys(state.owner).map(Number).filter((i) => state.owner[i] === me);
+    const key = raiseAmount != null ? `raise:${raiseAmount}:${mine.length}:${money}` : `sell:${mine.length}:${money}`;
+    if (this.openKind === key && this.modalScrim) return;
+    this.closeModal();
+    const rows = mine.length
+      ? mine.map((i) => `<div class="bm-sellrow"><span class="bm-sellnm" style="border-left-color:${tileColor(i)}">${(BOARD[i] as { name: string }).name}</span><span class="bm-sellval">+₩${sellRefund(state, i).toLocaleString()}</span><button class="bm-sellone" data-t="${i}">팔기</button></div>`).join('')
+      : `<div class="bm-sub" style="padding:12px 0">팔 수 있는 땅이 없어요</div>`;
+    const head = raiseAmount != null
+      ? `<div class="bm-ctitle">₩${raiseAmount.toLocaleString()} 내야 해요</div><div class="bm-sub">땅을 팔아 마련하세요 · 지금 ₩${money.toLocaleString()}</div>`
+      : `<div class="bm-ctitle">내 땅 팔기</div><div class="bm-sub">지금 ₩${money.toLocaleString()}</div>`;
+    const foot = raiseAmount != null
+      ? `<div class="bm-btns"><button class="bm-yes" id="bm-pay" ${money >= raiseAmount ? '' : 'disabled'} style="flex:1">지불</button><button class="bm-no" id="bm-giveup" style="flex:1">파산</button></div>`
+      : `<div class="bm-btns"><button class="bm-no" id="bm-closesell" style="flex:1">닫기</button></div>`;
+    const scrim = document.createElement('div'); scrim.className = 'bm-scrim';
+    scrim.innerHTML = `<div class="bm-modal" style="width:330px"><div class="bm-top" style="background:linear-gradient(90deg,#ff9bbb,#ff5a92)">🏷️ 땅 판매</div>` +
+      `<div class="bm-body">${head}<div class="bm-selllist">${rows}</div>${foot}</div></div>`;
+    document.body.appendChild(scrim); this.modalScrim = scrim; this.openKind = key;
+    scrim.querySelectorAll<HTMLButtonElement>('.bm-sellone').forEach((b) => b.addEventListener('click', () => this.cb.onSell(Number(b.dataset.t))));
+    scrim.querySelector<HTMLButtonElement>('#bm-pay')?.addEventListener('click', () => this.cb.onPayDebt());
+    scrim.querySelector<HTMLButtonElement>('#bm-giveup')?.addEventListener('click', () => this.cb.onGiveUp());
+    scrim.querySelector<HTMLButtonElement>('#bm-closesell')?.addEventListener('click', () => this.closeModal());
   }
 
   /** 오락실: ① 한다/안 한다 → ② 한다면 판돈(100·200·300) 선택 */
@@ -1014,7 +1063,8 @@ const pendingLabel = (p: NonNullable<BMState['pending']>): string =>
   p.kind === 'buy' ? '구매 고민' : p.kind === 'build' ? '건설' : p.kind === 'acquire' ? '인수 고민'
   : p.kind === 'olympic' ? '올림픽 개최' : p.kind === 'travel' ? '세계여행'
   : p.kind === 'startBuild' ? '추가 건설' : p.kind === 'bonus' || p.kind === 'bonusOffer' ? '보너스 게임'
-  : p.kind === 'cardSwapMine' || p.kind === 'cardSwapTheirs' ? '도시 교환' : p.kind === 'cardQuake' ? '지진' : p.kind === 'cardBlackout' ? '정전' : '카드 확인';
+  : p.kind === 'cardSwapMine' || p.kind === 'cardSwapTheirs' ? '도시 교환' : p.kind === 'cardQuake' ? '지진' : p.kind === 'cardBlackout' ? '정전'
+  : p.kind === 'raiseFunds' ? '자금 마련' : '카드 확인';
 
 // ============================================
 // CSS (1회 주입)
@@ -1154,6 +1204,14 @@ function injectStyle(): void {
 .bm-roll svg{width:18px;height:18px;} .bm-roll:disabled{opacity:.45;cursor:default;}
 .bm-escape{font:inherit;font-weight:800;font-size:13px;color:#7a5a10;background:linear-gradient(135deg,#ffe7a0,#ffcf4a);border:none;border-radius:999px;padding:8px 18px;cursor:pointer;box-shadow:0 5px 14px rgba(200,150,30,.32);align-items:center;justify-content:center;}
 .bm-escape:disabled{opacity:.45;cursor:default;}
+.bm-sellbtn{font:inherit;font-weight:800;font-size:12.5px;color:#a83e6a;background:#fff;border:1.5px solid #ffb3cd;border-radius:999px;padding:7px 15px;cursor:pointer;box-shadow:0 4px 12px rgba(255,90,146,.18);align-items:center;justify-content:center;margin-top:6px;}
+.bm-sellbtn:hover{background:#fff0f5;}
+.bm-selllist{display:flex;flex-direction:column;gap:6px;max-height:230px;overflow-y:auto;margin:10px 0;}
+.bm-sellrow{display:flex;align-items:center;gap:8px;padding:6px 8px;border-radius:10px;background:#faf6f9;}
+.bm-sellnm{flex:1;font-weight:800;font-size:13px;color:#4a3a4a;border-left:4px solid #ccc;padding-left:8px;text-align:left;}
+.bm-sellval{font-weight:800;font-size:12.5px;color:#2f9e44;}
+.bm-sellone{font:inherit;font-weight:800;font-size:12px;color:#fff;background:#ff5a92;border:none;border-radius:8px;padding:5px 12px;cursor:pointer;}
+.bm-sellone:hover{filter:brightness(1.05);}
 .bm-panel{width:262px;display:flex;flex-direction:column;gap:12px;}
 .bm-pcard{background:rgba(255,255,255,.72);border:1px solid rgba(216,199,255,.7);border-radius:14px;padding:12px;box-shadow:0 4px 14px rgba(120,80,140,.08);}
 .bm-pcard h3{margin:0 0 8px;font-size:12px;color:#8a7a8a;font-weight:800;}

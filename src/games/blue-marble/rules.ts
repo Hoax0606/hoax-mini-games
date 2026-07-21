@@ -264,6 +264,7 @@ export type Pending =
   | { kind: 'startBuild' }                          // 출발 정확히 멈춤 → 내 도시 하나 추가 건설
   | { kind: 'bonusOffer' }                          // 오락실: 할지/판돈(100·200·300) 선택
   | { kind: 'bonus'; stake: number; round: number; pot: number }  // 오락실 2지선다
+  | { kind: 'raiseFunds'; to: string | null; amount: number }     // 통행료/세금 낼 돈 부족 → 땅 팔아 마련(또는 파산)
   | null;
 
 export interface BMState {
@@ -366,10 +367,10 @@ export function tollFor(state: BMState, tile: number, byPeerId: string): number 
 
 /** 라인(변)별 건물 건설비. 0=1라인(가장 쌈) … 3=4라인(가장 비쌈). 대지값과 별개 고정. */
 export const LINE_BUILD: Record<BuildKind, number>[] = [
-  { villa: 80000,  house2: 170000, apt: 270000,  landmark: 400000 },   // 1라인
-  { villa: 180000, house2: 350000, apt: 450000,  landmark: 650000 },   // 2라인
-  { villa: 350000, house2: 570000, apt: 750000,  landmark: 1000000 },  // 3라인
-  { villa: 500000, house2: 780000, apt: 950000,  landmark: 1300000 },  // 4라인
+  { villa: 50000,  house2: 110000, apt: 180000,  landmark: 280000 },   // 1라인
+  { villa: 120000, house2: 230000, apt: 300000,  landmark: 430000 },   // 2라인
+  { villa: 220000, house2: 370000, apt: 490000,  landmark: 660000 },   // 3라인
+  { villa: 320000, house2: 500000, apt: 620000,  landmark: 850000 },   // 4라인
 ];
 /** 칸 index → 라인(0~3). 보드 배치(9×9, 반시계) 기준: 하단·좌·상·우 */
 export function lineOf(tile: number): number {
@@ -402,6 +403,14 @@ export function acquireCost(state: BMState, tile: number): number {
   if (arr.includes('landmark')) return -1;
   const value = t.price + arr.reduce((v, k) => v + buildCostOf(tile, k), 0);
   return Math.round(value * ACQUIRE_MUL);
+}
+
+/** 내 땅/도시 판매 시 돌려받는 금액 = 땅값 + 지은 건물 건설비 합 (전액 환급). 도시/섬 모두 가능. */
+export function sellRefund(state: BMState, tile: number): number {
+  const t = BOARD[tile];
+  if (t.type !== 'city' && t.type !== 'island') return 0;
+  const arr = state.builds[tile] ?? [];
+  return t.price + arr.reduce((v, k) => v + buildCostOf(tile, k), 0);
 }
 
 /** 파산 안 한 다음 차례 인덱스 (현재 turnIdx 다음부터 시계방향으로 찾음) */

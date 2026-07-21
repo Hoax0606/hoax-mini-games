@@ -30,7 +30,10 @@ export type BMAction =
   | { kind: 'bonusStart'; stake: number }     // 오락실: 판돈 걸고 시작 (0=안 함)
   | { kind: 'bonusPick'; choice: number }     // 오락실 2지선다 (0/1)
   | { kind: 'bonusStop' }                     // 오락실: 지금까지 딴 것 받고 종료
-  | { kind: 'eventOk' };                       // 세금 등 이벤트 창 확인(밟은 사람만)
+  | { kind: 'eventOk' }                        // 세금 등 이벤트 창 확인(밟은 사람만)
+  | { kind: 'sell'; tile: number }             // 내 땅 판매(현금 마련)
+  | { kind: 'payDebt' }                        // raiseFunds: 마련한 돈으로 지불
+  | { kind: 'giveUp' };                        // raiseFunds: 포기하고 파산
 
 // ── hello ──
 export function encodeHello(peerId: string): GameMessage {
