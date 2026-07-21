@@ -3,31 +3,17 @@
 다른 머신(집)에서 이 프로젝트를 이어서 작업할 때 읽는 문서.
 **Claude Code 첫 프롬프트로 "HANDOFF.md 정독하고 이어서 진행해줘" 라고 시작하면 됨.**
 
-마지막 업데이트: **2026-07-21 (D)** (게임 이탈 시 계속 — 전체 게임 구현 + 2인 남은사람 승) / ⚠️늑대인간 표시 버그는 여전히 최상단 "다음 작업"으로 남아있음
+마지막 업데이트: **2026-07-21 (D)** (게임 이탈 시 계속 — 전체 게임 + 2인 남은사람 승 / 늑대인간 빈 화면 버그 해결 + deal 확인흐름 + 역할 일러스트)
 
 ---
 
-## 🚧 다음 작업 (회사에서 이어서) — 한밤의 늑대인간 "빈 화면" 표시 버그
+## ✅ 해결됨 — 한밤의 늑대인간 "빈 화면" 버그 (2026-07-21 세션 D, 커밋 652ec0f)
 
-**증상**: AlphaTest 솔로로 한밤의 늑대인간 시작 → 게임 영역이 거의 빈 화면처럼 보임. **콘솔 에러는 없음.**
+**원인**: `.ww-result`(결과 오버레이)가 `position:absolute;inset:0;display:flex;background:rgba(255,247,251,.94)` 라, `resultEl.hidden=true` 를 걸어도 **CSS `display:flex` 가 UA 의 `[hidden]{display:none}` 을 이겨서** 안 숨겨짐 → 결과 오버레이가 deal/밤/낮 내내 게임을 94% 흰색으로 덮어 "빈 화면"처럼 보였음. (DOM·로직·크기 전부 정상이었고 순수 표시 문제였던 게 맞음.)
 
-**진단 완료 (원인 좁혀짐)**: index.ts `start()` 와 render.ts `constructor`/`render()` 에 `[ww]` 진단 로그를 심어 확인함. 콘솔 출력:
-- `[ww] start` → `role:'host', players:Array(1), spectator:false, hasParent:true` ✅ 모듈 정상 시작
-- `[ww] renderer mount` → `connected:true, parentCls:'game-canvas-wrap'` ✅ root DOM 정상 마운트
-- `[ww] first render` → `phase:'deal', players:3, myOrigRole:'robber', connected:true, w:986` ✅ 렌더 실행 + 폭 986px 있음 + 역할 배정됨 + 더미 2명 채워 3인
+**진단 방법(기록용)**: `document.elementFromPoint(게임중앙)` 이 `ww-result` 를 반환 → 오버레이가 덮고 있음을 확정. computed style 로 rootH/opacity 정상 확인 후 좁힘.
 
-→ **start·마운트·렌더·크기·로직 전부 정상. 기능 문제 아님.** 헤드리스 시뮬로도 deal→밤→낮→투표→결과 완주 + 버튼 배선 검증됨(순수 표시 문제).
-
-**남은 문제**: `.ww-root` **내부 콘텐츠만** 브라우저에서 극도로 저대비/거의 안 보임. 플랫폼 헤더("한밤의 늑대인간")·우측 채팅 패널은 선명한데 게임 영역(왼쪽, 폭 986)만 흐림. → **CSS 가시성/대비 문제.**
-
-**회사에서 할 것 (순서대로)**:
-1. F12 **Elements** 탭에서 `.ww-root` → `.ww-grid` → `.ww-stage`/`.ww-center`/`.ww-big-card`/`.ww-players` 의 **computed style** 확인. 특히 `opacity` / `filter` / `color` / `background` / `height`.
-2. 빠른 격리: `.ww-root` 배경을 `background:#fff` 단색 + 자식 텍스트 `color:#000` 로 잠깐 바꿔보고 보이면 → **대비/투명도 문제 확정**.
-3. 의심 후보: (a) 밝은 파스텔 그라데이션 배경 + rgba 반투명 흰 패널이라 대비 부족(특히 blur 캡처에서 심해 보임) (b) 어딘가 `opacity`/애니메이션(theme.css `.pop-in`/`.stagger-in`) 잔류 (c) `.ww-stage backdrop-filter:blur(6px)` 가 배경과 섞여 흐림.
-4. 수정 방향: 라이어게임(`.lg-screen`)처럼 **theme.css CSS 변수(--text-main 등) + 불투명 흰 카드**로 재정비하거나, `.ww-root` 콘텐츠 대비를 확 올리기(텍스트 진하게, 패널 배경 불투명, 테두리 진하게). CLAUDE.md 규약대로 theme.css 변수 활용 권장.
-5. **진단 로그 제거**: 고친 뒤 `[ww]` console.log 3개 삭제 (index.ts `start()`, render.ts `constructor` mount 로그 + `render()` first-render 로그 + `_dbg` 필드).
-
-**참고 파일**: `src/games/werewolf/render.ts`(CSS는 파일 상단 `const CSS` 템플릿), 비교대상 `src/games/liar-game/render.ts` + `theme.css`의 `.lg-screen` 계열.
+**수정**: `.ww-root [hidden]{display:none !important;}` 추가(같은 버그 있던 `.ww-mycard` 등도 커버). 교훈: **display 를 지정한 요소에 `hidden` 속성만으로 숨기면 안 됨** — `[hidden]` 규칙을 명시하거나 클래스 토글 사용. 그리고 deal 확인 흐름/역할 일러스트도 함께 반영, `[ww]` 진단 로그 제거.
 
 ---
 
@@ -40,6 +26,8 @@
 - **👥 2인/소수 3종** — 에어하키·오목(상대 나가면 남은 호스트 승, reason 'timeout' 재사용) / 알까기(2~4인: 나간 사람 알 제거+liveCount 재계산 → 생존≤1 승, 아니면 턴 넘기고 sync).
 - 각 onPeerLeft 는 관전자 peerId 를 멤버십 체크로 걸러 승자 오판정 방지.
 - **⚠️ 미검증**: 게임별 이탈 시나리오 멀티 플레이테스트 필요. werewolf 는 minP=3 밑으로 떨어지면 "빼고 계속"은 되나 2인 진행이 degenerate(카드 유지+행동 스킵) — 필요 시 별도 종료 처리. **Phase 3 방장 완전 이양은 여전히 미착수**(호스트가 나가면 아직 전원 메뉴 복귀).
+
+**같은 세션 늑대인간 수정(커밋 652ec0f)**: 빈 화면 버그 해결(위 "✅ 해결됨" 참고) + deal 흐름을 "각자 역할 확인 후 확인 버튼 → 전원 확인 시 밤"으로(solo 자동진행 제거, 봇은 자동 ready) + 역할 7종 채워진 파스텔 일러스트(`ROLE_SVG`, viewBox 48).
 
 ### 🗓️ 2026-07-20~21 세션 — 🆕 한밤의 늑대인간(werewolf) + 브루마블 카드/버그 수정
 
