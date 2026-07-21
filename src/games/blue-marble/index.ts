@@ -325,8 +325,11 @@ class BlueMarbleModule implements GameModule {
   private doOlympic(peer: string, tile: number): void {
     const s = this.state;
     if (s.owner[tile] !== peer || BOARD[tile].type !== 'city') return;
-    s.olympic[tile] = Math.min(5, (s.olympic[tile] ?? 1) + 1);   // 첫 개최 ×2 … 최대 ×5
-    s.log = `${BOARD[tile].name} 올림픽 개최 ×${s.olympic[tile]}!`;
+    // 올림픽은 항상 "한 곳"만 개최 — 새 도시를 고르면 기존 개최지는 사라진다.
+    // 같은 도시를 다시 고르면 배수 누적(첫 개최 ×2 … 최대 ×5).
+    const next = Math.min(5, (s.olympic[tile] ?? 1) + 1);
+    s.olympic = { [tile]: next };
+    s.log = `${BOARD[tile].name} 올림픽 개최 ×${next}! (이전 개최지는 해제)`;
     sound.play('pop');
   }
   private doBonusPick(peer: string, choice: number): void {

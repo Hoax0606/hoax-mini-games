@@ -393,14 +393,15 @@ export function canBuild(state: BMState, tile: number, peerId: string, kind: Bui
   return state.players[peerId]!.money >= buildCostOf(tile, kind);
 }
 
-/** 남의 도시 인수 비용 = (땅값 + 지은 건물 건설비 합) × 2. 랜드마크 있으면 인수 불가 → -1 */
+/** 남의 도시 인수 비용 = (땅값 + 지은 건물 건설비 합) × 배율. 랜드마크 있으면 인수 불가 → -1 */
+const ACQUIRE_MUL = 1.5;
 export function acquireCost(state: BMState, tile: number): number {
   const t = BOARD[tile];
   if (t.type !== 'city') return -1;
   const arr = state.builds[tile] ?? [];
   if (arr.includes('landmark')) return -1;
   const value = t.price + arr.reduce((v, k) => v + buildCostOf(tile, k), 0);
-  return value * 2;
+  return Math.round(value * ACQUIRE_MUL);
 }
 
 /** 파산 안 한 다음 차례 인덱스 (현재 turnIdx 다음부터 시계방향으로 찾음) */

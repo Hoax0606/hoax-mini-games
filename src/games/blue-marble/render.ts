@@ -662,7 +662,7 @@ export class BlueMarbleRenderer {
     this.setPickMode(pick);
     if (!mine) { this.showActing(state, p, cur); return; }
     if (p.kind === 'travel') { this.showBanner('이동할 칸을 클릭하세요', false); return; }
-    if (p.kind === 'olympic') { this.showBanner('개최할 내 땅을 클릭하세요', true); return; }
+    if (p.kind === 'olympic') { this.showBanner('올림픽 열 내 도시를 클릭 (기존 개최지는 해제) · 안 열려면 건너뛰기', true); return; }
     if (p.kind === 'startBuild') { this.showBanner('건설할 내 땅을 클릭하세요', true); return; }
     if (p.kind === 'cardSwapMine') { this.showBanner('바꿀 내 도시를 클릭', false); return; }
     if (p.kind === 'cardSwapTheirs') { this.showBanner('바꿔올 상대 도시를 클릭', false); return; }
