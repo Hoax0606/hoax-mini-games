@@ -250,6 +250,13 @@ class AppleGame implements GameModule {
     }
   }
 
+  /** 플레이어 이탈 — 랭킹 집계 대상에서 제외.
+   *  사과는 타이머로 자동 종료되므로 stall 은 없고, 나간 사람이 유령(0점)으로 순위에
+   *  남는 것만 방지한다. 호스트·게스트 공통으로 안전(게스트 최종순위는 호스트 ag:end 로 받음). */
+  onPeerLeft(peerId: string): void {
+    this.otherScores.delete(peerId);
+  }
+
   /** 일시정지 토글. paused 동안 흐른 만큼 startedAt 을 더해 타이머가 멈춘 것처럼. */
   setPaused(paused: boolean): void {
     if (paused === this.paused) return;

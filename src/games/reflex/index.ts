@@ -384,6 +384,18 @@ class ReflexGame implements GameModule {
   // 호스트: 전원 완료 판정 + 결과 전송
   // ============================================
 
+  /** 플레이어 이탈 처리.
+   *  - 상대 미니뷰 제거(공통).
+   *  - 호스트: 완료 대기 인원에서 제외. 안 하면 나간 사람 완료를 기다리다 120초 워치독까지
+   *    종료가 지연된다. 대기 인원 축소 후 전원완료면 즉시 마감. */
+  onPeerLeft(peerId: string): void {
+    this.opponents.delete(peerId);
+    if (!this.isHost || !this.finals || this.gameFinished) return;
+    this.finals.delete(peerId);
+    this.expectedPlayerCount = Math.max(1, this.expectedPlayerCount - 1);
+    this.tryFinishIfAllDone();
+  }
+
   /** 안전장치 발동 — 아직 안 끝낸 플레이어를 실격(-1)으로 채우고 마감 */
   private forceFinishAsHost(): void {
     if (!this.isHost || !this.finals || this.gameFinished) return;

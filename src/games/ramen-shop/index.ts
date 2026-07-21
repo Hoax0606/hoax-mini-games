@@ -168,6 +168,11 @@ class RamenShopGame implements GameModule {
     if (this.ctx?.canvas) this.ctx.canvas.style.cursor = '';
   }
 
+  /** 플레이어 이탈 — 매출 랭킹 집계에서 제외. 라면도 타이머 자동 종료라 stall 없음(유령 방지용). */
+  onPeerLeft(peerId: string): void {
+    this.otherScores.delete(peerId);
+  }
+
   setPaused(paused: boolean): void {
     if (paused === this.paused) return;
     this.paused = paused;

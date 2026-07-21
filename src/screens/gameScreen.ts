@@ -686,12 +686,13 @@ export function createGameScreenAsHostScreen(args: GameScreenAsHostArgs): Screen
           return;
         }
 
-        // 플레이어 이탈 — 게임이 이탈 처리를 지원(onPeerLeft)하고 남은 인원이 최소인원 이상이면
-        //   그 사람만 빼고 계속. 아니면(2인 게임에서 상대가 나감 등) 기존대로 게임 종료.
+        // 플레이어 이탈 — 게임이 onPeerLeft 를 지원하고 최소 1명이라도 남으면 그 사람만 빼고
+        //   게임에 넘긴다. "계속 진행"할지 "남은 사람 승으로 종료"할지는 각 게임의 onPeerLeft 가
+        //   자기 종료조건(checkEnd 등)으로 판단한다 — 2인 게임은 여기서 남은 1명 승 처리가 트리거됨.
+        //   onPeerLeft 미지원 게임이나 남은 인원 0이면 기존대로 방 종료(메뉴 복귀).
         const leaver = activePlayers.find((p) => p.peerId === peerId);
         const remaining = activePlayers.filter((p) => p.peerId !== peerId);
-        const minP = getGameById(roomState.gameId)?.meta.minPlayers ?? 2;
-        if (gameModule?.onPeerLeft && remaining.length >= minP) {
+        if (gameModule?.onPeerLeft && remaining.length >= 1) {
           activePlayers.splice(0, activePlayers.length, ...remaining);
           gameModule.onPeerLeft(peerId); // 호스트 authoritative 로직이 턴/상태 갱신 후 게임 프로토콜로 sync
           host.send({ type: 'player_left', peerId, nickname: leaver?.nickname ?? '' });
@@ -995,6 +996,14 @@ export function createGameScreenAsGuestScreen(args: GameScreenAsGuestArgs): Scre
             closeOnDispose = false;
             router.replace(() => createWaitingRoomAsGuestScreen({ guest, initialRoomState: msg.roomState }));
           }
+          return;
+        }
+        // 다른 플레이어 이탈 — 호스트가 "남기고 계속"으로 판단해 broadcast 한 것.
+        //   로컬시뮬 게임(테트리스/사과 등)은 게스트도 나간 사람을 자기 상태에서 정리해야
+        //   상대 미니뷰/집계가 유령으로 남지 않는다. 호스트-authoritative 게임 모듈은
+        //   onPeerLeft 안에서 !isHost 가드로 no-op 하므로 무해하다.
+        if (msg.type === 'player_left') {
+          if (gameStarted && gameModule) gameModule.onPeerLeft?.(msg.peerId);
           return;
         }
         if (msg.type !== 'game_msg') return;

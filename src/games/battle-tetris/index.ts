@@ -387,6 +387,15 @@ class BattleTetrisGame implements GameModule {
   // 호스트 전용 — 승리 판정
   // ============================================
 
+  /** 플레이어 이탈 처리.
+   *  - 상대 미니뷰에서 제거(호스트·게스트 공통) — 안 하면 나간 사람 보드가 유령으로 남음.
+   *  - 호스트: 승리 판정에서도 제외. 안 그러면 last-one-standing 이 나간 사람을 계속
+   *    '생존'으로 세어 생존자가 1명이 돼도 게임이 영영 안 끝난다. 이탈=지금 탈락으로 처리. */
+  onPeerLeft(peerId: string): void {
+    this.opponents.delete(peerId);
+    this.markPlayerOut(peerId); // markPlayerOut 내부에서 isHost/gameFinished/존재 가드
+  }
+
   private markPlayerOut(peerId: string): void {
     if (!this.isHost || !this.playerRanks || this.gameFinished) return;
     const s = this.playerRanks.get(peerId);
