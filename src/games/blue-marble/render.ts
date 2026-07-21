@@ -521,7 +521,7 @@ export class BlueMarbleRenderer {
       const here = state.order.filter((p) => (this.dispPos[p] ?? state.pos[p]) === i && !state.players[p]!.bankrupt);
       if (here.length) {
         const tk = document.createElement('div'); tk.className = 'bm-toks';
-        tk.innerHTML = here.map((p) => `<span class="bm-tok">${tokenSvg(colorOf(state, p), colorDeep(state, p))}</span>`).join('');
+        tk.innerHTML = here.map((p) => `<span class="bm-tok${p === this.myId ? ' me' : ''}">${tokenSvg(colorOf(state, p), colorDeep(state, p))}</span>`).join('');
         tile.appendChild(tk);
       }
     }
@@ -579,7 +579,7 @@ export class BlueMarbleRenderer {
       const here = state.order.filter((p) => (this.dispPos[p] ?? state.pos[p]) === i && !state.players[p]!.bankrupt);
       if (here.length) {
         const tk = document.createElement('div'); tk.className = 'bm-toks';
-        tk.innerHTML = here.map((p) => `<span class="bm-tok">${tokenSvg(colorOf(state, p), colorDeep(state, p))}</span>`).join('');
+        tk.innerHTML = here.map((p) => `<span class="bm-tok${p === this.myId ? ' me' : ''}">${tokenSvg(colorOf(state, p), colorDeep(state, p))}</span>`).join('');
         tile.appendChild(tk);
       }
     }
@@ -1181,9 +1181,15 @@ function injectStyle(): void {
   .bm-diceres{transition:opacity .18s;transform:none;}
 }
 @keyframes bm-rmfade{from{opacity:0;}to{opacity:1;}}
-.bm-toks{position:absolute;bottom:17px;left:0;right:0;display:flex;gap:2px;justify-content:center;flex-wrap:wrap;pointer-events:none;z-index:4;}
-.bm-tok{width:19px;height:24px;display:block;}
-.bm-tok svg{width:100%;height:100%;display:block;filter:drop-shadow(0 2px 2px rgba(0,0,0,.3));}
+.bm-toks{position:absolute;bottom:15px;left:0;right:0;display:flex;gap:1px;justify-content:center;flex-wrap:wrap;pointer-events:none;z-index:8;}
+.bm-tok{width:25px;height:31px;display:block;}
+/* 흰색 후광(2겹) + 진한 그림자 → 알록달록한 칸 위에서도 말이 또렷하게 뜬다 */
+.bm-tok svg{width:100%;height:100%;display:block;filter:drop-shadow(0 0 1.4px #fff) drop-shadow(0 0 1.4px #fff) drop-shadow(0 2px 3px rgba(0,0,0,.45));}
+/* 내 말 — 조금 더 크게 + 살짝 통통 튀어 항상 찾기 쉽게 */
+.bm-tok.me{width:29px;height:36px;z-index:9;}
+.bm-tok.me svg{filter:drop-shadow(0 0 2px #fff) drop-shadow(0 0 2px #fff) drop-shadow(0 3px 4px rgba(0,0,0,.5));animation:bm-tokbob 1.3s ease-in-out infinite;}
+@keyframes bm-tokbob{0%,100%{transform:translateY(0);}50%{transform:translateY(-3px);}}
+@media (prefers-reduced-motion:reduce){.bm-tok.me svg{animation:none;}}
 .bm-selected{z-index:6;filter:brightness(1.12) saturate(1.1);box-shadow:0 0 0 3px #fff,0 0 0 5px #ff5a92;}
 .bm-center{grid-column:2/9;grid-row:2/9;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:11px;
   background:linear-gradient(135deg,rgba(255,255,255,.5),rgba(255,240,247,.5));border-radius:12px;padding:12px;}
