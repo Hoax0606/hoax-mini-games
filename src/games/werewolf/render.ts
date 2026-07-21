@@ -125,7 +125,9 @@ const CSS = `
 .ww-big-card{width:158px;margin:0 auto 14px;border-radius:20px;padding:22px 16px;border:2px solid;}
 .ww-big-card.wolf{background:linear-gradient(160deg,#ffe0e0,#ffd0d0);border-color:#e0554d;box-shadow:0 10px 26px rgba(224,85,77,.25);}
 .ww-big-card.village{background:linear-gradient(160deg,#e2efff,#d0e5ff);border-color:#3b82c4;box-shadow:0 10px 26px rgba(59,130,196,.22);}
-.ww-big-card .ic{width:56px;height:56px;margin:0 auto 8px;}
+.ww-big-card .ic{width:88px;height:88px;margin:2px auto 10px;}
+/* .ic 안의 SVG 가 컨테이너를 꽉 채우게 (안 그러면 viewBox svg 가 작게/기본크기로 렌더됨) */
+.ww-root .ic svg{width:100%;height:100%;display:block;}
 .ww-big-card .nm{font-size:20px;font-weight:900;color:#43384f;}
 
 .ww-choose{display:flex;flex-wrap:wrap;gap:9px;justify-content:center;margin-top:6px;}
@@ -183,6 +185,26 @@ const CSS = `
 /* 결과 오버레이 */
 .ww-result{position:absolute;inset:0;background:rgba(255,247,251,.94);backdrop-filter:blur(8px);
   display:flex;flex-direction:column;align-items:center;justify-content:flex-start;gap:14px;padding:26px 20px;overflow-y:auto;z-index:5;}
+/* 도움말 버튼(상단) + 패널 오버레이 */
+.ww-help-btn{margin-left:8px;flex:none;width:26px;height:26px;border-radius:50%;border:1px solid #d8cdec;
+  background:#fff;color:#7b61c9;font-weight:900;font-size:14px;cursor:pointer;line-height:1;box-shadow:0 1px 3px rgba(120,90,160,.12);}
+.ww-help-btn:hover{background:#f3ecff;}
+.ww-help{position:absolute;inset:0;background:rgba(255,255,255,.98);z-index:6;overflow-y:auto;padding:22px 22px 30px;}
+.ww-help h3{margin:0 0 4px;font-size:19px;font-weight:900;color:#43384f;}
+.ww-help h4{margin:16px 0 8px;font-size:13px;font-weight:800;color:#7b61c9;letter-spacing:.02em;}
+.ww-help ol{margin:0;padding-left:20px;color:#43384f;font-size:13px;line-height:1.7;}
+.ww-help .win{background:#f6f1ff;border:1px solid #e6dcf4;border-radius:12px;padding:10px 12px;font-size:12.5px;line-height:1.6;color:#5a5070;}
+.ww-help-roles{display:flex;flex-direction:column;gap:8px;}
+.ww-help-role{display:flex;align-items:center;gap:11px;padding:9px 11px;border-radius:12px;border:1px solid #ece3f7;background:#fff;}
+.ww-help-role .ic{width:38px;height:38px;flex:none;}
+.ww-help-role .info{flex:1;min-width:0;}
+.ww-help-role .rn{font-size:14px;font-weight:800;color:#43384f;}
+.ww-help-role .rn .cnt{color:#8b81a0;font-size:12px;font-weight:700;margin-left:4px;}
+.ww-help-role .ra{font-size:11.5px;color:#8b81a0;line-height:1.4;}
+.ww-help-role .team{font-size:10px;font-weight:800;padding:2px 8px;border-radius:999px;flex:none;}
+.ww-help-role .team.wolf{background:#ffdad6;color:#c8443b;}
+.ww-help-role .team.village{background:#d6e8fb;color:#2f6aa8;}
+.ww-help-close{margin:20px auto 0;}
 .ww-banner{font-size:26px;font-weight:900;text-align:center;padding:10px 26px;border-radius:18px;margin-top:6px;}
 .ww-banner.village{background:linear-gradient(135deg,#dcebff,#eef5ff);color:#2f6aa8;border:1px solid #aecbe8;}
 .ww-banner.wolf{background:linear-gradient(135deg,#ffdedb,#fff0ef);color:#c8443b;border:1px solid #f2b3ae;}
@@ -220,7 +242,10 @@ export class WerewolfRenderer {
   private memoEl!: HTMLDivElement;
   private stageEl!: HTMLDivElement;
   private resultEl!: HTMLDivElement;
+  private helpEl!: HTMLDivElement;
   private styleEl!: HTMLStyleElement;
+  /** 도움말 "이 게임의 역할" 계산용 — 매 렌더 현재 인원 저장 */
+  private lastPlayerCount = 0;
 
   /** 스테이지 마지막 렌더 키 — 바뀔 때만 재빌드 */
   private stageKey = '';
@@ -247,6 +272,7 @@ export class WerewolfRenderer {
       <div class="ww-top">
         <span class="ww-phase" id="ww-phase"></span>
         <span class="ww-timer" id="ww-timer" hidden></span>
+        <button class="ww-help-btn" id="ww-help" title="도움말">?</button>
       </div>
       <div class="ww-steps" id="ww-steps"></div>
       <div class="ww-grid">
@@ -258,6 +284,7 @@ export class WerewolfRenderer {
         <div class="ww-stage" id="ww-stage"></div>
       </div>
       <div class="ww-result" id="ww-result" hidden></div>
+      <div class="ww-help" id="ww-help-panel" hidden></div>
     `;
     canvas.parentElement?.appendChild(root);
     this.root = root;
@@ -270,6 +297,8 @@ export class WerewolfRenderer {
     this.memoEl = root.querySelector('#ww-memo')!;
     this.stageEl = root.querySelector('#ww-stage')!;
     this.resultEl = root.querySelector('#ww-result')!;
+    this.helpEl = root.querySelector('#ww-help-panel')!;
+    root.querySelector<HTMLButtonElement>('#ww-help')!.addEventListener('click', () => this.showHelp());
   }
 
   destroy(): void {
@@ -278,12 +307,46 @@ export class WerewolfRenderer {
     this.canvas.style.display = '';
   }
 
+  /** 도움말 패널 — 진행 순서 + 승패 규칙 + "이 게임의 역할"(인원별 고정 세팅이라 정확히 표시). */
+  private showHelp(): void {
+    const setup = setupFor(this.lastPlayerCount || 3);
+    const counts = new Map<Role, number>();
+    for (const r of setup) counts.set(r, (counts.get(r) ?? 0) + 1);
+    // ROLE_META 정의 순서로 나열 (늑대 먼저)
+    const rolesHtml = (Object.keys(ROLE_META) as Role[])
+      .filter((r) => counts.has(r))
+      .map((r) => {
+        const t = teamOf(r);
+        const c = counts.get(r)!;
+        return `<div class="ww-help-role"><div class="ic">${ROLE_SVG[r]}</div>` +
+          `<div class="info"><div class="rn">${ROLE_META[r].name}${c > 1 ? `<span class="cnt">×${c}</span>` : ''}</div>` +
+          `<div class="ra">${ROLE_META[r].ability}</div></div>` +
+          `<span class="team ${t}">${t === 'wolf' ? '늑대' : '시민'}</span></div>`;
+      }).join('');
+    this.helpEl.innerHTML = `<h3>🌙 게임 방법</h3>
+      <h4>진행 순서</h4>
+      <ol><li>역할 배정 — 각자 자기 카드를 확인해요.</li>
+      <li>밤 — 역할 순서대로 비밀 능력을 써요. (누가 무슨 역할인지는 공개되지 않아요.)</li>
+      <li>낮 토론 — 채팅으로 서로 추리하고 블러핑해요.</li>
+      <li>투표 — 가장 의심스러운 사람을 지목해요.</li>
+      <li>결과 — 처형된 사람과 모두의 카드가 공개돼요.</li></ol>
+      <h4>승패</h4>
+      <div class="win">처형된 사람 중 <b>늑대가 있으면 시민 팀 승</b> · <b>시민만 처형되면 늑대 팀 승</b> · 아무도 처형되지 않으면 플레이어 중 늑대가 없을 때만 시민 팀 승.</div>
+      <h4>이 게임의 역할 · ${this.lastPlayerCount}인 (카드 ${setup.length}장, 가운데 3장 포함)</h4>
+      <div class="ww-help-roles">${rolesHtml}</div>
+      <button class="ww-btn ghost ww-help-close" id="ww-help-close">닫기</button>`;
+    this.helpEl.querySelector<HTMLButtonElement>('#ww-help-close')!
+      .addEventListener('click', () => { this.helpEl.hidden = true; });
+    this.helpEl.hidden = false;
+  }
+
   // ============================================
   // 메인 렌더
   // ============================================
 
   render(rs: WwRenderState): void {
     const s = rs.state;
+    this.lastPlayerCount = s.players.length;
     this.renderTop(rs);
     this.renderSteps(rs);
     this.renderPlayers(rs);
