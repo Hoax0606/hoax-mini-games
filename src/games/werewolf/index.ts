@@ -621,7 +621,7 @@ class WerewolfModule implements GameModule {
   }
 
   private relayChat(from: string, nickname: string, text: string): void {
-    const clean = text.trim().slice(0, 200);
+    const clean = text.trim().slice(0, 500);
     if (!clean) return;
     const line: ChatLine = { peerId: from, nickname, text: clean };
     this.state.chatLog.push(line);

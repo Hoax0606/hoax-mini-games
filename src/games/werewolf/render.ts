@@ -294,6 +294,8 @@ export class WerewolfRenderer {
   /** 도움말 "이 게임의 역할" 계산용 — 매 렌더 현재 인원/세팅 저장 (랜덤 모드도 정확히 반영) */
   private lastPlayerCount = 0;
   private lastSetup: Role[] = [];
+  /** 결과 화면 1회만 그리게 (매 프레임 재생성 시 "다음" 버튼이 계속 갈려 클릭이 안 먹던 것 방지) */
+  private resultKey = '';
 
   /** 스테이지 마지막 렌더 키 — 바뀔 때만 재빌드 */
   private stageKey = '';
@@ -532,7 +534,7 @@ export class WerewolfRenderer {
     const s = rs.state;
     switch (s.phase) {
       case 'setup': return `setup:${rs.isHost}:${s.setup.join(',')}`;
-      case 'deal': return `deal:${rs.confirmedDeal}`;
+      case 'deal': return `deal:${rs.myOrigRole ?? 'none'}:${rs.confirmedDeal}:${s.readyCount}/${s.players.length}`;
       case 'night': {
         const mine = s.nightRole === rs.myOrigRole;
         // 늑대 혼자-엿보기 결과(peeked)가 오면 재빌드되도록 memo 개수/마지막종류 포함
@@ -738,7 +740,18 @@ export class WerewolfRenderer {
     // 결과가 이미 왔으면 확인만
     const seen = rs.memos.find((m) => m.kind === 'seerPlayer' || m.kind === 'seerCenter');
     if (seen) {
-      this.stageEl.innerHTML = `<div class="ww-center">${this.stageHead('예언자', '확인한 카드는 왼쪽 "밤에 알게 된 것"에 적어뒀어요.')}` +
+      const nick = (pid: string): string => rs.state.players.find((p) => p.peerId === pid)?.nickname ?? '?';
+      let cardsHtml: string;
+      if (seen.kind === 'seerPlayer') {
+        const r = seen.role;
+        cardsHtml = `<div class="ww-big-card ${teamOf(r)}" style="margin-bottom:10px"><div class="ic">${ROLE_SVG[r]}</div><div class="nm">${ROLE_META[r].name}</div></div>` +
+          `<div class="ww-stage-sub" style="margin-bottom:12px">${esc(nick(seen.target))}의 카드예요</div>`;
+      } else {
+        const sc = seen as Extract<NightInfo, { kind: 'seerCenter' }>;
+        cardsHtml = `<div class="ww-choose" style="margin-bottom:14px">` +
+          sc.cards.map((c) => `<div class="ww-cardface"><span class="ic">${ROLE_SVG[c.role]}</span><span class="cl">가운데 ${c.center + 1} · ${ROLE_META[c.role].name}</span></div>`).join('') + `</div>`;
+      }
+      this.stageEl.innerHTML = `<div class="ww-center">${this.stageHead('예언자', '확인한 카드예요.')}${cardsHtml}` +
         `<button class="ww-btn" id="ww-sc">확인</button></div>`;
       this.stageEl.querySelector<HTMLButtonElement>('#ww-sc')!.addEventListener('click', () => this.cb.onNightAct({ kind: 'skip' }));
       return;
@@ -833,7 +846,7 @@ export class WerewolfRenderer {
     this.stageEl.innerHTML = `${this.stageHead('낮 · 토론', '밤새 무슨 일이? 서로 추리하고, 블러핑하고, 늑대를 찾아내세요.')}` +
       `<div class="ww-chat"><div class="ww-log" id="ww-log"></div>` +
       `<form class="ww-chat-form" id="ww-cf" autocomplete="off">` +
-      `<input class="ww-chat-input" id="ww-ci" maxlength="200" placeholder="여기서 대화하세요 (블러핑 환영!)" />` +
+      `<input class="ww-chat-input" id="ww-ci" maxlength="500" placeholder="여기서 대화하세요 (블러핑 환영!)" />` +
       `<button class="ww-btn" type="submit">전송</button></form></div>`;
     this.updateChatLog(rs);
     this.stageEl.querySelector<HTMLFormElement>('#ww-cf')!.addEventListener('submit', (e) => {
@@ -889,6 +902,10 @@ export class WerewolfRenderer {
   private renderResult(rs: WwRenderState): void {
     const rv = rs.state.reveal;
     if (!rv) return;
+    // 이미 이 결과를 그렸고 다음 버튼도 살아있으면 재생성하지 않음(버튼 안정화)
+    const rkey = `${rv.winningTeam}:${rv.executed.join(',')}:${rv.winners.join(',')}`;
+    if (this.resultKey === rkey && this.resultEl.querySelector('#ww-next')) return;
+    this.resultKey = rkey;
     const nick = (pid: string): string => rs.state.players.find((p) => p.peerId === pid)?.nickname ?? '?';
     const win = rv.winningTeam;
     // 승패는 winners 목록이 최종 권위 (탄넬러 단독승/하수인 포함 등 팀 비교로 안 잡히는 경우 커버)

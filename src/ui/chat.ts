@@ -19,7 +19,7 @@ import { icon } from './icons';
 /** 한 사람이 1초에 보낼 수 있는 최대 메시지 수 (스팸 방어) */
 const SEND_COOLDOWN_MS = 250;
 /** 본문 최대 길이 — 너무 길면 잘림 */
-const MAX_TEXT_LEN = 200;
+const MAX_TEXT_LEN = 500;
 /** stream 에 유지할 최대 메시지 수 (오래된 건 제거) */
 const MAX_STREAM_ROWS = 100;
 
