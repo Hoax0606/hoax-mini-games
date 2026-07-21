@@ -31,6 +31,7 @@ const T_END = 'ww:end';
  * (switch (action.kind) 안에서 각 필드 타입이 자동으로 좁혀짐)
  */
 export type NightAction =
+  | { kind: 'doppelCopy'; target: string }           // 도플갱어: 복사할 상대 지목
   | { kind: 'wolfConfirm' }                          // 늑대(다중): 동료 확인만
   | { kind: 'wolfPeek'; center: number }             // 늑대(혼자): 가운데 1장 지목해서 봄
   | { kind: 'seerPlayer'; target: string }           // 예언자: 플레이어 카드 1장
@@ -52,7 +53,10 @@ export type NightInfo =
   | { kind: 'seerPlayer'; target: string; role: Role }         // 예언자: 본 플레이어 카드
   | { kind: 'seerCenter'; cards: { center: number; role: Role }[] } // 예언자: 본 가운데 카드들
   | { kind: 'robbed'; target: string; newRole: Role }          // 강도: 뺏어와서 바뀐 내 카드
-  | { kind: 'insomniac'; role: Role };                         // 불면증: 최종 내 카드
+  | { kind: 'insomniac'; role: Role }                          // 수면증: 최종 내 카드
+  | { kind: 'minionWolves'; peerIds: string[] }                // 하수인: 늑대 목록(늑대는 하수인 모름)
+  | { kind: 'masons'; peerIds: string[]; solo: boolean }       // 메이슨: 동료 메이슨(+혼자 여부)
+  | { kind: 'doppelCopied'; target: string; role: Role };      // 도플갱어: 복사한 대상/직업
 
 // ============================================
 // hello (게스트 → 호스트: 합류/상태 재요청)

@@ -16,8 +16,8 @@
 import type { GameModule, GameContext, GameMessage, GameResult, Player } from '../types';
 import { sound } from '../../core/sound';
 import {
-  dealCards, setupFor, nightStepsForSetup, tallyVotes, computeWin, teamOf,
-  MIN_PLAYERS, CENTER_COUNT,
+  dealCards, setupFor, nightStepsForSetup, tallyVotes, resolveHunterDeaths, computeWin, teamOf,
+  validateFreeSetup, ROLE_META, MIN_PLAYERS, CENTER_COUNT,
   type Role, type SecretDeal, type PublicState, type ChatLine, type RevealData,
 } from './rules';
 import {
@@ -71,11 +71,19 @@ class WerewolfModule implements GameModule {
   private nightSteps: Role[] = [];
   private stepIdx = 0;
   private readySet = new Set<string>();
+  // 랜덤(자유) 모드: 호스트가 setup 페이즈에서 고르는 카드 구성
+  private freeMode = false;
+  private setupDeck: Role[] = [];
+  private pendingPlayers: { peerId: string; nickname: string }[] = [];
   private stepChosen = new Set<string>(); // 이번 스텝에서 정보 선택을 이미 한 actor
   private stepDone = new Set<string>();    // 이번 스텝에서 완료한 actor
+  private dgCopy: Record<string, Role> = {}; // 도플갱어 peerId → 복사한 직업
   private hostVotes: Record<string, string> = {};
   private phaseDeadline = 0;
   private stepAdvancing = false;
+  /** 결과 공개용 밤 행동/교환 로그 (호스트가 밤 동안 기록) */
+  private hostNightLog: string[] = [];
+  private hostSwapLog: string[] = [];
 
   // 타이머
   private dayMs = 180_000;
@@ -100,11 +108,15 @@ class WerewolfModule implements GameModule {
     this.isSpectator = ctx.isSpectator === true;
     this.dayMs = Math.max(30, Number(ctx.roomOptions['discuss'] ?? '180')) * 1000;
 
+    this.freeMode = ctx.roomOptions['mode'] === 'free';
     this.renderer = new WerewolfRenderer(ctx.canvas, {
       onReady: () => this.doReady(),
       onNightAct: (a) => this.doNightAct(a),
       onChat: (t) => this.doChat(t),
       onVote: (t) => this.doVote(t),
+      onSetupAdd: (r) => this.setupAdd(r),
+      onSetupRemove: (r) => this.setupRemove(r),
+      onSetupStart: () => this.setupStart(),
     });
     sound.startBgm('apple-game');
 
@@ -118,7 +130,9 @@ class WerewolfModule implements GameModule {
         players.push({ peerId: `${DUMMY_PREFIX}${d}__`, nickname: `봇 ${String.fromCharCode(64 + d)}` });
         d += 1;
       }
-      this.startDealAsHost(players);
+      this.pendingPlayers = players;
+      if (this.freeMode) this.startSetupAsHost(players);
+      else this.startDealAsHost(players);
     } else {
       this.state = emptyState();
       this.ctx.sendToPeer(encodeHello(this.myPeerId));
@@ -255,6 +269,7 @@ class WerewolfModule implements GameModule {
     const rs: WwRenderState = {
       state: this.state,
       myPeerId: this.myPeerId,
+      isHost: this.isHost,
       isSpectator: this.isSpectator,
       myOrigRole: this.myOrigRole,
       memos: this.memos,
@@ -307,12 +322,49 @@ class WerewolfModule implements GameModule {
   // 호스트: deal 페이즈
   // ============================================
 
-  private startDealAsHost(players: { peerId: string; nickname: string }[]): void {
-    this.deal = dealCards(players.map((p) => p.peerId), () => Math.random());
-    this.nightSteps = nightStepsForSetup(setupFor(players.length));
+  /** 랜덤 모드: 호스트가 카드 구성을 고르는 setup 페이즈. 기본값 = 공식 조합. */
+  private startSetupAsHost(players: { peerId: string; nickname: string }[]): void {
+    this.setupDeck = [...setupFor(players.length)];
+    this.state = {
+      phase: 'setup', players, setup: [...this.setupDeck], readyCount: 0,
+      nightRole: null, nightStep: 0, nightTotal: 0, chatLog: [], reveal: null,
+    };
+    this.sync();
+    this.render();
+  }
+
+  private setupAdd(role: Role): void {
+    if (!this.isHost || this.state.phase !== 'setup') return;
+    // 늑대만 다중 허용. 나머지는 최대 1장. 카드 수는 인원+3 초과 못 함.
+    if (role !== 'wolf' && this.setupDeck.filter((r) => r === role).length >= 1) return;
+    if (this.setupDeck.length >= this.pendingPlayers.length + CENTER_COUNT) return;
+    this.setupDeck.push(role);
+    this.state.setup = [...this.setupDeck];
+    this.render();
+  }
+
+  private setupRemove(role: Role): void {
+    if (!this.isHost || this.state.phase !== 'setup') return;
+    const i = this.setupDeck.lastIndexOf(role);
+    if (i >= 0) this.setupDeck.splice(i, 1);
+    this.state.setup = [...this.setupDeck];
+    this.render();
+  }
+
+  private setupStart(): void {
+    if (!this.isHost || this.state.phase !== 'setup') return;
+    const check = validateFreeSetup(this.setupDeck, this.pendingPlayers.length);
+    if (!check.ok) { this.render(); return; } // 카드 수/중복 위반 시 시작 불가 (경고는 무시 가능)
+    this.startDealAsHost(this.pendingPlayers, [...this.setupDeck]);
+  }
+
+  private startDealAsHost(players: { peerId: string; nickname: string }[], deck: Role[] = setupFor(players.length)): void {
+    this.deal = dealCards(players.map((p) => p.peerId), deck, () => Math.random());
+    this.nightSteps = nightStepsForSetup(deck);
     this.state = {
       phase: 'deal',
       players,
+      setup: deck,
       readyCount: 0,
       nightRole: null,
       nightStep: 0,
@@ -359,6 +411,9 @@ class WerewolfModule implements GameModule {
     if (this.state.phase !== 'deal') return;
     this.state.phase = 'night';
     this.stepIdx = 0;
+    this.hostNightLog = [];
+    this.hostSwapLog = [];
+    this.dgCopy = {};
     this.sync();
     this.beginStep();
   }
@@ -396,6 +451,16 @@ class WerewolfModule implements GameModule {
     if (role === 'insomniac') {
       for (const a of actors) this.sendMemo(a, { kind: 'insomniac', role: this.deal.curCard[a]! });
     }
+    // 하수인: 늑대(처음 늑대였던 사람들) 목록 확인. 늑대는 하수인을 모름(단방향).
+    if (role === 'minion') {
+      const wolves = this.actorsOf('wolf');
+      for (const a of actors) this.sendMemo(a, { kind: 'minionWolves', peerIds: wolves });
+    }
+    // 메이슨: 서로 확인 (혼자면 아무도 안 보임)
+    if (role === 'mason') {
+      const solo = actors.length === 1;
+      for (const m of actors) this.sendMemo(m, { kind: 'masons', peerIds: actors.filter((x) => x !== m), solo });
+    }
 
     this.phaseDeadline = performance.now() + NIGHT_STEP_MS;
     this.sync();
@@ -416,11 +481,40 @@ class WerewolfModule implements GameModule {
     if (this.stepDone.has(from)) return;
 
     switch (action.kind) {
+      case 'doppelCopy': {
+        if (this.stepChosen.has(from)) return; // 이미 복사함
+        const target = action.target;
+        if (target === from || !this.deal.origRole[target]) return;
+        const copied = this.deal.origRole[target]!; // 도플갱어가 맨 처음이라 target 의 최초 역할 = 현재 역할
+        this.dgCopy[from] = copied;
+        this.deal.curCard[from] = copied; // 복사 즉시 그 직업이 됨 (승패도 이 카드 기준)
+        this.hostSwapLog.push(`도플갱어가 ${this.nickOf(target)}의 직업(${ROLE_META[copied].name})을 복사했어요.`);
+        this.sendMemo(from, { kind: 'doppelCopied', target, role: copied });
+        // 복사한 직업의 밤 행동을 "즉시" 수행. 정보/무행동 역할은 여기서 처리하고 확인 대기,
+        // 행동 역할(예언자/강도/말썽쟁이/주정뱅이)은 후속 액션을 기다린다(stepChosen 안 잠금).
+        if (copied === 'wolf' || copied === 'minion') {
+          this.sendMemo(from, { kind: 'minionWolves', peerIds: this.actorsOf('wolf') });
+          this.stepChosen.add(from);
+        } else if (copied === 'mason') {
+          const masons = this.actorsOf('mason').filter((x) => x !== from);
+          this.sendMemo(from, { kind: 'masons', peerIds: masons, solo: masons.length === 0 });
+          this.stepChosen.add(from);
+        } else if (copied === 'insomniac') {
+          this.sendMemo(from, { kind: 'insomniac', role: this.deal.curCard[from]! });
+          this.stepChosen.add(from);
+        } else if (copied !== 'seer' && copied !== 'robber' && copied !== 'troublemaker' && copied !== 'drunk') {
+          // 마을주민/사냥꾼/탄넬러/도플갱어(중첩 방지) — 행동 없음, 확인만
+          this.stepChosen.add(from);
+        }
+        // 행동 역할이면 stepChosen 을 잠그지 않아 아래 seer/robber/... 액션을 이어서 받는다.
+        return;
+      }
       case 'wolfPeek': {
         // 혼자 늑대만 유효 — 가운데 1장 엿보기 (완료 아님, 확인 대기)
         if (this.actorsOf('wolf').length !== 1) return;
         const c = clampCenter(action.center);
         this.sendMemo(from, { kind: 'peeked', center: c, role: this.deal.center[c]! });
+        this.hostNightLog.push(`혼자인 늑대가 가운데 카드를 확인했어요.`);
         return;
       }
       case 'wolfConfirm':
@@ -433,6 +527,7 @@ class WerewolfModule implements GameModule {
         this.stepChosen.add(from);
         const t = action.target;
         if (this.deal.curCard[t]) this.sendMemo(from, { kind: 'seerPlayer', target: t, role: this.deal.curCard[t]! });
+        this.hostNightLog.push(`${this.nickOf(from)}(예언자)가 ${this.nickOf(t)}의 카드를 확인했어요.`);
         return; // 확인(skip) 기다림
       }
       case 'seerCenter': {
@@ -440,6 +535,7 @@ class WerewolfModule implements GameModule {
         this.stepChosen.add(from);
         const cs = action.centers.slice(0, 2).map(clampCenter);
         this.sendMemo(from, { kind: 'seerCenter', cards: cs.map((c) => ({ center: c, role: this.deal.center[c]! })) });
+        this.hostNightLog.push(`${this.nickOf(from)}(예언자)가 가운데 카드 2장을 확인했어요.`);
         return;
       }
       case 'robber': {
@@ -451,6 +547,7 @@ class WerewolfModule implements GameModule {
         this.deal.curCard[from] = this.deal.curCard[t]!;
         this.deal.curCard[t] = mine;
         this.sendMemo(from, { kind: 'robbed', target: t, newRole: this.deal.curCard[from]! });
+        this.hostSwapLog.push(`${this.nickOf(from)}(강도)가 ${this.nickOf(t)}의 카드를 가져왔어요.`);
         return; // 확인 기다림
       }
       case 'troublemaker': {
@@ -461,6 +558,7 @@ class WerewolfModule implements GameModule {
           const tmp = this.deal.curCard[a]!;
           this.deal.curCard[a] = this.deal.curCard[b]!;
           this.deal.curCard[b] = tmp;
+          this.hostSwapLog.push(`말썽쟁이가 ${this.nickOf(a)} ↔ ${this.nickOf(b)}의 카드를 맞바꿨어요.`);
         }
         this.markDone(from); // 눈 감고 하는 행동 — 즉시 완료
         return;
@@ -472,6 +570,7 @@ class WerewolfModule implements GameModule {
         const mine = this.deal.curCard[from]!;
         this.deal.curCard[from] = this.deal.center[c]!;
         this.deal.center[c] = mine;
+        this.hostSwapLog.push(`${this.nickOf(from)}(주정뱅이)가 가운데 카드와 자기 카드를 바꿨어요.`);
         this.markDone(from);
         return;
       }
@@ -554,10 +653,15 @@ class WerewolfModule implements GameModule {
   private resolveVote(): void {
     if (this.state.phase !== 'vote' || this.ended) return;
     const seats = this.state.players.map((p) => p.peerId);
-    const { executed } = tallyVotes(this.hostVotes, seats);
     const finalRoles: Record<string, Role> = {};
     for (const s of seats) finalRoles[s] = this.deal.curCard[s]!;
-    const { winningTeam } = computeWin(finalRoles, executed);
+    // 최다 득표 처형 → 사냥꾼 연쇄 처형 → 승패 판정 (최종 카드 기준)
+    const base = tallyVotes(this.hostVotes, seats).executed;
+    const executed = resolveHunterDeaths(base, this.hostVotes, finalRoles);
+    const { winningTeam, winners } = computeWin(finalRoles, executed);
+    // 사냥꾼 연쇄로 추가 처형이 있었으면 로그에 표시
+    const extra = executed.filter((p) => !base.includes(p));
+    const hunterLog = extra.map((p) => `사냥꾼이 지목했던 ${this.nickOf(p)}도 함께 처형됐어요.`);
 
     const reveal: RevealData = {
       finalRoles,
@@ -566,6 +670,9 @@ class WerewolfModule implements GameModule {
       votes: { ...this.hostVotes },
       executed,
       winningTeam,
+      winners,
+      nightLog: [...this.hostNightLog, ...hunterLog],
+      swapLog: [...this.hostSwapLog],
     };
     this.state.phase = 'result';
     this.state.reveal = reveal;
@@ -596,7 +703,8 @@ class WerewolfModule implements GameModule {
   private resultFor(reveal: RevealData, peerId: string, spectator: boolean): GameResult {
     const myFinal = reveal.finalRoles[peerId];
     const myTeam = myFinal ? teamOf(myFinal) : null;
-    const iWon = !spectator && myTeam === reveal.winningTeam;
+    // winners 목록이 최종 권위 (탄넬러 단독승/하수인 포함/무승부 등 팀 비교로 안 잡히는 경우 커버)
+    const iWon = !spectator && reveal.winners.includes(peerId);
     return {
       winner: spectator ? null : (iWon ? 'me' : 'opponent'),
       summary: {
@@ -604,6 +712,7 @@ class WerewolfModule implements GameModule {
         winningTeam: reveal.winningTeam,
         myTeam,
         myFinalRole: myFinal ?? null,
+        myFinalRoleName: myFinal ? ROLE_META[myFinal].name : null,
       },
     };
   }
@@ -659,6 +768,9 @@ class WerewolfModule implements GameModule {
   private dummyNightAct(d: string, role: Role): void {
     const others = this.state.players.map((p) => p.peerId).filter((x) => x !== d);
     switch (role) {
+      case 'doppelganger':
+        this.handleAct(d, { kind: 'doppelCopy', target: pick(others) });
+        this.markDone(d); break; // 복사만 하고 후속 행동은 생략(봇)
       case 'wolf':
         this.markDone(d); break; // 동료 확인/혼자면 엿보기 생략하고 확인
       case 'seer':
@@ -707,6 +819,11 @@ class WerewolfModule implements GameModule {
   private myNick(): string {
     return this.ctx.players.find((p) => p.peerId === this.myPeerId)?.nickname ?? this.ctx.myNickname ?? '나';
   }
+
+  /** peerId → 닉네임 (결과 로그용). */
+  private nickOf(peerId: string): string {
+    return this.state.players.find((p) => p.peerId === peerId)?.nickname ?? '?';
+  }
 }
 
 // ============================================
@@ -720,7 +837,7 @@ function orderPlayersHostFirst(players: Player[]): Player[] {
 }
 
 function emptyState(): PublicState {
-  return { phase: 'deal', players: [], readyCount: 0, nightRole: null, nightStep: 0, nightTotal: 0, chatLog: [], reveal: null };
+  return { phase: 'deal', players: [], setup: [], readyCount: 0, nightRole: null, nightStep: 0, nightTotal: 0, chatLog: [], reveal: null };
 }
 
 function isDummy(peerId: string): boolean {

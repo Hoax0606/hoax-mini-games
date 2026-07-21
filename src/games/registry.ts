@@ -440,8 +440,18 @@ export const games: GameEntry[] = [
       description: '단 한 번의 밤과 낮으로 끝나는 빠른 추리 게임! 밤에 예언자·강도·말썽쟁이가 몰래 움직여 역할 카드가 뒤바뀌어요. 낮 토론으로 늑대를 추리하고 투표로 처형 — 처형자 중 늑대가 있으면 시민 승, 없으면 늑대 승.',
       thumbnail: werewolfThumbnail,
       minPlayers: 3,
-      maxPlayers: 5,
+      maxPlayers: 10,
       roomOptions: [
+        {
+          key: 'mode',
+          label: '직업 구성',
+          type: 'select',
+          choices: [
+            { value: 'normal', label: '일반 · 인원별 공식 조합' },
+            { value: 'free', label: '랜덤 · 방장이 직접 선택' },
+          ],
+          defaultValue: 'normal',
+        },
         {
           key: 'discuss',
           label: '토론 시간',

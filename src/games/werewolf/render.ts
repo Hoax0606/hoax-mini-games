@@ -16,12 +16,13 @@
  */
 
 import type { PublicState, Role } from './rules';
-import { ROLE_META, teamOf, nightStepsForSetup, setupFor } from './rules';
+import { ROLE_META, teamOf, nightStepsForSetup, setupFor, validateFreeSetup } from './rules';
 import type { NightAction, NightInfo } from './netSync';
 
 export interface WwRenderState {
   state: PublicState;
   myPeerId: string;
+  isHost: boolean;
   isSpectator: boolean;
   /** 내가 처음 받은 역할 (ww:role 로 수신). 밤 행동 자격 판정에 사용 */
   myOrigRole: Role | null;
@@ -42,6 +43,10 @@ export interface WwCallbacks {
   onNightAct(action: NightAction): void;
   onChat(text: string): void;
   onVote(target: string): void;
+  /** 랜덤 모드 setup: 호스트가 카드 구성 편집 */
+  onSetupAdd(role: Role): void;
+  onSetupRemove(role: Role): void;
+  onSetupStart(): void;
 }
 
 // ── 역할 일러스트 (인라인 SVG, viewBox 48 — 카드리빌 56px ~ 스텝 15px 까지 스케일) ──
@@ -62,6 +67,16 @@ const ROLE_SVG: Record<Role, string> = {
   insomniac: `<svg viewBox="0 0 48 48"><path d="M8 27 q16 -13 30 -1" fill="none" stroke="#7c98ee" stroke-width="2.6" stroke-linecap="round"/><path d="M8 27 q15 11 30 -1" fill="none" stroke="#7c98ee" stroke-width="2.6" stroke-linecap="round"/><circle cx="23" cy="26" r="5.2" fill="#9fc5f5"/><circle cx="23" cy="26" r="2.1" fill="#2a2732"/><text x="31" y="15" font-size="11" font-weight="900" fill="#7c98ee">Z</text><text x="39" y="9" font-size="7.5" font-weight="900" fill="#a9bff0">z</text></svg>`,
   // 마을사람 — 순박한 사람(머리+어깨)
   villager: `<svg viewBox="0 0 48 48"><circle cx="24" cy="17" r="8.5" fill="#9fc5f5"/><path d="M8 41 a16 16 0 0 1 32 0 z" fill="#9fc5f5"/><circle cx="21" cy="16" r="1.4" fill="#3a5488"/><circle cx="27" cy="16" r="1.4" fill="#3a5488"/><path d="M21 20 q3 2 6 0" stroke="#3a5488" stroke-width="1.6" fill="none" stroke-linecap="round"/></svg>`,
+  // 하수인 — 늑대편 후드 하인(붉은 후드, 어둠 속 호박색 눈)
+  minion: `<svg viewBox="0 0 48 48"><path d="M24 5 C13 5 9 17 10.5 30 L14 41 h20 l3.5 -11 C39 17 35 5 24 5 Z" fill="#c95b53"/><path d="M24 3 C15 3 11 12 11.5 22 L36.5 22 C37 12 33 3 24 3 Z" fill="#a8433c"/><path d="M16 23 q8 -5 16 0 l-2.5 8 q-5.5 4 -11 0 z" fill="#2e1f28"/><circle cx="20" cy="27" r="1.9" fill="#ffcf5c"/><circle cx="28" cy="27" r="1.9" fill="#ffcf5c"/></svg>`,
+  // 메이슨 — 형제(겹친 두 사람 + 이어진 손)
+  mason: `<svg viewBox="0 0 48 48"><circle cx="15" cy="15" r="6.5" fill="#7c98ee"/><circle cx="33" cy="15" r="6.5" fill="#9fc5f5"/><path d="M3 41 a12 12 0 0 1 24 0 z" fill="#7c98ee"/><path d="M21 41 a12 12 0 0 1 24 0 z" fill="#9fc5f5"/><path d="M19 27 h10" stroke="#3a5488" stroke-width="2.6" stroke-linecap="round"/></svg>`,
+  // 사냥꾼 — 활 + 화살
+  hunter: `<svg viewBox="0 0 48 48"><path d="M15 7 Q35 24 15 41" fill="none" stroke="#7c98ee" stroke-width="3.6" stroke-linecap="round"/><path d="M15 7 L15 41" stroke="#c98f4a" stroke-width="1.6"/><path d="M6 24 h30" stroke="#5a5568" stroke-width="2.4" stroke-linecap="round"/><path d="M36 24 l-7 -3.5 v7 z" fill="#5a5568"/><path d="M6 24 l4 -2.5 M6 24 l4 2.5" stroke="#5a5568" stroke-width="1.8" stroke-linecap="round" fill="none"/></svg>`,
+  // 탄넬러 — 제3세력. 침울한 얼굴 + 눈물 (탠 브라운)
+  tanner: `<svg viewBox="0 0 48 48"><circle cx="24" cy="23" r="15" fill="#cda06a"/><circle cx="18" cy="20" r="1.9" fill="#4a3520"/><circle cx="30" cy="20" r="1.9" fill="#4a3520"/><path d="M17 31 q7 -5 14 0" fill="none" stroke="#4a3520" stroke-width="2.2" stroke-linecap="round"/><path d="M31 25 q2.5 4 0 7" fill="none" stroke="#7fb0e0" stroke-width="2.2" stroke-linecap="round"/></svg>`,
+  // 도플갱어 — 복제(겹친 두 실루엣, 라벤더)
+  doppelganger: `<svg viewBox="0 0 48 48"><g opacity=".45"><circle cx="19" cy="16" r="7.5" fill="#a685f5"/><path d="M6 42 a13 13 0 0 1 26 0 z" fill="#a685f5"/></g><circle cx="29" cy="17" r="8" fill="#c3a6ff"/><path d="M14 43 a15 15 0 0 1 30 0 z" fill="#c3a6ff"/></svg>`,
 };
 
 const CSS = `
@@ -101,11 +116,13 @@ const CSS = `
   box-shadow:0 4px 14px rgba(120,90,160,.14);}
 .ww-mycard.wolf{background:linear-gradient(150deg,#ffe6e6,#fff3f3);border-color:#f2b3ae;}
 .ww-mycard.village{background:linear-gradient(150deg,#e3efff,#f3f8ff);border-color:#aecbe8;}
+.ww-mycard.tanner{background:linear-gradient(150deg,#f3e6cc,#fbf3e2);border-color:#d8b57e;}
 .ww-mycard .ic{width:34px;height:34px;flex:none;}
 .ww-mycard .nm{font-size:15px;font-weight:800;color:#43384f;}
 .ww-mycard .tm{font-size:10.5px;font-weight:800;padding:1px 7px;border-radius:999px;margin-left:6px;}
 .ww-mycard .tm.wolf{background:#ffdad6;color:#c8443b;}
 .ww-mycard .tm.village{background:#d6e8fb;color:#2f6aa8;}
+.ww-mycard .tm.tanner{background:#efdcb8;color:#8a6522;}
 .ww-mycard .ab{font-size:11px;color:#8b81a0;line-height:1.4;margin-top:2px;}
 
 .ww-memo{border-radius:14px;padding:10px 12px;background:rgba(255,255,255,.82);border:1px solid #e6dcf4;
@@ -125,6 +142,7 @@ const CSS = `
 .ww-big-card{width:158px;margin:0 auto 14px;border-radius:20px;padding:22px 16px;border:2px solid;}
 .ww-big-card.wolf{background:linear-gradient(160deg,#ffe0e0,#ffd0d0);border-color:#e0554d;box-shadow:0 10px 26px rgba(224,85,77,.25);}
 .ww-big-card.village{background:linear-gradient(160deg,#e2efff,#d0e5ff);border-color:#3b82c4;box-shadow:0 10px 26px rgba(59,130,196,.22);}
+.ww-big-card.tanner{background:linear-gradient(160deg,#f2e3c4,#f8eed6);border-color:#b98a4a;box-shadow:0 10px 26px rgba(185,138,74,.22);}
 .ww-big-card .ic{width:88px;height:88px;margin:2px auto 10px;}
 /* .ic 안의 SVG 가 컨테이너를 꽉 채우게 (안 그러면 viewBox svg 가 작게/기본크기로 렌더됨) */
 .ww-root .ic svg{width:100%;height:100%;display:block;}
@@ -159,6 +177,26 @@ const CSS = `
 .ww-wait{margin:auto;text-align:center;color:#8b81a0;}
 .ww-wait .big{font-size:15px;font-weight:800;color:#43384f;margin-bottom:6px;}
 .ww-moon{font-size:40px;margin-bottom:12px;}
+
+/* 랜덤 모드 카드 구성 피커 (호스트) */
+.ww-setup{width:100%;max-width:460px;margin:0 auto;display:flex;flex-direction:column;min-height:0;}
+.ww-set-count{text-align:center;font-size:15px;font-weight:900;margin:2px 0;}
+.ww-set-count.ok{color:#2f9e44;} .ww-set-count.bad{color:#e0679b;}
+.ww-set-sub{text-align:center;font-size:11.5px;color:#8b81a0;margin-bottom:10px;}
+.ww-set-list{flex:1;min-height:0;overflow-y:auto;display:flex;flex-direction:column;gap:6px;padding-right:2px;}
+.ww-set-row{display:flex;align-items:center;gap:10px;padding:6px 10px;border-radius:12px;border:1px solid #ece3f7;background:#fff;}
+.ww-set-row .ic{width:30px;height:30px;flex:none;}
+.ww-set-row .nm{flex:1;font-size:13.5px;font-weight:800;color:#43384f;display:flex;align-items:center;gap:7px;}
+.ww-set-row .tm2{font-size:10px;font-weight:800;padding:1px 7px;border-radius:999px;}
+.ww-set-row .tm2.wolf{background:#ffdad6;color:#c8443b;} .ww-set-row .tm2.village{background:#d6e8fb;color:#2f6aa8;} .ww-set-row .tm2.tanner{background:#efdcb8;color:#8a6522;}
+.ww-set-row .ctl{display:flex;align-items:center;gap:8px;}
+.ww-set-btn{width:28px;height:28px;border-radius:8px;border:1px solid #d8cdec;background:#fff;color:#7b61c9;font-weight:900;font-size:16px;cursor:pointer;line-height:1;}
+.ww-set-btn:hover:not(:disabled){background:#f3ecff;} .ww-set-btn:disabled{opacity:.35;cursor:default;}
+.ww-set-row .cnt{min-width:16px;text-align:center;font-weight:900;font-size:14px;color:#43384f;font-variant-numeric:tabular-nums;}
+.ww-set-msgs{margin:8px 0 4px;display:flex;flex-direction:column;gap:4px;}
+.ww-set-err{font-size:12px;color:#c8443b;font-weight:700;}
+.ww-set-warn{font-size:12px;color:#c78a1a;}
+.ww-set-start{margin-top:10px;flex:none;}
 
 /* 낮 토론 채팅 */
 .ww-chat{display:flex;flex-direction:column;min-height:0;flex:1;}
@@ -204,10 +242,13 @@ const CSS = `
 .ww-help-role .team{font-size:10px;font-weight:800;padding:2px 8px;border-radius:999px;flex:none;}
 .ww-help-role .team.wolf{background:#ffdad6;color:#c8443b;}
 .ww-help-role .team.village{background:#d6e8fb;color:#2f6aa8;}
+.ww-help-role .team.tanner{background:#efdcb8;color:#8a6522;}
 .ww-help-close{margin:20px auto 0;}
 .ww-banner{font-size:26px;font-weight:900;text-align:center;padding:10px 26px;border-radius:18px;margin-top:6px;}
 .ww-banner.village{background:linear-gradient(135deg,#dcebff,#eef5ff);color:#2f6aa8;border:1px solid #aecbe8;}
 .ww-banner.wolf{background:linear-gradient(135deg,#ffdedb,#fff0ef);color:#c8443b;border:1px solid #f2b3ae;}
+.ww-banner.tanner{background:linear-gradient(135deg,#f3e6cc,#fbf3e2);color:#8a6522;border:1px solid #d8b57e;}
+.ww-banner.none{background:#f0eef2;color:#6a6086;border:1px solid #ddd6e6;}
 .ww-outcome{font-size:15px;font-weight:800;}
 .ww-outcome.win{color:#2f9e44;}
 .ww-outcome.lose{color:#8b81a0;}
@@ -222,6 +263,9 @@ const CSS = `
 .ww-center-reveal{display:flex;gap:8px;justify-content:center;}
 .ww-center-reveal .ww-rc{width:78px;opacity:.9;}
 .ww-reveal-h{font-size:12px;font-weight:800;color:#8b81a0;width:100%;text-align:center;margin-top:4px;}
+.ww-log-list{width:100%;max-width:440px;margin:0 auto;display:flex;flex-direction:column;gap:4px;}
+.ww-log-row{font-size:12.5px;color:#5a5070;background:#fff;border:1px solid #ece3f7;border-radius:10px;padding:6px 11px;line-height:1.45;}
+.ww-winners{font-size:14px;font-weight:800;color:#43384f;text-align:center;}
 
 @media (prefers-reduced-motion: reduce){
   .ww-choice,.ww-btn,.ww-vote-btn{transition:none;}
@@ -244,8 +288,9 @@ export class WerewolfRenderer {
   private resultEl!: HTMLDivElement;
   private helpEl!: HTMLDivElement;
   private styleEl!: HTMLStyleElement;
-  /** 도움말 "이 게임의 역할" 계산용 — 매 렌더 현재 인원 저장 */
+  /** 도움말 "이 게임의 역할" 계산용 — 매 렌더 현재 인원/세팅 저장 (랜덤 모드도 정확히 반영) */
   private lastPlayerCount = 0;
+  private lastSetup: Role[] = [];
 
   /** 스테이지 마지막 렌더 키 — 바뀔 때만 재빌드 */
   private stageKey = '';
@@ -309,7 +354,7 @@ export class WerewolfRenderer {
 
   /** 도움말 패널 — 진행 순서 + 승패 규칙 + "이 게임의 역할"(인원별 고정 세팅이라 정확히 표시). */
   private showHelp(): void {
-    const setup = setupFor(this.lastPlayerCount || 3);
+    const setup = this.lastSetup.length ? this.lastSetup : setupFor(this.lastPlayerCount || 3);
     const counts = new Map<Role, number>();
     for (const r of setup) counts.set(r, (counts.get(r) ?? 0) + 1);
     // ROLE_META 정의 순서로 나열 (늑대 먼저)
@@ -321,7 +366,7 @@ export class WerewolfRenderer {
         return `<div class="ww-help-role"><div class="ic">${ROLE_SVG[r]}</div>` +
           `<div class="info"><div class="rn">${ROLE_META[r].name}${c > 1 ? `<span class="cnt">×${c}</span>` : ''}</div>` +
           `<div class="ra">${ROLE_META[r].ability}</div></div>` +
-          `<span class="team ${t}">${t === 'wolf' ? '늑대' : '시민'}</span></div>`;
+          `<span class="team ${t}">${t === 'wolf' ? '늑대' : t === 'tanner' ? '단독' : '시민'}</span></div>`;
       }).join('');
     this.helpEl.innerHTML = `<h3>🌙 게임 방법</h3>
       <h4>진행 순서</h4>
@@ -347,6 +392,7 @@ export class WerewolfRenderer {
   render(rs: WwRenderState): void {
     const s = rs.state;
     this.lastPlayerCount = s.players.length;
+    if (s.setup && s.setup.length) this.lastSetup = s.setup;
     this.renderTop(rs);
     this.renderSteps(rs);
     this.renderPlayers(rs);
@@ -409,7 +455,7 @@ export class WerewolfRenderer {
     this.mycardEl.innerHTML =
       `<span class="ic">${ROLE_SVG[r]}</span>` +
       `<div><div><span class="nm">${ROLE_META[r].name}</span>` +
-      `<span class="tm ${t}">${t === 'wolf' ? '늑대' : '시민'}</span></div>` +
+      `<span class="tm ${t}">${t === 'wolf' ? '늑대' : t === 'tanner' ? '단독' : '시민'}</span></div>` +
       `<div class="ab">처음 받은 카드</div></div>`;
   }
 
@@ -437,6 +483,12 @@ export class WerewolfRenderer {
         return `${esc(nick(m.target))}의 카드를 뺏어왔어요 → 이제 내 카드는 ${rn(m.newRole)}`;
       case 'insomniac':
         return `밤이 끝난 지금 내 카드는 ${rn(m.role)}`;
+      case 'minionWolves':
+        return m.peerIds.length ? `늑대: <b>${m.peerIds.map(nick).join(', ')}</b>` : '플레이어 중엔 늑대가 없어요 (가운데에만).';
+      case 'masons':
+        return m.solo ? '나 혼자 메이슨이에요.' : `동료 메이슨: <b>${m.peerIds.map(nick).join(', ')}</b>`;
+      case 'doppelCopied':
+        return `${esc(nick(m.target))}의 직업을 복사 → 이제 나는 ${rn(m.role)}`;
     }
   }
 
@@ -457,6 +509,7 @@ export class WerewolfRenderer {
     if (rs.isSpectator) { this.stageEl.innerHTML = `<div class="ww-wait"><div class="ww-moon">👁️</div><div class="big">관전 중</div><div>플레이어들의 밤과 낮을 지켜봐요</div></div>`; return; }
 
     switch (rs.state.phase) {
+      case 'setup': this.buildSetup(rs); break;
       case 'deal': this.buildDeal(rs); break;
       case 'night': this.buildNight(rs); break;
       case 'day': this.buildDay(rs); break;
@@ -467,6 +520,7 @@ export class WerewolfRenderer {
   private computeStageKey(rs: WwRenderState): string {
     const s = rs.state;
     switch (s.phase) {
+      case 'setup': return `setup:${rs.isHost}:${s.setup.join(',')}`;
       case 'deal': return `deal:${rs.confirmedDeal}`;
       case 'night': {
         const mine = s.nightRole === rs.myOrigRole;
@@ -478,6 +532,51 @@ export class WerewolfRenderer {
       case 'vote': return `vote:${rs.voted}`;
       default: return s.phase;
     }
+  }
+
+  // ── setup: 랜덤 모드 카드 구성 (호스트만) ──
+  private static readonly PICK_ROLES: Role[] =
+    ['wolf', 'minion', 'mason', 'seer', 'robber', 'troublemaker', 'drunk', 'insomniac', 'hunter', 'tanner', 'doppelganger', 'villager'];
+
+  private buildSetup(rs: WwRenderState): void {
+    const s = rs.state;
+    if (!rs.isHost) {
+      this.stageEl.innerHTML = `<div class="ww-wait"><div class="ww-moon">🎴</div><div class="big">방장이 직업을 고르는 중…</div><div>잠시만 기다려요</div></div>`;
+      return;
+    }
+    const need = s.players.length + 3;
+    const total = s.setup.length;
+    const counts = new Map<Role, number>();
+    for (const r of s.setup) counts.set(r, (counts.get(r) ?? 0) + 1);
+    const check = validateFreeSetup(s.setup, s.players.length);
+    const rows = WerewolfRenderer.PICK_ROLES.map((r) => {
+      const c = counts.get(r) ?? 0;
+      const t = teamOf(r);
+      const teamTxt = t === 'wolf' ? '늑대' : t === 'tanner' ? '단독' : '시민';
+      const addDisabled = total >= need || (r !== 'wolf' && c >= 1);
+      return `<div class="ww-set-row"><span class="ic">${ROLE_SVG[r]}</span>` +
+        `<span class="nm">${ROLE_META[r].name}<span class="tm2 ${t}">${teamTxt}</span></span>` +
+        `<span class="ctl"><button class="ww-set-btn" data-rem="${r}" ${c <= 0 ? 'disabled' : ''}>−</button>` +
+        `<span class="cnt">${c}</span>` +
+        `<button class="ww-set-btn" data-add="${r}" ${addDisabled ? 'disabled' : ''}>＋</button></span></div>`;
+    }).join('');
+    const msgs = [
+      ...check.errors.map((e) => `<div class="ww-set-err">⚠ ${esc(e)}</div>`),
+      ...check.warnings.map((w) => `<div class="ww-set-warn">⚠ ${esc(w)}</div>`),
+    ].join('');
+    this.stageEl.innerHTML = `<div class="ww-setup">` +
+      `<div class="ww-stage-title">직업 구성 · 랜덤 모드</div>` +
+      `<div class="ww-set-count ${total === need ? 'ok' : 'bad'}">${total} / ${need}장 · 플레이어 ${s.players.length} + 가운데 3</div>` +
+      `<div class="ww-set-sub">늑대만 여러 장, 나머지는 각 1장</div>` +
+      `<div class="ww-set-list">${rows}</div>` +
+      (msgs ? `<div class="ww-set-msgs">${msgs}</div>` : '') +
+      `<button class="ww-btn ww-set-start" id="ww-set-start" ${check.ok ? '' : 'disabled'}>이 구성으로 시작</button></div>`;
+    this.stageEl.querySelectorAll<HTMLButtonElement>('[data-add]').forEach((b) =>
+      b.addEventListener('click', () => this.cb.onSetupAdd(b.dataset.add as Role)));
+    this.stageEl.querySelectorAll<HTMLButtonElement>('[data-rem]').forEach((b) =>
+      b.addEventListener('click', () => this.cb.onSetupRemove(b.dataset.rem as Role)));
+    this.stageEl.querySelector<HTMLButtonElement>('#ww-set-start')!
+      .addEventListener('click', () => this.cb.onSetupStart());
   }
 
   // ── deal: 내 역할 공개 ──
@@ -515,7 +614,15 @@ export class WerewolfRenderer {
       return;
     }
     switch (rs.myOrigRole) {
+      case 'doppelganger': {
+        const copied = rs.memos.find((m) => m.kind === 'doppelCopied') as Extract<NightInfo, { kind: 'doppelCopied' }> | undefined;
+        if (!copied) this.buildPickPlayer(rs, '도플갱어 — 복사할 상대를 골라요. (그 직업이 되고, 능력이 있으면 지금 써요)', (t) => this.cb.onNightAct({ kind: 'doppelCopy', target: t }));
+        else this.buildDoppelActing(rs, copied.role);
+        break;
+      }
       case 'wolf': this.buildWolf(rs); break;
+      case 'minion': this.buildMinion(rs); break;
+      case 'mason': this.buildMason(rs); break;
       case 'seer': this.buildSeer(rs); break;
       case 'robber': {
         const robbed = rs.memos.find((m) => m.kind === 'robbed') as Extract<NightInfo, { kind: 'robbed' }> | undefined;
@@ -565,6 +672,55 @@ export class WerewolfRenderer {
     this.stageEl.querySelectorAll<HTMLButtonElement>('[data-c]').forEach((b) => {
       b.addEventListener('click', () => this.cb.onNightAct({ kind: 'wolfPeek', center: Number(b.dataset.c) }));
     });
+  }
+
+  private buildMinion(rs: WwRenderState): void {
+    const memo = rs.memos.find((m) => m.kind === 'minionWolves') as Extract<NightInfo, { kind: 'minionWolves' }> | undefined;
+    const nick = (pid: string): string => rs.state.players.find((p) => p.peerId === pid)?.nickname ?? '?';
+    const wolves = memo?.peerIds ?? [];
+    const body = wolves.length
+      ? `<div class="ww-choose" style="margin-bottom:16px">` +
+        wolves.map((p) => `<div class="ww-cardface"><span class="ic">${ROLE_SVG.wolf}</span><span class="cl">${esc(nick(p))}</span></div>`).join('') + `</div>`
+      : `<div class="ww-stage-sub" style="margin-bottom:16px">플레이어 중엔 늑대가 없어요 (가운데 카드에만 있음).</div>`;
+    this.stageEl.innerHTML = `<div class="ww-center">${this.stageHead('하수인', '늑대가 누구인지 확인하세요. 늑대는 당신을 몰라요!')}${body}` +
+      `<button class="ww-btn" id="ww-mc">확인</button></div>`;
+    this.stageEl.querySelector<HTMLButtonElement>('#ww-mc')!.addEventListener('click', () => this.cb.onNightAct({ kind: 'skip' }));
+  }
+
+  private buildMason(rs: WwRenderState): void {
+    const memo = rs.memos.find((m) => m.kind === 'masons') as Extract<NightInfo, { kind: 'masons' }> | undefined;
+    const nick = (pid: string): string => rs.state.players.find((p) => p.peerId === pid)?.nickname ?? '?';
+    const others = memo?.peerIds ?? [];
+    const solo = memo?.solo ?? false;
+    const body = (!solo && others.length)
+      ? `<div class="ww-choose" style="margin-bottom:16px">` +
+        others.map((p) => `<div class="ww-cardface"><span class="ic">${ROLE_SVG.mason}</span><span class="cl">${esc(nick(p))}</span></div>`).join('') + `</div>`
+      : `<div class="ww-stage-sub" style="margin-bottom:16px">당신 혼자 메이슨이에요. 다른 메이슨은 없어요.</div>`;
+    this.stageEl.innerHTML = `<div class="ww-center">${this.stageHead('메이슨', '같은 편 메이슨을 확인하세요.')}${body}` +
+      `<button class="ww-btn" id="ww-mc">확인</button></div>`;
+    this.stageEl.querySelector<HTMLButtonElement>('#ww-mc')!.addEventListener('click', () => this.cb.onNightAct({ kind: 'skip' }));
+  }
+
+  /** 도플갱어가 복사한 직업의 밤 행동 UI (해당 역할 UI 재사용). */
+  private buildDoppelActing(rs: WwRenderState, copied: Role): void {
+    switch (copied) {
+      case 'seer': this.buildSeer(rs); return;
+      case 'robber': {
+        const robbed = rs.memos.find((m) => m.kind === 'robbed') as Extract<NightInfo, { kind: 'robbed' }> | undefined;
+        if (robbed) this.buildRobberResult(rs, robbed);
+        else this.buildPickPlayer(rs, '도플-강도 — 카드를 뺏을 상대를 골라요.', (t) => this.cb.onNightAct({ kind: 'robber', target: t }));
+        return;
+      }
+      case 'troublemaker': this.buildTroublemaker(rs); return;
+      case 'drunk': this.buildPickCenter(rs, '도플-주정뱅이 — 가운데 1장과 맞바꾸기 (내용은 안 보여요)', (c) => this.cb.onNightAct({ kind: 'drunk', center: c })); return;
+      default: {
+        // 정보/무행동 역할 복사 — 카드 보여주고 확인만 (본 정보는 왼쪽 "밤에 알게 된 것"에)
+        this.stageEl.innerHTML = `<div class="ww-center">${this.stageHead('도플갱어 → ' + ROLE_META[copied].name, ROLE_META[copied].ability)}` +
+          `<div class="ww-big-card ${teamOf(copied)}" style="margin-bottom:14px"><div class="ic">${ROLE_SVG[copied]}</div><div class="nm">${ROLE_META[copied].name}</div></div>` +
+          `<button class="ww-btn" id="ww-dg">확인</button></div>`;
+        this.stageEl.querySelector<HTMLButtonElement>('#ww-dg')!.addEventListener('click', () => this.cb.onNightAct({ kind: 'skip' }));
+      }
+    }
   }
 
   private buildSeer(rs: WwRenderState): void {
@@ -724,8 +880,8 @@ export class WerewolfRenderer {
     if (!rv) return;
     const nick = (pid: string): string => rs.state.players.find((p) => p.peerId === pid)?.nickname ?? '?';
     const win = rv.winningTeam;
-    const myFinal = rv.finalRoles[rs.myPeerId];
-    const iWon = !rs.isSpectator && myFinal ? teamOf(myFinal) === win : false;
+    // 승패는 winners 목록이 최종 권위 (탄넬러 단독승/하수인 포함 등 팀 비교로 안 잡히는 경우 커버)
+    const iWon = !rs.isSpectator && rv.winners.includes(rs.myPeerId);
 
     const cards = rs.state.players.map((p) => {
       const fin = rv.finalRoles[p.peerId]!;
@@ -748,13 +904,26 @@ export class WerewolfRenderer {
     ).join('');
 
     const executedTxt = rv.executed.length === 0 ? '아무도 처형되지 않았어요' : `${rv.executed.map(nick).join(', ')} 처형됨`;
+    const bannerTxt =
+      win === 'village' ? '🛡️ 시민 팀 승리' :
+      win === 'wolf' ? '🐺 늑대 팀 승리' :
+      win === 'tanner' ? '🙃 탄넬러 단독 승리' :
+      '🤝 무승부 — 아무도 이기지 못했어요';
+    const winnersTxt = rv.winners.length ? rv.winners.map(nick).join(', ') : '없음';
+    const logBlock = (title: string, arr: string[]): string =>
+      arr.length === 0 ? '' :
+      `<div class="ww-reveal-h">${title}</div><div class="ww-log-list">` +
+      arr.map((l) => `<div class="ww-log-row">${esc(l)}</div>`).join('') + `</div>`;
 
     this.resultEl.innerHTML =
-      `<div class="ww-banner ${win}">${win === 'village' ? '🛡️ 시민 팀 승리' : '🐺 늑대 팀 승리'}</div>` +
+      `<div class="ww-banner ${win}">${bannerTxt}</div>` +
       (rs.isSpectator ? '' : `<div class="ww-outcome ${iWon ? 'win' : 'lose'}">${iWon ? '당신의 승리!' : '아쉽게 패배…'}</div>`) +
       `<div class="ww-outcome" style="color:#6a6086;font-size:13px">${executedTxt}</div>` +
       `<div class="ww-reveal">${cards}</div>` +
-      `<div class="ww-reveal-h">가운데 카드</div><div class="ww-center-reveal">${centerCards}</div>`;
+      `<div class="ww-reveal-h">가운데 카드</div><div class="ww-center-reveal">${centerCards}</div>` +
+      logBlock('밤에 일어난 일', rv.nightLog) +
+      logBlock('카드 교환', rv.swapLog) +
+      `<div class="ww-reveal-h">승리한 사람</div><div class="ww-winners">${esc(winnersTxt)}</div>`;
   }
 }
 
