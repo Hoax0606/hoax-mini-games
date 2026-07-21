@@ -648,8 +648,12 @@ class FortressGameModule implements GameModule {
         const v = segVel(s.seg, s.st); s.vx = v.vx; s.vy = v.vy;
       }
 
-      const off = s.x < -60 || s.x > this.game.terrainWidth + 60 || s.y > 440
-        || (s.guided === true && s.y < -200); // 유도탄 상승 아크가 화면 위로 넘어가도 성급히 미스 처리 안 하게
+      // 유도탄은 호밍으로 타겟에 되돌아오므로 좌우·상단으로 잠깐 벗어나도 컬링하지 않는다
+      //   (강하게 쏘면 1단계 탄도가 화면 밖으로 나갔다가 호밍으로 복귀 → 예전엔 여기서 사라졌음).
+      //   화면 한참 아래로 떨어질 때만 미스 처리.
+      const off = s.guided === true
+        ? s.y > 700
+        : (s.x < -60 || s.x > this.game.terrainWidth + 60 || s.y > 440);
       // 총구 클리어런스 — 발사 직후 일정 거리 전엔 지형/포대 충돌 무시(오조준 착탄 방지)
       const cleared = Math.hypot(s.x - s.spawnX, s.y - s.spawnY) > LAUNCH_CLEARANCE;
       const groundY = terrainTopAt(this.hm, s.x);
