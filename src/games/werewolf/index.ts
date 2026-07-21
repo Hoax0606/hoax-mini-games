@@ -53,8 +53,6 @@ class WerewolfModule implements GameModule {
   private myPeerId = '';
   private isHost = false;
   private isSpectator = false;
-  /** 솔로(AlphaTest) 프리뷰 — 실제 플레이어가 나 혼자 (나머지 더미) */
-  private soloPreview = false;
 
   // 공개 상태 (전원 공유)
   private state!: PublicState;
@@ -101,7 +99,6 @@ class WerewolfModule implements GameModule {
     this.isHost = ctx.role === 'host';
     this.isSpectator = ctx.isSpectator === true;
     this.dayMs = Math.max(30, Number(ctx.roomOptions['discuss'] ?? '180')) * 1000;
-    console.log('[ww] start', { role: ctx.role, players: ctx.players.map((p) => ({ id: p.peerId, role: p.role })), myId: this.myPeerId, spectator: this.isSpectator, hasParent: !!ctx.canvas.parentElement });
 
     this.renderer = new WerewolfRenderer(ctx.canvas, {
       onReady: () => this.doReady(),
@@ -114,7 +111,6 @@ class WerewolfModule implements GameModule {
     if (this.isHost) {
       const realPlayers = orderPlayersHostFirst(ctx.players.filter((p) => p.role === 'player'))
         .map((p) => ({ peerId: p.peerId, nickname: p.nickname }));
-      this.soloPreview = realPlayers.length <= 1;
       const players = [...realPlayers];
       // 솔로(AlphaTest) 프리뷰 — 최소 인원까지 더미로 채움 (자동 진행)
       let d = 1;
@@ -336,10 +332,8 @@ class WerewolfModule implements GameModule {
     this.sync();
     this.render();
     sound.play('pop');
-    // 솔로 프리뷰: 혼자라 버튼 누를 상대가 없으니 카드 잠깐 보여준 뒤 자동으로 밤 진행
-    if (this.soloPreview) {
-      window.setTimeout(() => { if (!this.destroyed) this.doReady(); }, 2600);
-    }
+    // 각자 자기 역할 카드를 확인하고 "확인했어요" 버튼을 눌러야 밤으로 진행.
+    // 솔로 프리뷰도 봇 2명은 자동 ready(위 readySet)라 사람이 버튼만 누르면 바로 넘어간다.
     this.maybeStartNight();
   }
 

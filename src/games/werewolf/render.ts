@@ -44,15 +44,24 @@ export interface WwCallbacks {
   onVote(target: string): void;
 }
 
-// ── 역할 아이콘 (인라인 SVG — 목업과 동일 톤) ──
+// ── 역할 일러스트 (인라인 SVG, viewBox 48 — 카드리빌 56px ~ 스텝 15px 까지 스케일) ──
+// 굵은 면 위주로 그려 작은 크기에서도 실루엣이 살게. 팀색: 늑대=레드계, 시민=블루계 +
+// 역할별 포인트색(강도·주정뱅이=골드, 말썽쟁이=라벤더).
 const ROLE_SVG: Record<Role, string> = {
-  wolf: `<svg viewBox="0 0 32 32"><path d="M6 8 L11 15 L6 15 Z M26 8 L21 15 L26 15 Z M8 13 Q16 6 24 13 L24 20 Q16 27 8 20 Z" fill="#f0564e"/><circle cx="13" cy="17" r="1.5" fill="#12142a"/><circle cx="19" cy="17" r="1.5" fill="#12142a"/><path d="M15 21 h2 l-1 2 z" fill="#12142a"/></svg>`,
-  seer: `<svg viewBox="0 0 32 32"><ellipse cx="16" cy="16" rx="13" ry="8" fill="none" stroke="#8fc2f0" stroke-width="2"/><circle cx="16" cy="16" r="4" fill="#8fc2f0"/></svg>`,
-  robber: `<svg viewBox="0 0 32 32"><path d="M7 13 h14 l-4 -4 M25 19 h-14 l4 4" fill="none" stroke="#f5c96a" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
-  troublemaker: `<svg viewBox="0 0 32 32"><circle cx="10" cy="16" r="6" fill="none" stroke="#c58fef" stroke-width="2.4"/><circle cx="22" cy="16" r="6" fill="none" stroke="#c58fef" stroke-width="2.4"/><path d="M10 10 Q16 4 22 10 M10 22 Q16 28 22 22" stroke="#c58fef" stroke-width="2" fill="none" stroke-linecap="round"/></svg>`,
-  drunk: `<svg viewBox="0 0 32 32"><path d="M9 10 h14 v6 a7 7 0 0 1 -14 0 z" fill="#f5c96a"/><path d="M23 12 h3 a3 3 0 0 1 0 6 h-3" fill="none" stroke="#f5c96a" stroke-width="2"/><rect x="11" y="24" width="10" height="3" rx="1.5" fill="#f5c96a"/></svg>`,
-  insomniac: `<svg viewBox="0 0 32 32"><ellipse cx="18" cy="13" rx="8" ry="5" fill="none" stroke="#8fc2f0" stroke-width="1.8"/><circle cx="18" cy="13" r="2.5" fill="#8fc2f0"/><text x="6" y="27" font-size="11" font-weight="900" fill="#8fc2f0">z</text><text x="12" y="24" font-size="8" font-weight="900" fill="#8fc2f0">z</text></svg>`,
-  villager: `<svg viewBox="0 0 32 32"><circle cx="16" cy="12" r="5" fill="#9fc5f5"/><path d="M7 26 a9 9 0 0 1 18 0 z" fill="#9fc5f5"/></svg>`,
+  // 늑대인간 — 회색 늑대 얼굴(뾰족 귀, 호박색 눈, 검은 코)
+  wolf: `<svg viewBox="0 0 48 48"><path d="M9 9 L18 21 L9 22 Z" fill="#6f6a7d"/><path d="M39 9 L30 21 L39 22 Z" fill="#6f6a7d"/><path d="M11 18 Q24 11 37 18 L34 31 Q24 41 14 31 Z" fill="#9a94a6"/><path d="M17 31 Q24 35 31 31 L28 36 Q24 38 20 36 Z" fill="#dcd7e4"/><circle cx="19" cy="25" r="2.6" fill="#ffcf5c"/><circle cx="29" cy="25" r="2.6" fill="#ffcf5c"/><circle cx="19" cy="25" r="1.1" fill="#2a2732"/><circle cx="29" cy="25" r="1.1" fill="#2a2732"/><path d="M24 31 l-2.4 0 L24 34 l2.4 -3 z" fill="#2a2732"/></svg>`,
+  // 예언자 — 받침대 위 수정구 + 반짝임 별
+  seer: `<svg viewBox="0 0 48 48"><path d="M13 39 h22 l-3 -5 h-16 z" fill="#8b81a0"/><circle cx="24" cy="21" r="13" fill="#cbb8f6"/><circle cx="24" cy="21" r="13" fill="none" stroke="#a685f5" stroke-width="2.2"/><circle cx="19.5" cy="16.5" r="2.4" fill="#fff" opacity=".9"/><path d="M18 24 q6 4 12 0" stroke="#fff" stroke-width="1.8" fill="none" stroke-linecap="round" opacity=".55"/><path d="M33 8 l1.3 2.7 l2.7 1.3 l-2.7 1.3 l-1.3 2.7 l-1.3 -2.7 l-2.7 -1.3 l2.7 -1.3 z" fill="#ffcf5c"/></svg>`,
+  // 강도 — 눈가리개 마스크 + 모자(카드 훔치기)
+  robber: `<svg viewBox="0 0 48 48"><circle cx="24" cy="27" r="13" fill="#f2dcb0"/><path d="M9 17 q15 -9 30 0 l-2.5 5 h-25 z" fill="#5a5568"/><rect x="11" y="23" width="26" height="7.5" rx="3.75" fill="#2a2732"/><circle cx="18" cy="26.7" r="1.7" fill="#fff"/><circle cx="30" cy="26.7" r="1.7" fill="#fff"/><path d="M20 34 q4 3 8 0" stroke="#c98f4a" stroke-width="2" fill="none" stroke-linecap="round"/></svg>`,
+  // 말썽쟁이 — 카드 두 장 + 순환 화살표(남의 카드 두 장 교환)
+  troublemaker: `<svg viewBox="0 0 48 48"><rect x="7" y="17" width="14" height="19" rx="3" fill="#ecdefa" stroke="#c58fef" stroke-width="2.2"/><rect x="27" y="17" width="14" height="19" rx="3" fill="#ecdefa" stroke="#c58fef" stroke-width="2.2"/><path d="M20 12 q4 -3 9 0" stroke="#a685f5" stroke-width="2.4" fill="none" stroke-linecap="round"/><path d="M29 12 l3.5 -1 l-1.5 3.4 z" fill="#a685f5"/><path d="M28 41 q-4 3 -9 0" stroke="#a685f5" stroke-width="2.4" fill="none" stroke-linecap="round"/><path d="M19 41 l-3.5 1 l1.5 -3.4 z" fill="#a685f5"/></svg>`,
+  // 주정뱅이 — 거품 맥주잔(안 보고 가운데 카드와 바꿈)
+  drunk: `<svg viewBox="0 0 48 48"><path d="M14 17 h16 v17 a5 5 0 0 1 -5 5 h-6 a5 5 0 0 1 -5 -5 z" fill="#ffcf5c" stroke="#dca83f" stroke-width="1.6"/><path d="M30 21 h3.5 a5 5 0 0 1 0 10 h-3.5" fill="none" stroke="#dca83f" stroke-width="2.4"/><path d="M15 21 h14" stroke="#fff" stroke-width="1.4" opacity=".5"/><circle cx="17" cy="14" r="3.4" fill="#fff6e4"/><circle cx="23" cy="12" r="4" fill="#fff6e4"/><circle cx="29" cy="14.5" r="3" fill="#fff6e4"/><ellipse cx="22" cy="17" rx="9" ry="3.2" fill="#fff6e4"/></svg>`,
+  // 불면증 — 잠 못 드는 눈 + zzz (마지막에 자기 카드 확인)
+  insomniac: `<svg viewBox="0 0 48 48"><path d="M8 27 q16 -13 30 -1" fill="none" stroke="#7c98ee" stroke-width="2.6" stroke-linecap="round"/><path d="M8 27 q15 11 30 -1" fill="none" stroke="#7c98ee" stroke-width="2.6" stroke-linecap="round"/><circle cx="23" cy="26" r="5.2" fill="#9fc5f5"/><circle cx="23" cy="26" r="2.1" fill="#2a2732"/><text x="31" y="15" font-size="11" font-weight="900" fill="#7c98ee">Z</text><text x="39" y="9" font-size="7.5" font-weight="900" fill="#a9bff0">z</text></svg>`,
+  // 마을사람 — 순박한 사람(머리+어깨)
+  villager: `<svg viewBox="0 0 48 48"><circle cx="24" cy="17" r="8.5" fill="#9fc5f5"/><path d="M8 41 a16 16 0 0 1 32 0 z" fill="#9fc5f5"/><circle cx="21" cy="16" r="1.4" fill="#3a5488"/><circle cx="27" cy="16" r="1.4" fill="#3a5488"/><path d="M21 20 q3 2 6 0" stroke="#3a5488" stroke-width="1.6" fill="none" stroke-linecap="round"/></svg>`,
 };
 
 const CSS = `
@@ -62,6 +71,9 @@ const CSS = `
   color:#43384f;font-family:'Pretendard','Apple SD Gothic Neo','Noto Sans KR',system-ui,sans-serif;
   border-radius:var(--radius-md,16px);overflow:hidden;box-sizing:border-box;}
 .ww-root *{box-sizing:border-box;}
+/* hidden 속성 확실히 적용 — .ww-result/.ww-mycard 등이 display:flex 라 UA 의 [hidden]{display:none}
+   을 덮어써, hidden 을 걸어도 안 숨겨지던 버그(결과 오버레이가 플레이 중 게임을 94% 흰색으로 덮음)를 차단. */
+.ww-root [hidden]{display:none !important;}
 .ww-top{display:flex;align-items:center;gap:12px;flex:none;}
 .ww-phase{font-size:17px;font-weight:800;letter-spacing:-.01em;color:#43384f;}
 .ww-phase .r{color:#7b61c9;}
@@ -218,7 +230,6 @@ export class WerewolfRenderer {
   private seerTab: 'player' | 'center' = 'player';
   private seerCenters: number[] = [];
   private tmPick: string[] = [];
-  private _dbg = false;
 
   constructor(canvas: HTMLCanvasElement, cb: WwCallbacks) {
     this.canvas = canvas;
@@ -250,7 +261,6 @@ export class WerewolfRenderer {
     `;
     canvas.parentElement?.appendChild(root);
     this.root = root;
-    console.log('[ww] renderer mount', { hasParent: !!canvas.parentElement, connected: root.isConnected, parentCls: canvas.parentElement?.className });
 
     this.phaseEl = root.querySelector('#ww-phase')!;
     this.timerEl = root.querySelector('#ww-timer')!;
@@ -274,10 +284,6 @@ export class WerewolfRenderer {
 
   render(rs: WwRenderState): void {
     const s = rs.state;
-    if (!this._dbg) {
-      this._dbg = true;
-      console.log('[ww] first render', { phase: s.phase, players: s.players.length, myOrigRole: rs.myOrigRole, connected: this.root.isConnected, w: this.root.clientWidth, h: this.root.clientHeight, parentH: this.root.parentElement?.clientHeight });
-    }
     this.renderTop(rs);
     this.renderSteps(rs);
     this.renderPlayers(rs);
