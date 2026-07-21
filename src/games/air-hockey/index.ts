@@ -308,6 +308,19 @@ class AirHockeyGame implements GameModule {
     }
   }
 
+  /** 플레이어 이탈 — 2인 전용이라 상대(게스트)가 나가면 남은 호스트가 승리로 종료.
+   *  호스트 authoritative 이므로 호스트만 처리. 관전자 이탈은 무시. */
+  onPeerLeft(peerId: string): void {
+    if (this.ctx.role !== 'host' || this.gameEnded) return;
+    const wasPlayer = this.ctx.players.some((p) => p.peerId === peerId && p.role === 'player');
+    if (!wasPlayer) return;
+    this.gameEnded = true;
+    this.ctx.endGame({
+      winner: 'me',
+      summary: { hostScore: this.state.score.host, guestScore: this.state.score.guest, winScore: this.winScore },
+    });
+  }
+
   private checkWinCondition(): void {
     const { host, guest } = this.state.score;
     if (host < this.winScore && guest < this.winScore) return;

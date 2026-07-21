@@ -344,6 +344,15 @@ class GomokuGame implements GameModule {
     this.turnStartedAt = performance.now();
   }
 
+  /** 플레이어 이탈 — 2인 전용이라 상대가 나가면 남은 사람(호스트) 승.
+   *  reason 은 전용 값이 없어 몰수패에 가장 가까운 'timeout' 재사용. 관전자 이탈은 무시. */
+  onPeerLeft(peerId: string): void {
+    if (!this.isHost || this.gameFinished) return;
+    const wasPlayer = this.ctx.players.some((p) => p.peerId === peerId && p.role === 'player');
+    if (!wasPlayer) return;
+    this.finishAsHost(this.hostSide, 'timeout');
+  }
+
   private finishAsHost(winner: 'B' | 'W' | null, reason: 'five' | 'timeout' | 'draw'): void {
     if (this.gameFinished) return;
     this.gameFinished = true;

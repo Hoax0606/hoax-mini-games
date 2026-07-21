@@ -24,6 +24,7 @@ import {
   STONE_RADIUS,
   createInitialGame,
   resolveTurnEnd,
+  getNextTurn,
 } from './rules';
 import {
   stepPhysics,
@@ -340,6 +341,31 @@ class AlgagiGameModule implements GameModule {
   // ============================================
   // 게임 종료 — 호스트가 per-peer 결과 송신
   // ============================================
+
+  /** 플레이어 이탈 — 호스트 처리 (알까기는 2~4인).
+   *  나간 사람 알을 모두 제거 → liveCount 재계산 → 생존자 1명 이하면 그 사람 승으로 종료.
+   *  아니면(3~4인) 나간 사람이 현재 턴이었을 때 다음으로 넘기고 상태 sync. 관전자 이탈은 무시. */
+  onPeerLeft(peerId: string): void {
+    if (!this.isHost || this.gameFinished) return;
+    const victim = this.game.players.find((p) => p.peerId === peerId);
+    if (!victim) return;
+    for (const s of this.game.stones) {
+      if (s.owner === victim.index) s.alive = false;
+    }
+    for (const p of this.game.players) {
+      p.liveCount = this.game.stones.filter((s) => s.alive && s.owner === p.index).length;
+    }
+    const survivors = this.game.players.filter((p) => p.liveCount > 0);
+    if (survivors.length <= 1) {
+      this.game.winnerPeerId = survivors[0]?.peerId ?? null;
+      this.finishAsHost();
+      return;
+    }
+    if (this.game.phase === 'aiming' && this.game.currentTurn === victim.index) {
+      this.game.currentTurn = getNextTurn(this.game);
+    }
+    this.ctx.sendToPeer(encodeSync(this.game));
+  }
 
   private finishAsHost(): void {
     if (this.gameFinished) return;
