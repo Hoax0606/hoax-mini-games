@@ -112,7 +112,7 @@ function buildHeaderHTML(args: {
       </div>
 
       <div class="game-title-center">
-        ${args.spectator ? `<span class="game-title-spectator">👀 관전 중</span>` : ''}
+        ${args.spectator ? `<span class="game-title-spectator">${icon('eye', { size: 15, hue: '#9db4d6' })} 관전 중</span>` : ''}
         <span class="game-title-name">${escapeHtml(args.gameName)}</span>
         ${args.optionSummary ? `<span class="game-title-opt">${escapeHtml(args.optionSummary)}</span>` : ''}
         <div class="game-score" id="game-score" style="display:none">
@@ -141,7 +141,7 @@ function buildHeaderHTML(args: {
 
     <div class="game-pause-overlay" id="game-pause-overlay" hidden>
       <div class="game-pause-card">
-        <div class="game-pause-icon">⏸️</div>
+        <div class="game-pause-icon">${icon('pause', { size: 44, hue: '#9a86c0' })}</div>
         <div class="game-pause-title" id="pause-title">일시정지</div>
         <div class="game-pause-sub">다시 시작될 때까지 기다려 주세요</div>
       </div>
@@ -154,7 +154,7 @@ function showPauseOverlay(el: HTMLElement, byNickname: string): void {
   const overlay = el.querySelector<HTMLDivElement>('#game-pause-overlay');
   const title = el.querySelector<HTMLDivElement>('#pause-title');
   if (!overlay || !title) return;
-  title.textContent = `⏸️ ${byNickname} 님이 잠시 멈췄어요`;
+  title.textContent = `${byNickname} 님이 잠시 멈췄어요`;
   overlay.hidden = false;
 }
 

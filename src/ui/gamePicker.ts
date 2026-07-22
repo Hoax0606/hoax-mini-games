@@ -1,6 +1,7 @@
 import { games, getGameById } from '../games/registry';
 import type { GameRoomOption } from '../games/types';
 import { escapeHtml, escapeAttr } from './escape';
+import { icon } from './icons';
 
 /**
  * 게임 선택 오버레이 (공용).
@@ -81,7 +82,7 @@ export function buildGameOptionsHTML(gameId: string, current?: Record<string, st
   if (g.meta.roomOptions.length === 0) {
     return `<div class="change-game-no-options">설정 없이 바로 시작할 수 있어요</div>`;
   }
-  return `<div class="change-game-options-title">⚙️ 게임 설정</div>${
+  return `<div class="change-game-options-title">${icon('settings', { size: 15, hue: '#9a86c0' })} 게임 설정</div>${
     g.meta.roomOptions.map((opt) => renderOption(opt, current?.[opt.key])).join('')
   }`;
 }
@@ -94,7 +95,7 @@ function buildOverlayHTML(o: GamePickerOptions): string {
   return `
     <div class="change-game-overlay" id="change-game-overlay">
       <div class="change-game-card-wrap">
-        <div class="change-game-title">${escapeHtml(o.title ?? '🎲 게임 선택')}</div>
+        <div class="change-game-title">${escapeHtml(o.title ?? '게임 선택')}</div>
         <div class="change-game-subtitle">${escapeHtml(o.subtitle ?? `현재 방 멤버 ${o.playerCount}명`)}</div>
 
         <div class="change-game-grid">${cards}</div>
@@ -160,7 +161,7 @@ export function openGamePickerOverlay(parent: HTMLElement, o: GamePickerOptions)
 
       if (game.meta.roomOptions.length > 0) {
         optsContainer.innerHTML = `
-          <div class="change-game-options-title">⚙️ 게임 설정</div>
+          <div class="change-game-options-title">${icon('settings', { size: 15, hue: '#9a86c0' })} 게임 설정</div>
           ${game.meta.roomOptions.map(renderOption).join('')}
         `;
         for (const opt of game.meta.roomOptions) {

@@ -38,7 +38,7 @@ export function createStatsScreen(): Screen {
           </div>
 
           <div class="stats-footer">
-            <button class="btn btn-ghost" id="reset-btn">🗑️ 전체 초기화</button>
+            <button class="btn btn-ghost" id="reset-btn">${icon('trash', { size: 16, hue: '#e0679b' })} 전체 초기화</button>
           </div>
         </div>
       `;
