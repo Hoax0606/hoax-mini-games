@@ -6,7 +6,7 @@ import { updatePublicRoom, unpublishRoom } from '../core/roomDirectory';
 import type { GameContext, GameModule, Player, RoomState } from '../games/types';
 import { createMenuScreen } from './menu';
 import { createResultScreenAsHostScreen, createResultScreenAsGuestScreen } from './resultScreen';
-import { createWaitingRoomAsHostScreen, createWaitingRoomAsGuestScreen } from './waitingRoom';
+import { createWaitingRoomAsHostScreen, createWaitingRoomAsGuestScreen, attemptHostMigration } from './waitingRoom';
 import { buildReactionBarHTML, wireReactionBar, showReactionBubble } from '../ui/reactions';
 import { buildChatPanelHTML, wireChatPanel, appendChatMessage } from '../ui/chat';
 import type { ChatMsg } from '../games/types';
@@ -1026,8 +1026,10 @@ export function createGameScreenAsGuestScreen(args: GameScreenAsGuestArgs): Scre
 
       guest.onDisconnect = () => {
         hideReconnectOverlay();
-        alert(isSpectator ? '방이 닫혔어요' : '방장이 게임을 나갔어요');
-        router.reset(() => createMenuScreen());
+        // 관전자는 그냥 나감. 플레이어는 방장 이양 시도(게임 중단 → 새 방장 대기실로 전원 이동).
+        if (isSpectator) { alert('방이 닫혔어요'); router.reset(() => createMenuScreen()); return; }
+        closeOnDispose = false; // 이양 시 guest 를 닫으면 안 됨(승격/재연결에 재활용)
+        attemptHostMigration(guest, roomState, () => { alert('방장이 게임을 나갔어요'); router.reset(() => createMenuScreen()); });
       };
 
       leaveBtn.addEventListener('click', () => {

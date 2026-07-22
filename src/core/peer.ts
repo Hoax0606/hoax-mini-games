@@ -222,6 +222,15 @@ export class HostSession {
     throw mapPeerError(lastError);
   }
 
+  /**
+   * 방장 이양 전용: 이미 열려있는 Peer(원래 게스트의 peer)를 받아 그 자리에서 호스트로 배선.
+   * peer.id 는 그대로라 남은 게스트들이 이미 아는 그 peerId 로 재접속할 수 있다.
+   * roomId 는 표시/디렉토리용(코드-라우팅은 안 되지만 기존 멤버 유지엔 문제없음).
+   */
+  static adoptPeer(peer: Peer, roomId: string): HostSession {
+    return new HostSession(peer, roomId);
+  }
+
   private handleIncoming(conn: DataConnection): void {
     const fromPeerId = conn.peer;
 
@@ -596,6 +605,30 @@ export class GuestSession {
     if (this.conn.open) {
       safeSend(this.conn, msg);
     }
+  }
+
+  /**
+   * 방장 이양: 내가 새 방장이 됨. 내 기존 peer(남들이 아는 peerId)를 그대로 호스트로 승격.
+   * peer 는 destroy 하지 않고 HostSession 으로 넘긴다(이후 이 GuestSession 객체는 버려짐).
+   */
+  promoteToHost(roomId: string): HostSession {
+    this.closedIntentionally = true;       // 게스트 재연결 루프 중지
+    this.reconnecting = false;
+    if (this.staleCheckId !== null) { window.clearInterval(this.staleCheckId); this.staleCheckId = null; }
+    try { this.conn.off('data'); this.conn.off('close'); this.conn.off('error'); } catch { /* 죽은 conn */ }
+    try { this.conn.close(); } catch { /* 이미 닫힘 */ }
+    return HostSession.adoptPeer(this.peer, roomId);
+  }
+
+  /**
+   * 방장 이양: 재연결 대상을 새 방장(raw PeerJS id)으로 바꾸고 즉시 재시도.
+   * 새 방장이 아직 승격 중이어도 attemptReconnect 가 backoff 로 계속 시도해 따라붙는다.
+   */
+  reconnectToNewHost(newHostPeerId: string): void {
+    this.hostPeerId = newHostPeerId;
+    this.closedIntentionally = false;
+    this.reconnecting = false;
+    void this.attemptReconnect();
   }
 
   close(): void {

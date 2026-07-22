@@ -99,10 +99,16 @@ export interface WaitingRoomAsHostArgs {
    * (새 방일 땐 undefined — 게스트는 join_request 로 들어온다.) 준비 상태는 리셋된다.
    */
   initialPlayers?: Player[];
+  /**
+   * 방장 이양으로 승격된 방. true 면 (1)공개목록 등록 안 함(코드 라우팅 불가) (2)재접속하는
+   * 생존자의 비번 검증 스킵(옛 비번을 승계자가 모름 — peerId 를 아는 기존 멤버만 붙으므로 안전).
+   */
+  migrated?: boolean;
 }
 
 export function createWaitingRoomAsHostScreen(args: WaitingRoomAsHostArgs): Screen {
   const { host, isPrivate, password } = args;
+  const migrated = args.migrated === true;
   // gameId/roomOptions 는 방 안에서 방장이 게임을 고르면 바뀐다 → let.
   let gameId = args.gameId;
   let roomOptions: Record<string, string> = { ...args.roomOptions };
@@ -200,17 +206,20 @@ export function createWaitingRoomAsHostScreen(args: WaitingRoomAsHostArgs): Scre
       // 공개/비공개 모두 디렉토리(Firebase)에 등록. 비공개방은 isPrivate=true 로 목록에 🔒 표시되고,
       // 입장하려면 비번을 입력해야 함(호스트 onJoinRequest 에서 검증). 게스트 입장/퇴장 때 인원 갱신.
       // 이 항목은 대기→게임→결과 화면 내내 유지되고, 호스트가 방을 완전히 닫을 때만(dispose+closeOnDispose) 제거.
-      publishRoom({
-        roomId: host.roomId,
-        hostNickname,
-        gameId,
-        gameName: gameName(),
-        playerCount: 1,
-        maxPlayers: maxPlayers(),
-        status: 'waiting',
-        isPrivate,
-        createdAt: Date.now(),
-      }).catch((err) => console.error('[waitingRoom] publishRoom failed', err));
+      // 승격 방(migrated)은 코드-라우팅이 안 되므로 공개목록에 올리지 않는다(누르면 못 들어감).
+      if (!migrated) {
+        publishRoom({
+          roomId: host.roomId,
+          hostNickname,
+          gameId,
+          gameName: gameName(),
+          playerCount: 1,
+          maxPlayers: maxPlayers(),
+          status: 'waiting',
+          isPrivate,
+          createdAt: Date.now(),
+        }).catch((err) => console.error('[waitingRoom] publishRoom failed', err));
+      }
 
       /** 참가자 리스트 / 카운터 / 게임이름 / 옵션 / 시작·게임선택 버튼 상태 동기화 */
       const refreshUI = (): void => {
@@ -279,7 +288,7 @@ export function createWaitingRoomAsHostScreen(args: WaitingRoomAsHostArgs): Scre
         host.maxAccepted = Math.max(1, g.meta.maxPlayers - 1);
         // 전원에게 새 방 상태 통지 + 공개목록 갱신(게임이름/정원)
         host.send({ type: 'room_state', roomState: snapshotRoomState() });
-        updatePublicRoom(host.roomId, {
+        if (!migrated) updatePublicRoom(host.roomId, {
           gameId,
           gameName: g.meta.name,
           maxPlayers: g.meta.maxPlayers,
@@ -309,7 +318,7 @@ export function createWaitingRoomAsHostScreen(args: WaitingRoomAsHostArgs): Scre
             // 설정이 바뀌면 게스트가 본 조건이 달라짐 → 준비 리셋(다시 확인하고 준비하도록)
             guestPlayers.forEach((p) => { p.ready = false; });
             host.send({ type: 'room_state', roomState: snapshotRoomState() });
-            updatePublicRoom(host.roomId, { playerCount: 1 + guestPlayers.length }).catch(() => {});
+            if (!migrated) updatePublicRoom(host.roomId, { playerCount: 1 + guestPlayers.length }).catch(() => {});
             refreshUI(); // 시작 버튼/참가자 준비 배지 갱신
           });
         });
@@ -320,7 +329,7 @@ export function createWaitingRoomAsHostScreen(args: WaitingRoomAsHostArgs): Scre
         if (guestPlayers.length >= maxPlayers() - 1) {
           return { accept: false, reason: 'room_full' };
         }
-        if (isPrivate && req.password !== password) {
+        if (isPrivate && !migrated && req.password !== password) {
           return { accept: false, reason: 'wrong_password' };
         }
         // 수락 — preview에 새 게스트 포함해서 반환 (게스트가 받자마자 본인 포함된 상태)
@@ -348,7 +357,7 @@ export function createWaitingRoomAsHostScreen(args: WaitingRoomAsHostArgs): Scre
         host.send({ type: 'room_state', roomState: snapshotRoomState() });
 
         refreshUI();
-        updatePublicRoom(host.roomId, { playerCount: 1 + guestPlayers.length }).catch(() => {});
+        if (!migrated) updatePublicRoom(host.roomId, { playerCount: 1 + guestPlayers.length }).catch(() => {});
         showToast(`${nickname} 님이 들어왔어요`);
       };
 
@@ -360,7 +369,7 @@ export function createWaitingRoomAsHostScreen(args: WaitingRoomAsHostArgs): Scre
           host.send({ type: 'room_state', roomState: snapshotRoomState() });
         }
         refreshUI();
-        updatePublicRoom(host.roomId, { playerCount: 1 + guestPlayers.length }).catch(() => {});
+        if (!migrated) updatePublicRoom(host.roomId, { playerCount: 1 + guestPlayers.length }).catch(() => {});
         showToast(`${removed?.nickname ?? '게스트'} 님이 나갔어요`);
       };
 
@@ -473,7 +482,7 @@ export function createWaitingRoomAsHostScreen(args: WaitingRoomAsHostArgs): Scre
       // 게임 시작으로 떠나는 경우(closeOnDispose=false)엔 항목을 유지 → 게임 화면이 status='playing'
       // 으로 갱신하고, 목록엔 '게임 중'으로 계속 노출된다(중간 입장 관전 가능).
       // 호스트가 방을 완전히 닫을 때(메뉴 복귀 등, closeOnDispose=true)만 디렉토리에서 제거.
-      if (closeOnDispose) {
+      if (closeOnDispose && !migrated) {
         unpublishRoom(host.roomId).catch(() => {});
       }
       if (closeOnDispose) {
@@ -498,6 +507,51 @@ export interface WaitingRoomAsGuestArgs {
   guest: GuestSession;
   /** join_accepted로 받은 초기 방 상태 (본인 포함) */
   initialRoomState: RoomState;
+}
+
+/**
+ * 방장 이양 (host migration, 범위=게임중단→새 방장 대기실).
+ * 호스트가 나가 게스트가 완전히 끊긴 시점에 호출. 공유된 roomState.players 로 후계자를 결정론적으로 뽑아
+ *  - 내가 후계자면 내 peer 를 호스트로 승격시켜 대기실(호스트) 진입,
+ *  - 아니면 후계자 peerId 로 재연결 → 대기실(게스트) 진입.
+ * 진행 중이던 게임은 중단하고 전원 대기실로 모인다. 후계자도 없으면 onFallback(메뉴 등).
+ * ⚠️ 멀티 클라 실테스트 필요(현재 미검증).
+ */
+export function attemptHostMigration(
+  guest: GuestSession,
+  roomState: RoomState,
+  onFallback: () => void,
+): void {
+  const players = roomState.players ?? [];
+  const oldHost = players.find((p) => p.isHost) ?? players[0];
+  // 후계자 후보 = 옛 호스트·관전자 제외한 플레이어. players 순서는 전원 동일(호스트가 broadcast) → 합의됨.
+  const survivors = players.filter((p) => p.role !== 'spectator' && p.peerId !== oldHost?.peerId);
+  if (survivors.length === 0) { onFallback(); return; }
+  const successor = survivors[0]!;
+  const me = guest.myPeerId;
+
+  if (me === successor.peerId) {
+    // 내가 새 방장 — 기존 peer 를 그대로 호스트로 승격
+    const host = guest.promoteToHost(me);
+    host.maxAccepted = Math.max(1, GLOBAL_MAX_PLAYERS - 1);
+    router.replace(() => createWaitingRoomAsHostScreen({
+      host,
+      gameId: roomState.gameId,
+      isPrivate: true,
+      password: '',
+      roomOptions: roomState.roomOptions ?? {},
+      migrated: true,   // 공개목록 등록·비번검증 스킵(코드 라우팅 불가, peerId 아는 기존 멤버만)
+    }));
+  } else {
+    // 나는 새 방장에게 재연결
+    guest.reconnectToNewHost(successor.peerId);
+    const prov: RoomState = {
+      ...roomState,
+      status: 'waiting',
+      players: survivors.map((p) => ({ ...p, isHost: p.peerId === successor.peerId, role: 'player' as const, ready: false })),
+    };
+    router.replace(() => createWaitingRoomAsGuestScreen({ guest, initialRoomState: prov }));
+  }
 }
 
 export function createWaitingRoomAsGuestScreen(args: WaitingRoomAsGuestArgs): Screen {
@@ -668,8 +722,8 @@ export function createWaitingRoomAsGuestScreen(args: WaitingRoomAsGuestArgs): Sc
       guest.onDisconnect = () => {
         hideReconnectOverlay();
         if (wasKicked) return; // 강퇴는 'kicked' 에서 이미 안내+이동함
-        alert('방장이 방을 나갔어요');
-        router.back();
+        // 방장이 나감 → 방장 이양 시도(후계자 승격/재연결). 후계자도 없으면 방 나감.
+        attemptHostMigration(guest, roomState, () => { alert('방장이 방을 나갔어요'); router.back(); });
       };
 
       leaveBtn.addEventListener('click', () => {
