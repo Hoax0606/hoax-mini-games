@@ -28,6 +28,7 @@ import dodgeThumbnail from './dodge/thumbnail.svg';
 import oneCardThumbnail from './onecard/thumbnail.svg';
 import blueMarbleThumbnail from './blue-marble/thumbnail.svg';
 import werewolfThumbnail from './werewolf/thumbnail.svg';
+import avalonThumbnail from './avalon/thumbnail.svg';
 
 export const games: GameEntry[] = [
   {
@@ -468,6 +469,33 @@ export const games: GameEntry[] = [
     load: async () => {
       const mod = await import('./werewolf');
       return mod.createWerewolfGame();
+    },
+  },
+  {
+    meta: {
+      id: 'avalon',
+      name: '아발론',
+      description: '아서왕 전설의 선/악 사회추리! 5라운드 원정에서 리더가 원정대를 뽑고 전원이 찬반 투표해요. 원정대는 성공/실패 카드를 비밀로 내고, 선은 3원정 성공을, 악은 3원정 실패나 멀린 암살을 노려요. 멀린·퍼시발·암살자·모르가나가 얽힌 심리전.',
+      thumbnail: avalonThumbnail,
+      minPlayers: 5,
+      maxPlayers: 10,
+      roomOptions: [
+        {
+          key: 'discuss',
+          label: '원정대 토론 시간',
+          type: 'select',
+          choices: [
+            { value: '60', label: '짧게 · 1분' },
+            { value: '90', label: '보통 · 1분 30초' },
+            { value: '150', label: '길게 · 2분 30초' },
+          ],
+          defaultValue: '90',
+        },
+      ],
+    },
+    load: async () => {
+      const mod = await import('./avalon');
+      return mod.createAvalonGame();
     },
   },
 ];

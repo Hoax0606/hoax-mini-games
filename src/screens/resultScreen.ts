@@ -1591,6 +1591,88 @@ function buildOneCardResultHTML(args: {
 
 
 // ============================================
+// 아발론 전용 결과 HTML
+// ============================================
+
+interface AvResultPlayer { peerId: string; nickname: string; role: string | null; roleName: string | null; side: 'good' | 'evil' | null; }
+
+function parseAvalonSummary(summary: Record<string, unknown>): {
+  myPeerId: string; winningSide: 'good' | 'evil'; myRoleName: string | null;
+  reason: string; players: AvResultPlayer[];
+} | null {
+  if (summary['gameId'] !== 'avalon') return null;
+  const myPeerId = typeof summary['myPeerId'] === 'string' ? (summary['myPeerId'] as string) : null;
+  const winningSide = summary['winningSide'];
+  if (!myPeerId || (winningSide !== 'good' && winningSide !== 'evil')) return null;
+  const raw = summary['players'] as unknown;
+  const players: AvResultPlayer[] = Array.isArray(raw)
+    ? (raw as Array<Partial<AvResultPlayer>>)
+        .filter((p) => typeof p.peerId === 'string' && typeof p.nickname === 'string')
+        .map((p) => ({
+          peerId: p.peerId!, nickname: p.nickname!,
+          role: (p.role as string) ?? null, roleName: (p.roleName as string) ?? null,
+          side: (p.side === 'good' || p.side === 'evil') ? p.side : null,
+        }))
+    : [];
+  return {
+    myPeerId, winningSide,
+    myRoleName: typeof summary['myRoleName'] === 'string' ? (summary['myRoleName'] as string) : null,
+    reason: typeof summary['reason'] === 'string' ? (summary['reason'] as string) : '',
+    players,
+  };
+}
+
+function buildAvalonResultHTML(args: {
+  myWinner: 'me' | 'opponent' | null;
+  summary: ReturnType<typeof parseAvalonSummary>;
+  isHost: boolean; isSpectator: boolean;
+}): string {
+  const { myWinner, summary, isHost, isSpectator } = args;
+  if (!summary) return '';
+  const { emoji, title, titleClass } = isSpectator
+    ? { emoji: icon('users', { size: 60, hue: '#9db4d6' }), title: '아발론 종료', titleClass: 'result-title-draw' }
+    : winnerVisuals(myWinner);
+  const actionsHTML = buildActionsHTML(isHost);
+  const sideTxt = summary.winningSide === 'good' ? '🛡️ 선(아서 진영) 승리' : '⚔️ 악(모드레드 진영) 승리';
+  const reasonTxt = summary.reason === 'reject5' ? '원정대 5연속 거부'
+    : summary.reason === 'assassin' ? '멀린 암살 판정'
+    : '원정 3판 결과';
+  const myBlock = isSpectator || !summary.myRoleName ? '' : `
+    <div class="result-apple-myscore">
+      <div class="result-apple-myscore-label">내 역할</div>
+      <div class="result-apple-myscore-value">${escapeHtml(summary.myRoleName)}</div>
+    </div>`;
+  // 선/악으로 나눠서 정체 공개
+  const order = [...summary.players].sort((a, b) => (a.side === 'evil' ? 1 : 0) - (b.side === 'evil' ? 1 : 0));
+  const rowsHTML = order.map((p) => {
+    const isMe = p.peerId === summary.myPeerId;
+    const evil = p.side === 'evil';
+    return `
+      <div class="result-tetris-rank-row ${isMe ? 'is-me' : ''}">
+        <span class="result-tetris-rank-badge ${evil ? 'rank-3' : 'rank-1'}">${evil ? '악' : '선'}</span>
+        <span class="result-tetris-rank-name">${escapeHtml(p.nickname)}</span>
+        <span class="result-apple-rank-score">${escapeHtml(p.roleName ?? '?')}</span>
+        ${isMe ? '<span class="result-tetris-rank-me-tag">나</span>' : ''}
+      </div>`;
+  }).join('');
+  return `
+    <div class="result-card result-card-tetris">
+      <div class="result-emoji">${emoji}</div>
+      <div class="result-title ${titleClass}">${title}</div>
+      <div class="result-apple-myscore-label" style="text-align:center;font-weight:800;margin:2px 0 8px">${sideTxt} · ${reasonTxt}</div>
+      ${myBlock}
+      <div class="result-tetris-rankings">
+        <div class="result-tetris-rankings-title">${icon('users', { size: 18, hue: '#5b9dff' })} 모두의 정체</div>
+        ${rowsHTML}
+      </div>
+      <div class="result-actions">
+        ${actionsHTML}
+      </div>
+    </div>
+  `;
+}
+
+// ============================================
 // 호스트 결과 화면
 // ============================================
 
@@ -1633,6 +1715,7 @@ export function createResultScreenAsHostScreen(args: ResultScreenAsHostArgs): Sc
       const dodge = parseDodgeSummary(result.summary);
       const onecard = parseOneCardSummary(result.summary);
       const blueMarble = parseBlueMarbleSummary(result.summary);
+      const avalon = parseAvalonSummary(result.summary);
       if (tetris) {
         el.innerHTML = buildTetrisResultHTML({
           myWinner: result.winner,
@@ -1741,6 +1824,8 @@ export function createResultScreenAsHostScreen(args: ResultScreenAsHostArgs): Sc
         });
       } else if (blueMarble) {
         el.innerHTML = buildBlueMarbleResultHTML({ myWinner: result.winner, summary: blueMarble, isHost: true, isSpectator: false });
+      } else if (avalon) {
+        el.innerHTML = buildAvalonResultHTML({ myWinner: result.winner, summary: avalon, isHost: true, isSpectator: false });
       } else if (isStoryDrawSummary(result.summary)) {
         el.innerHTML = buildStoryDrawResultHTML(true);
       } else {
@@ -1906,6 +1991,7 @@ export function createResultScreenAsGuestScreen(args: ResultScreenAsGuestArgs): 
       const dodge = parseDodgeSummary(result.summary);
       const onecard = parseOneCardSummary(result.summary);
       const blueMarble = parseBlueMarbleSummary(result.summary);
+      const avalon = parseAvalonSummary(result.summary);
       // 관전자는 summary.myPeerId 가 자기가 아닐 수 있음 — 자기 peerId 는 guest.myPeerId.
       // rankings 에 "나" 가 없으면 관전자로 간주.
       const myPeerIdForResult = guest.myPeerId;
@@ -2040,6 +2126,13 @@ export function createResultScreenAsGuestScreen(args: ResultScreenAsGuestArgs): 
         });
       } else if (blueMarble) {
         el.innerHTML = buildBlueMarbleResultHTML({ myWinner: result.winner, summary: blueMarble, isHost: false, isSpectator: isSpec });
+      } else if (avalon) {
+        const isSpecAv = !avalon.players.some((p) => p.peerId === myPeerIdForResult);
+        el.innerHTML = buildAvalonResultHTML({
+          myWinner: result.winner,
+          summary: isSpecAv ? { ...avalon, myPeerId: myPeerIdForResult } : avalon,
+          isHost: false, isSpectator: isSpecAv,
+        });
       } else if (isStoryDrawSummary(result.summary)) {
         el.innerHTML = buildStoryDrawResultHTML(false);
       } else {
