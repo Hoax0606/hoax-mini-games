@@ -3,7 +3,23 @@
 다른 머신(집)에서 이 프로젝트를 이어서 작업할 때 읽는 문서.
 **Claude Code 첫 프롬프트로 "HANDOFF.md 정독하고 이어서 진행해줘" 라고 시작하면 됨.**
 
-마지막 업데이트: **2026-07-21 (E)** (늑대인간 정식 룰 전면 확장 10인·12역할·일반/랜덤 + 다수 버그 / 브루마블 인수·올림픽·땅판매·건물값·말 / 포트리스 유도탄)
+마지막 업데이트: **2026-07-27 (F)** (🆕 아발론 신규 게임 추가 — 레지스탕스 히든롤, 5라운드 원정+찬반투표+암살)
+
+---
+
+### 🗓️ 2026-07-27 세션 (F) — 🆕 아발론(레지스탕스) 신규 게임
+
+**🆕 아발론(avalon) 신규 게임** `src/games/avalon/`(rules/netSync/render/index/thumbnail + registry·resultScreen 등록). id `avalon`, 이름 **아발론**, 5~10인, host-authoritative P2P. 커밋 `24e6a16`. 늑대인간 히든롤 엔진(3계층 상태분리·타겟 시크릿 채널·phaseDeadline 루프·stageKey 캐싱·더미봇·onPeerLeft)을 재사용하되 **단판이 아니라 5라운드 다판 구조**가 핵심 차이.
+- **역할 8종**(전체): 멀린·퍼시발·충직한신하 / 암살자·모르가나·모드레드·오베론·하수인. 8종 인라인 SVG(`ROLE_SVG`).
+- **인원별 정식 구성**(`SETUPS`, 랜덤모드 없음 — Henry 선택): 선/악 5→3/2·6→4/2·7→4/3·8→5/3·9→6/3·10→6/4. 오베론=7·10인, 모드레드=8·9·10인.
+- **밤 지식**(`computeKnowledge`, 타겟 `av:info`): 멀린=악 목록(단 모드레드 제외, 오베론 포함) / 퍼시발=멀린 후보 2명(멀린+모르가나 셔플, 구분불가) / 악끼리=서로 목록(오베론 제외) / 오베론=고립 / 신하=없음.
+- **페이즈 엔진**: deal → [team(리더 원정대 선발) → vote(전원 공개 찬반) → quest(원정대만 성공/실패 비밀 제출)] ×최대5 → (assassin) → result.
+  - 승인=과반(동수=거부). **5연속 거부=악승**. 선=성공만·악=선택. **7인+ 4라운드만 실패 2장** 필요(`failsRequiredFor`). **3성공→암살 페이즈**(암살자가 멀린 지목, 맞히면 악 역전승) / **3실패=악승**.
+  - 리더 시계방향 로테이션. 투표 집계는 잠깐 공개(VOTE_REVEAL_MS) 후 진행. 타임아웃 backstop(team=자동선발/vote=미투표는 반대/quest=미제출은 성공/assassin=선승).
+- **render**: 아서왕 톤(선=블루/골드, 악=크림슨). 퀘스트 트랙 HUD(5칸 원정인원→성공✔/실패✘) + 연속거부 점 + 리더 왕관 ♛ + 내 역할카드·지식 메모 + team/vote/quest 상시 토론 채팅 + 결과 오버레이(전 정체 공개) + 도움말 패널.
+- **resultScreen**: `parseAvalonSummary`+`buildAvalonResultHTML`(승패+진영+내 역할+종료사유+정체 리스트) + host/guest 분기. players 엔트리에 `roleName` 포함(역할명 매핑 커플링 회피).
+- **솔로 프리뷰**: dev솔로(AlphaTest, minPlayers 무시)로 봇4명 자동 채움 — 봇은 찬성/성공만 내니 deal→…→3성공→암살→result 흐름 확인용.
+- **⚠️ 미검증**: 빌드 통과. 실제 5창 멀티(타겟 시크릿 채널·공개투표·비밀 원정카드·암살 저격), 이탈 시 진행(리더/암살자/원정대원) 검증 필요.
 
 ---
 
@@ -200,7 +216,7 @@ npm run dev       # http://localhost:5173
 **한 줄**: 친구끼리 즐기는 웹 P2P 미니게임 모음집.
 - **스택**: Vite + TypeScript + Canvas + PeerJS (WebRTC, 서버리스 P2P) + GitHub Pages
 - **분위기**: 산리오풍 파스텔. 한국어 UI. PC 전용.
-- **현재 게임 (15종)** — 2인 전용·알까기 외 전부 **최대 10인**:
+- **현재 게임 (19종)** — 2인 전용·알까기 외 전부 **최대 10인**:
   - 에어하키 (2인 전용, 호스트 authoritative 물리)
   - 배틀 테트리스 (2~10인, 로컬 시뮬레이션)
   - 사과 게임 (1~10인, 숫자 사과 합 10 터트리기, 2분)
@@ -215,7 +231,11 @@ npm run dev       # http://localhost:5173
   - 라이어 게임 (3~10인, 5라운드. 일반/바보 2모드. 호스트 authoritative. `liar-game/`)
   - 스토리텔링 (3~10인, 갈틱폰식 이어그리기. 슬라이드쇼 감상, 승패 없음. `story-draw/`)
   - 라멘가게 (1~10인, 독립 가게 매출 경쟁. `ramen-shop/`)
-  - 🆕 똥 피하기 (1~10인, 💩 낙하물 회피 배틀로얄. ←→ 이동 + Space 대시. 결정론 낙하물 동일/랜덤. `dodge/`)
+  - 똥 피하기 (1~10인, 💩 낙하물 회피 배틀로얄. ←→ 이동 + Space 대시. 결정론 낙하물 동일/랜덤. `dodge/`)
+  - 원카드 (2~10인, 카드 먼저 비우기. `onecard/`)
+  - 브루마블 (2~4인, 모두의마블식 보드. 호스트 authoritative. `blue-marble/`)
+  - 한밤의 늑대인간 (3~10인, ONUW 히든롤 단판. 일반/랜덤 2모드, 12역할. `werewolf/`)
+  - 🆕 아발론 (5~10인, 레지스탕스 히든롤. 5라운드 원정+공개찬반+암살. 역할 8종. `avalon/`)
 - **배포 URL**: https://hoax0606.github.io/hoax-mini-games/
 
 ---
@@ -238,7 +258,7 @@ src/
 │   └── roomDirectory.ts         # 🆕 publicRooms 노드 publish/update/subscribe + onDisconnect 자동 제거
 ├── games/
 │   ├── types.ts                 # GameContext, Player(role), NetworkMessage + ping/reaction/chat
-│   ├── registry.ts              # 등록된 게임 목록 (15종)
+│   ├── registry.ts              # 등록된 게임 목록 (19종)
 │   ├── air-hockey/              # 2인 호스트 authoritative
 │   ├── battle-tetris/           # 2-4인 로컬 시뮬레이션
 │   ├── apple-game/              # 1-4인 독립 보드 + 점수 경쟁 (17×10)
