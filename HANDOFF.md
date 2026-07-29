@@ -3,7 +3,23 @@
 다른 머신(집)에서 이 프로젝트를 이어서 작업할 때 읽는 문서.
 **Claude Code 첫 프롬프트로 "HANDOFF.md 정독하고 이어서 진행해줘" 라고 시작하면 됨.**
 
-마지막 업데이트: **2026-07-27 (F)** (🆕 아발론 신규 게임 추가 — 레지스탕스 히든롤, 5라운드 원정+찬반투표+암살)
+마지막 업데이트: **2026-07-29 (G)** (🆕 가짜 화가 신규 게임 / 아발론 채팅 제거 / 반응 바 드래그 이동)
+
+---
+
+### 🗓️ 2026-07-29 세션 (G) — 🆕 가짜 화가 + 아발론 채팅 제거 + 반응 바 드래그
+
+**🆕 가짜 화가(fake-artist) 신규 게임** `src/games/fake-artist/`(rules/netSync/render/index/thumbnail + registry·resultScreen). id `fake-artist`, 이름 **가짜 화가**, 4~10인, host-authoritative. 커밋 `c34b7ed`. **라이어 게임(히든롤·투표·추측·점수) + draw-quiz(공유 실시간 캔버스) 합성** = "Fake Artist Goes to New York" 류.
+- **규칙**: 제시어를 **마피아(가짜 화가) 빼고 전원**이 앎(마피아는 자기가 가짜인 걸 앎, 주제만 공개). 순서대로 **각자 고정색 펜으로 한 획씩**, 2바퀴(roomOption `laps` 1/2/3). 다 그리면 **마피아 투표**. 잡히면 시민 승 — 단 **마피아가 제시어 맞히면 역전승**. 못 잡으면 마피아 승. **5라운드 누적**(마피아 매 라운드 교대, `fakeBag` 공정 로테이션).
+- **점수**: 마피아 승 +2 / 시민 승이면 마피아 지목한 시민 각 +1 (라이어와 동일).
+- **rules.ts**: Phase(draw/vote/guess/result/ended)·10색 팔레트(`PLAYER_COLORS`/`colorFor`)·StrokeData(펜/free)·투표/점수(라이어 이식). 공개상태에 strokes/colors/drawIndex 포함.
+- **render.ts**: 캔버스=공유 그림판(오프스크린 누적 레이어, draw-quiz 엔진 복사, 펜 전용) + HTML HUD 오버레이(역할/제시어 카드·현재 차례·플레이어 색칩/점수·투표 버튼·추측 입력·결과·도움말). pointer-events none HUD 위 인터랙션만 auto. 논리 760×480 풀캔버스.
+- **index.ts**: 호스트 authoritative(**획당 full sync** 로 전파 — 턴제라 충분). 획 입력 캡처(draw-quiz `attachDrawInput` 패턴, `amDrawer`=내 턴+한 획만). 호스트가 stroke.color 를 좌석 색으로 강제(치팅 방지). 더미봇(자기 턴 랜덤 획·투표 랜덤·마피아면 오답). onPeerLeft·아발론식 입력 재전송 견고성. 제시어 풀은 `../liar-game/words` 재사용(순수 데이터).
+- **⚠️ 검증**: 빌드 통과 + Playwright 솔로 4라운드 완주(draw→vote→result·역할표시·봇그리기·점수, 에러 0). **미검증**: 실멀티에서 **공유 캔버스 실시간 반영**(핵심), guess 페이즈(마피아 잡힘), 색↔닉 구분, 이탈 진행.
+
+**🗨️ 아발론 인게임 토론 채팅 제거** (커밋 `ac39530`) — 일정 길이 이상 입력 막힘 + 음성/대면이면 불필요. `.av-chat` 패널/renderChat/doChat/relayChat/더미채팅 삭제. (rules `PublicState.chatLog` 필드는 빈 채 잔존, 무해)
+
+**🙂 반응 이모지 바 드래그 이동** (커밋 `acafa73`) — 게임 중 좌하단 고정 반응 바가 HUD 와 겹칠 때 치워둘 수 있게. `reactions.ts makeReactionBarDraggable`(6px 임계로 클릭↔드래그 구분, 드래그 마무리 클릭 토글 누수 차단, `localStorage 'hoax_reaction_pos'` 저장/복원/뷰포트 클램프). gameScreen host/guest 양쪽 활성화. theme.css cursor grab. Playwright 검증(이동·저장·토글·에러0). 모든 게임 공통.
 
 ---
 
@@ -218,7 +234,7 @@ npm run dev       # http://localhost:5173
 **한 줄**: 친구끼리 즐기는 웹 P2P 미니게임 모음집.
 - **스택**: Vite + TypeScript + Canvas + PeerJS (WebRTC, 서버리스 P2P) + GitHub Pages
 - **분위기**: 산리오풍 파스텔. 한국어 UI. PC 전용.
-- **현재 게임 (19종)** — 2인 전용·알까기 외 전부 **최대 10인**:
+- **현재 게임 (20종)** — 2인 전용·알까기 외 전부 **최대 10인**:
   - 에어하키 (2인 전용, 호스트 authoritative 물리)
   - 배틀 테트리스 (2~10인, 로컬 시뮬레이션)
   - 사과 게임 (1~10인, 숫자 사과 합 10 터트리기, 2분)
@@ -237,7 +253,8 @@ npm run dev       # http://localhost:5173
   - 원카드 (2~10인, 카드 먼저 비우기. `onecard/`)
   - 브루마블 (2~4인, 모두의마블식 보드. 호스트 authoritative. `blue-marble/`)
   - 한밤의 늑대인간 (3~10인, ONUW 히든롤 단판. 일반/랜덤 2모드, 12역할. `werewolf/`)
-  - 🆕 아발론 (5~10인, 레지스탕스 히든롤. 5라운드 원정+공개찬반+암살. 역할 8종. `avalon/`)
+  - 아발론 (5~10인, 레지스탕스 히든롤. 5라운드 원정+공개찬반+암살. 역할 8종. `avalon/`)
+  - 🆕 가짜 화가 (4~10인, Fake Artist류. 제시어 모르는 마피아 찾기 + 공유 캔버스 이어그리기. 5라운드. `fake-artist/`)
 - **배포 URL**: https://hoax0606.github.io/hoax-mini-games/
 
 ---
@@ -260,7 +277,7 @@ src/
 │   └── roomDirectory.ts         # 🆕 publicRooms 노드 publish/update/subscribe + onDisconnect 자동 제거
 ├── games/
 │   ├── types.ts                 # GameContext, Player(role), NetworkMessage + ping/reaction/chat
-│   ├── registry.ts              # 등록된 게임 목록 (19종)
+│   ├── registry.ts              # 등록된 게임 목록 (20종)
 │   ├── air-hockey/              # 2인 호스트 authoritative
 │   ├── battle-tetris/           # 2-4인 로컬 시뮬레이션
 │   ├── apple-game/              # 1-4인 독립 보드 + 점수 경쟁 (17×10)
