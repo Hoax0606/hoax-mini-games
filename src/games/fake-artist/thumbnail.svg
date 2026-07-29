@@ -1,0 +1,64 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 200" fill="none">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#ffe4ee"/>
+      <stop offset="1" stop-color="#e0fff4"/>
+    </linearGradient>
+    <filter id="lift" x="-35%" y="-35%" width="170%" height="170%"><feDropShadow dx="0" dy="5" stdDeviation="5" flood-color="#5a6a8a" flood-opacity="0.24"/></filter>
+  </defs>
+  <rect width="320" height="200" rx="22" fill="url(#bg)"/>
+
+  <!-- 배경 점 -->
+  <circle cx="30" cy="28" r="3" fill="#ffc9dd"/>
+  <circle cx="292" cy="38" r="2.5" fill="#b8f5e0"/>
+  <circle cx="296" cy="172" r="3" fill="#d9c7ff"/>
+  <circle cx="28" cy="176" r="2.2" fill="#ffeec2"/>
+  <circle cx="18" cy="100" r="2" fill="#ffc9dd"/>
+  <circle cx="302" cy="104" r="2" fill="#b8f5e0"/>
+  <!-- 별 -->
+  <path d="M 48,44 L 50,48 L 55,48 L 51,51 L 53,56 L 48,53 L 43,56 L 45,51 L 41,48 L 46,48 Z" fill="#ffc9dd" opacity="0.7"/>
+  <path d="M 276,150 L 278,154 L 283,154 L 279,157 L 281,162 L 276,159 L 271,162 L 273,157 L 269,154 L 274,154 Z" fill="#b8f5e0" opacity="0.7"/>
+
+  <g filter="url(#lift)">
+    <!-- 이젤 다리 -->
+    <path d="M96 148 L104 74 M188 148 L180 74" stroke="#b98a4a" stroke-width="5" stroke-linecap="round"/>
+    <path d="M108 168 L118 120 M176 168 L166 120" stroke="#b98a4a" stroke-width="5" stroke-linecap="round"/>
+    <!-- 캔버스(도화지) -->
+    <rect x="88" y="40" width="108" height="86" rx="6" fill="#ffffff" stroke="#d9c7ff" stroke-width="2.5"/>
+    <!-- 반쯤 그린 색색 획 (각자 다른 색 = 게임 핵심) -->
+    <path d="M104 96 q10 -26 22 -6 q8 14 20 -4" fill="none" stroke="#e2245e" stroke-width="4.5" stroke-linecap="round"/>
+    <path d="M112 72 q18 8 40 2" fill="none" stroke="#2e6fd9" stroke-width="4.5" stroke-linecap="round"/>
+    <path d="M150 62 l6 22 l14 -6" fill="none" stroke="#2eb872" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M120 108 q22 10 46 -2" fill="none" stroke="#ff8a3c" stroke-width="4.5" stroke-linecap="round"/>
+    <path d="M160 96 q10 -14 20 0" fill="none" stroke="#9c5fd9" stroke-width="4.5" stroke-linecap="round"/>
+    <!-- 물음표(누가 가짜?) -->
+    <circle cx="176" cy="52" r="12" fill="#fff2c4" stroke="#e0a92a" stroke-width="2"/>
+    <text x="176" y="57" font-size="15" font-weight="900" fill="#c8880f" text-anchor="middle" font-family="system-ui">?</text>
+
+    <!-- 팔레트 -->
+    <g transform="translate(210, 120) rotate(-8)">
+      <ellipse cx="0" cy="0" rx="40" ry="30" fill="#f6e7cf" stroke="#c79a5e" stroke-width="2.5"/>
+      <ellipse cx="14" cy="8" rx="11" ry="8" fill="#f6e7cf" stroke="#c79a5e" stroke-width="2"/>
+      <circle cx="-18" cy="-10" r="5.5" fill="#e2245e"/>
+      <circle cx="-2" cy="-16" r="5.5" fill="#2e6fd9"/>
+      <circle cx="14" cy="-12" r="5.5" fill="#2eb872"/>
+      <circle cx="24" cy="2" r="5.5" fill="#ff8a3c"/>
+      <circle cx="-16" cy="6" r="5.5" fill="#9c5fd9"/>
+    </g>
+
+    <!-- 가면 쓴 화가(가짜 화가) + 붓 -->
+    <g transform="translate(52, 108)">
+      <circle cx="0" cy="0" r="22" fill="#ffd9a8" stroke="#e0b07a" stroke-width="2"/>
+      <!-- 검은 도둑 눈가리개 -->
+      <rect x="-18" y="-6" width="36" height="11" rx="5.5" fill="#2a2732"/>
+      <circle cx="-8" cy="-0.5" r="2.3" fill="#fff"/>
+      <circle cx="8" cy="-0.5" r="2.3" fill="#fff"/>
+      <path d="M-8 11 q8 5 16 0" fill="none" stroke="#b06a4a" stroke-width="2" stroke-linecap="round"/>
+      <!-- 붓 -->
+      <g transform="rotate(38)">
+        <rect x="18" y="-2.5" width="30" height="5" rx="2.5" fill="#c79a5e"/>
+        <path d="M48 -4 L58 0 L48 4 Z" fill="#e2245e"/>
+      </g>
+    </g>
+  </g>
+</svg>

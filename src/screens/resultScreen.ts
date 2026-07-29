@@ -673,6 +673,72 @@ function buildLiarResultHTML(args: {
 }
 
 // ============================================
+// 가짜 화가 전용 결과 HTML (라이어와 동일 구조 — 5라운드 누적 순위)
+// ============================================
+
+function parseFakeArtistSummary(summary: Record<string, unknown>): {
+  myPeerId: string; rank: number; totalPlayers: number; rankings: LiarRankEntry[];
+} | null {
+  if (summary['gameId'] !== 'fake-artist') return null;
+  const myPeerId = typeof summary['myPeerId'] === 'string' ? (summary['myPeerId'] as string) : null;
+  const rank = typeof summary['rank'] === 'number' ? (summary['rank'] as number) : null;
+  const totalPlayers = typeof summary['totalPlayers'] === 'number' ? (summary['totalPlayers'] as number) : null;
+  const rawRankings = summary['rankings'] as unknown;
+  if (!myPeerId || rank === null || totalPlayers === null) return null;
+  const rankings: LiarRankEntry[] = Array.isArray(rawRankings)
+    ? (rawRankings as Partial<LiarRankEntry>[])
+        .filter((r) => typeof r.peerId === 'string' && typeof r.nickname === 'string' && typeof r.rank === 'number' && typeof r.score === 'number')
+        .map((r) => ({ peerId: r.peerId!, nickname: r.nickname!, rank: r.rank!, score: r.score! }))
+    : [];
+  return { myPeerId, rank, totalPlayers, rankings };
+}
+
+function buildFakeArtistResultHTML(args: {
+  myWinner: 'me' | 'opponent' | null;
+  rank: number; totalPlayers: number; rankings: LiarRankEntry[];
+  myPeerId: string; isHost: boolean; isSpectator: boolean;
+}): string {
+  const { myWinner, rank, totalPlayers, rankings, myPeerId, isHost, isSpectator } = args;
+  const { emoji, title, titleClass } = isSpectator
+    ? { emoji: icon('pen', { size: 56, hue: '#9c7aeb' }), title: '가짜 화가 종료', titleClass: 'result-title-draw' }
+    : winnerVisuals(myWinner);
+  const actionsHTML = buildActionsHTML(isHost);
+  const myBlock = isSpectator ? '' : `
+    <div class="result-tetris-rank">
+      <span class="result-tetris-rank-num">${rank}</span> / ${totalPlayers}위
+    </div>
+  `;
+  const rankingsHTML = rankings.length >= 1 ? `
+    <div class="result-tetris-rankings">
+      <div class="result-tetris-rankings-title">${icon('medal', { size: 18, hue: '#ffb12e' })} 최종 순위</div>
+      ${rankings.map((r) => {
+        const isMe = r.peerId === myPeerId;
+        const badgeClass = r.rank <= 3 ? `rank-${r.rank}` : '';
+        return `
+          <div class="result-tetris-rank-row ${isMe ? 'is-me' : ''}">
+            <span class="result-tetris-rank-badge ${badgeClass}">${r.rank}</span>
+            <span class="result-tetris-rank-name">${escapeHtml(r.nickname)}</span>
+            <span class="result-apple-rank-score">${r.score}점</span>
+            ${isMe ? '<span class="result-tetris-rank-me-tag">나</span>' : ''}
+          </div>
+        `;
+      }).join('')}
+    </div>
+  ` : '';
+  return `
+    <div class="result-card result-card-tetris">
+      <div class="result-emoji">${emoji}</div>
+      <div class="result-title ${titleClass}">${title}</div>
+      ${myBlock}
+      ${rankingsHTML}
+      <div class="result-actions">
+        ${actionsHTML}
+      </div>
+    </div>
+  `;
+}
+
+// ============================================
 // 라면가게 전용 결과 HTML
 // ============================================
 
@@ -1716,6 +1782,7 @@ export function createResultScreenAsHostScreen(args: ResultScreenAsHostArgs): Sc
       const onecard = parseOneCardSummary(result.summary);
       const blueMarble = parseBlueMarbleSummary(result.summary);
       const avalon = parseAvalonSummary(result.summary);
+      const fakeArtist = parseFakeArtistSummary(result.summary);
       if (tetris) {
         el.innerHTML = buildTetrisResultHTML({
           myWinner: result.winner,
@@ -1788,6 +1855,16 @@ export function createResultScreenAsHostScreen(args: ResultScreenAsHostArgs): Sc
           totalPlayers: liar.totalPlayers,
           rankings: liar.rankings,
           myPeerId: liar.myPeerId,
+          isHost: true,
+          isSpectator: false,
+        });
+      } else if (fakeArtist) {
+        el.innerHTML = buildFakeArtistResultHTML({
+          myWinner: result.winner,
+          rank: fakeArtist.rank,
+          totalPlayers: fakeArtist.totalPlayers,
+          rankings: fakeArtist.rankings,
+          myPeerId: fakeArtist.myPeerId,
           isHost: true,
           isSpectator: false,
         });
@@ -1992,6 +2069,7 @@ export function createResultScreenAsGuestScreen(args: ResultScreenAsGuestArgs): 
       const onecard = parseOneCardSummary(result.summary);
       const blueMarble = parseBlueMarbleSummary(result.summary);
       const avalon = parseAvalonSummary(result.summary);
+      const fakeArtist = parseFakeArtistSummary(result.summary);
       // 관전자는 summary.myPeerId 가 자기가 아닐 수 있음 — 자기 peerId 는 guest.myPeerId.
       // rankings 에 "나" 가 없으면 관전자로 간주.
       const myPeerIdForResult = guest.myPeerId;
@@ -2080,6 +2158,17 @@ export function createResultScreenAsGuestScreen(args: ResultScreenAsGuestArgs): 
           totalPlayers: liar.totalPlayers,
           rankings: liar.rankings,
           myPeerId: isSpec ? myPeerIdForResult : liar.myPeerId,
+          isHost: false,
+          isSpectator: isSpec,
+        });
+      } else if (fakeArtist) {
+        const isSpec = !fakeArtist.rankings.some((r) => r.peerId === myPeerIdForResult);
+        el.innerHTML = buildFakeArtistResultHTML({
+          myWinner: result.winner,
+          rank: fakeArtist.rank,
+          totalPlayers: fakeArtist.totalPlayers,
+          rankings: fakeArtist.rankings,
+          myPeerId: isSpec ? myPeerIdForResult : fakeArtist.myPeerId,
           isHost: false,
           isSpectator: isSpec,
         });

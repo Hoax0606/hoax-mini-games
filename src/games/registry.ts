@@ -29,6 +29,7 @@ import oneCardThumbnail from './onecard/thumbnail.svg';
 import blueMarbleThumbnail from './blue-marble/thumbnail.svg';
 import werewolfThumbnail from './werewolf/thumbnail.svg';
 import avalonThumbnail from './avalon/thumbnail.svg';
+import fakeArtistThumbnail from './fake-artist/thumbnail.svg';
 
 export const games: GameEntry[] = [
   {
@@ -496,6 +497,33 @@ export const games: GameEntry[] = [
     load: async () => {
       const mod = await import('./avalon');
       return mod.createAvalonGame();
+    },
+  },
+  {
+    meta: {
+      id: 'fake-artist',
+      name: '가짜 화가',
+      description: '한 명은 제시어를 모르는 가짜 화가! 순서대로 각자 정해진 색으로 한 획씩 이어 그려요. 다 그리면 누가 가짜인지 투표 — 잡히면 시민 승, 단 가짜가 제시어를 맞히면 역전승. 5라운드 누적 점수 승부.',
+      thumbnail: fakeArtistThumbnail,
+      minPlayers: 4,
+      maxPlayers: 10,
+      roomOptions: [
+        {
+          key: 'laps',
+          label: '그리는 바퀴 수',
+          type: 'select',
+          choices: [
+            { value: '1', label: '1바퀴 (빠르게)' },
+            { value: '2', label: '2바퀴 (기본)' },
+            { value: '3', label: '3바퀴 (그림 풍부)' },
+          ],
+          defaultValue: '2',
+        },
+      ],
+    },
+    load: async () => {
+      const mod = await import('./fake-artist');
+      return mod.createFakeArtistGame();
     },
   },
 ];
