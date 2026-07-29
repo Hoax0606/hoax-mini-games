@@ -58,6 +58,13 @@ class AvalonModule implements GameModule {
   private myQuestRound = -1;
   private assassinDone = false;
   private lastHelloAt = 0;
+  // ── 내가 보낸 입력 값 보관 (호스트에 유실 시 재전송용, 멱등) ──
+  private myVoteValue: Vote | null = null;
+  private myCardValue: QuestCard | null = null;
+  private myPickedTeam: string[] | null = null;
+  private myPickKey = '';
+  private myAssassinTarget: string | null = null;
+  private lastActionResendAt = 0;
 
   // ── 호스트 전용 비밀 상태 ──
   private roles: Record<string, Role> = {};
@@ -225,6 +232,31 @@ class AvalonModule implements GameModule {
       this.ctx.sendToPeer(encodeHello(this.myPeerId));
     }
 
+    // 게스트: 내 입력(확인/투표/원정카드/선발/암살)이 호스트에 유실되면 페이즈가 안 넘어감.
+    // 아직 그 페이즈에 머물러 있으면 주기적으로 재전송한다 (호스트 핸들러가 전부 중복 무시라 멱등).
+    // ※ 5명 실플레이에서 한 명의 "확인"이 유실돼 deal 에서 영구 대기하던 버그 방지.
+    if (!this.isHost && !this.isSpectator && this.state && now - this.lastActionResendAt > 2500) {
+      const s = this.state;
+      const attemptKey = `${s.roundIdx}:${s.leaderIdx}`;
+      const amLeader = s.players[s.leaderIdx]?.peerId === this.myPeerId;
+      let resent = true;
+      if (s.phase === 'deal' && this.confirmedDeal) {
+        this.ctx.sendToPeer(encodeReady(this.myPeerId));
+      } else if (s.phase === 'team' && amLeader && this.myPickKey === attemptKey && this.myPickedTeam) {
+        this.ctx.sendToPeer(encodePickTeam(this.myPeerId, this.myPickedTeam));
+      } else if (s.phase === 'vote' && !s.votes && this.myVoteKey === attemptKey && this.myVoteValue) {
+        this.ctx.sendToPeer(encodeVote(this.myPeerId, this.myVoteValue));
+      } else if (s.phase === 'quest' && this.myQuestRound === s.roundIdx
+                 && s.proposedTeam.includes(this.myPeerId) && this.myCardValue) {
+        this.ctx.sendToPeer(encodeQuestCard(this.myPeerId, this.myCardValue));
+      } else if (s.phase === 'assassin' && this.myRole === 'assassin' && this.assassinDone && this.myAssassinTarget) {
+        this.ctx.sendToPeer(encodeAssassin(this.myPeerId, this.myAssassinTarget));
+      } else {
+        resent = false;
+      }
+      if (resent) this.lastActionResendAt = now;
+    }
+
     // 표시 타이머 — 페이즈 전환 시 로컬 카운트다운 재설정 (deal / 투표 집계공개 중엔 숨김)
     if (this.state) {
       const s = this.state;
@@ -293,6 +325,8 @@ class AvalonModule implements GameModule {
   }
 
   private doPickTeam(team: string[]): void {
+    this.myPickedTeam = [...team];
+    this.myPickKey = `${this.state.roundIdx}:${this.state.leaderIdx}`;
     if (this.isHost) this.handlePickTeam(this.myPeerId, team);
     else this.ctx.sendToPeer(encodePickTeam(this.myPeerId, team));
   }
@@ -301,6 +335,7 @@ class AvalonModule implements GameModule {
     const attemptKey = `${this.state.roundIdx}:${this.state.leaderIdx}`;
     if (this.myVoteKey === attemptKey) return;
     this.myVoteKey = attemptKey;
+    this.myVoteValue = vote;
     if (this.isHost) this.handleVote(this.myPeerId, vote);
     else this.ctx.sendToPeer(encodeVote(this.myPeerId, vote));
     this.render();
@@ -309,6 +344,7 @@ class AvalonModule implements GameModule {
   private doQuestCard(card: QuestCard): void {
     if (this.myQuestRound === this.state.roundIdx) return;
     this.myQuestRound = this.state.roundIdx;
+    this.myCardValue = card;
     if (this.isHost) this.handleQuestCard(this.myPeerId, card);
     else this.ctx.sendToPeer(encodeQuestCard(this.myPeerId, card));
     this.render();
@@ -317,6 +353,7 @@ class AvalonModule implements GameModule {
   private doAssassin(target: string): void {
     if (this.assassinDone) return;
     this.assassinDone = true;
+    this.myAssassinTarget = target;
     if (this.isHost) this.handleAssassin(this.myPeerId, target);
     else this.ctx.sendToPeer(encodeAssassin(this.myPeerId, target));
     this.render();
