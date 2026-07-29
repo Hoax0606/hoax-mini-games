@@ -7,7 +7,7 @@ import type { GameContext, GameModule, Player, RoomState } from '../games/types'
 import { createMenuScreen } from './menu';
 import { createResultScreenAsHostScreen, createResultScreenAsGuestScreen } from './resultScreen';
 import { createWaitingRoomAsHostScreen, createWaitingRoomAsGuestScreen, attemptHostMigration } from './waitingRoom';
-import { buildReactionBarHTML, wireReactionBar, showReactionBubble } from '../ui/reactions';
+import { buildReactionBarHTML, wireReactionBar, showReactionBubble, makeReactionBarDraggable } from '../ui/reactions';
 import { buildChatPanelHTML, wireChatPanel, appendChatMessage } from '../ui/chat';
 import type { ChatMsg } from '../games/types';
 import { storage } from '../core/storage';
@@ -623,6 +623,9 @@ export function createGameScreenAsHostScreen(args: GameScreenAsHostArgs): Screen
         showReactionBubble(emoji, myNick);
         host.send({ type: 'reaction', emoji, nickname: myNick });
       });
+      // 반응 바를 원하는 위치로 드래그 (HUD 와 겹칠 때 치워두기). 위치는 localStorage 기억.
+      const hostReactBar = el.querySelector<HTMLElement>('.reaction-bar-floating');
+      if (hostReactBar) makeReactionBarDraggable(hostReactBar);
 
       // 게임 중에 새로 들어오는 연결 = 관전자 후보.
       // 비공개방이면 비번 검증. 통과하면 spectator로 수락, RoomState(status='playing') 반환.
@@ -1019,6 +1022,9 @@ export function createGameScreenAsGuestScreen(args: GameScreenAsGuestArgs): Scre
         showReactionBubble(emoji, myNick);
         guest.send({ type: 'reaction', emoji, nickname: myNick });
       });
+      // 반응 바 드래그 이동 (위치 localStorage 기억)
+      const guestReactBar = el.querySelector<HTMLElement>('.reaction-bar-floating');
+      if (guestReactBar) makeReactionBarDraggable(guestReactBar);
 
       // 일시적 끊김 — 재연결 오버레이. peer.ts 가 유예 안에 자동 재연결 시도.
       guest.onReconnecting = () => showReconnectOverlay();

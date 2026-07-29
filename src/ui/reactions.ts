@@ -92,6 +92,89 @@ export function wireReactionBar(
 }
 
 /**
+ * 게임화면의 떠있는 반응 바(.reaction-bar-floating)를 드래그로 옮길 수 있게 한다.
+ * 위치는 localStorage 에 저장 → 다음에도 그 자리. 게임 HUD 와 겹칠 때 치워두는 용도.
+ *
+ * 클릭 vs 드래그 구분: 6px 이상 움직이면 드래그로 보고, 놓을 때 그 클릭이
+ * 토글(이모지 열기)로 새지 않게 막는다. 안 움직이면 평소처럼 토글 동작.
+ */
+const REACTION_POS_KEY = 'hoax_reaction_pos';
+
+export function makeReactionBarDraggable(floating: HTMLElement): void {
+  applySavedPos(floating);
+
+  let dragging = false;
+  let moved = false;
+  let startX = 0, startY = 0, originLeft = 0, originTop = 0;
+
+  const onMove = (e: PointerEvent): void => {
+    if (!dragging) return;
+    const dx = e.clientX - startX;
+    const dy = e.clientY - startY;
+    if (!moved && Math.hypot(dx, dy) > 6) { moved = true; floating.classList.add('is-dragging'); }
+    if (!moved) return;
+    const left = clamp(originLeft + dx, 4, window.innerWidth - floating.offsetWidth - 4);
+    const top = clamp(originTop + dy, 4, window.innerHeight - floating.offsetHeight - 4);
+    floating.style.left = `${left}px`;
+    floating.style.top = `${top}px`;
+  };
+  const onUp = (): void => {
+    if (!dragging) return;
+    dragging = false;
+    window.removeEventListener('pointermove', onMove);
+    window.removeEventListener('pointerup', onUp);
+    if (moved) {
+      floating.classList.remove('is-dragging');
+      savePos(floating);
+      // 이 드래그의 마무리 클릭이 토글로 새지 않게 한 번만 차단 (capture 단계)
+      const block = (ev: Event): void => { ev.stopPropagation(); ev.preventDefault(); };
+      floating.addEventListener('click', block, { capture: true, once: true });
+    }
+  };
+  floating.addEventListener('pointerdown', (e: PointerEvent) => {
+    if (e.button !== 0) return;
+    dragging = true; moved = false;
+    startX = e.clientX; startY = e.clientY;
+    const rect = floating.getBoundingClientRect();
+    originLeft = rect.left; originTop = rect.top;
+    // bottom/left 앵커 대신 left/top 절대값으로 고정
+    floating.style.left = `${originLeft}px`;
+    floating.style.top = `${originTop}px`;
+    floating.style.right = 'auto';
+    floating.style.bottom = 'auto';
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onUp);
+  });
+}
+
+function applySavedPos(floating: HTMLElement): void {
+  try {
+    const raw = localStorage.getItem(REACTION_POS_KEY);
+    if (!raw) return;
+    const pos = JSON.parse(raw) as { x: number; y: number };
+    if (typeof pos.x !== 'number' || typeof pos.y !== 'number') return;
+    // 저장 당시보다 화면이 작아졌어도 안 보이는 곳으로 안 가게 클램프
+    const w = floating.offsetWidth || 44;
+    const h = floating.offsetHeight || 44;
+    floating.style.left = `${clamp(pos.x, 4, window.innerWidth - w - 4)}px`;
+    floating.style.top = `${clamp(pos.y, 4, window.innerHeight - h - 4)}px`;
+    floating.style.right = 'auto';
+    floating.style.bottom = 'auto';
+  } catch { /* 무시 */ }
+}
+
+function savePos(floating: HTMLElement): void {
+  try {
+    const rect = floating.getBoundingClientRect();
+    localStorage.setItem(REACTION_POS_KEY, JSON.stringify({ x: rect.left, y: rect.top }));
+  } catch { /* 무시 */ }
+}
+
+function clamp(v: number, lo: number, hi: number): number {
+  return Math.max(lo, Math.min(hi, v));
+}
+
+/**
  * 화면 하단에 풍선 띄우기 (2.4s fade out + 자동 제거).
  * body 에 싱글톤 container(#reaction-stream) 가 없으면 자동 생성.
  */

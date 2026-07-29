@@ -1927,6 +1927,12 @@ input {
   border-radius: var(--radius-full);
   box-shadow: var(--shadow-sm);
   z-index: 500;
+  cursor: grab;
+  touch-action: none; /* 드래그 중 스크롤/제스처 방지 */
+}
+.reaction-bar-floating.is-dragging {
+  cursor: grabbing;
+  box-shadow: var(--shadow-md);
 }
 .reaction-bar-floating .reaction-btn {
   width: 36px;
