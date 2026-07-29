@@ -51,7 +51,6 @@ export interface AvCallbacks {
   onVote(vote: Vote): void;
   onQuestCard(card: QuestCard): void;
   onAssassin(target: string): void;
-  onChat(text: string): void;
   onResultNext(): void;
 }
 
@@ -204,21 +203,6 @@ const CSS = `
 .av-voteres{font-size:18px;font-weight:900;text-align:center;margin-bottom:10px;}
 .av-voteres.approve{color:#2f9e6b;} .av-voteres.reject{color:#d64545;}
 
-/* 토론 채팅 */
-.av-chat{flex:none;height:118px;display:flex;flex-direction:column;border-radius:14px;
-  background:rgba(255,255,255,.8);border:1px solid #e0e6f0;padding:8px 10px;box-shadow:0 2px 6px rgba(90,110,160,.1);}
-.av-log{flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:5px;padding-right:4px;}
-.av-line{font-size:12.5px;line-height:1.4;color:#3a3550;}
-.av-line .who{font-weight:800;color:#4d7cc4;margin-right:6px;}
-.av-line.mine .who{color:#c95b8a;}
-.av-log-empty{color:#a9b0c2;font-size:12px;text-align:center;margin:auto;}
-.av-chat-form{display:flex;gap:8px;margin-top:6px;flex:none;}
-.av-chat-input{flex:1;border:1px solid #dbe3f0;background:#fff;color:#3a3550;
-  border-radius:10px;padding:8px 12px;font:inherit;font-size:12.5px;outline:none;}
-.av-chat-input:focus{border-color:#a9c4ef;}
-.av-chat-send{border:none;border-radius:10px;padding:0 16px;font:inherit;font-weight:800;font-size:12.5px;cursor:pointer;
-  background:#4d7cc4;color:#fff;}
-
 /* 결과 오버레이 */
 .av-result{position:absolute;inset:0;background:rgba(244,247,255,.95);backdrop-filter:blur(8px);
   display:flex;flex-direction:column;align-items:center;justify-content:flex-start;gap:14px;padding:26px 20px;overflow-y:auto;z-index:5;}
@@ -279,7 +263,6 @@ export class AvalonRenderer {
   private mycardEl!: HTMLDivElement;
   private memoEl!: HTMLDivElement;
   private stageEl!: HTMLDivElement;
-  private chatEl!: HTMLDivElement;
   private resultEl!: HTMLDivElement;
   private helpEl!: HTMLDivElement;
   private styleEl!: HTMLStyleElement;
@@ -289,10 +272,6 @@ export class AvalonRenderer {
   private stageKey = '';
   /** 결과 1회만 그리기 (다음 버튼 안정화) */
   private resultKey = '';
-  /** 채팅 이미 그린 줄 수 (증분) */
-  private renderedChat = 0;
-  /** 채팅 UI 를 이미 만들었는지 (team/vote/quest 진입 시 1회 생성) */
-  private chatBuilt = false;
   /** 리더 원정대 선발 로컬 선택 */
   private teamPick: string[] = [];
 
@@ -323,7 +302,6 @@ export class AvalonRenderer {
         </div>
         <div class="av-stage" id="av-stage"></div>
       </div>
-      <div class="av-chat" id="av-chat" hidden></div>
       <div class="av-result" id="av-result" hidden></div>
       <div class="av-help" id="av-help-panel" hidden></div>
     `;
@@ -337,7 +315,6 @@ export class AvalonRenderer {
     this.mycardEl = root.querySelector('#av-mycard')!;
     this.memoEl = root.querySelector('#av-memo')!;
     this.stageEl = root.querySelector('#av-stage')!;
-    this.chatEl = root.querySelector('#av-chat')!;
     this.resultEl = root.querySelector('#av-result')!;
     this.helpEl = root.querySelector('#av-help-panel')!;
     root.querySelector<HTMLButtonElement>('#av-help')!.addEventListener('click', () => this.showHelp());
@@ -363,13 +340,11 @@ export class AvalonRenderer {
     this.renderMemo(rs);
 
     if (s.phase === 'result') {
-      this.chatEl.hidden = true;
       this.resultEl.hidden = false;
       this.renderResult(rs);
       return;
     }
     this.resultEl.hidden = true;
-    this.renderChat(rs);
     this.renderStage(rs);
   }
 
@@ -470,57 +445,6 @@ export class AvalonRenderer {
     }
     this.memoEl.hidden = false;
     this.memoEl.innerHTML = `<h4>${title}</h4><div class="m">${body}</div>`;
-  }
-
-  // ============================================
-  // 채팅 (team/vote/quest 페이즈 상시)
-  // ============================================
-  private renderChat(rs: AvRenderState): void {
-    const p = rs.state.phase;
-    const show = p === 'team' || p === 'vote' || p === 'quest';
-    if (!show) { this.chatEl.hidden = true; this.chatBuilt = false; return; }
-    this.chatEl.hidden = false;
-    if (!this.chatBuilt) {
-      this.chatBuilt = true;
-      this.renderedChat = 0;
-      const inputHtml = rs.isSpectator ? '' :
-        `<form class="av-chat-form" id="av-cf" autocomplete="off">` +
-        `<input class="av-chat-input" id="av-ci" maxlength="500" placeholder="원정대에 대해 토론하세요…" />` +
-        `<button class="av-chat-send" type="submit">전송</button></form>`;
-      this.chatEl.innerHTML = `<div class="av-log" id="av-log"></div>${inputHtml}`;
-      const form = this.chatEl.querySelector<HTMLFormElement>('#av-cf');
-      form?.addEventListener('submit', (e) => {
-        e.preventDefault();
-        const input = this.chatEl.querySelector<HTMLInputElement>('#av-ci')!;
-        const text = input.value.trim();
-        if (!text) return;
-        input.value = '';
-        this.cb.onChat(text);
-      });
-    }
-    this.updateChatLog(rs);
-  }
-
-  private updateChatLog(rs: AvRenderState): void {
-    const log = this.chatEl.querySelector<HTMLDivElement>('#av-log');
-    if (!log) return;
-    const lines = rs.state.chatLog;
-    if (lines.length < this.renderedChat) { log.innerHTML = ''; this.renderedChat = 0; }
-    if (lines.length === 0) {
-      if (!log.querySelector('.av-log-empty')) log.innerHTML = `<div class="av-log-empty">아직 조용하네요…</div>`;
-      return;
-    }
-    const empty = log.querySelector('.av-log-empty');
-    if (empty) empty.remove();
-    for (let i = this.renderedChat; i < lines.length; i++) {
-      const l = lines[i]!;
-      const mine = l.peerId === rs.myPeerId;
-      const row = document.createElement('div');
-      row.className = `av-line ${mine ? 'mine' : ''}`;
-      row.innerHTML = `<span class="who">${esc(l.nickname)}</span><span>${esc(l.text)}</span>`;
-      log.appendChild(row);
-    }
-    if (lines.length > this.renderedChat) { this.renderedChat = lines.length; log.scrollTop = log.scrollHeight; }
   }
 
   // ============================================

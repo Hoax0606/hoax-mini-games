@@ -16,14 +16,14 @@ import {
   tallyVote, resolveQuest, countQuests, teamOf, ROLE_META,
   MIN_PLAYERS, QUEST_COUNT, WINS_NEEDED, MAX_REJECTS,
   type Role, type Knowledge, type Vote, type QuestCard, type PublicState,
-  type ChatLine, type RevealData, type Team, type EndReason,
+  type RevealData, type Team, type EndReason,
 } from './rules';
 import {
   encodeHello, decodeHello, encodeSync, decodeSync,
   encodeRole, decodeRole, encodeInfo, decodeInfo,
   encodeReady, decodeReady, encodePickTeam, decodePickTeam,
   encodeVote, decodeVote, encodeQuestCard, decodeQuestCard,
-  encodeAssassin, decodeAssassin, encodeChat, decodeChat,
+  encodeAssassin, decodeAssassin,
   encodeEnd, decodeEnd,
 } from './netSync';
 import { AvalonRenderer, type AvRenderState } from './render';
@@ -36,7 +36,6 @@ const QUEST_MS = 45_000;
 const ASSASSIN_MS = 60_000;
 const DUMMY_DELAY_MS = 1_000;
 
-const DUMMY_CHATS = ['난 선이야 믿어줘', '음 이 원정대 괜찮은데?', '리더 믿고 가자', '뭔가 수상한데…'];
 
 class AvalonModule implements GameModule {
   private ctx!: GameContext;
@@ -103,7 +102,6 @@ class AvalonModule implements GameModule {
       onVote: (v) => this.doVote(v),
       onQuestCard: (c) => this.doQuestCard(c),
       onAssassin: (t) => this.doAssassin(t),
-      onChat: (t) => this.doChat(t),
       onResultNext: () => this.doResultNext(),
     });
     sound.startBgm('apple-game');
@@ -160,8 +158,6 @@ class AvalonModule implements GameModule {
       if (quest) { this.handleQuestCard(quest.from, quest.card); return; }
       const assassin = decodeAssassin(msg);
       if (assassin) { this.handleAssassin(assassin.from, assassin.target); return; }
-      const chat = decodeChat(msg);
-      if (chat) { this.relayChat(chat.from, chat.nickname, chat.text); return; }
     }
   }
 
@@ -357,12 +353,6 @@ class AvalonModule implements GameModule {
     if (this.isHost) this.handleAssassin(this.myPeerId, target);
     else this.ctx.sendToPeer(encodeAssassin(this.myPeerId, target));
     this.render();
-  }
-
-  private doChat(text: string): void {
-    const nick = this.myNick();
-    if (this.isHost) this.relayChat(this.myPeerId, nick, text);
-    else this.ctx.sendToPeer(encodeChat(this.myPeerId, nick, text));
   }
 
   private doResultNext(): void {
@@ -676,19 +666,6 @@ class AvalonModule implements GameModule {
   }
 
   // ============================================
-  // 채팅
-  // ============================================
-  private relayChat(from: string, nickname: string, text: string): void {
-    const clean = text.trim().slice(0, 500);
-    if (!clean) return;
-    const line: ChatLine = { peerId: from, nickname, text: clean };
-    this.state.chatLog.push(line);
-    if (this.state.chatLog.length > 60) this.state.chatLog.shift();
-    this.sync();
-    this.render();
-  }
-
-  // ============================================
   // 더미 AI (솔로 프리뷰)
   // ============================================
   private scheduleDummies(): void {
@@ -726,11 +703,6 @@ class AvalonModule implements GameModule {
         const others = s.players.map((p) => p.peerId).filter((x) => x !== assassin);
         this.handleAssassin(assassin, pick(others));
       }
-    }
-    // 가끔 한 마디 (분위기)
-    if ((s.phase === 'team' || s.phase === 'vote') && dummies[0] && s.chatLog.length < 3) {
-      const nm = s.players.find((p) => p.peerId === dummies[0])!.nickname;
-      this.relayChat(dummies[0]!, nm, pick(DUMMY_CHATS));
     }
   }
 
