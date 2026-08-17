@@ -396,12 +396,12 @@ class BlueMarbleModule implements GameModule {
         // 세계여행도 "앞으로 날아가는" 것으로 취급 → 출발선을 넘으면 걸어간 것과 똑같이 월급·바퀴 인정.
         // to <= from 이면 31번 칸을 지나 0번(출발)을 넘어간 것. to===0 은 출발에 "도착"이라
         // 월급을 resolveLanding 이 주므로 여기선 바퀴만 올린다.
+        // 월급 팝업은 여기서 s.fx 로 띄우지 않는다 — 곧바로 부르는 resolveLanding 이
+        // 통행료 fx 로 덮어쓰는데, 그 동안 렌더러는 비행 애니로 busy 라 월급 fx 를 소비하지 못하고
+        // 그냥 사라졌다. 주사위 이동과 마찬가지로 **말이 출발 칸을 지나는 순간 렌더러가** 띄운다.
         if (to <= from) {
           s.players[by]!.laps += 1;
-          if (to !== 0) {
-            s.players[by]!.money += SALARY;
-            s.fx = { seq: (s.fx?.seq ?? 0) + 1, amount: SALARY, mul: 1, kind: 'gain', to: by };
-          }
+          if (to !== 0) s.players[by]!.money += SALARY;
         }
         s.travelFx = { seq: (s.travelFx?.seq ?? 0) + 1, by, from, to };
         this.sync(); this.render();   // 비행기 애니 트리거
@@ -934,6 +934,16 @@ class BlueMarbleModule implements GameModule {
   private cardMove(peer: string, dest: number, back = false): void {
     const s = this.state; const from = s.pos[peer]!;
     s.pos[peer] = dest;
+    // 카드 이동도 판 경로를 정방향으로 "걸어가는" 것이라(166d73c) 출발선을 넘으면
+    // 주사위로 걸어간 것과 똑같이 월급·바퀴를 인정해야 한다.
+    //   dest < from  → 31번 칸을 지나 0번(출발)을 넘어감
+    //   dest === 0   → 출발에 "도착" — 월급은 resolveLanding 이 주므로 여기선 바퀴만
+    //   dest === from→ 제자리(연출도 안 움직임) → 아무것도 없음
+    //   back(뒤로 3칸) → 역주행이라 월급 없음
+    if (!back && dest < from) {
+      s.players[peer]!.laps += 1;
+      if (dest !== 0) s.players[peer]!.money += SALARY;
+    }
     this.setCardFly(peer, from, dest, back);
     this.sync(); this.render();
   }

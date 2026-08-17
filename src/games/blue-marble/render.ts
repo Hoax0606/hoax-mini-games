@@ -491,6 +491,8 @@ export class BlueMarbleRenderer {
       const nxt = path[i]!;
       plane.style.setProperty('--rot', `${Math.atan2(nxt.y - prev.y, nxt.x - prev.x) * 180 / Math.PI}deg`);
       plane.style.left = `${nxt.x}px`; plane.style.top = `${nxt.y}px`;
+      // 출발(0)을 지나가는 순간 월급 팝업 — 주사위 이동과 같은 규칙(도착 칸이면 resolveLanding 이 처리)
+      if ((from + i + 1) % N === 0 && i < path.length - 1) this.playFx({ seq: 0, amount: SALARY, mul: 1, kind: 'gain' });
       prev = nxt; i += 1;
       if (i < path.length) window.setTimeout(hop, stepMs);
       else window.setTimeout(() => { plane.remove(); finish(); }, stepMs + 120);
@@ -535,6 +537,8 @@ export class BlueMarbleRenderer {
       const st = this._lastState; if (this.destroyed || !st) { this.clearMove(); return; }
       this.dispPos[by] = ((this.dispPos[by]! + (back ? -1 : 1)) % N + N) % N;
       this.renderTokens(st);
+      // 정방향으로 출발(0)을 "지나갈" 때 월급 팝업 (도착 칸이면 resolveLanding 이 처리, 역주행은 없음)
+      if (!back && this.dispPos[by] === 0 && left > 1) this.playFx({ seq: 0, amount: SALARY, mul: 1, kind: 'gain' });
       if (--left <= 0) { this.clearMove(); window.setTimeout(finish, 180); }
     }, stepMs);
   }
