@@ -10,7 +10,7 @@ import type { GameModule, GameContext, GameMessage, GameResult, Player } from '.
 import { sound } from '../../core/sound';
 import {
   BOARD, CARDS, SALARY, DESERT_TURNS, DESERT_ESCAPE, TRAVEL_COST, BONUS_STAKE, OLYMPIC_MAX_MUL, buildCostOf, canBuild, hasAllHouses, acquireCost, sellRefund,
-  tollBreakdown, alivePeers, nextTurnIdx, createInitialState, monopolyWin, drawCardId, TOP_CITY_TILE, DESERT_TILE, SPACE_TILE,
+  tollBreakdown, alivePeers, nextTurnIdx, createInitialState, monopolyWin, drawCardId, topTollTile, SEOUL_TILE, DESERT_TILE, SPACE_TILE,
   type BMState, type BuildKind, type TollInfo,
 } from './rules';
 
@@ -110,8 +110,30 @@ class BlueMarbleModule implements GameModule {
     this.afterChange();
   }
 
+  /** 직전 afterChange 시점의 플레이어별 현금 (증감 뱃지 diff용) */
+  private moneySnap: Record<string, number> = {};
+
+  /**
+   * 직전 스냅샷 대비 현금 증감을 모아 moneyFx 로 실어보낸다.
+   * 통행료·카드·세금·월급·구매·건설·판매까지 경로를 안 가리고 전부 잡히므로,
+   * 돈이 움직이는 곳마다 연출 코드를 심을 필요가 없다.
+   */
+  private diffMoney(): void {
+    const s = this.state;
+    const deltas: Record<string, number> = {};
+    let any = false;
+    for (const pid of s.order) {
+      const now = s.players[pid]?.money ?? 0;
+      const before = this.moneySnap[pid];
+      if (before !== undefined && now !== before) { deltas[pid] = now - before; any = true; }
+      this.moneySnap[pid] = now;
+    }
+    if (any) s.moneyFx = { seq: (s.moneyFx?.seq ?? 0) + 1, deltas };
+  }
+
   // ── 상태 변경 후: 동기화 + 렌더 + 더미 자동 진행 ──
   private afterChange(): void {
+    this.diffMoney();
     this.sync();
     this.render();
     // 더미 자동진행은 render()의 onSettled(애니 완료 후)에서만 트리거 — 여기서 직접 호출 X
@@ -344,7 +366,7 @@ class BlueMarbleModule implements GameModule {
           s.pending = { kind: 'raiseFunds', to: null, amount: ev.amount };
           s.log = `세금 ₩${ev.amount.toLocaleString()} — 낼 돈이 부족해요. 땅을 파세요`;
         } else {
-          this.pay(by, null, ev.amount);
+          this.pay(by, null, ev.amount, true);   // 세금 → 사회복지기금 적립
           s.log = `${BOARD[ev.tile].name} · ₩${ev.amount.toLocaleString()} 납부`;
           this.endStep(by);
         }
@@ -358,17 +380,17 @@ class BlueMarbleModule implements GameModule {
       if (s.pending?.kind === 'raiseFunds' && s.players[by]!.money >= s.pending.amount) {
         const { to, amount } = s.pending;
         s.pending = null;
-        this.pay(by, to, amount);
+        this.pay(by, to, amount, to === null);   // to=null 인 채무는 세금뿐 → 기금 적립
         this.endStep(by);
       }
     } else if (action.kind === 'giveUp') {
       if (s.pending?.kind === 'raiseFunds') {
         const { to, amount } = s.pending;
         s.pending = null;
-        // 파산해도 가진 돈은 전부 받을 사람(to=null 이면 기금)에게 넘어간다.
+        // 파산해도 가진 돈은 전부 받을 사람(to=null 인 세금이면 기금)에게 넘어간다.
         // 예전엔 bankrupt() 를 바로 불러서 p.money=0 으로 지워버려 남은 현금이 소멸했음.
         // pay() 가 min(보유, 청구)만큼 넘기고 그래도 부족하면 파산 처리까지 해준다.
-        this.pay(by, to, amount);
+        this.pay(by, to, amount, to === null);
         if (!this.ended) this.endStep(by);
       }
     }
@@ -556,7 +578,6 @@ class BlueMarbleModule implements GameModule {
         s.pending = { kind: 'event', tile: i, text: `세금 ₩${amt.toLocaleString()} 납부`, amount: amt };
         this.render(); return;
       }
-      else if (t.kind === 'concert') { this.pay(peer, null, 50); s.log = '콘서트 관람 ₩50'; }
       else if (t.kind === 'bonus') {
         // 오락실: 할지/판돈 선택 (최소 판돈 있으면)
         if (p.money >= BONUS_STAKE) { s.pending = { kind: 'bonusOffer' }; this.render(); return; }
@@ -571,7 +592,7 @@ class BlueMarbleModule implements GameModule {
         s.fx = { seq: (s.fx?.seq ?? 0) + 1, amount: SALARY, mul: 1, kind: 'gain' };
         if (this.hasBuildableCity(peer)) { s.pending = { kind: 'startBuild' }; this.render(); return; }
       }
-      else if (t.kind === 'welfare') {
+      else if (t.kind === 'olympic') {
         // 올림픽 개최 — 내 도시 하나에 개최(통행료 배수 누적). 도시 없으면 스킵
         if (this.ownedCities(peer).length) { s.pending = { kind: 'olympic' }; this.render(); return; }
         s.log = '올림픽 — 개최할 내 도시가 없어요';
@@ -663,12 +684,14 @@ class BlueMarbleModule implements GameModule {
     const gain = (amt: number): void => { s.fx = { seq: (s.fx?.seq ?? 0) + 1, amount: amt, mul: 1, kind: 'gain', to: peer }; };
     const loss = (amt: number): void => { s.fx = { seq: (s.fx?.seq ?? 0) + 1, amount: amt, mul: 1, kind: 'toll', from: peer }; };
     // 말을 옮기는 카드는 "걸어서 도착한 것"이 아니므로 더블이었어도 한 번 더 굴리지 않는다
-    if (c.effect === 'go' || c.effect === 'jail' || c.effect === 'back3' || c.effect === 'topcity' || c.effect === 'travel') {
+    if (c.effect === 'go' || c.effect === 'jail' || c.effect === 'back3' || c.effect === 'topcity'
+        || c.effect === 'seoul' || c.effect === 'travel') {
       s.noExtraRoll = true;
     }
     switch (c.effect) {
       case 'money':
-        if ((c.money ?? 0) < 0) { this.pay(peer, null, -c.money!); loss(-c.money!); } else { p.money += c.money!; gain(c.money!); }
+        // 금액이 음수인 money 카드 = 병원비·속도위반 벌금 → 기금 적립
+        if ((c.money ?? 0) < 0) { this.pay(peer, null, -c.money!, true); loss(-c.money!); } else { p.money += c.money!; gain(c.money!); }
         s.log = `${c.title}`; this.endStep(peer); return;
       case 'birthday': {
         let got = 0;
@@ -676,13 +699,25 @@ class BlueMarbleModule implements GameModule {
         p.money += got; gain(got); s.log = `생일 축하 · ₩${got.toLocaleString()} 받음`; this.endStep(peer); return;
       }
       case 'proptax': {
-        const tax = Math.floor(p.money * 0.1); this.pay(peer, null, tax); loss(tax);
+        const tax = Math.floor(p.money * 0.1); this.pay(peer, null, tax, true); loss(tax);
         s.log = `재산세 ₩${tax.toLocaleString()} 납부`; this.endStep(peer); return;
       }
       case 'go': this.cardMove(peer, 0); this.resolveLanding(peer); return;        // 출발 corner에서 월급 지급
       case 'jail': { const from = s.pos[peer]!; this.toDesert(peer); s.pos[peer] = DESERT_TILE; this.setCardFly(peer, from, DESERT_TILE); s.log = '무인도 유배!'; this.endStep(peer); return; }
       case 'back3': this.cardMove(peer, ((s.pos[peer]! - 3) % BOARD.length + BOARD.length) % BOARD.length, true); this.resolveLanding(peer); return;
-      case 'topcity': this.cardMove(peer, TOP_CITY_TILE); this.resolveLanding(peer); return;
+      case 'topcity': this.cardMove(peer, topTollTile(s, peer)); this.resolveLanding(peer); return;
+      case 'seoul': this.cardMove(peer, SEOUL_TILE); this.resolveLanding(peer); return;
+      case 'welfare': {
+        const amt = s.fund;
+        if (amt <= 0) {
+          s.log = '사회복지기금 — 아직 모인 돈이 없어요';
+          this.cardFxEvt('toast', { text: '모인 기금이 없어요' });
+        } else {
+          s.fund = 0; p.money += amt; gain(amt);
+          s.log = `사회복지기금 ₩${amt.toLocaleString()} 전액 수령!`;
+        }
+        this.endStep(peer); return;
+      }
       case 'swap':
         if (this.ownedCities(peer).length && this.opponentCities(peer).length) s.pending = { kind: 'cardSwapMine' };
         else { s.log = '교환할 도시가 없어요'; this.endStep(peer); }
@@ -781,12 +816,19 @@ class BlueMarbleModule implements GameModule {
 
   private toDesert(peer: string): void { this.state.players[peer]!.desertLeft = DESERT_TURNS; }
 
-  /** from 이 amount 를 to(또는 기금)에게 지불. 부족하면 가진 만큼 내고 파산. */
-  private pay(from: string, to: string | null, amount: number): void {
+  /**
+   * from 이 amount 를 to 에게 지불. to=null 이면 은행행.
+   * 부족하면 가진 만큼 내고 파산.
+   *
+   * toFund=true 인 은행행만 사회복지기금에 적립된다 — **벌금(병원비·속도위반)과 세금(재산세·국세청)뿐**.
+   * 세계여행비·무인도 탈출비·보너스 판돈처럼 "서비스 값"으로 나가는 돈은 그냥 은행 소멸.
+   */
+  private pay(from: string, to: string | null, amount: number, toFund = false): void {
     const s = this.state; const p = s.players[from]!;
     const paid = Math.min(p.money, amount);
     p.money -= paid;
-    if (to) s.players[to]!.money += paid; else s.fund += paid;
+    if (to) s.players[to]!.money += paid;
+    else if (toFund) s.fund += paid;
     if (amount > paid) this.bankrupt(from);
   }
 

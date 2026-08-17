@@ -11,6 +11,10 @@ import {
   colorMonopolyMul, ownsGroup, tollBreakdown,
   type BMState, type BuildKind, type GroupColor,
 } from './rules';
+import { escapeHtml } from '../../ui/escape';
+
+/** 현금 증감 뱃지가 떠 있는 시간(ms). CSS bm-mdelta 애니 길이와 맞출 것 */
+const MONEY_FX_MS = 2200;
 
 export interface BMRenderCallbacks {
   onRoll(): void;
@@ -70,11 +74,12 @@ const IC: Record<string, string> = {
   dice: '<svg viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="4.5" fill="#fff" stroke="#c9b7d6" stroke-width="1.6"/><g fill="#ff5a92"><circle cx="8.5" cy="8.5" r="1.7"/><circle cx="15.5" cy="8.5" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="8.5" cy="15.5" r="1.7"/><circle cx="15.5" cy="15.5" r="1.7"/></g></svg>',
   check: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" fill="#57c777"/><path d="M8 12.5 L11 15.5 L16.5 9" stroke="#fff" stroke-width="2.3" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>',
   arrow: '<svg viewBox="0 0 24 24"><path d="M5 12 H17 M13 8 L17 12 L13 16" stroke="#9a8a9a" stroke-width="2.3" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+  welfare: '<svg viewBox="0 0 24 24"><path d="M12 9.2 C10.6 6.6 6.8 7.2 6.8 10.3 C6.8 12.6 9.4 14.3 12 16.2 C14.6 14.3 17.2 12.6 17.2 10.3 C17.2 7.2 13.4 6.6 12 9.2 Z" fill="#ff7aa5" stroke="#e0558a" stroke-width="0.9" stroke-linejoin="round"/><path d="M4 17.5 C6.5 20.5 17.5 20.5 20 17.5" stroke="#f2c94c" stroke-width="2.4" fill="none" stroke-linecap="round"/></svg>',
 };
 /** 특수/코너 칸 → 아이콘 키 */
 function tileIcon(i: number): string {
   const t = BOARD[i];
-  if (t.type === 'corner') return { start: 'flag', desert: 'sos', welfare: 'rings', space: 'rocket' }[t.kind];
+  if (t.type === 'corner') return { start: 'flag', desert: 'sos', olympic: 'rings', space: 'rocket' }[t.kind];
   if (t.type === 'special') return t.kind === 'goldkey' ? 'key' : t.kind === 'tax' ? 'coin' : 'music';
   return '';
 }
@@ -107,7 +112,7 @@ const ILL: Record<string, { svg: string; dark: boolean }> = {
 /** 칸 index → 전체 일러스트 (모서리/특수). 없으면 null */
 function tileIll(i: number): { svg: string; dark: boolean } | null {
   const t = BOARD[i];
-  if (t.type === 'corner') return ILL[{ start: 'start', desert: 'desert', welfare: 'olympic', space: 'travel' }[t.kind]] ?? null;
+  if (t.type === 'corner') return ILL[{ start: 'start', desert: 'desert', olympic: 'olympic', space: 'travel' }[t.kind]] ?? null;
   if (t.type === 'special') return t.kind === 'tax' ? ILL.tax! : t.kind === 'bonus' ? ILL.bonus! : t.kind === 'goldkey' ? ILL.key! : null;
   return null;
 }
@@ -180,6 +185,10 @@ export class BlueMarbleRenderer {
   private lastTravelSeq = 0;
   /** 마지막으로 재생한 카드 연출 seq */
   private lastCardSeq = 0;
+  /** 마지막으로 재생한 현금 증감 뱃지 seq */
+  private lastMoneySeq = 0;
+  /** 직전에 그린 사회복지기금 적립액 (늘어날 때만 반짝) */
+  private lastFund = 0;
   /** 이번에 이동하는 말(굴린 사람). 착지 후 턴이 넘어가도 이 말만 애니 */
   private moverId = '';
 
@@ -247,7 +256,15 @@ export class BlueMarbleRenderer {
     </div>`;
     return `<div class="bm-board">${tiles}${center}</div>
       <div class="bm-panel">
-        <div class="bm-pcard"><h3>플레이어</h3><div id="bm-players"></div></div>
+        <div class="bm-fund" id="bm-fund">
+          <span class="bm-fic">${IC.welfare}</span>
+          <span class="bm-ftxt">사회복지기금</span>
+          <span class="bm-famt" id="bm-fundamt">₩0</span>
+        </div>
+        <div class="bm-pcard">
+          <h3>플레이어</h3><div id="bm-players"></div>
+          <div class="bm-mfx" id="bm-mfx"></div>
+        </div>
         <div class="bm-pcard"><h3>내 황금열쇠</h3><div id="bm-held" class="bm-heldlist"></div></div>
       </div>`;
   }
@@ -308,6 +325,11 @@ export class BlueMarbleRenderer {
     if (!this.busy && state.fx && state.fx.seq !== this.lastFxSeq) {
       this.lastFxSeq = state.fx.seq;
       this.playFx(state.fx);
+    }
+    // 플레이어 패널 현금 증감 뱃지 — 말이 다 움직인 뒤에 띄워야 누가 얼마 냈는지 눈에 들어옴
+    if (!this.busy && state.moneyFx && state.moneyFx.seq !== this.lastMoneySeq) {
+      this.lastMoneySeq = state.moneyFx.seq;
+      this.playMoneyFx(state.moneyFx);
     }
     if (!this.busy) this.cb.onSettled();   // idle → 더미 진행 트리거
   }
@@ -661,12 +683,43 @@ export class BlueMarbleRenderer {
     el.innerHTML = state.order.map((pid) => {
       const p = state.players[pid]!;
       const props = Object.values(state.owner).filter((o) => o === pid).length;
-      return `<div class="bm-prow ${pid === cur ? 'active' : ''} ${p.bankrupt ? 'dead' : ''}">
+      return `<div class="bm-prow ${pid === cur ? 'active' : ''} ${p.bankrupt ? 'dead' : ''}" data-pid="${escapeHtml(pid)}">
         <span class="bm-pdot" style="background:${colorOf(state, pid)}"></span>
         <span class="bm-pname">${p.nickname}${pid === myPeerId ? ' (나)' : ''}</span>
         <span style="text-align:right"><div class="bm-pmoney">${p.bankrupt ? '파산' : won(p.money)}</div>
           <div class="bm-pprops">${props}곳 · ${p.laps}바퀴</div></span></div>`;
     }).join('');
+
+    const amt = this.root.querySelector<HTMLElement>('#bm-fundamt');
+    const fund = this.root.querySelector<HTMLElement>('#bm-fund');
+    if (amt && fund) {
+      amt.textContent = won(state.fund);
+      fund.classList.toggle('empty', state.fund <= 0);
+      // 기금이 늘어난 순간만 살짝 반짝 (매 렌더 재생 방지)
+      if (state.fund > this.lastFund) { fund.classList.remove('bump'); void fund.offsetWidth; fund.classList.add('bump'); }
+      this.lastFund = state.fund;
+    }
+  }
+
+  /**
+   * 플레이어 행 옆에 현금 증감 뱃지(+초록 / −빨강)를 띄운다.
+   * 행 HTML 은 매 렌더 통째로 다시 그려지므로 뱃지를 그 안에 넣으면 애니가 리셋된다
+   * → 리렌더 대상이 아닌 오버레이(#bm-mfx)에 얹고 행 위치(offsetTop)만 따라간다.
+   */
+  private playMoneyFx(fx: NonNullable<BMState['moneyFx']>): void {
+    const host = this.root.querySelector<HTMLElement>('#bm-mfx');
+    const rows = this.root.querySelector<HTMLElement>('#bm-players');
+    if (!host || !rows) return;
+    rows.querySelectorAll<HTMLElement>('.bm-prow').forEach((row) => {
+      const delta = fx.deltas[row.dataset.pid ?? ''];
+      if (!delta) return;
+      const b = document.createElement('div');
+      b.className = `bm-mdelta ${delta > 0 ? 'up' : 'down'}`;
+      b.textContent = `${delta > 0 ? '+' : '−'}${won(Math.abs(delta))}`;
+      b.style.top = `${row.offsetTop + row.offsetHeight / 2 - 13}px`;
+      host.appendChild(b);
+      window.setTimeout(() => b.remove(), MONEY_FX_MS);
+    });
   }
 
   private renderHeld(state: BMState, myPeerId: string): void {
@@ -1345,8 +1398,40 @@ function injectStyle(): void {
 .bm-sellone{font:inherit;font-weight:800;font-size:12px;color:#fff;background:#ff5a92;border:none;border-radius:8px;padding:5px 12px;cursor:pointer;}
 .bm-sellone:hover{filter:brightness(1.05);}
 .bm-panel{width:262px;display:flex;flex-direction:column;gap:12px;}
-.bm-pcard{background:rgba(255,255,255,.72);border:1px solid rgba(216,199,255,.7);border-radius:14px;padding:12px;box-shadow:0 4px 14px rgba(120,80,140,.08);}
+/* 사회복지기금 — 패널 맨 위(화면 우측 상단). 벌금·세금이 여기 쌓이고 카드로 한 방에 나감 */
+.bm-fund{display:flex;align-items:center;gap:7px;padding:9px 12px;border-radius:14px;
+  background:linear-gradient(135deg,#fff6da,#ffe9f2);border:1.5px solid #ffd98a;
+  box-shadow:0 4px 14px rgba(200,150,60,.14);}
+.bm-fund.empty{background:rgba(255,255,255,.6);border-color:rgba(216,199,255,.7);box-shadow:none;}
+.bm-fund.empty .bm-famt{color:#a99aa9;}
+.bm-fic{display:flex;flex:none;} .bm-fic svg{width:21px;height:21px;}
+.bm-ftxt{flex:1;font-size:11.5px;font-weight:800;color:#8a6a3a;}
+.bm-fund.empty .bm-ftxt{color:#8a7a8a;}
+.bm-famt{font-size:14px;font-weight:900;color:#c2255c;font-variant-numeric:tabular-nums;}
+.bm-fund.bump{animation:bm-fundbump .5s cubic-bezier(.34,1.56,.64,1);}
+@keyframes bm-fundbump{0%{transform:scale(1);}45%{transform:scale(1.07);}100%{transform:scale(1);}}
+/* 현금 증감 뱃지 오버레이 — 행 HTML 은 매 렌더 다시 그려지므로 뱃지는 이 밖에 얹는다 */
+.bm-pcard{position:relative;background:rgba(255,255,255,.72);border:1px solid rgba(216,199,255,.7);border-radius:14px;padding:12px;box-shadow:0 4px 14px rgba(120,80,140,.08);}
 .bm-pcard h3{margin:0 0 8px;font-size:12px;color:#8a7a8a;font-weight:800;}
+.bm-mfx{position:absolute;left:0;right:0;top:0;bottom:0;pointer-events:none;overflow:hidden;border-radius:14px;}
+.bm-mdelta{position:absolute;right:10px;padding:4px 10px;border-radius:999px;font-size:13px;font-weight:900;
+  font-variant-numeric:tabular-nums;white-space:nowrap;color:#fff;
+  box-shadow:0 3px 10px rgba(60,40,60,.22);animation:bm-mdelta 2.2s ease-out forwards;}
+.bm-mdelta.up{background:#2f9e44;}
+.bm-mdelta.down{background:#e03131;}
+/* 팝 → 충분히 머무름(여기서 읽음) → 위로 흘리며 사라짐 */
+@keyframes bm-mdelta{
+  0%{transform:translateY(6px) scale(.7);opacity:0;}
+  9%{transform:translateY(0) scale(1.12);opacity:1;}
+  16%{transform:translateY(0) scale(1);opacity:1;}
+  72%{transform:translateY(0) scale(1);opacity:1;}
+  100%{transform:translateY(-22px) scale(.94);opacity:0;}
+}
+@media(prefers-reduced-motion:reduce){
+  .bm-mdelta{animation:bm-mdelta-rm 2.2s linear forwards;}
+  @keyframes bm-mdelta-rm{0%{opacity:0;}5%{opacity:1;}80%{opacity:1;}100%{opacity:0;}}
+  .bm-fund.bump{animation:none;}
+}
 .bm-prow{display:flex;align-items:center;gap:8px;padding:6px 7px;border-radius:9px;}
 .bm-prow.active{background:#fff0f6;box-shadow:inset 0 0 0 1px rgba(255,90,146,.3);} .bm-prow.dead{opacity:.5;}
 .bm-pdot{width:13px;height:13px;border-radius:50%;border:2px solid #fff;box-shadow:0 1px 3px rgba(0,0,0,.18);flex:none;}

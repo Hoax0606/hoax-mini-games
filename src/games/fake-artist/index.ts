@@ -81,6 +81,8 @@ class FakeArtistModule implements GameModule {
   private ended = false;
   private paused = false;
   private pauseStart = 0;
+  /** 커서 재계산 캐시 키 (매 프레임 data URI 만들지 않으려고) */
+  private cursorKey = '';
 
   // ============================================
   start(ctx: GameContext): void {
@@ -95,6 +97,7 @@ class FakeArtistModule implements GameModule {
       onGuess: (w) => this.doGuess(w),
     });
     this.attachDrawInput();
+    ctx.canvas.style.cursor = 'default'; // 첫 프레임 전까지 cursor:none 이 보이지 않게
     sound.startBgm('apple-game');
 
     const players = orderPlayersHostFirst(ctx.players.filter((p) => p.role === 'player'))
@@ -252,6 +255,33 @@ class FakeArtistModule implements GameModule {
       revealVotes: this.revealVotes,
     };
     try { this.renderer.render(rs); } catch (err) { console.error('[fake-artist] render 실패', err); }
+    this.updateCanvasCursor();
+  }
+
+  /**
+   * 캔버스 커서.
+   * 공용 `.game-canvas` 가 에어하키 때문에 `cursor:none` 이라, 안 덮어쓰면 그림판 위에서 마우스가 통째로 사라진다.
+   * 내 차례엔 내 펜 색 동그라미(실제 획 굵기와 같은 크기), 그 외엔 기본 화살표.
+   */
+  private updateCanvasCursor(): void {
+    const canvas = this.ctx?.canvas;
+    if (!canvas) return;
+    const drawing = this.amDrawer();
+    const scale = this.renderer.getScale();
+    const key = drawing ? `pen:${this.myColor()}:${Math.round(scale * 20)}` : 'idle';
+    if (key === this.cursorKey) return;
+    this.cursorKey = key;
+
+    if (!drawing) { canvas.style.cursor = 'default'; return; }
+    const color = this.myColor();
+    const d = Math.max(9, PEN_WIDTH * scale);
+    const size = Math.min(60, Math.round(d) + 8);
+    const c = size / 2;
+    const r = Math.max(3, d / 2);
+    const svg = `<svg xmlns='http://www.w3.org/2000/svg' width='${size}' height='${size}'>`
+      + `<circle cx='${c}' cy='${c}' r='${r}' fill='${color}' fill-opacity='.28' stroke='${color}' stroke-width='1.8'/>`
+      + `<circle cx='${c}' cy='${c}' r='${r + 1.4}' fill='none' stroke='#fff' stroke-opacity='.85' stroke-width='1.2'/></svg>`;
+    canvas.style.cursor = `url("data:image/svg+xml,${encodeURIComponent(svg)}") ${c} ${c}, crosshair`;
   }
 
   private sync(): void {
@@ -267,7 +297,10 @@ class FakeArtistModule implements GameModule {
     window.addEventListener('mouseup', this.onDrawUp);
   }
   private detachDrawInput(): void {
-    if (this.ctx?.canvas) this.ctx.canvas.removeEventListener('mousedown', this.onDrawDown);
+    if (this.ctx?.canvas) {
+      this.ctx.canvas.removeEventListener('mousedown', this.onDrawDown);
+      this.ctx.canvas.style.cursor = ''; // 공용 CSS(cursor:none)로 복귀 — 다음 게임에 안 새게
+    }
     window.removeEventListener('mousemove', this.onDrawMove);
     window.removeEventListener('mouseup', this.onDrawUp);
   }

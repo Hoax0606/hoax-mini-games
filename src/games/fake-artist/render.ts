@@ -136,6 +136,8 @@ export class FakeArtistRenderer {
   screenToLogical(px: number, py: number): { x: number; y: number } {
     return { x: (px - this.offX) / this.scale, y: (py - this.offY) / this.scale };
   }
+  /** 논리→화면 배율. 브러시 커서를 실제 획 굵기와 맞추는 데 씀 */
+  getScale(): number { return this.scale; }
   /** 논리 좌표가 그림판 안인지 */
   isInPaper(x: number, y: number): boolean {
     return x >= 0 && x <= FA_W && y >= 0 && y <= FA_H;
