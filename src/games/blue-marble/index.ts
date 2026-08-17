@@ -346,8 +346,12 @@ class BlueMarbleModule implements GameModule {
       }
     } else if (action.kind === 'giveUp') {
       if (s.pending?.kind === 'raiseFunds') {
+        const { to, amount } = s.pending;
         s.pending = null;
-        this.bankrupt(by);
+        // 파산해도 가진 돈은 전부 받을 사람(to=null 이면 기금)에게 넘어간다.
+        // 예전엔 bankrupt() 를 바로 불러서 p.money=0 으로 지워버려 남은 현금이 소멸했음.
+        // pay() 가 min(보유, 청구)만큼 넘기고 그래도 부족하면 파산 처리까지 해준다.
+        this.pay(by, to, amount);
         if (!this.ended) this.endStep(by);
       }
     }
@@ -437,6 +441,7 @@ class BlueMarbleModule implements GameModule {
     if (p.desertLeft > 0) {
       if (a === b) {
         p.desertLeft = 0; s.log = `${p.nickname} · ${a}+${b} 더블! 무인도 탈출!`;
+        s.noExtraRoll = true;   // 탈출용 더블 → 한 번 더는 없음
         this.move(peer, a + b); this.sync(); this.render(); this.resolveLanding(peer);
       } else {
         p.desertLeft -= 1; s.doubles = 0; s.log = `${p.nickname} · ${a}+${b} — 탈출 실패 (${p.desertLeft}턴 남음)`;
@@ -446,7 +451,18 @@ class BlueMarbleModule implements GameModule {
       return;
     }
     if (a === b) s.doubles += 1; else s.doubles = 0;
-    if (s.doubles >= 3) { s.doubles = 0; this.toDesert(peer); s.log = `${p.nickname} 더블 3연속 → 무인도!`; this.advanceTurn(); return; }
+    if (s.doubles >= 3) {
+      s.doubles = 0;
+      this.toDesert(peer);
+      // 예전엔 desertLeft 만 세워서 말이 원래 칸(예: 방콕)에 남고 상태만 무인도가 됐다.
+      // 무인도 유배 카드처럼 실제로 무인도 칸까지 옮겨야 "왜 여기서 무인도?"가 안 생긴다.
+      s.pos[peer] = DESERT_TILE;
+      s.log = `${p.nickname} 더블 3연속 → 무인도!`;
+      // advanceTurn 이 dice 를 지워버리므로, 3번째 더블 주사위와 끌려가는 이동을 먼저 보여준다
+      this.sync(); this.render();
+      this.advanceTurn();
+      return;
+    }
     s.log = `${p.nickname} · ${a}+${b}=${a + b}`;
     this.move(peer, a + b);
     this.sync(); this.render();  // 이동 애니 트리거(dice 살아있을 때) — 통행료/세금 등 결정 없는 착지도 말이 움직이게
@@ -553,6 +569,10 @@ class BlueMarbleModule implements GameModule {
         // 성공/실패 둘 다 info 로 띄운다: 예전엔 s.log 만 넣었는데 log 는 화면에 안 그려져서
         // 돈이 부족하면 아무 안내 없이 턴이 넘어가 "목적지가 안 골라진다"로 보였음.
         if (p.money >= TRAVEL_COST) {
+          // 세계여행권을 받았으면 더블이어도 한 번 더는 없음 — 추가 굴림 대신 다음 턴 순간이동을 받는 것.
+          // (예전엔 더블로 한 번 더 굴려서 딴 데 간 뒤에도 세계여행이 살아있어 이중 이득이었다)
+          // 돈이 부족해 못 갔을 때는 받은 게 없으니 더블을 그대로 살려둔다.
+          s.noExtraRoll = true;
           this.pay(peer, null, TRAVEL_COST); p.travelReady = true;
           s.log = '세계여행 준비! 다음 턴에 원하는 칸으로';
           s.pending = { kind: 'info', tile: i, text: `₩${TRAVEL_COST.toLocaleString()} 지불 — 다음 턴에 원하는 칸으로!` };
@@ -571,7 +591,7 @@ class BlueMarbleModule implements GameModule {
     const s = this.state;
     if (this.ended) return;
     const dbl = s.dice && s.dice[0] === s.dice[1];
-    if (dbl && !s.players[peer]!.bankrupt && s.players[peer]!.desertLeft === 0) { s.dice = null; s.log += ' · 더블! 한 번 더'; }
+    if (dbl && !s.noExtraRoll && !s.players[peer]!.bankrupt && s.players[peer]!.desertLeft === 0) { s.dice = null; s.log += ' · 더블! 한 번 더'; }
     else this.advanceTurn();
   }
 
@@ -579,7 +599,7 @@ class BlueMarbleModule implements GameModule {
     const s = this.state;
     // 정전 디버프 카운트다운
     for (const k of Object.keys(s.blackout)) { const n = (s.blackout[+k] ?? 0) - 1; if (n > 0) s.blackout[+k] = n; else delete s.blackout[+k]; }
-    s.doubles = 0; s.pending = null; s.dice = null;
+    s.doubles = 0; s.noExtraRoll = false; s.pending = null; s.dice = null;
     s.turnIdx = nextTurnIdx(s);
     // 세계여행 대기자의 턴이면 → 원하는 칸 선택(travel)으로 시작
     const cur = s.order[s.turnIdx]!;
@@ -629,6 +649,10 @@ class BlueMarbleModule implements GameModule {
     const s = this.state; const c = CARDS[cardId]!; const p = s.players[peer]!;
     const gain = (amt: number): void => { s.fx = { seq: (s.fx?.seq ?? 0) + 1, amount: amt, mul: 1, kind: 'gain', to: peer }; };
     const loss = (amt: number): void => { s.fx = { seq: (s.fx?.seq ?? 0) + 1, amount: amt, mul: 1, kind: 'toll', from: peer }; };
+    // 말을 옮기는 카드는 "걸어서 도착한 것"이 아니므로 더블이었어도 한 번 더 굴리지 않는다
+    if (c.effect === 'go' || c.effect === 'jail' || c.effect === 'back3' || c.effect === 'topcity' || c.effect === 'travel') {
+      s.noExtraRoll = true;
+    }
     switch (c.effect) {
       case 'money':
         if ((c.money ?? 0) < 0) { this.pay(peer, null, -c.money!); loss(-c.money!); } else { p.money += c.money!; gain(c.money!); }

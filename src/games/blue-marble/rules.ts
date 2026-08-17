@@ -290,6 +290,12 @@ export interface BMState {
   dice: [number, number] | null;
   /** 연속 더블 횟수 (3번이면 무인도) */
   doubles: number;
+  /**
+   * 이번 턴은 더블이어도 "한 번 더" 안 줌. advanceTurn 에서 리셋.
+   * 켜지는 경우: 무인도 탈출 더블 / 카드로 이동(출발·뒤로3칸·최고가도시·세계여행·유배) / 세계여행 칸 도착.
+   * 굴린 주사위가 더블이어도 이런 이동은 "정상적으로 걸어서 도착한 것"이 아니라 보너스 턴을 주지 않는다.
+   */
+  noExtraRoll: boolean;
   /** 현재 결정 대기 (구매 등). 있으면 그 턴 플레이어가 처리해야 함 */
   pending: Pending;
   /** 사회복지기금 적립액 (세금이 여기 쌓이고, 사회복지기금 칸 도착 시 수령) */
@@ -450,7 +456,7 @@ export function createInitialState(players: Array<{ peerId: string; nickname: st
   }
   return {
     order, players: pmap, pos, owner: {}, builds: {}, held,
-    turnIdx: 0, dice: null, doubles: 0, pending: null, fund: 0,
+    turnIdx: 0, dice: null, doubles: 0, noExtraRoll: false, pending: null, fund: 0,
     olympic: {}, beachVisits: {}, blackout: {},
     phase: 'playing', winnerPeerId: null, log: '', fx: null, travelFx: null, cardFx: null,
   };

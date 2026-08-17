@@ -240,6 +240,7 @@ export class BlueMarbleRenderer {
       <div class="bm-dice"><div class="bm-die" id="bm-d1">${diceFace(1)}</div><div class="bm-die" id="bm-d2">${diceFace(1)}</div></div>
       <div class="bm-diceres" id="bm-diceres"></div>
       <div class="bm-turn" id="bm-turn"></div>
+      <div class="bm-log" id="bm-log"></div>
       <button class="bm-roll" id="bm-roll">${IC.dice} 주사위 굴리기</button>
       <button class="bm-escape" id="bm-escape" style="display:none"></button>
       <button class="bm-sellbtn" id="bm-sell" style="display:none">🏷️ 내 땅 팔기</button>
@@ -425,31 +426,44 @@ export class BlueMarbleRenderer {
     }, 230);
   }
 
-  /** 세계여행: from 칸 → to 칸으로 비행기가 날아가는 연출 후 도착 처리 */
+  /**
+   * 세계여행: from 칸 → to 칸으로 비행기가 날아가는 연출 후 도착 처리.
+   * 최단 직선이 아니라 **정방향(index 증가) 판 경로**를 따라 한 칸씩 날아간다.
+   * 출발선을 넘으면 월급이 붙는데(index.ts travelTo), 직선으로 가로지르면 왜 월급을 받는지
+   * 안 보여서 판정 방향과 연출 방향을 맞춘 것.
+   */
   private playTravel(by: string, from: number, to: number): void {
     const s = this._lastState; if (!s) return;
     this.busy = true; this.clearMove();
     for (const p of s.order) if (p !== by) this.dispPos[p] = s.pos[p]!;
     this.dispPos[by] = from;                 // 출발 칸에 말 유지(비행 중)
     this.renderTiles(s);
-    const fromEl = this.root.querySelector<HTMLElement>(`.bm-tile[data-i="${from}"]`);
-    const toEl = this.root.querySelector<HTMLElement>(`.bm-tile[data-i="${to}"]`);
     const finish = (): void => {
       this.dispPos[by] = to; this.busy = false;
       const st = this._lastState; if (st) this.render(st, this.myId, this.spec);
     };
-    if (!fromEl || !toEl) { window.setTimeout(finish, 200); return; }
-    const rr = this.root.getBoundingClientRect(), fr = fromEl.getBoundingClientRect(), tr = toEl.getBoundingClientRect();
-    const x0 = fr.left - rr.left + fr.width / 2, y0 = fr.top - rr.top + fr.height / 2;
-    const x1 = tr.left - rr.left + tr.width / 2, y1 = tr.top - rr.top + tr.height / 2;
-    const ang = Math.atan2(y1 - y0, x1 - x0) * 180 / Math.PI;
+    const N = BOARD.length;
+    const steps = ((to - from) % N + N) % N || N;   // 제자리 선택이면 한 바퀴
+    const start = this.tileCenter(from);
+    const path = Array.from({ length: steps }, (_, k) => this.tileCenter((from + k + 1) % N)).filter((c) => c !== null) as { x: number; y: number }[];
+    if (!start || path.length !== steps) { window.setTimeout(finish, 200); return; }
     const plane = document.createElement('div'); plane.className = 'bm-plane'; plane.innerHTML = PLANE;
-    plane.style.setProperty('--rot', `${ang}deg`);
-    plane.style.left = `${x0}px`; plane.style.top = `${y0}px`;
+    plane.style.left = `${start.x}px`; plane.style.top = `${start.y}px`;
     this.root.appendChild(plane);
-    // 다음 프레임에 목적지로 트랜지션
-    requestAnimationFrame(() => { plane.style.left = `${x1}px`; plane.style.top = `${y1}px`; });
-    window.setTimeout(() => { plane.remove(); finish(); }, 900);
+    // 칸 수와 무관하게 전체 비행 시간을 비슷하게 (칸당 60~150ms)
+    const stepMs = Math.max(60, Math.min(150, Math.round(1300 / steps)));
+    plane.style.transition = `left ${stepMs}ms linear, top ${stepMs}ms linear`;
+    let prev = start, i = 0;
+    const hop = (): void => {
+      if (this.destroyed) { plane.remove(); return; }
+      const nxt = path[i]!;
+      plane.style.setProperty('--rot', `${Math.atan2(nxt.y - prev.y, nxt.x - prev.x) * 180 / Math.PI}deg`);
+      plane.style.left = `${nxt.x}px`; plane.style.top = `${nxt.y}px`;
+      prev = nxt; i += 1;
+      if (i < path.length) window.setTimeout(hop, stepMs);
+      else window.setTimeout(() => { plane.remove(); finish(); }, stepMs + 120);
+    };
+    requestAnimationFrame(hop);
   }
 
   /** 타일 중심의 root 기준 좌표 */
@@ -606,6 +620,10 @@ export class BlueMarbleRenderer {
     const isMine = cur === myPeerId && !isSpectator;
     const turnEl = this.root.querySelector<HTMLElement>('#bm-turn')!;
     turnEl.innerHTML = `<b style="background:${colorOf(state, cur)}">${isMine ? '내 차례' : curP.nickname + ' 차례'}</b>`;
+    // state.log 는 여태 어디서도 안 그려졌다 → '더블! 한 번 더', '더블 3연속 → 무인도!' 같은
+    // 규칙 안내가 전부 안 보여서 왜 그렇게 됐는지 알 수 없었음. 판 중앙에 한 줄로 노출.
+    const logEl = this.root.querySelector<HTMLElement>('#bm-log')!;
+    logEl.textContent = state.log;
     const roll = this.root.querySelector<HTMLButtonElement>('#bm-roll')!;
     const canAct = isMine && !state.pending && state.phase === 'playing';
     roll.disabled = !canAct;
@@ -1271,6 +1289,9 @@ function injectStyle(): void {
 .bm-ddbl{font-size:14px;font-weight:900;color:#fff;background:linear-gradient(135deg,#ff8ab0,#ff5a92);border-radius:999px;padding:4px 12px;box-shadow:0 4px 12px rgba(255,90,146,.38);animation:bm-dblpop .5s ease;}
 @keyframes bm-dblpop{0%{transform:scale(.5) rotate(-8deg);}60%{transform:scale(1.18) rotate(4deg);}100%{transform:scale(1) rotate(0);}}
 .bm-turn{font-size:14px;font-weight:800;} .bm-turn b{padding:1px 10px;border-radius:999px;color:#fff;}
+/* 진행 안내(state.log) — 방금 무슨 일이 일어났는지 한 줄 */
+.bm-log{max-width:min(90%,340px);min-height:17px;font-size:12px;font-weight:700;line-height:1.35;color:#8a7a8a;text-align:center;
+  display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden;}
 .bm-roll{font:inherit;font-weight:800;font-size:14px;color:#fff;background:#ff5a92;border:none;border-radius:999px;padding:9px 20px;cursor:pointer;box-shadow:0 6px 16px rgba(255,90,146,.32);display:flex;align-items:center;gap:5px;}
 .bm-roll svg{width:18px;height:18px;} .bm-roll:disabled{opacity:.45;cursor:default;}
 .bm-escape{font:inherit;font-weight:800;font-size:13px;color:#7a5a10;background:linear-gradient(135deg,#ffe7a0,#ffcf4a);border:none;border-radius:999px;padding:8px 18px;cursor:pointer;box-shadow:0 5px 14px rgba(200,150,30,.32);align-items:center;justify-content:center;}
