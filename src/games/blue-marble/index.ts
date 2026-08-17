@@ -485,6 +485,7 @@ class BlueMarbleModule implements GameModule {
     s.orderPending.splice(i, 1);
     const dice: [number, number] = [1 + Math.floor(Math.random() * 6), 1 + Math.floor(Math.random() * 6)];
     (s.orderRolls[peer] ??= []).push(dice[0] + dice[1]);
+    (s.orderDice[peer] ??= []).push(dice);
     s.orderLast = { seq: (s.orderLast?.seq ?? 0) + 1, peer, dice };
     s.log = `${s.players[peer]!.nickname} · ${dice[0]}+${dice[1]} = ${dice[0] + dice[1]}`;
     sound.play('pop');

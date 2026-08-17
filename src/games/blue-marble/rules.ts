@@ -346,6 +346,8 @@ export interface BMState {
    * "1차 굴림이 높은 사람이 무조건 앞, 1차가 같을 때만 2차로 가른다"가 자연스럽게 나온다.
    */
   orderRolls: Record<string, number[]>;
+  /** 위 굴림의 주사위 눈(표시용). orderRolls 와 index 가 1:1 — 합계는 순위, 눈은 화면용 */
+  orderDice: Record<string, Array<[number, number]>>;
   /** 이번 라운드에 아직 안 굴린 사람 */
   orderPending: string[];
   /** 마지막 굴림(연출용). seq 가 바뀌면 렌더러가 주사위를 굴려 보여줌 */
@@ -553,7 +555,7 @@ export function createInitialState(players: Array<{ peerId: string; nickname: st
     order, players: pmap, pos, owner: {}, builds: {}, held,
     turnIdx: 0, dice: null, doubles: 0, noExtraRoll: false, pending: null, fund: 0,
     olympic: {}, beachVisits: {}, blackout: {},
-    phase: 'order', orderRolls: {}, orderPending: order.slice(), orderLast: null, debtQueue: [],
+    phase: 'order', orderRolls: {}, orderDice: {}, orderPending: order.slice(), orderLast: null, debtQueue: [],
     winnerPeerId: null, log: '', fx: null, travelFx: null, cardFx: null, moneyFx: null,
   };
 }

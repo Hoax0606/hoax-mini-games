@@ -15,6 +15,8 @@ import { escapeHtml } from '../../ui/escape';
 
 /** 현금 증감 뱃지가 떠 있는 시간(ms). CSS bm-mdelta 애니 길이와 맞출 것 */
 const MONEY_FX_MS = 2200;
+/** 순서 정하기 주사위 스핀 시간(ms) */
+const ORDER_SPIN_MS = 620;
 
 export interface BMRenderCallbacks {
   onRoll(): void;
@@ -190,6 +192,9 @@ export class BlueMarbleRenderer {
   private lastMoneySeq = 0;
   /** 직전에 그린 사회복지기금 적립액 (늘어날 때만 반짝) */
   private lastFund = 0;
+  /** 마지막으로 스핀을 재생한 순서 정하기 굴림 seq */
+  private lastOrderSeq = 0;
+  private orderSpinTimer: number | null = null;
   /** 이번에 이동하는 말(굴린 사람). 착지 후 턴이 넘어가도 이 말만 애니 */
   private moverId = '';
 
@@ -219,6 +224,7 @@ export class BlueMarbleRenderer {
     this.clearMove();
     if (this.spinTimer !== null) window.clearInterval(this.spinTimer);
     if (this.settleTimer !== null) window.clearTimeout(this.settleTimer);
+    if (this.orderSpinTimer !== null) { window.clearInterval(this.orderSpinTimer); this.orderSpinTimer = null; }
     this.closeModal();
     this.root.remove();
   }
@@ -1002,18 +1008,27 @@ export class BlueMarbleRenderer {
     const iCanRoll = !isSpectator && waiting.includes(myPeerId);
     // 확정되면 order 가 결과 순서, 아니면 좌석 순으로 보여준다
     const list = state.order;
-    const key = `order:${done ? 'done' : ''}:${list.map((p) => (state.orderRolls[p] ?? []).join('.')).join('|')}:${iCanRoll}`;
+    const key = `order:${done ? 'done' : ''}:${list.map((p) => (state.orderRolls[p] ?? []).join('.')).join('|')}`
+      + `:${waiting.join(',')}:${iCanRoll}`;
     if (this.openKind === key && this.modalScrim) return;
     this.closeModal();
 
     const rows = list.map((pid, idx) => {
       const rolls = state.orderRolls[pid] ?? [];
+      const dice = state.orderDice[pid] ?? [];
       const isWaiting = waiting.includes(pid);
-      const val = rolls.length
-        ? rolls.map((v, i) => `<b class="${i === 0 ? '' : 'sub'}">${v}</b>`).join('<span class="bm-ordsep">→</span>')
-        : `<span class="bm-orddim">굴리는 중</span>`;
+      // 지난 재굴림은 합계만 작게, 마지막 굴림만 주사위 두 개 + 합계
+      const past = rolls.slice(0, -1).map((v) => `<b class="sub">${v}</b><span class="bm-ordsep">→</span>`).join('');
+      const lastSum = rolls[rolls.length - 1];
+      const lastDice = dice[dice.length - 1];
+      const val = lastSum === undefined
+        ? `<span class="bm-orddim">굴리는 중</span>`
+        : `${past}<span class="bm-orddice">
+             <span class="bm-orddie">${diceFace(lastDice?.[0] ?? 1)}</span>
+             <span class="bm-orddie">${diceFace(lastDice?.[1] ?? 1)}</span>
+           </span><b class="bm-ordsum">${lastSum}</b>`;
       const rank = done ? `<span class="bm-ordrank">${idx + 1}</span>` : '<span class="bm-ordrank ghost"></span>';
-      return `<div class="bm-ordrow ${isWaiting ? 'waiting' : ''}">
+      return `<div class="bm-ordrow ${isWaiting ? 'waiting' : ''}" data-pid="${escapeHtml(pid)}">
         ${rank}
         <span class="bm-pdot" style="background:${colorOf(state, pid)}"></span>
         <span class="bm-ordnm">${escapeHtml(state.players[pid]!.nickname)}${pid === myPeerId ? ' (나)' : ''}</span>
@@ -1036,6 +1051,51 @@ export class BlueMarbleRenderer {
       </div></div>`;
     this.mountScrim(scrim); this.openKind = key;
     scrim.querySelector<HTMLButtonElement>('#bm-ordroll')?.addEventListener('click', () => this.cb.onOrderRoll());
+
+    // 방금 굴린 사람 주사위만 잠깐 돌린다. 이 모달은 값이 바뀔 때 통째로 다시 그려지므로,
+    // 최종 눈이 이미 DOM 에 박힌 상태 → 스핀 동안만 덮어썼다가 원래 값으로 되돌린다.
+    const last = state.orderLast;
+    if (last && last.seq !== this.lastOrderSeq) {
+      this.lastOrderSeq = last.seq;
+      this.spinOrderDice(scrim, last.peer, last.dice);
+    }
+  }
+
+  /** 순서 정하기 주사위 스핀 (약 0.6초). reduced-motion 이면 스핀 없이 결과만 팝 */
+  private spinOrderDice(scrim: HTMLElement, peer: string, final: [number, number]): void {
+    const row = Array.from(scrim.querySelectorAll<HTMLElement>('.bm-ordrow'))
+      .find((r) => r.dataset.pid === peer);
+    if (!row) return;
+    const dies = Array.from(row.querySelectorAll<HTMLElement>('.bm-orddie'));
+    const sum = row.querySelector<HTMLElement>('.bm-ordsum');
+    if (dies.length < 2) return;
+
+    const settle = (): void => {
+      dies[0]!.innerHTML = diceFace(final[0]);
+      dies[1]!.innerHTML = diceFace(final[1]);
+      dies.forEach((d) => d.classList.remove('spin'));
+      sum?.classList.add('pop');
+      if (sum) sum.textContent = String(final[0] + final[1]);
+    };
+    if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) { settle(); return; }
+
+    dies.forEach((d) => d.classList.add('spin'));
+    if (sum) sum.textContent = '?';
+    if (this.orderSpinTimer !== null) window.clearInterval(this.orderSpinTimer);
+    const t0 = performance.now();
+    this.orderSpinTimer = window.setInterval(() => {
+      if (this.destroyed || !row.isConnected) {
+        if (this.orderSpinTimer !== null) { window.clearInterval(this.orderSpinTimer); this.orderSpinTimer = null; }
+        return;
+      }
+      if (performance.now() - t0 >= ORDER_SPIN_MS) {
+        window.clearInterval(this.orderSpinTimer!); this.orderSpinTimer = null;
+        settle();
+        return;
+      }
+      dies[0]!.innerHTML = diceFace(1 + Math.floor(Math.random() * 6));
+      dies[1]!.innerHTML = diceFace(1 + Math.floor(Math.random() * 6));
+    }, 70);
   }
 
   private showActing(state: BMState, p: NonNullable<BMState['pending']>, cur: string): void {
@@ -1533,10 +1593,20 @@ function injectStyle(): void {
   display:flex;align-items:center;justify-content:center;}
 .bm-ordrank.ghost{background:transparent;}
 .bm-ordnm{flex:1;min-width:0;font-size:12.5px;font-weight:800;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
-.bm-ordval{font-size:15px;font-weight:900;color:#6a4fa0;font-variant-numeric:tabular-nums;}
-.bm-ordval .sub{font-size:12px;opacity:.7;}
-.bm-ordsep{margin:0 3px;font-size:10px;color:#a99aa9;}
+.bm-ordval{display:flex;align-items:center;gap:5px;font-size:15px;font-weight:900;color:#6a4fa0;font-variant-numeric:tabular-nums;}
+.bm-ordval .sub{font-size:12px;opacity:.55;}
+.bm-ordsep{font-size:10px;color:#a99aa9;}
 .bm-orddim{font-size:11.5px;font-weight:700;color:#a99aa9;}
+.bm-orddice{display:flex;gap:3px;}
+.bm-orddie{width:22px;height:22px;background:#fff;border-radius:6px;display:grid;place-items:center;
+  box-shadow:0 1px 4px rgba(120,80,140,.25);}
+.bm-orddie svg{width:84%;height:84%;}
+.bm-orddie.spin{animation:bm-ordspin .16s linear infinite;}
+@keyframes bm-ordspin{0%{transform:rotate(-9deg) translateY(0);}50%{transform:rotate(9deg) translateY(-2px);}100%{transform:rotate(-9deg) translateY(0);}}
+.bm-ordsum{min-width:20px;text-align:right;}
+.bm-ordsum.pop{animation:bm-ordpop .34s cubic-bezier(.34,1.56,.64,1);}
+@keyframes bm-ordpop{0%{transform:scale(.6);opacity:.4;}100%{transform:scale(1);opacity:1;}}
+@media(prefers-reduced-motion:reduce){.bm-orddie.spin{animation:none;} .bm-ordsum.pop{animation:none;}}
 .bm-heldlist{display:flex;flex-direction:column;gap:7px;} .bm-empty{font-size:12px;color:#8a7a8a;}
 .bm-hcard{display:flex;align-items:center;gap:8px;padding:7px 9px;border-radius:11px;background:#fff;border:1.5px solid #ffe0a8;}
 .bm-hic svg{width:22px;height:22px;} .bm-htxt{flex:1;font-size:12px;font-weight:800;}

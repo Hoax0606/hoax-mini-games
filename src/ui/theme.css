@@ -2402,7 +2402,11 @@ input {
 }
 /* 입력창 — 알약형 (목업과 동일) */
 .chat-input {
-  flex: 1;
+  flex: 1 1 0;
+  /* flex 아이템의 기본 min-width:auto 는 input 고유 폭(size=20, 약 208px) 밑으로 안 줄어든다.
+     패널이 280px 라 그 폭이 남는 자리와 딱 맞물려서, 입력창이 자리를 안 내주고
+     40px 전송 버튼이 패널 밖으로 밀려나 overflow:hidden 에 잘렸음. */
+  min-width: 0;
   padding: 10px 14px;
   border: 1.5px solid var(--pink-200);
   border-radius: var(--radius-full);

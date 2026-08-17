@@ -208,7 +208,8 @@ const CSS = `
 .ww-line.mine .who{color:#e0679b;}
 .ww-log-empty{color:#a99fbe;font-size:12.5px;text-align:center;margin:auto;}
 .ww-chat-form{display:flex;gap:8px;margin-top:10px;flex:none;}
-.ww-chat-input{flex:1;border:1px solid #e0d4f0;background:#fff;color:#43384f;
+/* min-width:0 — 없으면 input 고유 폭 밑으로 안 줄어서 옆 전송 버튼이 패널 밖으로 밀려난다 */
+.ww-chat-input{flex:1 1 0;min-width:0;border:1px solid #e0d4f0;background:#fff;color:#43384f;
   border-radius:12px;padding:11px 14px;font:inherit;font-size:13px;outline:none;}
 .ww-chat-input:focus{border-color:#ff9ec3;}
 
