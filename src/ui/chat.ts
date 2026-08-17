@@ -13,6 +13,7 @@
  */
 
 import type { ChatMsg } from '../games/types';
+import { CHEAT_CODES } from '../games/types';
 import { escapeHtml } from './escape';
 import { icon } from './icons';
 
@@ -96,6 +97,11 @@ export function buildChatPanelHTML(): string {
 export interface ChatCallbacks {
   /** 사용자가 입력 후 Enter — 트림된 본문이 비어있지 않을 때만 호출됨 */
   onSend: (text: string) => void;
+  /**
+   * 알려진 치트 코드(`/showmethemoney` 등)를 입력한 경우. 채팅으로는 전송·표시되지 않는다.
+   * 이 콜백을 안 넘겨도(대기실 등) 코드는 그냥 삼켜진다 — 채팅에 노출되지 않게.
+   */
+  onCheat?: (code: string) => void;
 }
 
 /**
@@ -121,6 +127,16 @@ export function wireChatPanel(parent: HTMLElement, callbacks: ChatCallbacks): ()
     if (now - lastSentAt < SEND_COOLDOWN_MS) return;
     const text = input.value.trim().slice(0, MAX_TEXT_LEN);
     if (!text) return;
+    // 치트 코드는 채팅으로 나가지 않는다. 대기실처럼 처리할 게임이 없는 화면에서도
+    // 입력만 지우고 조용히 삼킨다(코드가 채팅에 찍히면 안 되니까).
+    if (text.startsWith('/')) {
+      const code = text.slice(1).trim().toLowerCase();
+      if (CHEAT_CODES.has(code)) {
+        callbacks.onCheat?.(code);
+        input.value = '';
+        return;
+      }
+    }
     lastSentAt = now;
     callbacks.onSend(text);
     input.value = '';

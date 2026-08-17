@@ -1463,11 +1463,7 @@ function injectStyle(): void {
   display:flex;flex-direction:column;align-items:center;gap:2px;font-weight:900;color:#4a3a4a;
   text-shadow:0 3px 10px rgba(0,0,0,.28);animation:bm-fxnum 1.25s cubic-bezier(.2,1.3,.4,1) forwards;}
 .bm-fxnum span:last-child{font-size:clamp(30px,6vw,58px);}
-.bm-fxmul{font-size:clamp(16px,3vw,26px);color:#ff5a92;}
 .bm-fxnum.fire{color:#ff2d55;text-shadow:0 0 16px rgba(255,60,90,.7),0 3px 10px rgba(0,0,0,.3);}
-.bm-fxnum.fire .bm-fxmul{color:#ffab1c;}
-.bm-fxnum.gain{color:#2fa968;text-shadow:0 2px 8px rgba(47,169,104,.35);}
-.bm-fxnum.gain span:last-child{font-size:clamp(24px,4.5vw,42px);}
 @keyframes bm-fxnum{0%{opacity:0;transform:translate(-50%,-30%) scale(.4);}25%{opacity:1;transform:translate(-50%,-50%) scale(1.12);}70%{opacity:1;transform:translate(-50%,-52%) scale(1);}100%{opacity:0;transform:translate(-50%,-80%) scale(.95);}}
 /* 타격감: 동전 */
 .bm-coins{position:absolute;top:44%;left:50%;z-index:59;pointer-events:none;}
@@ -1481,10 +1477,6 @@ function injectStyle(): void {
   transition:left .9s cubic-bezier(.45,.05,.3,1),top .9s cubic-bezier(.45,.05,.3,1);
   transform:translate(-50%,-50%) rotate(var(--rot,0deg));filter:drop-shadow(0 4px 6px rgba(0,0,0,.3));}
 .bm-plane svg{width:100%;height:100%;display:block;}
-/* 카드 이동 — 말 날기 */
-.bm-tokfly{position:absolute;width:22px;height:28px;z-index:31;pointer-events:none;transform:translate(-50%,-60%);
-  transition:left .6s cubic-bezier(.35,.9,.35,1),top .6s cubic-bezier(.35,.9,.35,1);filter:drop-shadow(0 5px 5px rgba(0,0,0,.3));}
-.bm-tokfly svg{width:100%;height:100%;display:block;}
 /* 지진 — 타일 흔들림 + 파편 */
 .bm-tile.bm-quakeshake{animation:bm-qshake .5s cubic-bezier(.36,.07,.19,.97);z-index:7;}
 @keyframes bm-qshake{10%,90%{transform:translate(-2px,1px);}30%,70%{transform:translate(3px,-2px);}50%{transform:translate(-4px,2px);}}
@@ -1502,7 +1494,7 @@ function injectStyle(): void {
 .bm-fxnum.jackpot{color:#ffab1c;text-shadow:0 0 18px rgba(255,171,28,.7),0 3px 10px rgba(0,0,0,.3);}
 /* 동작 최소화 — 흔들림·비행·파편 등 전정계 자극 애니를 정적/페이드로 대체 */
 @media(prefers-reduced-motion:reduce){
-  .bm-plane,.bm-tokfly{transition:none;}
+  .bm-plane{transition:none;}
   .bm-tile.bm-quakeshake{animation:none;}
   .bm-debris,.bm-coins{display:none;}
   .bm-tile.bm-swapglow{animation:none;box-shadow:0 0 0 3px #fff,0 0 14px 3px #7950f2;}
@@ -1670,7 +1662,16 @@ function injectStyle(): void {
 @keyframes bm-spin{to{transform:rotate(360deg);}}
 .bm-end{position:absolute;inset:0;z-index:50;background:rgba(54,36,56,.55);display:grid;place-items:center;}
 .bm-endcard{background:#fff;border-radius:20px;padding:26px 40px;box-shadow:0 16px 40px rgba(0,0,0,.3);} .bm-endt{font-size:30px;font-weight:900;}
-@media(max-width:820px){.bm-root{flex-direction:column;} .bm-board{max-width:100%;height:auto;width:100%;} .bm-panel{width:100%;}}
+@media(max-width:820px){.bm-root{flex-direction:column;} .bm-board{max-width:100%;height:auto;width:100%;} .bm-panel{width:100%;}
+  /* 세로 레이아웃에선 패널이 화면 폭을 다 쓰므로 카드 바깥(오른쪽)에 두면 화면 밖으로 나간다 → 안쪽으로 */
+  .bm-mfx{overflow:hidden;} .bm-mdelta{left:auto;right:10px;}
+  @keyframes bm-mdelta{
+    0%{transform:translateY(6px) scale(.7);opacity:0;}
+    9%{transform:translateY(0) scale(1.12);opacity:1;}
+    16%,72%{transform:translateY(0) scale(1);opacity:1;}
+    100%{transform:translateY(-22px) scale(.94);opacity:0;}
+  }
+}
 `;
   const el = document.createElement('style');
   el.textContent = css;

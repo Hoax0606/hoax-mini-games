@@ -750,22 +750,17 @@ class BlueMarbleModule implements GameModule {
         }
       } else {
         const info = tollBreakdown(s, i, peer);
-        let exempt = false;
+        // 보관 중인 면제권이 있으면 쓸지 물어본다. 통행료는 밟는 즉시 정산돼서
+        // 플레이어가 끼어들 틈이 없으니, 이 순간이 유일한 선택 지점.
         if (info.total > 0) {
-          if (p.tollExempt) {
-            p.tollExempt = false; exempt = true;   // 보관함에서 미리 쓴 것 — 이미 결정했으니 안 물음
-          } else {
-            // 보관 중인 면제권이 있으면 쓸지 물어본다. 통행료는 밟는 즉시 정산돼서
-            // 플레이어가 끼어들 틈이 없으니, 이 순간에 물어보는 게 유일한 선택 지점.
-            const card = this.heldTollExemptId(peer);
-            if (card !== null) {
-              s.pending = { kind: 'tollAsk', tile: i, toll: info.total, to: o, card };
-              s.log = `${t.name} 통행료 ₩${info.total.toLocaleString()} — 면제권을 쓸까요?`;
-              this.render(); return;
-            }
+          const card = this.heldTollExemptId(peer);
+          if (card !== null) {
+            s.pending = { kind: 'tollAsk', tile: i, toll: info.total, to: o, card };
+            s.log = `${t.name} 통행료 ₩${info.total.toLocaleString()} — 면제권을 쓸까요?`;
+            this.render(); return;
           }
         }
-        if (this.settleToll(peer, i, o, info, exempt)) return;   // 자금마련/인수 대기 걸림
+        if (this.settleToll(peer, i, o, info, false)) return;   // 자금마련/인수 대기 걸림
       }
     } else if (t.type === 'special') {
       if (t.kind === 'goldkey') {
@@ -990,7 +985,6 @@ class BlueMarbleModule implements GameModule {
     arr.splice(idx, 1);
     switch (c.effect) {
       case 'jailFree': p.desertLeft = 0; s.log = '무인도 탈출권 사용!'; this.cardFxEvt('toast', { text: '무인도 탈출!' }); break;
-      case 'tollExempt': p.tollExempt = true; s.log = '통행료 면제권 사용 — 다음 통행료 면제'; this.cardFxEvt('toast', { text: '통행료 면제권 사용!' }); break;
       default: break;
     }
   }
@@ -1057,6 +1051,8 @@ class BlueMarbleModule implements GameModule {
     // 소유 부동산 반환(무주공산)
     for (const k of Object.keys(s.owner)) { if (s.owner[+k] === peer) { delete s.owner[+k]; delete s.builds[+k]; } }
     s.log = `${p.nickname} 파산!`;
+    // 판 흔들림 + "○○ 파산!" 연출. 렌더러엔 예전부터 있었는데 세팅하는 곳이 없어 죽어 있었다.
+    s.fx = { seq: (s.fx?.seq ?? 0) + 1, amount: 0, mul: 1, kind: 'bankrupt', from: peer, nick: p.nickname };
     const alive = alivePeers(s);
     if (alive.length <= 1) {
       s.phase = 'ended';

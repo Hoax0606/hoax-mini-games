@@ -11,9 +11,6 @@
 // ── 도시 색 그룹 (같은 색끼리 한 변에 연속) ──
 export type GroupColor = 'tan' | 'sky' | 'pink' | 'orange' | 'red' | 'yellow' | 'green' | 'rose' | 'teal' | 'navy';
 
-/** 칸 종류. city=도시(건물 지음), island=섬(인수불가·개수 통행료), special/corner=이벤트 칸 */
-export type TileType = 'city' | 'island' | 'special' | 'corner';
-
 export interface CityTile { type: 'city'; name: string; group: GroupColor; price: number; }
 /** spot: island=섬(파랑, 보유 개수 기반) / beach=해변(붉은, 방문 횟수 기반) */
 export interface IslandTile { type: 'island'; name: string; price: number; spot: 'island' | 'beach'; }
@@ -276,8 +273,6 @@ export interface BMPlayer {
   laps: number;
   /** 세계여행권 대기 — true면 다음 턴에 원하는 칸으로 이동 */
   travelReady: boolean;
-  /** 통행료 면제권 사용 — true면 다음 통행료 1회 면제 */
-  tollExempt: boolean;
 }
 
 /** 현재 턴 플레이어가 "결정"해야 하는 상황 (구매/건설/인수/카드). 없으면 null */
@@ -431,11 +426,6 @@ export function tollBreakdown(state: BMState, tile: number, byPeerId: string): T
   return { base: 0, parts: [], total: 0 };
 }
 
-/** 그 칸을 밟았을 때 내야 하는 최종 통행료. */
-export function tollFor(state: BMState, tile: number, byPeerId: string): number {
-  return tollBreakdown(state, tile, byPeerId).total;
-}
-
 /**
  * 라인(변)별 건물 건설비. 0=1라인(가장 쌈) … 3=4라인(가장 비쌈). 대지값과 별개 고정.
  * 예전 값의 약 70% — 인수 비용(땅값+건물비의 1.5배)에 비해 건설이 너무 비싸서 하향.
@@ -549,7 +539,7 @@ export function createInitialState(players: Array<{ peerId: string; nickname: st
   const pos: Record<string, number> = {};
   const held: Record<string, number[]> = {};
   for (const p of players) {
-    pmap[p.peerId] = { peerId: p.peerId, nickname: p.nickname, money: START_MONEY, bankrupt: false, desertLeft: 0, laps: 0, travelReady: false, tollExempt: false };
+    pmap[p.peerId] = { peerId: p.peerId, nickname: p.nickname, money: START_MONEY, bankrupt: false, desertLeft: 0, laps: 0, travelReady: false };
     pos[p.peerId] = 0;
     held[p.peerId] = [];
   }
