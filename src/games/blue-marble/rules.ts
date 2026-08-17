@@ -257,6 +257,7 @@ export type Pending =
   | { kind: 'buy'; tile: number }
   | { kind: 'build'; tile: number }                 // 내 도시 도착 → 건설 메뉴(원하는 건물 선택)
   | { kind: 'acquire'; tile: number; cost: number }
+  | { kind: 'tollAsk'; tile: number; toll: number; to: string; card: number }   // 보관 중인 통행료 면제권을 쓸지 묻기
   | { kind: 'card'; card: number }
   | { kind: 'info'; tile: number; text: string }   // 잠깐 안내(돈 부족 등) 후 자동으로 턴 넘김
   | { kind: 'event'; tile: number; text: string; amount: number }  // 세금 등 — 모두에게 창, 밟은 사람만 확인해 닫음

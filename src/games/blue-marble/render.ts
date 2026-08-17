@@ -665,11 +665,14 @@ export class BlueMarbleRenderer {
     if (!cards.length) { el.innerHTML = '<div class="bm-empty">보관한 카드가 없어요</div>'; return; }
     const inDesert = (state.players[myPeerId]?.desertLeft ?? 0) > 0;
     el.innerHTML = cards.map((cid) => {
-      // 무인도 탈출권은 무인도에 있을 때만 사용 가능
-      const locked = CARDS[cid]?.effect === 'jailFree' && !inDesert;
-      const btn = locked
+      const eff = CARDS[cid]?.effect;
+      // 무인도 탈출권은 무인도에 있을 때만 사용 가능.
+      // 통행료 면제권은 여기서 미리 켜둘 수도 있고, 남의 땅을 밟는 순간 쓸지 물어보기도 한다.
+      const btn = eff === 'jailFree' && !inDesert
         ? `<button class="bm-huse" disabled title="무인도에 있을 때만">무인도용</button>`
-        : `<button class="bm-huse" data-cid="${cid}">사용</button>`;
+        : eff === 'tollExempt'
+          ? `<button class="bm-huse" data-cid="${cid}" title="지금 켜두면 다음 통행료에 묻지 않고 바로 쓰여요">미리 켜기</button>`
+          : `<button class="bm-huse" data-cid="${cid}">사용</button>`;
       return `<div class="bm-hcard"><span class="bm-hic">${cardIcon(cid)}</span>
         <span class="bm-htxt">${cardTitle(cid)}</span>${btn}</div>`;
     }).join('');
@@ -740,6 +743,7 @@ export class BlueMarbleRenderer {
     this.openKind = kind;
     if (p.kind === 'buy') this.buyOrAcquireModal(state, p.tile, false);
     else if (p.kind === 'acquire') this.buyOrAcquireModal(state, p.tile, true);
+    else if (p.kind === 'tollAsk') this.tollAskModal(p.tile, p.toll, p.card);
     else if (p.kind === 'build') this.buildMenuModal(state, p.tile);
     else if (p.kind === 'card') this.cardModal(state, p.card);
   }
@@ -773,10 +777,9 @@ export class BlueMarbleRenderer {
     const rows = mine.length
       ? mine.map((i) => {
         const rf = sellRefund(state, i);
-        const fill = raiseAmount == null ? ''
-          : short === 0 ? ''
-            : rf >= short ? `<span class="bm-sellfill done">이거면 충분!</span>`
-              : `<span class="bm-sellfill">팔아도 ₩${(short - rf).toLocaleString()} 부족</span>`;
+        // 이걸 팔면 부족액이 해결되는 땅만 표시. (모자란 땅에 '얼마 부족'까지 붙이면 잔소리 같음)
+        const fill = raiseAmount != null && short > 0 && rf >= short
+          ? `<span class="bm-sellfill done">이거면 충분!</span>` : '';
         return `<div class="bm-sellrow"><span class="bm-sellnm" style="border-left-color:${tileColor(i)}">${(BOARD[i] as { name: string }).name}</span>${fill}<span class="bm-sellval">+₩${rf.toLocaleString()}</span><button class="bm-sellone" data-t="${i}">팔기</button></div>`;
       }).join('')
       : `<div class="bm-sub" style="padding:12px 0">팔 수 있는 땅이 없어요</div>`;
@@ -904,7 +907,8 @@ export class BlueMarbleRenderer {
       body = `<div class="bm-body"><div class="bm-cardic">${cardIcon(p.card)}</div><div class="bm-ctitle">${cardTitle(p.card)}</div>${foot}</div>`;
     } else if ('tile' in p) {
       const tile = p.tile;
-      const label = p.kind === 'acquire' ? '인수' : p.kind === 'build' ? '건설' : (BOARD[tile].type === 'island' ? '섬 구매' : '도시 구매');
+      const label = p.kind === 'acquire' ? '인수' : p.kind === 'build' ? '건설' : p.kind === 'tollAsk' ? '통행료'
+        : (BOARD[tile].type === 'island' ? '섬 구매' : '도시 구매');
       head = `<div class="bm-top" style="background:${tileColor(tile)}">${label}</div>`;
       body = `<div class="bm-body">${deedHTML(state, tile)}${foot}</div>`;
     } else {
@@ -946,6 +950,26 @@ export class BlueMarbleRenderer {
     scrim.querySelector<HTMLButtonElement>('.bm-no')!.onclick = () => this.cb.onDecision(false);
   }
 
+  /**
+   * 통행료 면제권을 쓸지 묻는 창.
+   * 통행료는 남의 땅을 밟는 즉시 정산되므로, 카드를 쓸지 고를 수 있는 순간은 여기뿐이다.
+   */
+  private tollAskModal(tile: number, toll: number, card: number): void {
+    this.closeModal();
+    const scrim = document.createElement('div'); scrim.className = 'bm-scrim';
+    scrim.innerHTML = `<div class="bm-modal"><div class="bm-top" style="background:${tileColor(tile)}">${(BOARD[tile] as { name: string }).name} 통행료</div>
+      <div class="bm-body">
+        <div class="bm-cardic">${cardIcon(card)}</div>
+        <div class="bm-ctitle">${cardTitle(card)}</div>
+        <div class="bm-mrow big"><span>내야 할 통행료</span><b>${won(toll)}</b></div>
+        <div class="bm-sub">쓰면 이번 통행료가 0원 · 안 쓰면 아껴둬요</div>
+        <div class="bm-btns"><button class="bm-yes">면제권 사용</button><button class="bm-no">그냥 낸다</button></div>
+      </div></div>`;
+    this.mountScrim(scrim); this.openKind = `tollAsk:${tile}`;
+    scrim.querySelector<HTMLButtonElement>('.bm-yes')!.onclick = () => this.cb.onDecision(true);
+    scrim.querySelector<HTMLButtonElement>('.bm-no')!.onclick = () => this.cb.onDecision(false);
+  }
+
   private buildMenuModal(state: BMState, tile: number): void {
     this.closeModal();
     this.buildSel = new Set();   // 새 건설창 → 선택 초기화
@@ -962,8 +986,6 @@ export class BlueMarbleRenderer {
     const t = BOARD[tile] as { name: string; price: number };
     const p = state.players[state.order[state.turnIdx]!]!;
     const arr = state.builds[tile] ?? [];
-    // 이미 지은 것 + 지금 체크한 것 (랜드마크 선행조건·자금 계산에 사용)
-    const withSel = [...arr, ...this.buildSel];
     const selTotal = [...this.buildSel].reduce((v, k) => v + buildCostOf(tile, k), 0);
     const remain = p.money - selTotal;
 
@@ -974,7 +996,9 @@ export class BlueMarbleRenderer {
       let st = '', can = false;
       if (owned) st = '<span style="color:#57c777">보유</span>';
       else if (p.laps < bt.lap) st = `<span style="color:#9a8a9a">${bt.lap}바퀴 필요</span>`;
-      else if (bt.kind === 'landmark' && !hasAllHouses(withSel)) st = '<span style="color:#9a8a9a">3건물 먼저</span>';
+      // 랜드마크 선행조건은 "이미 지어진" 3건물(arr)만 인정 — 지금 체크한 것(buildSel)은 안 됨.
+      // 안 그러면 한 창에서 3개를 함께 체크하는 순간 랜드마크까지 열려 땅 구매~랜드마크가 한 턴에 끝난다.
+      else if (bt.kind === 'landmark' && !hasAllHouses(arr)) st = '<span style="color:#9a8a9a">3건물 지은 뒤 다시 방문</span>';
       else if (!sel && cost > remain) st = '<span style="color:#e5484d">돈 부족</span>';
       else { st = `<b style="color:#ff5a92">${won(cost)}</b>`; can = true; }
       const ic = bt.kind === 'landmark' ? landmarkSvg(t.name) : BSVG[bt.kind];
@@ -1139,6 +1163,7 @@ const cardTitle = (id: number): string => CARDS[id]?.title ?? '카드';
 const cardDesc = (id: number): string => CARDS[id]?.desc ?? '';
 const pendingLabel = (p: NonNullable<BMState['pending']>): string =>
   p.kind === 'buy' ? '구매 고민' : p.kind === 'build' ? '건설' : p.kind === 'acquire' ? '인수 고민'
+  : p.kind === 'tollAsk' ? '면제권 사용 고민'
   : p.kind === 'olympic' ? '올림픽 개최' : p.kind === 'travel' ? '세계여행'
   : p.kind === 'startBuild' ? '추가 건설' : p.kind === 'bonus' || p.kind === 'bonusOffer' ? '보너스 게임'
   : p.kind === 'cardSwapMine' || p.kind === 'cardSwapTheirs' ? '도시 교환' : p.kind === 'cardQuake' ? '지진' : p.kind === 'cardBlackout' ? '정전'

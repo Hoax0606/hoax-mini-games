@@ -9,9 +9,9 @@
 import type { GameModule, GameContext, GameMessage, GameResult, Player } from '../types';
 import { sound } from '../../core/sound';
 import {
-  BOARD, CARDS, SALARY, DESERT_TURNS, DESERT_ESCAPE, TRAVEL_COST, BONUS_STAKE, OLYMPIC_MAX_MUL, buildCostOf, canBuild, acquireCost, sellRefund,
+  BOARD, CARDS, SALARY, DESERT_TURNS, DESERT_ESCAPE, TRAVEL_COST, BONUS_STAKE, OLYMPIC_MAX_MUL, buildCostOf, canBuild, hasAllHouses, acquireCost, sellRefund,
   tollBreakdown, alivePeers, nextTurnIdx, createInitialState, monopolyWin, drawCardId, TOP_CITY_TILE, DESERT_TILE, SPACE_TILE,
-  type BMState, type BuildKind,
+  type BMState, type BuildKind, type TollInfo,
 } from './rules';
 
 /** 솔로(AlphaTest) 프리뷰용 더미 상대 peerId */
@@ -152,6 +152,7 @@ class BlueMarbleModule implements GameModule {
     if (!pend) { this.hostHandle({ kind: 'roll', by: DUMMY }, DUMMY); return; }
     if (pend.kind === 'buy') this.hostHandle({ kind: 'decision', accept: Math.random() < 0.75, by: DUMMY }, DUMMY);
     else if (pend.kind === 'acquire') this.hostHandle({ kind: 'decision', accept: Math.random() < 0.35, by: DUMMY }, DUMMY);
+    else if (pend.kind === 'tollAsk') this.hostHandle({ kind: 'decision', accept: true, by: DUMMY }, DUMMY);
     else if (pend.kind === 'card') this.hostHandle({ kind: 'card', keep: false, by: DUMMY }, DUMMY);
     else if (pend.kind === 'build') {
       const picks = (['villa', 'house2', 'apt'] as BuildKind[]).filter((k) => canBuild(s, pend.tile, DUMMY, k));
@@ -234,6 +235,16 @@ class BlueMarbleModule implements GameModule {
         }
         s.pending = null; this.endStep(by);
       }
+      else if (s.pending?.kind === 'tollAsk') {
+        // 통행료 면제권 쓸지 답변 — 쓰면 카드 소모 후 통행료 0, 안 쓰면 그대로 정산
+        const { tile, to, card } = s.pending;
+        s.pending = null;
+        const held = s.held[by];
+        const idx = held ? held.indexOf(card) : -1;
+        const exempt = action.accept && held !== undefined && idx >= 0;
+        if (exempt) held!.splice(idx, 1);
+        if (!this.settleToll(by, tile, to, tollBreakdown(s, tile, by), exempt)) this.endStep(by);
+      }
       else if (s.pending?.kind === 'acquire') {
         if (action.accept) {
           const tile = s.pending.tile;
@@ -248,9 +259,15 @@ class BlueMarbleModule implements GameModule {
     } else if (action.kind === 'build') {
       if (s.pending?.kind === 'build') {
         const tile = s.pending.tile;
-        // 선택한 건물들을 별장→2층집→아파트→랜드마크 순으로 건설(의존성·자금 검증이 순서대로 맞아야 함)
-        for (const k of ['villa', 'house2', 'apt', 'landmark'] as BuildKind[]) {
+        // 랜드마크는 별장·빌딩·호텔이 "이 창에 오기 전부터" 지어져 있어야 한다.
+        // canBuild 는 현재 s.builds 만 보므로, 한 루프로 돌리면 방금 지은 3건물이 선행조건을 채워
+        // 땅 구매~랜드마크가 한 턴에 끝나버린다 → 시작 시점 상태(before)로 따로 검사.
+        const before = [...(s.builds[tile] ?? [])];
+        for (const k of ['villa', 'house2', 'apt'] as BuildKind[]) {
           if (action.builds.includes(k) && canBuild(s, tile, by, k)) this.doBuild(by, tile, k);
+        }
+        if (action.builds.includes('landmark') && hasAllHouses(before) && canBuild(s, tile, by, 'landmark')) {
+          this.doBuild(by, tile, 'landmark');
         }
         s.pending = null; this.endStep(by);   // 완료 → 턴 마무리
       }
@@ -503,28 +520,24 @@ class BlueMarbleModule implements GameModule {
         if (t.type === 'city' && (['villa', 'house2', 'apt', 'landmark'] as BuildKind[]).some((k) => canBuild(s, i, peer, k))) {
           s.pending = { kind: 'build', tile: i }; this.render(); return;
         }
-      } else if (p.tollExempt) {
-        // 통행료 면제권 사용 중 → 이번 통행료 면제
-        p.tollExempt = false;
-        s.log = `${t.name} — 통행료 면제권 사용!`;
       } else {
         const info = tollBreakdown(s, i, peer);
-        const toll = info.total;
-        // 낼 돈 부족 + 팔 땅 있으면 → 자금 마련 페이즈(파산 대신 땅 팔 기회)
-        if (toll > 0 && p.money < toll && this.hasSellable(peer)) {
-          s.pending = { kind: 'raiseFunds', to: o, amount: toll };
-          s.log = `${t.name} 통행료 ₩${toll.toLocaleString()} — 낼 돈이 부족해요. 땅을 파세요`;
-          this.render(); return;
+        let exempt = false;
+        if (info.total > 0) {
+          if (p.tollExempt) {
+            p.tollExempt = false; exempt = true;   // 보관함에서 미리 쓴 것 — 이미 결정했으니 안 물음
+          } else {
+            // 보관 중인 면제권이 있으면 쓸지 물어본다. 통행료는 밟는 즉시 정산돼서
+            // 플레이어가 끼어들 틈이 없으니, 이 순간에 물어보는 게 유일한 선택 지점.
+            const card = this.heldTollExemptId(peer);
+            if (card !== null) {
+              s.pending = { kind: 'tollAsk', tile: i, toll: info.total, to: o, card };
+              s.log = `${t.name} 통행료 ₩${info.total.toLocaleString()} — 면제권을 쓸까요?`;
+              this.render(); return;
+            }
+          }
         }
-        this.pay(peer, o, toll);
-        s.log = `${t.name} 통행료 ${toll.toLocaleString()} → ${s.players[o]!.nickname}`;
-        // 타격감 연출용 (배수 클수록 강하게)
-        if (toll > 0) s.fx = { seq: (s.fx?.seq ?? 0) + 1, amount: toll, mul: info.base > 0 ? Math.round(info.total / info.base) : 1, kind: 'toll', from: peer, to: o };
-        // 도시면 인수 기회(랜드마크·섬 제외)
-        if (!p.bankrupt && t.type === 'city') {
-          const cost = acquireCost(s, i);
-          if (cost > 0 && p.money >= cost) { s.pending = { kind: 'acquire', tile: i, cost }; this.render(); return; }
-        }
+        if (this.settleToll(peer, i, o, info, exempt)) return;   // 자금마련/인수 대기 걸림
       }
     } else if (t.type === 'special') {
       if (t.kind === 'goldkey') {
@@ -726,6 +739,44 @@ class BlueMarbleModule implements GameModule {
       case 'tollExempt': p.tollExempt = true; s.log = '통행료 면제권 사용 — 다음 통행료 면제'; this.cardFxEvt('toast', { text: '통행료 면제권 사용!' }); break;
       default: break;
     }
+  }
+
+  /** 보관함에 있는 통행료 면제권 카드 id (없으면 null) */
+  private heldTollExemptId(peer: string): number | null {
+    const held = this.state.held[peer];
+    return held?.find((id) => CARDS[id]?.effect === 'tollExempt') ?? null;
+  }
+
+  /**
+   * 남의 땅 통행료 정산 + 인수 기회.
+   * exempt=true 면 통행료 없이 면제 연출만.
+   * 결정 대기(자금마련/인수)를 걸었으면 true → 호출부는 endStep 없이 바로 return.
+   */
+  private settleToll(peer: string, tile: number, owner: string, info: TollInfo, exempt: boolean): boolean {
+    const s = this.state; const p = s.players[peer]!; const t = BOARD[tile];
+    const toll = info.total;
+    if (exempt) {
+      s.log = `${t.name} 통행료 ₩${toll.toLocaleString()} — 면제권으로 0원!`;
+      this.cardFxEvt('toast', { text: '통행료 면제권 사용! 통행료 0' });
+      sound.play('pop');
+    } else {
+      // 낼 돈 부족 + 팔 땅 있으면 → 자금 마련 페이즈(파산 대신 땅 팔 기회)
+      if (toll > 0 && p.money < toll && this.hasSellable(peer)) {
+        s.pending = { kind: 'raiseFunds', to: owner, amount: toll };
+        s.log = `${t.name} 통행료 ₩${toll.toLocaleString()} — 낼 돈이 부족해요. 땅을 파세요`;
+        this.render(); return true;
+      }
+      this.pay(peer, owner, toll);
+      s.log = `${t.name} 통행료 ${toll.toLocaleString()} → ${s.players[owner]!.nickname}`;
+      // 타격감 연출용 (배수 클수록 강하게)
+      if (toll > 0) s.fx = { seq: (s.fx?.seq ?? 0) + 1, amount: toll, mul: info.base > 0 ? Math.round(info.total / info.base) : 1, kind: 'toll', from: peer, to: owner };
+    }
+    // 도시면 인수 기회(랜드마크·섬 제외)
+    if (!p.bankrupt && t.type === 'city') {
+      const cost = acquireCost(s, tile);
+      if (cost > 0 && p.money >= cost) { s.pending = { kind: 'acquire', tile, cost }; this.render(); return true; }
+    }
+    return false;
   }
 
   private toDesert(peer: string): void { this.state.players[peer]!.desertLeft = DESERT_TURNS; }
