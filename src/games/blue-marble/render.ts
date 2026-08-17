@@ -990,6 +990,10 @@ export class BlueMarbleRenderer {
    * 현금이 모자라면 '간다'를 잠근다.
    */
   private travelOfferModal(state: BMState, cost: number): void {
+    // 이 파일 모달 규약: ① 직전 모달을 닫고 ② mountScrim 후 openKind 를 직접 세운다.
+    // ①을 빼먹으면 이전 모달(예: 상대방 건설 대기창)이 위에 남아 클릭을 먹고,
+    // ②를 빼먹으면 renderPending 이 매 프레임 다시 그려서 버튼이 계속 새로 만들어진다.
+    this.closeModal();
     const money = state.players[this.myId]?.money ?? 0;
     const canGo = money >= cost;
     const scrim = document.createElement('div'); scrim.className = 'bm-scrim';
@@ -1003,7 +1007,7 @@ export class BlueMarbleRenderer {
           <button class="bm-no" id="bm-tno" style="flex:1">안 간다</button>
         </div>
       </div></div>`;
-    this.mountScrim(scrim);
+    this.mountScrim(scrim); this.openKind = 'travelOffer:';
     scrim.querySelector<HTMLButtonElement>('#bm-tgo')?.addEventListener('click', () => this.cb.onDecision(true));
     scrim.querySelector<HTMLButtonElement>('#bm-tno')?.addEventListener('click', () => this.cb.onDecision(false));
   }
@@ -1634,6 +1638,9 @@ function injectStyle(): void {
 .bm-mrow{display:flex;justify-content:space-between;align-items:center;font-size:12px;padding:3px 0;} .bm-mrow span{color:#8a7a8a;font-weight:700;} .bm-mrow b{color:#4a3a4a;font-weight:900;} .bm-mrow.big b{color:#ff5a92;font-size:16px;}
 .bm-btns{display:flex;gap:10px;margin-top:12px;} .bm-btns button{flex:1;font:inherit;font-size:14px;font-weight:800;padding:11px;border-radius:13px;cursor:pointer;border:none;}
 .bm-yes{background:#6ed9b3;color:#1f6a55;} .bm-no{background:#f0e8ef;color:#8a7a8a;}
+/* 비활성 버튼이 눌리는 것처럼 보이면 안 됨 (돈 부족한 '간다'·'지불' 등) */
+.bm-btns button:disabled{background:#ece7ee;color:#b6adb6;cursor:not-allowed;box-shadow:none;}
+.bm-btns button:disabled:active{transform:none;}
 .bm-deed{width:132px;margin:0 auto 10px;border:1.5px solid #eadcf2;border-radius:12px;overflow:hidden;box-shadow:0 3px 10px rgba(120,80,140,.12);}
 .bm-deedb{height:26px;background:var(--bd);} .bm-deedn{font-size:16px;font-weight:900;padding:6px 4px 0;} .bm-deedi{font-size:10.5px;color:#8a7a8a;padding:2px 4px 8px;line-height:1.3;}
 .bm-cardic svg{width:46px;height:46px;} .bm-ctitle{font-size:18px;font-weight:900;margin-top:6px;} .bm-cdesc{font-size:12px;color:#8a7a8a;margin-bottom:6px;}
