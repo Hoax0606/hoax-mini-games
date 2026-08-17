@@ -681,7 +681,7 @@ class BlueMarbleModule implements GameModule {
       }
       case 'go': this.cardMove(peer, 0); this.resolveLanding(peer); return;        // 출발 corner에서 월급 지급
       case 'jail': { const from = s.pos[peer]!; this.toDesert(peer); s.pos[peer] = DESERT_TILE; this.setCardFly(peer, from, DESERT_TILE); s.log = '무인도 유배!'; this.endStep(peer); return; }
-      case 'back3': this.cardMove(peer, ((s.pos[peer]! - 3) % BOARD.length + BOARD.length) % BOARD.length); this.resolveLanding(peer); return;
+      case 'back3': this.cardMove(peer, ((s.pos[peer]! - 3) % BOARD.length + BOARD.length) % BOARD.length, true); this.resolveLanding(peer); return;
       case 'topcity': this.cardMove(peer, TOP_CITY_TILE); this.resolveLanding(peer); return;
       case 'swap':
         if (this.ownedCities(peer).length && this.opponentCities(peer).length) s.pending = { kind: 'cardSwapMine' };
@@ -711,18 +711,18 @@ class BlueMarbleModule implements GameModule {
       default: this.endStep(peer); return;   // (보관형은 이 경로로 안 옴)
     }
   }
-  /** 카드 연출 신호 */
-  private setCardFly(peer: string, from: number, to: number): void {
-    const s = this.state; s.cardFx = { seq: (s.cardFx?.seq ?? 0) + 1, kind: 'fly', by: peer, from, to };
+  /** 카드 연출 신호. back=true면 역방향(뒤로 3칸)으로 걸어가는 연출 */
+  private setCardFly(peer: string, from: number, to: number, back = false): void {
+    const s = this.state; s.cardFx = { seq: (s.cardFx?.seq ?? 0) + 1, kind: 'fly', by: peer, from, to, back };
   }
   private cardFxEvt(kind: 'quake' | 'swap' | 'toast', extra: { tile?: number; tile2?: number; text?: string }): void {
     const s = this.state; s.cardFx = { seq: (s.cardFx?.seq ?? 0) + 1, kind, ...extra };
   }
-  /** 카드로 순간이동 — 말 날아가는 연출 트리거 후 착지는 호출부에서 resolveLanding */
-  private cardMove(peer: string, dest: number): void {
+  /** 카드로 이동 — 판을 따라 걸어가는 연출 트리거 후 착지는 호출부에서 resolveLanding */
+  private cardMove(peer: string, dest: number, back = false): void {
     const s = this.state; const from = s.pos[peer]!;
     s.pos[peer] = dest;
-    this.setCardFly(peer, from, dest);
+    this.setCardFly(peer, from, dest, back);
     this.sync(); this.render();
   }
 

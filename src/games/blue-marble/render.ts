@@ -409,10 +409,12 @@ export class BlueMarbleRenderer {
     // 나머지 말들은 즉시 제자리로 스냅 → 이전 애니 잔상이 같이 따라 움직이는 버그 방지
     for (const p of s.order) if (p !== active) this.dispPos[p] = s.pos[p]!;
     if (this.dispPos[active] === undefined) this.dispPos[active] = s.pos[active]!;   // 안전: 미초기화면 즉시 도착 처리
-    // 카드 등으로 12칸 초과 순간이동은 스텝 없이 즉시
     const N = BOARD.length;
     const gap = (((s.pos[active]! - this.dispPos[active]!) % N) + N) % N;
-    if (!Number.isFinite(gap) || gap === 0 || gap > 12) { this.dispPos[active] = s.pos[active]!; this.renderTiles(s); this.settle(); return; }
+    if (!Number.isFinite(gap) || gap === 0) { this.dispPos[active] = s.pos[active]!; this.renderTiles(s); this.settle(); return; }
+    // 주사위 이동은 칸당 230ms. 12칸 초과(더블 3연속 무인도행 등)는 예전엔 순간이동이었는데
+    // 이제 다 걸어가게 하되, 전체 시간이 길어지지 않게 칸당 시간을 줄인다.
+    const stepMs = gap <= 12 ? 230 : Math.max(80, Math.round(2400 / gap));
     this.moveTimer = window.setInterval(() => {
       const st = this._lastState; if (this.destroyed || !st) { this.clearMove(); return; }
       this.dispPos[active] = (this.dispPos[active]! + 1) % BOARD.length;
@@ -423,7 +425,7 @@ export class BlueMarbleRenderer {
       }
       // 마지막 칸에 도착 → 말이 잠시 머문 뒤에 결정창(구매/황금열쇠) 표시
       if (this.dispPos[active] === st.pos[active]) { this.clearMove(); this.settle(); }
-    }, 230);
+    }, stepMs);
   }
 
   /**
@@ -477,26 +479,34 @@ export class BlueMarbleRenderer {
   /** 카드 연출 라우팅 */
   private playCardFx(fx: NonNullable<BMState['cardFx']>): void {
     if (this.destroyed) return;
-    if (fx.kind === 'fly' && fx.by !== undefined && fx.from !== undefined && fx.to !== undefined) { this.playTokenFly(fx.by, fx.from, fx.to); return; }
+    if (fx.kind === 'fly' && fx.by !== undefined && fx.from !== undefined && fx.to !== undefined) { this.playTokenWalk(fx.by, fx.from, fx.to, fx.back === true); return; }
     if (fx.kind === 'quake' && fx.tile !== undefined) { this.playQuake(fx.tile); return; }
     if (fx.kind === 'swap' && fx.tile !== undefined && fx.tile2 !== undefined) { this.playSwap(fx.tile, fx.tile2); return; }
     if (fx.kind === 'toast' && fx.text) { this.showToast(fx.text); return; }
   }
 
-  /** 카드 이동 — 말이 from→to 로 날아감 */
-  private playTokenFly(by: string, from: number, to: number): void {
+  /**
+   * 카드 이동(출발로 이동·최고가 도시로·무인도 유배·뒤로 3칸) — 세계여행과 같은 원칙으로
+   * 순간이동 대신 **판 경로를 따라 한 칸씩** 걸어간다. back=true면 역방향(뒤로 3칸).
+   * 칸 수가 많아도 전체 1.3초 내외가 되도록 칸당 시간을 조절한다.
+   */
+  private playTokenWalk(by: string, from: number, to: number, back: boolean): void {
     const s = this._lastState; if (!s) return;
     this.busy = true; this.clearMove();
     for (const p of s.order) if (p !== by) this.dispPos[p] = s.pos[p]!;
-    this.dispPos[by] = from; this.renderTiles(s);
-    const a = this.tileCenter(from), b = this.tileCenter(to);
+    this.dispPos[by] = from; this.renderTokens(s);
     const finish = (): void => { this.dispPos[by] = to; this.busy = false; const st = this._lastState; if (st) this.render(st, this.myId, this.spec); };
-    if (!a || !b) { window.setTimeout(finish, 150); return; }
-    const fly = document.createElement('div'); fly.className = 'bm-tokfly'; fly.innerHTML = tokenSvg(colorOf(s, by), colorDeep(s, by));
-    fly.style.left = `${a.x}px`; fly.style.top = `${a.y}px`;
-    this.root.appendChild(fly);
-    requestAnimationFrame(() => { fly.style.left = `${b.x}px`; fly.style.top = `${b.y}px`; });
-    window.setTimeout(() => { fly.remove(); finish(); }, 620);
+    const N = BOARD.length;
+    const steps = back ? (((from - to) % N + N) % N) : (((to - from) % N + N) % N);
+    if (steps === 0) { window.setTimeout(finish, 150); return; }
+    const stepMs = Math.max(70, Math.min(190, Math.round(1300 / steps)));
+    let left = steps;
+    this.moveTimer = window.setInterval(() => {
+      const st = this._lastState; if (this.destroyed || !st) { this.clearMove(); return; }
+      this.dispPos[by] = ((this.dispPos[by]! + (back ? -1 : 1)) % N + N) % N;
+      this.renderTokens(st);
+      if (--left <= 0) { this.clearMove(); window.setTimeout(finish, 180); }
+    }, stepMs);
   }
 
   /** 지진 — 대상 타일 흔들림 + 파편 */
@@ -666,12 +676,12 @@ export class BlueMarbleRenderer {
     const inDesert = (state.players[myPeerId]?.desertLeft ?? 0) > 0;
     el.innerHTML = cards.map((cid) => {
       const eff = CARDS[cid]?.effect;
+      // 통행료 면제권은 남의 땅 통행료가 뜨는 순간 쓸지 물어보므로 여기서 누를 일이 없다.
       // 무인도 탈출권은 무인도에 있을 때만 사용 가능.
-      // 통행료 면제권은 여기서 미리 켜둘 수도 있고, 남의 땅을 밟는 순간 쓸지 물어보기도 한다.
-      const btn = eff === 'jailFree' && !inDesert
-        ? `<button class="bm-huse" disabled title="무인도에 있을 때만">무인도용</button>`
-        : eff === 'tollExempt'
-          ? `<button class="bm-huse" data-cid="${cid}" title="지금 켜두면 다음 통행료에 묻지 않고 바로 쓰여요">미리 켜기</button>`
+      const btn = eff === 'tollExempt'
+        ? `<button class="bm-huse" disabled title="남의 땅 통행료가 뜰 때 쓸지 물어봐요">통행료용</button>`
+        : eff === 'jailFree' && !inDesert
+          ? `<button class="bm-huse" disabled title="무인도에 있을 때만">무인도용</button>`
           : `<button class="bm-huse" data-cid="${cid}">사용</button>`;
       return `<div class="bm-hcard"><span class="bm-hic">${cardIcon(cid)}</span>
         <span class="bm-htxt">${cardTitle(cid)}</span>${btn}</div>`;
