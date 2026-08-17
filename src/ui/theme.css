@@ -802,6 +802,15 @@ input {
   line-height: 1;
 }
 
+/* 브루마블 총자산 아래 내역(현금·부동산) */
+.result-bm-sub {
+  display: block;
+  margin-top: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
 .result-apple-rank-score {
   font-family: var(--font-mono);
   font-size: 13px;

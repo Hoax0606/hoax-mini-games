@@ -297,7 +297,9 @@ export type Pending =
   | { kind: 'startBuild' }                          // 출발 정확히 멈춤 → 내 도시 하나 추가 건설
   | { kind: 'bonusOffer' }                          // 오락실: 할지/판돈(100·200·300) 선택
   | { kind: 'bonus'; stake: number; round: number; pot: number }  // 오락실 2지선다
-  | { kind: 'raiseFunds'; to: string | null; amount: number }     // 통행료/세금 낼 돈 부족 → 땅 팔아 마련(또는 파산)
+  // 낼 현금이 부족 → 땅 팔아 마련(또는 파산). debtor 는 보통 현재 차례 사람이지만,
+  // 생일 축하처럼 차례가 아닌 사람이 낼 때도 있어서 명시한다.
+  | { kind: 'raiseFunds'; debtor: string; to: string | null; amount: number; toFund: boolean }
   | null;
 
 export interface BMState {
@@ -334,7 +336,25 @@ export interface BMState {
   beachVisits: Record<number, number>;
   /** 정전(디버프) 도시 index → 남은 턴 수. >0이면 통행료 0 */
   blackout: Record<number, number>;
-  phase: 'playing' | 'ended';
+  /**
+   * order = 게임 시작 전 순서 정하기(전원 주사위) / playing = 진행 / ended = 종료
+   */
+  phase: 'order' | 'playing' | 'ended';
+  /**
+   * 순서 정하기 굴림 결과. peerId → 굴린 합계 목록.
+   * 동점이면 그 사람들끼리만 한 번 더 굴려 배열 뒤에 붙인다 → 배열을 앞에서부터 비교(사전식 내림차순)하면
+   * "1차 굴림이 높은 사람이 무조건 앞, 1차가 같을 때만 2차로 가른다"가 자연스럽게 나온다.
+   */
+  orderRolls: Record<string, number[]>;
+  /** 이번 라운드에 아직 안 굴린 사람 */
+  orderPending: string[];
+  /** 마지막 굴림(연출용). seq 가 바뀌면 렌더러가 주사위를 굴려 보여줌 */
+  orderLast: { seq: number; peer: string; dice: [number, number] } | null;
+  /**
+   * 순차로 갚아야 하는 빚 대기열. 앞에서부터 하나씩 처리하고, 현금이 모자라면
+   * 그 사람에게 자금 마련(땅 팔기) 창을 띄우고 멈춘다. 생일 축하처럼 여러 명이 동시에 낼 때 씀.
+   */
+  debtQueue: Array<{ from: string; to: string | null; amount: number; toFund: boolean }>;
   /** 승자 peerId (phase==='ended') */
   winnerPeerId: string | null;
   /** UI 안내 문구 */
@@ -464,6 +484,45 @@ export function sellRefund(state: BMState, tile: number): number {
   return t.price + arr.reduce((v, k) => v + buildCostOf(tile, k), 0);
 }
 
+/**
+ * 용어 정리 — UI 전체에서 이 세 단어만 쓴다.
+ *   현금   = players[peer].money (손에 든 돈)
+ *   부동산 = 소유한 땅·건물을 지금 다 팔면 들어오는 돈 (estateValue)
+ *   총자산 = 현금 + 부동산 (totalAssets) — 순위·파산 판정 기준
+ */
+export function estateValue(state: BMState, peer: string): number {
+  let sum = 0;
+  for (const k of Object.keys(state.owner)) if (state.owner[+k] === peer) sum += sellRefund(state, +k);
+  return sum;
+}
+export function totalAssets(state: BMState, peer: string): number {
+  return (state.players[peer]?.money ?? 0) + estateValue(state, peer);
+}
+
+/** 순서 정하기 재굴림 상한. 이 라운드까지 가도 동점이면 좌석 순으로 가른다(무한 재굴림 방지) */
+export const ORDER_MAX_ROUNDS = 5;
+/**
+ * 순서 정하기 한 라운드 정산.
+ * 굴림 배열을 앞에서부터 비교(사전식 내림차순)해 정렬하고,
+ * 배열이 완전히 같은 사람들은 아직 못 가른 것이므로 재굴림 대상으로 돌려준다.
+ * seats = 원래 좌석 순서(최종 동점 시 tiebreak).
+ */
+export function resolveOrderRound(rolls: Record<string, number[]>, seats: string[]): { sorted: string[]; tied: string[] } {
+  const cmp = (a: string, b: string): number => {
+    const ra = rolls[a] ?? []; const rb = rolls[b] ?? [];
+    for (let i = 0; i < Math.max(ra.length, rb.length); i++) {
+      const d = (rb[i] ?? -1) - (ra[i] ?? -1);
+      if (d !== 0) return d;
+    }
+    return seats.indexOf(a) - seats.indexOf(b);
+  };
+  const sorted = seats.slice().sort(cmp);
+  const byKey: Record<string, string[]> = {};
+  for (const p of seats) (byKey[(rolls[p] ?? []).join(',')] ??= []).push(p);
+  const tied = Object.values(byKey).filter((g) => g.length > 1).flat();
+  return { sorted, tied };
+}
+
 /** 파산 안 한 다음 차례 인덱스 (현재 turnIdx 다음부터 시계방향으로 찾음) */
 export function nextTurnIdx(state: BMState): number {
   const n = state.order.length;
@@ -494,6 +553,7 @@ export function createInitialState(players: Array<{ peerId: string; nickname: st
     order, players: pmap, pos, owner: {}, builds: {}, held,
     turnIdx: 0, dice: null, doubles: 0, noExtraRoll: false, pending: null, fund: 0,
     olympic: {}, beachVisits: {}, blackout: {},
-    phase: 'playing', winnerPeerId: null, log: '', fx: null, travelFx: null, cardFx: null, moneyFx: null,
+    phase: 'order', orderRolls: {}, orderPending: order.slice(), orderLast: null, debtQueue: [],
+    winnerPeerId: null, log: '', fx: null, travelFx: null, cardFx: null, moneyFx: null,
   };
 }

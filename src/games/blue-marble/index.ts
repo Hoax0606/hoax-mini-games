@@ -11,6 +11,7 @@ import { sound } from '../../core/sound';
 import {
   BOARD, CARDS, SALARY, DESERT_TURNS, DESERT_ESCAPE, TRAVEL_COST, BONUS_STAKE, OLYMPIC_MAX_MUL, buildCostOf, canBuild, hasAllHouses, acquireCost, sellRefund,
   tollBreakdown, alivePeers, nextTurnIdx, createInitialState, monopolyWin, drawCardId, topTollTile, SEOUL_TILE, DESERT_TILE, SPACE_TILE,
+  resolveOrderRound, ORDER_MAX_ROUNDS, estateValue, totalAssets,
   type BMState, type BuildKind, type TollInfo,
 } from './rules';
 
@@ -23,6 +24,10 @@ import {
 import { BlueMarbleRenderer } from './render';
 
 const END_DELAY_MS = 3200;
+/** 순서 확정 후 결과를 보여주는 시간 */
+const ORDER_REVEAL_MS = 2600;
+/** 이 시간 안 굴리면 호스트가 대신 굴려준다(한 명 때문에 방이 멈추지 않게) */
+const ORDER_AUTOROLL_MS = 15000;
 
 class BlueMarbleModule implements GameModule {
   private ctx!: GameContext;
@@ -33,6 +38,12 @@ class BlueMarbleModule implements GameModule {
   private isSpectator = false;
   private destroyed = false;
   private ended = false;
+  /** 원래 좌석 순서. s.order 는 순서 정하기 결과로 재정렬되므로 tiebreak 기준을 따로 들고 있는다 */
+  private seatOrder: string[] = [];
+  private orderTimer: number | null = null;
+  private orderStartTimer: number | null = null;
+  private orderRoundStartedAt = 0;
+  private orderPendingKey = '';
 
   start(ctx: GameContext): void {
     this.ctx = ctx;
@@ -45,6 +56,7 @@ class BlueMarbleModule implements GameModule {
     const parent = ctx.canvas.parentElement!;
     this.renderer = new BlueMarbleRenderer(parent, {
       onRoll: () => this.act({ kind: 'roll' }),
+      onOrderRoll: () => this.act({ kind: 'orderRoll' }),
       onDesertPay: () => this.act({ kind: 'desertPay' }),
       onDecision: (accept) => this.act({ kind: 'decision', accept }),
       onBuildConfirm: (builds) => this.act({ kind: 'build', builds }),
@@ -69,7 +81,10 @@ class BlueMarbleModule implements GameModule {
       // 솔로(AlphaTest) 프리뷰 — 더미 상대 1명 추가(자동 진행)
       if (players.length === 1) players.push({ peerId: DUMMY, nickname: '연습 상대' });
       this.state = createInitialState(players);
-      this.state.log = `${this.state.players[this.state.order[0]!]!.nickname}님부터 시작!`;
+      this.seatOrder = this.state.order.slice();
+      this.state.log = '주사위를 굴려 순서를 정해요';
+      // 순서 정하기 진행 감시(안 굴리는 사람 대신 굴리기 + 더미 자동)
+      this.orderTimer = window.setInterval(() => this.tickOrderPhase(), 500);
       this.afterChange();
     } else {
       this.ctx.sendToPeer(encodeHello(this.myPeerId));
@@ -95,18 +110,43 @@ class BlueMarbleModule implements GameModule {
     this.destroyed = true;
     if (this.dummyTimer !== null) { window.clearTimeout(this.dummyTimer); this.dummyTimer = null; }
     if (this.infoTimer !== null) { window.clearTimeout(this.infoTimer); this.infoTimer = null; }
+    if (this.orderTimer !== null) { window.clearInterval(this.orderTimer); this.orderTimer = null; }
+    if (this.orderStartTimer !== null) { window.clearTimeout(this.orderStartTimer); this.orderStartTimer = null; }
     this.renderer?.destroy();
     sound.stopBgm();
   }
 
   onPeerLeft(peerId: string): void {
     if (!this.isHost || this.destroyed || this.ended) return;
-    const p = this.state.players[peerId];
+    const s = this.state;
+    const p = s.players[peerId];
     if (!p || p.bankrupt) return;
+
+    // 순서 정하기 중이면 굴림 대기에서 빼고 계속 (안 그러면 안 오는 사람을 계속 기다림)
+    if (s.phase === 'order') {
+      const i = s.orderPending.indexOf(peerId);
+      if (i >= 0) s.orderPending.splice(i, 1);
+      this.bankrupt(peerId);
+      if (!this.ended && s.orderPending.length === 0 && s.phase === 'order') this.finishOrderRound();
+      this.afterChange();
+      return;
+    }
+
     // 이탈 = 파산 처리(턴에서 빠짐)
-    const wasTheirTurn = this.state.order[this.state.turnIdx] === peerId;
+    const wasTheirTurn = s.order[s.turnIdx] === peerId;
+    // 나간 사람이 빚 갚는 중이었으면 그 대기를 풀고 큐를 이어간다 (안 그러면 아무도 못 누르고 멈춤)
+    const wasDebtor = s.pending?.kind === 'raiseFunds' && s.pending.debtor === peerId;
     this.bankrupt(peerId);
-    if (!this.ended && wasTheirTurn) { this.state.pending = null; this.advanceTurn(); }
+    if (this.ended) { this.afterChange(); return; }
+    if (wasDebtor) s.pending = null;
+    if (wasTheirTurn) {
+      // 나간 사람이 차례 주인 → 그 턴에 딸린 빚(생일 축하 등)은 받을 사람이 없으니 통째로 버린다
+      s.pending = null; s.debtQueue = [];
+      this.advanceTurn();
+    } else {
+      s.debtQueue = s.debtQueue.filter((d) => d.from !== peerId);
+      if (wasDebtor && this.processDebts() && !this.ended) this.endStep(s.order[s.turnIdx]!);
+    }
     this.afterChange();
   }
 
@@ -159,17 +199,24 @@ class BlueMarbleModule implements GameModule {
       return;
     }
     if (this.dummyTimer !== null) return;
-    if (s.order[s.turnIdx] !== DUMMY) return;
+    if (!this.dummyActs()) return;
     this.dummyTimer = window.setTimeout(() => {
       this.dummyTimer = null;
       if (this.destroyed || this.ended) return;
       this.dummyAct();
     }, 600);
   }
+  /** 지금 더미가 움직여야 하나? 자기 차례이거나, 남의 턴이어도 자기가 빚을 갚아야 할 때 */
+  private dummyActs(): boolean {
+    const s = this.state;
+    if (s.phase !== 'playing') return false;
+    if (s.pending?.kind === 'raiseFunds') return s.pending.debtor === DUMMY;
+    return s.order[s.turnIdx] === DUMMY;
+  }
   /** 더미의 한 스텝 (주사위/결정) — hostHandle 로 처리 */
   private dummyAct(): void {
     const s = this.state;
-    if (s.order[s.turnIdx] !== DUMMY) return;
+    if (!this.dummyActs()) return;
     const pend = s.pending;
     if (!pend) { this.hostHandle({ kind: 'roll', by: DUMMY }, DUMMY); return; }
     if (pend.kind === 'buy') this.hostHandle({ kind: 'decision', accept: Math.random() < 0.75, by: DUMMY }, DUMMY);
@@ -227,8 +274,23 @@ class BlueMarbleModule implements GameModule {
   private hostHandle(action: BMAction & { by: string }, by: string): void {
     if (this.ended) return;
     const s = this.state;
+    if (s.players[by]?.bankrupt) return;
+
+    // 순서 정하기 단계에선 굴림만 받는다
+    if (s.phase === 'order') {
+      if (action.kind === 'orderRoll') this.doOrderRoll(by);
+      return;
+    }
+    if (action.kind === 'orderRoll') return;
+
     const cur = s.order[s.turnIdx];
-    if (by !== cur || s.players[by]?.bankrupt) return; // 내 차례 아닌 사람 무시
+    // 자금 마련 중인 채무자는 차례가 아니어도 땅 팔기/지불/파산만은 할 수 있다(생일 축하 등)
+    const rf = s.pending?.kind === 'raiseFunds' ? s.pending : null;
+    const asDebtor = rf !== null && by === rf.debtor
+      && (action.kind === 'sell' || action.kind === 'payDebt' || action.kind === 'giveUp');
+    if (!asDebtor && by !== cur) return;   // 내 차례 아닌 사람 무시
+    // 차례인 사람이라도 남이 빚 갚는 중이면 끼어들 수 없다
+    if (rf !== null && rf.debtor !== by) return;
 
     if (action.kind === 'useHeld') { if (!s.pending) { this.useHeld(by, action.cardId); this.afterChange(); } return; }
 
@@ -363,8 +425,8 @@ class BlueMarbleModule implements GameModule {
         const ev = s.pending; s.pending = null;
         // 세금 낼 돈 부족 + 팔 땅 있으면 → 마련 페이즈, 아니면 납부(파산 가능)
         if (s.players[by]!.money < ev.amount && this.hasSellable(by)) {
-          s.pending = { kind: 'raiseFunds', to: null, amount: ev.amount };
-          s.log = `세금 ₩${ev.amount.toLocaleString()} — 낼 돈이 부족해요. 땅을 파세요`;
+          s.pending = { kind: 'raiseFunds', debtor: by, to: null, amount: ev.amount, toFund: true };
+          s.log = `세금 ₩${ev.amount.toLocaleString()} — 낼 현금이 부족해요. 땅을 파세요`;
         } else {
           this.pay(by, null, ev.amount, true);   // 세금 → 사회복지기금 적립
           s.log = `${BOARD[ev.tile].name} · ₩${ev.amount.toLocaleString()} 납부`;
@@ -372,26 +434,27 @@ class BlueMarbleModule implements GameModule {
         }
       }
     } else if (action.kind === 'sell') {
-      // 내 땅 판매 — 내 소유이고, 자유(대기 없음) 또는 자금 마련 중일 때
-      if (s.owner[action.tile] === by && (s.pending === null || s.pending.kind === 'raiseFunds')) {
+      // 내 땅 판매 — 내 소유이고, 자유(대기 없음) 또는 내가 갚아야 하는 자금 마련 중일 때
+      const rf = s.pending;
+      if (s.owner[action.tile] === by && (rf === null || (rf.kind === 'raiseFunds' && rf.debtor === by))) {
         this.doSell(by, action.tile);
       }
     } else if (action.kind === 'payDebt') {
-      if (s.pending?.kind === 'raiseFunds' && s.players[by]!.money >= s.pending.amount) {
-        const { to, amount } = s.pending;
+      if (s.pending?.kind === 'raiseFunds' && s.pending.debtor === by && s.players[by]!.money >= s.pending.amount) {
+        const { to, amount, toFund } = s.pending;
         s.pending = null;
-        this.pay(by, to, amount, to === null);   // to=null 인 채무는 세금뿐 → 기금 적립
-        this.endStep(by);
+        this.pay(by, to, amount, toFund);
+        this.settleDebtStep();
       }
     } else if (action.kind === 'giveUp') {
-      if (s.pending?.kind === 'raiseFunds') {
-        const { to, amount } = s.pending;
+      if (s.pending?.kind === 'raiseFunds' && s.pending.debtor === by) {
+        const { to, amount, toFund } = s.pending;
         s.pending = null;
         // 파산해도 가진 돈은 전부 받을 사람(to=null 인 세금이면 기금)에게 넘어간다.
         // 예전엔 bankrupt() 를 바로 불러서 p.money=0 으로 지워버려 남은 현금이 소멸했음.
         // pay() 가 min(보유, 청구)만큼 넘기고 그래도 부족하면 파산 처리까지 해준다.
-        this.pay(by, to, amount, to === null);
-        if (!this.ended) this.endStep(by);
+        this.pay(by, to, amount, toFund);
+        this.settleDebtStep();
       }
     }
     this.afterChange();
@@ -408,6 +471,108 @@ class BlueMarbleModule implements GameModule {
   /** 이 플레이어가 팔 수 있는 땅(도시/섬)을 하나라도 가졌는지 */
   private hasSellable(peer: string): boolean {
     return Object.keys(this.state.owner).some((k) => this.state.owner[+k] === peer);
+  }
+
+  // ============================================
+  // 순서 정하기 (게임 시작 전 전원 주사위)
+  // ============================================
+
+  /** 한 사람 굴림. 전원 다 굴리면 라운드 정산 */
+  private doOrderRoll(peer: string): void {
+    const s = this.state;
+    const i = s.orderPending.indexOf(peer);
+    if (i < 0) return;                       // 이미 굴렸음 (재전송 멱등)
+    s.orderPending.splice(i, 1);
+    const dice: [number, number] = [1 + Math.floor(Math.random() * 6), 1 + Math.floor(Math.random() * 6)];
+    (s.orderRolls[peer] ??= []).push(dice[0] + dice[1]);
+    s.orderLast = { seq: (s.orderLast?.seq ?? 0) + 1, peer, dice };
+    s.log = `${s.players[peer]!.nickname} · ${dice[0]}+${dice[1]} = ${dice[0] + dice[1]}`;
+    sound.play('pop');
+    if (s.orderPending.length === 0) this.finishOrderRound();
+    this.afterChange();
+  }
+
+  /** 라운드 정산 — 동점자가 있으면 그 사람들만 재굴림, 없으면 순서 확정 후 게임 시작 */
+  private finishOrderRound(): void {
+    const s = this.state;
+    const { sorted, tied } = resolveOrderRound(s.orderRolls, this.seatOrder);
+    const round = Math.max(...Object.values(s.orderRolls).map((a) => a.length), 1);
+    if (tied.length > 0 && round < ORDER_MAX_ROUNDS) {
+      s.orderPending = this.seatOrder.filter((p) => tied.includes(p));   // 좌석 순으로 재굴림
+      s.log = `동점! ${tied.map((p) => s.players[p]!.nickname).join(' · ')} 다시 굴리기`;
+      return;
+    }
+    s.order = sorted;
+    s.turnIdx = 0;
+    s.log = `${s.players[sorted[0]!]!.nickname}님 먼저!`;
+    // 결과를 잠깐 보여준 뒤 시작 (바로 넘기면 누가 몇 나왔는지 못 봄)
+    this.orderStartTimer = window.setTimeout(() => {
+      this.orderStartTimer = null;
+      if (this.destroyed || this.ended) return;
+      this.state.phase = 'playing';
+      this.afterChange();
+    }, ORDER_REVEAL_MS);
+  }
+
+  /**
+   * 순서 정하기 백스톱 — 안 굴리고 버티는 사람이 있으면 호스트가 대신 굴려 진행을 막지 않는다.
+   * (창을 닫아둔 사람 하나 때문에 방 전체가 멈추는 걸 방지)
+   */
+  private tickOrderPhase(): void {
+    if (!this.isHost || this.destroyed || this.ended) return;
+    const s = this.state;
+    if (s.phase !== 'order') {
+      if (this.orderTimer !== null) { window.clearInterval(this.orderTimer); this.orderTimer = null; }
+      return;
+    }
+    // 더미(솔로 연습 상대)는 기다릴 것 없이 바로
+    if (s.orderPending.includes(DUMMY)) { this.doOrderRoll(DUMMY); return; }
+    const now = performance.now();
+    if (this.orderRoundStartedAt === 0 || this.orderPendingKey !== s.orderPending.join(',')) {
+      this.orderPendingKey = s.orderPending.join(',');
+      this.orderRoundStartedAt = now;
+      return;
+    }
+    if (now - this.orderRoundStartedAt < ORDER_AUTOROLL_MS) return;
+    const who = s.orderPending[0];
+    if (who !== undefined) this.doOrderRoll(who);
+  }
+
+  /**
+   * 자금 마련 창에서 지불/파산이 끝난 뒤 — 대기열에 남은 빚이 있으면 이어서, 없으면 턴 마무리.
+   * (대기열이 처음부터 비어 있던 통행료·세금은 그냥 턴 마무리로 떨어진다)
+   */
+  private settleDebtStep(): void {
+    if (this.ended) return;
+    const s = this.state;
+    if (s.debtQueue.length) s.debtQueue.shift();   // 방금 갚은 건 큐에서 제거
+    if (this.processDebts() && !this.ended) this.endStep(s.order[s.turnIdx]!);
+  }
+
+  /**
+   * 빚 대기열을 앞에서부터 처리한다.
+   *   현금 충분 → 바로 지불하고 다음
+   *   부족한데 팔 땅 있음 → 그 사람에게 자금 마련 창을 띄우고 **멈춤**(false 반환)
+   *   부족하고 팔 땅도 없음 → 가진 만큼 내고 파산, 다음으로
+   * 큐를 다 비우면 true — 호출부가 endStep 하면 된다.
+   */
+  private processDebts(): boolean {
+    const s = this.state;
+    while (s.debtQueue.length) {
+      const d = s.debtQueue[0]!;
+      const p = s.players[d.from];
+      if (!p || p.bankrupt || d.amount <= 0) { s.debtQueue.shift(); continue; }
+      if (p.money < d.amount && this.hasSellable(d.from)) {
+        s.pending = { kind: 'raiseFunds', debtor: d.from, to: d.to, amount: d.amount, toFund: d.toFund };
+        s.log = `${p.nickname} · ₩${d.amount.toLocaleString()} 낼 현금이 부족해요. 땅을 파세요`;
+        this.render();
+        return false;
+      }
+      this.pay(d.from, d.to, d.amount, d.toFund);
+      s.debtQueue.shift();
+      if (this.ended) return false;   // 파산으로 게임이 끝났으면 더 진행 안 함
+    }
+    return true;
   }
   /** 내 땅 판매 → 땅값+건물비 전액 회수, 소유/건물/올림픽 해제 */
   private doSell(peer: string, tile: number): void {
@@ -690,15 +855,26 @@ class BlueMarbleModule implements GameModule {
     }
     switch (c.effect) {
       case 'money':
-        // 금액이 음수인 money 카드 = 병원비·속도위반 벌금 → 기금 적립
-        if ((c.money ?? 0) < 0) { this.pay(peer, null, -c.money!, true); loss(-c.money!); } else { p.money += c.money!; gain(c.money!); }
+        // 금액이 음수인 money 카드 = 병원비·속도위반 벌금 → 기금 적립 + 현금 부족하면 땅 팔 기회
+        if ((c.money ?? 0) < 0) {
+          const owe = -c.money!;
+          s.log = c.title; loss(owe);
+          s.debtQueue = [{ from: peer, to: null, amount: owe, toFund: true }];
+          if (this.processDebts()) this.endStep(peer);
+          return;
+        }
+        p.money += c.money!; gain(c.money!);
         s.log = `${c.title}`; this.endStep(peer); return;
       case 'birthday': {
-        let got = 0;
-        for (const o of alivePeers(s)) if (o !== peer) { const amt = Math.min(s.players[o]!.money, c.money!); s.players[o]!.money -= amt; got += amt; }
-        p.money += got; gain(got); s.log = `생일 축하 · ₩${got.toLocaleString()} 받음`; this.endStep(peer); return;
+        // 나 빼고 전원이 각 c.money 씩 낸다. 현금이 모자란 사람은 한 명씩 땅 팔기 창을 거친다.
+        s.log = `생일 축하 · 모두에게 ₩${c.money!.toLocaleString()}씩`;
+        s.debtQueue = alivePeers(s).filter((o) => o !== peer)
+          .map((o) => ({ from: o, to: peer, amount: c.money!, toFund: false }));
+        if (this.processDebts()) this.endStep(peer);
+        return;
       }
       case 'proptax': {
+        // 현금의 10% 라 정의상 항상 낼 수 있음 — 땅 팔 일 없음
         const tax = Math.floor(p.money * 0.1); this.pay(peer, null, tax, true); loss(tax);
         s.log = `재산세 ₩${tax.toLocaleString()} 납부`; this.endStep(peer); return;
       }
@@ -797,8 +973,8 @@ class BlueMarbleModule implements GameModule {
     } else {
       // 낼 돈 부족 + 팔 땅 있으면 → 자금 마련 페이즈(파산 대신 땅 팔 기회)
       if (toll > 0 && p.money < toll && this.hasSellable(peer)) {
-        s.pending = { kind: 'raiseFunds', to: owner, amount: toll };
-        s.log = `${t.name} 통행료 ₩${toll.toLocaleString()} — 낼 돈이 부족해요. 땅을 파세요`;
+        s.pending = { kind: 'raiseFunds', debtor: peer, to: owner, amount: toll, toFund: false };
+        s.log = `${t.name} 통행료 ₩${toll.toLocaleString()} — 낼 현금이 부족해요. 땅을 파세요`;
         this.render(); return true;
       }
       this.pay(peer, owner, toll);
@@ -852,7 +1028,11 @@ class BlueMarbleModule implements GameModule {
     const base: Record<string, unknown> = {
       gameId: 'blue-marble',
       winnerPeerId: s.winnerPeerId,
-      players: s.order.map((pid) => ({ peerId: pid, nickname: s.players[pid]!.nickname, money: s.players[pid]!.money, bankrupt: s.players[pid]!.bankrupt })),
+      // money=현금 / estate=부동산 / assets=총자산. 순위는 총자산 기준(결과 화면)
+      players: s.order.map((pid) => ({
+        peerId: pid, nickname: s.players[pid]!.nickname, bankrupt: s.players[pid]!.bankrupt,
+        money: s.players[pid]!.money, estate: estateValue(s, pid), assets: totalAssets(s, pid),
+      })),
     };
     for (const pl of this.ctx.players) {
       const winner: GameResult['winner'] = pl.role === 'spectator' ? 'opponent' : (pl.peerId === s.winnerPeerId ? 'me' : 'opponent');

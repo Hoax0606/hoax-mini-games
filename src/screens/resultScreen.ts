@@ -1514,7 +1514,8 @@ function buildDodgeResultHTML(args: {
 // 브루마블 전용 결과 HTML (최종 자산 순위)
 // ============================================
 
-interface BMResultEntry { peerId: string; nickname: string; money: number; bankrupt: boolean; }
+/** money=현금 / estate=부동산(다 팔면 들어오는 돈) / assets=총자산 */
+interface BMResultEntry { peerId: string; nickname: string; money: number; estate: number; assets: number; bankrupt: boolean; }
 
 function parseBlueMarbleSummary(summary: Record<string, unknown>): {
   myPeerId: string; winnerPeerId: string | null; players: BMResultEntry[];
@@ -1526,7 +1527,15 @@ function parseBlueMarbleSummary(summary: Record<string, unknown>): {
   const players: BMResultEntry[] = Array.isArray(raw)
     ? (raw as Array<Partial<BMResultEntry>>)
         .filter((p) => typeof p.peerId === 'string' && typeof p.nickname === 'string' && typeof p.money === 'number')
-        .map((p) => ({ peerId: p.peerId!, nickname: p.nickname!, money: p.money!, bankrupt: !!p.bankrupt }))
+        .map((p) => {
+          const money = p.money!;
+          const estate = typeof p.estate === 'number' ? p.estate : 0;
+          return {
+            peerId: p.peerId!, nickname: p.nickname!, money, estate,
+            assets: typeof p.assets === 'number' ? p.assets : money + estate,
+            bankrupt: !!p.bankrupt,
+          };
+        })
     : [];
   if (!players.length) return null;
   const winnerPeerId = typeof summary['winnerPeerId'] === 'string' ? (summary['winnerPeerId'] as string) : null;
@@ -1545,9 +1554,11 @@ function buildBlueMarbleResultHTML(args: {
     ? { emoji: icon('globe', { size: 60, hue: '#9db4d6' }), title: '브루마블 종료', titleClass: 'result-title-draw' }
     : winnerVisuals(myWinner);
   const actionsHTML = buildActionsHTML(isHost);
-  // 자산 순위 (파산은 뒤로, 그 외 자산 많은 순)
-  const ranked = [...summary.players].sort((a, b) => (a.bankrupt ? 1 : 0) - (b.bankrupt ? 1 : 0) || b.money - a.money);
-  const asset = (p: BMResultEntry): string => (p.bankrupt ? '파산' : `₩${p.money.toLocaleString()}`);
+  // 총자산 순위 (파산은 뒤로). 현금만으로 매기면 땅에 다 박은 사람이 억울하게 밀린다
+  const ranked = [...summary.players].sort((a, b) => (a.bankrupt ? 1 : 0) - (b.bankrupt ? 1 : 0) || b.assets - a.assets);
+  const asset = (p: BMResultEntry): string => (p.bankrupt ? '파산' : `₩${p.assets.toLocaleString()}`);
+  const breakdown = (p: BMResultEntry): string => (p.bankrupt ? ''
+    : `<span class="result-bm-sub">현금 ₩${p.money.toLocaleString()} · 부동산 ₩${p.estate.toLocaleString()}</span>`);
   const rowsHTML = ranked.map((p, idx) => {
     const rank = idx + 1;
     const isMe = p.peerId === summary.myPeerId;
@@ -1564,8 +1575,9 @@ function buildBlueMarbleResultHTML(args: {
   const myEntry = ranked.find((p) => p.peerId === summary.myPeerId);
   const myBlock = isSpectator || !myEntry ? '' : `
     <div class="result-apple-myscore">
-      <div class="result-apple-myscore-label">${icon('chart', { size: 16, hue: '#5b9dff' })} 내 최종 자산</div>
+      <div class="result-apple-myscore-label">${icon('chart', { size: 16, hue: '#5b9dff' })} 내 최종 총자산</div>
       <div class="result-apple-myscore-value">${asset(myEntry)}</div>
+      ${breakdown(myEntry)}
     </div>`;
   return `
     <div class="result-card result-card-tetris">

@@ -8,7 +8,7 @@
 import {
   BOARD, BUILD_TYPES, ISLAND_TILES, BASE_TOLL_MUL, DESERT_ESCAPE,
   buildMeta, buildCostOf, acquireCost, sellRefund, islandCount, seaIslandCount, hasAllHouses, canBuild, SALARY, CARDS,
-  colorMonopolyMul, ownsGroup, tollBreakdown,
+  colorMonopolyMul, ownsGroup, tollBreakdown, totalAssets, estateValue,
   type BMState, type BuildKind, type GroupColor,
 } from './rules';
 import { escapeHtml } from '../../ui/escape';
@@ -18,6 +18,7 @@ const MONEY_FX_MS = 2200;
 
 export interface BMRenderCallbacks {
   onRoll(): void;
+  onOrderRoll(): void;                   // 게임 시작 전 순서 정하기 주사위
   onDesertPay(): void;                   // 무인도: 돈 내고 탈출
   onDecision(accept: boolean): void;   // 구매/인수 예/아니오
   onBuildConfirm(builds: BuildKind[]): void;  // 선택한 건물들 확정 건설 + 턴 종료(빈 배열 = 그냥 완료)
@@ -262,7 +263,8 @@ export class BlueMarbleRenderer {
           <span class="bm-famt" id="bm-fundamt">₩0</span>
         </div>
         <div class="bm-pcard">
-          <h3>플레이어</h3><div id="bm-players"></div>
+          <h3>플레이어 <span class="bm-plegend">현금 / 총자산</span></h3>
+          <div id="bm-players"></div>
           <div class="bm-mfx" id="bm-mfx"></div>
         </div>
         <div class="bm-pcard"><h3>내 황금열쇠</h3><div id="bm-held" class="bm-heldlist"></div></div>
@@ -651,7 +653,9 @@ export class BlueMarbleRenderer {
     const curP = state.players[cur]!;
     const isMine = cur === myPeerId && !isSpectator;
     const turnEl = this.root.querySelector<HTMLElement>('#bm-turn')!;
-    turnEl.innerHTML = `<b style="background:${colorOf(state, cur)}">${isMine ? '내 차례' : curP.nickname + ' 차례'}</b>`;
+    turnEl.innerHTML = state.phase === 'order'
+      ? `<b style="background:#b89aff">순서 정하기</b>`
+      : `<b style="background:${colorOf(state, cur)}">${isMine ? '내 차례' : curP.nickname + ' 차례'}</b>`;
     // state.log 는 여태 어디서도 안 그려졌다 → '더블! 한 번 더', '더블 3연속 → 무인도!' 같은
     // 규칙 안내가 전부 안 보여서 왜 그렇게 됐는지 알 수 없었음. 판 중앙에 한 줄로 노출.
     const logEl = this.root.querySelector<HTMLElement>('#bm-log')!;
@@ -683,11 +687,16 @@ export class BlueMarbleRenderer {
     el.innerHTML = state.order.map((pid) => {
       const p = state.players[pid]!;
       const props = Object.values(state.owner).filter((o) => o === pid).length;
+      // 현금 = 손에 든 돈 / 총자산 = 현금 + 부동산(다 팔면 들어오는 돈)
+      const right = p.bankrupt
+        ? `<div class="bm-pmoney">파산</div>`
+        : `<div class="bm-pmoney">${won(p.money)}</div>
+           <div class="bm-ptotal">총 ${won(totalAssets(state, pid))}</div>`;
       return `<div class="bm-prow ${pid === cur ? 'active' : ''} ${p.bankrupt ? 'dead' : ''}" data-pid="${escapeHtml(pid)}">
         <span class="bm-pdot" style="background:${colorOf(state, pid)}"></span>
-        <span class="bm-pname">${p.nickname}${pid === myPeerId ? ' (나)' : ''}</span>
-        <span style="text-align:right"><div class="bm-pmoney">${p.bankrupt ? '파산' : won(p.money)}</div>
-          <div class="bm-pprops">${props}곳 · ${p.laps}바퀴</div></span></div>`;
+        <span class="bm-pcol"><span class="bm-pname">${p.nickname}${pid === myPeerId ? ' (나)' : ''}</span>
+          <span class="bm-pprops">${props}곳 · ${p.laps}바퀴</span></span>
+        <span class="bm-pright">${right}</span></div>`;
     }).join('');
 
     const amt = this.root.querySelector<HTMLElement>('#bm-fundamt');
@@ -748,6 +757,12 @@ export class BlueMarbleRenderer {
   private renderPending(state: BMState, myPeerId: string, isSpectator: boolean): void {
     // 주사위/이동 시퀀스 중엔 결정창/배너 보류 (완료 후 render 재호출에서 표시)
     if (this.busy) { this.setTravelMode(false); this.setPickMode(null); this.closeModal(); return; }
+    // 게임 시작 전 순서 정하기 — 다른 모달 다 제치고 이 창만
+    if (state.phase === 'order') {
+      this.setTravelMode(false); this.setPickMode(null);
+      this.orderModal(state, myPeerId, isSpectator);
+      return;
+    }
     const p = state.pending;
     if (!p) {
       this.setTravelMode(false); this.setPickMode(null);
@@ -761,11 +776,12 @@ export class BlueMarbleRenderer {
     const mine = cur === myPeerId && !isSpectator;
     // 세금 등 이벤트 — 모두에게 창, 밟은 사람(cur)만 확인해 닫음
     if (p.kind === 'event') { this.setTravelMode(false); this.setPickMode(null); this.eventModal(p.tile, p.text, mine, state.players[cur]!.nickname); return; }
-    // 자금 마련(통행료/세금 부족) — 밟은 사람은 판매 모달, 나머지는 대기
+    // 자금 마련(현금 부족) — 갚을 사람은 판매 모달, 나머지는 대기.
+    // 생일 축하처럼 차례가 아닌 사람이 갚을 수도 있어서 cur 이 아니라 debtor 기준.
     if (p.kind === 'raiseFunds') {
       this.setTravelMode(false); this.setPickMode(null);
-      if (mine) this.sellModal(state, p.amount);
-      else { this.closeModal(); this.showActing(state, p, cur); }
+      if (p.debtor === myPeerId && !isSpectator) this.sellModal(state, p.amount);
+      else { this.closeModal(); this.showActing(state, p, p.debtor); }
       return;
     }
     // 보너스 게임 — 구경하는 사람도 판돈/누적/선택을 실시간으로 보게. 버튼만 차례인 사람 것.
@@ -837,6 +853,24 @@ export class BlueMarbleRenderer {
     this.closeModal();
     // 자금 마련 중이면 "아직 얼마 부족한지" 기준으로 각 땅이 부족액을 얼마나 메우는지 같이 보여준다
     const short = raiseAmount != null ? Math.max(0, raiseAmount - money) : 0;
+
+    // 다 팔아도 못 갚으면(총자산 < 청구액) 땅 목록/지불 버튼은 의미가 없다 → 파산 버튼만 남긴다
+    if (raiseAmount != null && totalAssets(state, me) < raiseAmount) {
+      const lack = raiseAmount - totalAssets(state, me);
+      const scrim = document.createElement('div'); scrim.className = 'bm-scrim';
+      scrim.innerHTML = `<div class="bm-modal" style="width:310px">
+        <div class="bm-top" style="background:linear-gradient(90deg,#ff8a8a,#e03131)">파산</div>
+        <div class="bm-body">
+          <div class="bm-ctitle">₩${raiseAmount.toLocaleString()} 내야 해요</div>
+          <div class="bm-sub">현금 ₩${money.toLocaleString()} · 부동산 ₩${estateValue(state, me).toLocaleString()}<br>
+            <b style="color:#ff2d55">전부 팔아도 ₩${lack.toLocaleString()} 부족해요</b></div>
+          <div class="bm-btns"><button class="bm-no" id="bm-giveup" style="flex:1">파산하기</button></div>
+        </div></div>`;
+      this.mountScrim(scrim); this.openKind = key;
+      scrim.querySelector<HTMLButtonElement>('#bm-giveup')?.addEventListener('click', () => this.cb.onGiveUp());
+      return;
+    }
+
     const rows = mine.length
       ? mine.map((i) => {
         const rf = sellRefund(state, i);
@@ -957,8 +991,57 @@ export class BlueMarbleRenderer {
   }
 
   /** 다른 사람 차례일 때 — 구매 카드와 같은 크기의 카드로 "OO님이 ~ 중" 표시(딤 없이 판은 계속 보이게) */
+  /**
+   * 게임 시작 전 순서 정하기 창.
+   * 좌석 순으로 전원을 늘어놓고 각자 굴린 값을 보여준다. 아직 안 굴린 사람은 흐리게,
+   * 재굴림(동점) 대상은 값 뒤에 추가 굴림이 붙는다. 전원 확정되면 1·2·3위 순위를 매겨 보여줌.
+   */
+  private orderModal(state: BMState, myPeerId: string, isSpectator: boolean): void {
+    const waiting = state.orderPending;
+    const done = waiting.length === 0;
+    const iCanRoll = !isSpectator && waiting.includes(myPeerId);
+    // 확정되면 order 가 결과 순서, 아니면 좌석 순으로 보여준다
+    const list = state.order;
+    const key = `order:${done ? 'done' : ''}:${list.map((p) => (state.orderRolls[p] ?? []).join('.')).join('|')}:${iCanRoll}`;
+    if (this.openKind === key && this.modalScrim) return;
+    this.closeModal();
+
+    const rows = list.map((pid, idx) => {
+      const rolls = state.orderRolls[pid] ?? [];
+      const isWaiting = waiting.includes(pid);
+      const val = rolls.length
+        ? rolls.map((v, i) => `<b class="${i === 0 ? '' : 'sub'}">${v}</b>`).join('<span class="bm-ordsep">→</span>')
+        : `<span class="bm-orddim">굴리는 중</span>`;
+      const rank = done ? `<span class="bm-ordrank">${idx + 1}</span>` : '<span class="bm-ordrank ghost"></span>';
+      return `<div class="bm-ordrow ${isWaiting ? 'waiting' : ''}">
+        ${rank}
+        <span class="bm-pdot" style="background:${colorOf(state, pid)}"></span>
+        <span class="bm-ordnm">${escapeHtml(state.players[pid]!.nickname)}${pid === myPeerId ? ' (나)' : ''}</span>
+        <span class="bm-ordval">${val}</span></div>`;
+    }).join('');
+
+    const foot = done
+      ? `<div class="bm-sub" style="margin-top:10px"><b>${escapeHtml(state.players[list[0]!]!.nickname)}</b>님부터 시작해요</div>`
+      : iCanRoll
+        ? `<button class="bm-yes" id="bm-ordroll" style="width:100%;margin-top:12px">${IC.dice} 주사위 굴리기</button>`
+        : `<div class="bm-actft" style="margin-top:12px"><span class="bm-sp"></span><span>다른 사람이 굴리는 중…</span></div>`;
+
+    const scrim = document.createElement('div'); scrim.className = 'bm-scrim';
+    scrim.innerHTML = `<div class="bm-modal" style="width:330px">
+      <div class="bm-top" style="background:linear-gradient(90deg,#b89aff,#8a5fd0)">${IC.dice} 순서 정하기</div>
+      <div class="bm-body">
+        <div class="bm-sub">높게 나온 사람부터 · 동점이면 그 사람들끼리 다시</div>
+        <div class="bm-ordlist">${rows}</div>
+        ${foot}
+      </div></div>`;
+    this.mountScrim(scrim); this.openKind = key;
+    scrim.querySelector<HTMLButtonElement>('#bm-ordroll')?.addEventListener('click', () => this.cb.onOrderRoll());
+  }
+
   private showActing(state: BMState, p: NonNullable<BMState['pending']>, cur: string): void {
-    const disc = p.kind === 'card' ? p.card : ('tile' in p ? p.tile : p.kind === 'bonus' ? `${p.round}:${p.pot}` : '');
+    // raiseFunds 는 빚 대기열이 다음 사람으로 넘어가도 kind 가 같아서, debtor 를 키에 넣어야 이름이 갱신된다
+    const disc = p.kind === 'card' ? p.card
+      : ('tile' in p ? p.tile : p.kind === 'bonus' ? `${p.round}:${p.pot}` : p.kind === 'raiseFunds' ? p.debtor : '');
     const key = `acting:${p.kind}:${disc}`;
     if (this.openKind === key && this.modalScrim) return;  // 같은 상태면 유지(스피너 계속 회전)
     this.closeModal();
@@ -1432,10 +1515,28 @@ function injectStyle(): void {
   @keyframes bm-mdelta-rm{0%{opacity:0;}5%{opacity:1;}80%{opacity:1;}100%{opacity:0;}}
   .bm-fund.bump{animation:none;}
 }
+.bm-plegend{float:right;font-size:10px;font-weight:700;color:#a99aa9;}
 .bm-prow{display:flex;align-items:center;gap:8px;padding:6px 7px;border-radius:9px;}
 .bm-prow.active{background:#fff0f6;box-shadow:inset 0 0 0 1px rgba(255,90,146,.3);} .bm-prow.dead{opacity:.5;}
 .bm-pdot{width:13px;height:13px;border-radius:50%;border:2px solid #fff;box-shadow:0 1px 3px rgba(0,0,0,.18);flex:none;}
-.bm-pname{font-size:12.5px;font-weight:800;flex:1;} .bm-pmoney{font-size:12.5px;font-weight:800;} .bm-pprops{font-size:10.5px;color:#8a7a8a;}
+.bm-pcol{flex:1;min-width:0;display:flex;flex-direction:column;gap:1px;}
+.bm-pright{text-align:right;display:flex;flex-direction:column;gap:1px;}
+.bm-pname{font-size:12.5px;font-weight:800;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.bm-pmoney{font-size:12.5px;font-weight:800;font-variant-numeric:tabular-nums;}
+.bm-ptotal{font-size:10.5px;font-weight:700;color:#8a7a8a;font-variant-numeric:tabular-nums;}
+.bm-pprops{font-size:10.5px;color:#8a7a8a;}
+/* 순서 정하기 */
+.bm-ordlist{display:flex;flex-direction:column;gap:5px;margin-top:10px;}
+.bm-ordrow{display:flex;align-items:center;gap:8px;padding:7px 9px;border-radius:10px;background:#f7f4fb;}
+.bm-ordrow.waiting{opacity:.55;}
+.bm-ordrank{flex:none;width:19px;height:19px;border-radius:50%;background:#8a5fd0;color:#fff;font-size:11px;font-weight:900;
+  display:flex;align-items:center;justify-content:center;}
+.bm-ordrank.ghost{background:transparent;}
+.bm-ordnm{flex:1;min-width:0;font-size:12.5px;font-weight:800;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.bm-ordval{font-size:15px;font-weight:900;color:#6a4fa0;font-variant-numeric:tabular-nums;}
+.bm-ordval .sub{font-size:12px;opacity:.7;}
+.bm-ordsep{margin:0 3px;font-size:10px;color:#a99aa9;}
+.bm-orddim{font-size:11.5px;font-weight:700;color:#a99aa9;}
 .bm-heldlist{display:flex;flex-direction:column;gap:7px;} .bm-empty{font-size:12px;color:#8a7a8a;}
 .bm-hcard{display:flex;align-items:center;gap:8px;padding:7px 9px;border-radius:11px;background:#fff;border:1.5px solid #ffe0a8;}
 .bm-hic svg{width:22px;height:22px;} .bm-htxt{flex:1;font-size:12px;font-weight:800;}

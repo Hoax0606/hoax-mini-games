@@ -19,6 +19,7 @@ const T_END = 'bm:end';
 
 /** 현재 차례 플레이어가 호스트에게 보내는 행동. by = 보낸 사람 peerId(호스트가 차례 검증) */
 export type BMAction =
+  | { kind: 'orderRoll' }                     // 게임 시작 전 순서 정하기 주사위
   | { kind: 'roll' }                          // 주사위 굴리기
   | { kind: 'desertPay' }                     // 무인도: 돈 내고 탈출
   | { kind: 'decision'; accept: boolean }     // 구매/인수 대기에 대한 예/아니오
