@@ -9,7 +9,7 @@
 import type { GameModule, GameContext, GameMessage, GameResult, Player } from '../types';
 import { sound } from '../../core/sound';
 import {
-  BOARD, CARDS, SALARY, DESERT_TURNS, DESERT_ESCAPE, TRAVEL_COST, BONUS_STAKE, buildCostOf, canBuild, acquireCost, sellRefund,
+  BOARD, CARDS, SALARY, DESERT_TURNS, DESERT_ESCAPE, TRAVEL_COST, BONUS_STAKE, OLYMPIC_MAX_MUL, buildCostOf, canBuild, acquireCost, sellRefund,
   tollBreakdown, alivePeers, nextTurnIdx, createInitialState, monopolyWin, drawCardId, TOP_CITY_TILE, DESERT_TILE, SPACE_TILE,
   type BMState, type BuildKind,
 } from './rules';
@@ -290,8 +290,19 @@ class BlueMarbleModule implements GameModule {
     } else if (action.kind === 'travelTo') {
       if (s.pending?.kind === 'travel') {
         const from = s.pos[by]!;
-        s.pending = null; s.pos[by] = action.tile;   // 세계여행: 출발 통과 월급 없음(도착 월급은 resolveLanding)
-        s.travelFx = { seq: (s.travelFx?.seq ?? 0) + 1, by, from, to: action.tile };
+        const to = action.tile;
+        s.pending = null; s.pos[by] = to;
+        // 세계여행도 "앞으로 날아가는" 것으로 취급 → 출발선을 넘으면 걸어간 것과 똑같이 월급·바퀴 인정.
+        // to <= from 이면 31번 칸을 지나 0번(출발)을 넘어간 것. to===0 은 출발에 "도착"이라
+        // 월급을 resolveLanding 이 주므로 여기선 바퀴만 올린다.
+        if (to <= from) {
+          s.players[by]!.laps += 1;
+          if (to !== 0) {
+            s.players[by]!.money += SALARY;
+            s.fx = { seq: (s.fx?.seq ?? 0) + 1, amount: SALARY, mul: 1, kind: 'gain', to: by };
+          }
+        }
+        s.travelFx = { seq: (s.travelFx?.seq ?? 0) + 1, by, from, to };
         this.sync(); this.render();   // 비행기 애니 트리거
         this.resolveLanding(by);
       }
@@ -377,8 +388,8 @@ class BlueMarbleModule implements GameModule {
     const s = this.state;
     if (s.owner[tile] !== peer || BOARD[tile].type !== 'city') return;
     // 올림픽은 항상 "한 곳"만 개최 — 새 도시를 고르면 기존 개최지는 사라진다.
-    // 같은 도시를 다시 고르면 배수 누적(첫 개최 ×2 … 최대 ×5).
-    const next = Math.min(5, (s.olympic[tile] ?? 1) + 1);
+    // 같은 도시를 다시 고르면 배수가 2배씩 뛴다(×2→×4→×8→×16→×32 상한).
+    const next = Math.min(OLYMPIC_MAX_MUL, (s.olympic[tile] ?? 1) * 2);
     s.olympic = { [tile]: next };
     s.log = `${BOARD[tile].name} 올림픽 개최 ×${next}! (이전 개최지는 해제)`;
     sound.play('pop');
@@ -386,11 +397,17 @@ class BlueMarbleModule implements GameModule {
   private doBonusPick(peer: string, choice: number): void {
     const s = this.state; const pend = s.pending; if (pend?.kind !== 'bonus') return;
     const win = Math.floor(Math.random() * 2) === (choice & 1);
-    if (!win) { s.log = `보너스 실패… 판돈 ₩${pend.stake.toLocaleString()} 소멸`; s.pending = null; this.endStep(peer); return; }
+    if (!win) {
+      s.log = `보너스 실패… 판돈 ₩${pend.stake.toLocaleString()} 소멸`;
+      this.bonusResult(peer, `실패… 판돈 ₩${pend.stake.toLocaleString()} 날림`);
+      return;
+    }
     const pot = pend.pot * 2; const round = pend.round + 1;
     if (round >= 3) {   // 8배 달성 → 자동 지급
       s.players[peer]!.money += pot; s.log = `보너스 게임 8배! ₩${pot.toLocaleString()} 획득`;
-      s.pending = null; this.endStep(peer); return;
+      s.fx = { seq: (s.fx?.seq ?? 0) + 1, amount: pot, mul: 1, kind: 'gain', to: peer };
+      this.bonusResult(peer, `8배 성공!! ₩${pot.toLocaleString()} 획득`);
+      return;
     }
     s.pending = { kind: 'bonus', stake: pend.stake, round, pot };
     s.log = `보너스 성공! 누적 ₩${pot.toLocaleString()}`;
@@ -399,7 +416,16 @@ class BlueMarbleModule implements GameModule {
   private doBonusStop(peer: string): void {
     const s = this.state; const pend = s.pending; if (pend?.kind !== 'bonus') return;
     s.players[peer]!.money += pend.pot; s.log = `보너스 게임 ₩${pend.pot.toLocaleString()} 획득`;
-    s.pending = null; this.endStep(peer);
+    s.fx = { seq: (s.fx?.seq ?? 0) + 1, amount: pend.pot, mul: 1, kind: 'gain', to: peer };
+    this.bonusResult(peer, `₩${pend.pot.toLocaleString()} 받고 종료`);
+  }
+  /**
+   * 보너스 게임 결과를 info 로 한 번 띄운 뒤 턴 마무리.
+   * 그냥 endStep 하면 모달이 즉시 닫혀서 구경하던 사람들은 결과를 못 본다.
+   * info 는 renderPending 이 차례와 무관하게 모두에게 보여주고, 호스트가 1초 뒤 자동으로 턴을 넘긴다.
+   */
+  private bonusResult(peer: string, text: string): void {
+    this.state.pending = { kind: 'info', tile: this.state.pos[peer]!, text };
   }
 
   private rollAndMove(peer: string): void {
@@ -506,6 +532,8 @@ class BlueMarbleModule implements GameModule {
         // 오락실: 할지/판돈 선택 (최소 판돈 있으면)
         if (p.money >= BONUS_STAKE) { s.pending = { kind: 'bonusOffer' }; this.render(); return; }
         s.log = '보너스 게임 — 판돈이 부족해요';
+        s.pending = { kind: 'info', tile: i, text: `최소 판돈 ₩${BONUS_STAKE.toLocaleString()} 부족 — 못 해요` };
+        this.render(); return;
       }
     } else if (t.type === 'corner') {
       if (t.kind === 'start') {
@@ -521,9 +549,18 @@ class BlueMarbleModule implements GameModule {
       }
       else if (t.kind === 'desert') { this.toDesert(peer); s.log = `${p.nickname} 무인도에 갇힘`; }
       else if (t.kind === 'space') {
-        // 세계여행 — 비용 내면 다음 턴에 원하는 칸으로 이동
-        if (p.money >= TRAVEL_COST) { this.pay(peer, null, TRAVEL_COST); p.travelReady = true; s.log = `세계여행 준비! 다음 턴에 원하는 칸으로`; }
-        else s.log = '세계여행 — 비용이 부족해요';
+        // 세계여행 — 비용(TRAVEL_COST) 내면 다음 턴에 원하는 칸으로 이동.
+        // 성공/실패 둘 다 info 로 띄운다: 예전엔 s.log 만 넣었는데 log 는 화면에 안 그려져서
+        // 돈이 부족하면 아무 안내 없이 턴이 넘어가 "목적지가 안 골라진다"로 보였음.
+        if (p.money >= TRAVEL_COST) {
+          this.pay(peer, null, TRAVEL_COST); p.travelReady = true;
+          s.log = '세계여행 준비! 다음 턴에 원하는 칸으로';
+          s.pending = { kind: 'info', tile: i, text: `₩${TRAVEL_COST.toLocaleString()} 지불 — 다음 턴에 원하는 칸으로!` };
+        } else {
+          s.log = '세계여행 — 비용이 부족해요';
+          s.pending = { kind: 'info', tile: i, text: `₩${TRAVEL_COST.toLocaleString()} 필요 — 돈이 부족해서 못 가요` };
+        }
+        this.render(); return;
       }
     }
     this.endStep(peer);

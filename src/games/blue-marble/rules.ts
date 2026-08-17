@@ -33,10 +33,15 @@ export const START_MONEY = 3000000;
 export const DESERT_TURNS = 3;
 /** 무인도 탈출 비용 (돈 내고 즉시 탈출) */
 export const DESERT_ESCAPE = 300000;
-/** 세계여행 비용 */
-export const TRAVEL_COST = 400000;
+/** 세계여행 비용. 40만이면 부담이 커서 못 가는 경우가 잦았음 → 사실상 공짜 수준(3만)으로 내림 */
+export const TRAVEL_COST = 30000;
 /** 오락실(보너스 게임) 기본(최소) 판돈 */
 export const BONUS_STAKE = 100000;
+/**
+ * 올림픽 통행료 배수 상한. 같은 도시에 다시 개최하면 배수가 2배씩 뛴다(×2→×4→×8→×16→×32).
+ * 상한이 없으면 한 칸이 게임을 끝내버리므로 5회(×32)에서 멈춤.
+ */
+export const OLYMPIC_MAX_MUL = 32;
 
 // ── 건물 종류 (각각 따로 지음) ──
 export type BuildKind = 'villa' | 'house2' | 'apt' | 'landmark';
@@ -365,12 +370,16 @@ export function tollFor(state: BMState, tile: number, byPeerId: string): number 
   return tollBreakdown(state, tile, byPeerId).total;
 }
 
-/** 라인(변)별 건물 건설비. 0=1라인(가장 쌈) … 3=4라인(가장 비쌈). 대지값과 별개 고정. */
+/**
+ * 라인(변)별 건물 건설비. 0=1라인(가장 쌈) … 3=4라인(가장 비쌈). 대지값과 별개 고정.
+ * 예전 값의 약 70% — 인수 비용(땅값+건물비의 1.5배)에 비해 건설이 너무 비싸서 하향.
+ * (서울 풀개발: 땅 40만 + 건물 229만 = 269만 → 건물 161만 = 201만. 시작 자금 300만 대비 숨통 트임)
+ */
 export const LINE_BUILD: Record<BuildKind, number>[] = [
-  { villa: 50000,  house2: 110000, apt: 180000,  landmark: 280000 },   // 1라인
-  { villa: 120000, house2: 230000, apt: 300000,  landmark: 430000 },   // 2라인
-  { villa: 220000, house2: 370000, apt: 490000,  landmark: 660000 },   // 3라인
-  { villa: 320000, house2: 500000, apt: 620000,  landmark: 850000 },   // 4라인
+  { villa: 35000,  house2: 75000,  apt: 125000,  landmark: 195000 },   // 1라인
+  { villa: 85000,  house2: 160000, apt: 210000,  landmark: 300000 },   // 2라인
+  { villa: 155000, house2: 260000, apt: 345000,  landmark: 460000 },   // 3라인
+  { villa: 225000, house2: 350000, apt: 435000,  landmark: 600000 },   // 4라인
 ];
 /** 칸 index → 라인(0~3). 보드 배치(9×9, 반시계) 기준: 하단·좌·상·우 */
 export function lineOf(tile: number): number {

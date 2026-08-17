@@ -151,6 +151,8 @@ const won = (n: number): string => `₩${n.toLocaleString()}`;
 
 export class BlueMarbleRenderer {
   private root: HTMLDivElement;
+  /** 보드(정사각형) 엘리먼트 — 모달/토스트를 화면이 아니라 "판 중앙"에 띄우는 기준 */
+  private boardEl!: HTMLElement;
   private cb: BMRenderCallbacks;
   private lastDice = '';
   private modalScrim: HTMLDivElement | null = null;
@@ -188,7 +190,18 @@ export class BlueMarbleRenderer {
     this.root.className = 'bm-root';
     this.root.innerHTML = this.boardHTML();
     parent.appendChild(this.root);
+    this.boardEl = this.root.querySelector<HTMLElement>('.bm-board')!;
     this.wireStatic();
+  }
+
+  /**
+   * 모달/토스트를 게임판 안쪽(정중앙)에 붙인다.
+   * document.body 에 fixed 로 띄우면 우측 플레이어 패널까지 덮어서 화면 중앙 = 판 중앙이 아니었음.
+   * track=false 는 renderPending 이 관리하지 않는 로컬 모달(칸 정보창).
+   */
+  private mountScrim(scrim: HTMLDivElement, track = true): void {
+    this.boardEl.appendChild(scrim);
+    if (track) this.modalScrim = scrim;
   }
 
   destroy(): void {
@@ -404,7 +417,9 @@ export class BlueMarbleRenderer {
       this.dispPos[active] = (this.dispPos[active]! + 1) % BOARD.length;
       this.renderTokens(st);
       // 출발(0)을 "통과"하는 순간 월급 팝업 (도착 칸이 아니라 지나갈 때)
-      if (this.dispPos[active] === 0 && this.dispPos[active] !== st.pos[active]) this.playFx(SALARY, 1, 'gain');
+      if (this.dispPos[active] === 0 && this.dispPos[active] !== st.pos[active]) {
+        this.playFx({ seq: 0, amount: SALARY, mul: 1, kind: 'gain' });
+      }
       // 마지막 칸에 도착 → 말이 잠시 머문 뒤에 결정창(구매/황금열쇠) 표시
       if (this.dispPos[active] === st.pos[active]) { this.clearMove(); this.settle(); }
     }, 230);
@@ -648,29 +663,39 @@ export class BlueMarbleRenderer {
   // ── 결정 모달 / 행동중 배너 ──
   private renderPending(state: BMState, myPeerId: string, isSpectator: boolean): void {
     // 주사위/이동 시퀀스 중엔 결정창/배너 보류 (완료 후 render 재호출에서 표시)
-    if (this.busy) { this.travelMode = false; this.setPickMode(null); this.closeModal(); return; }
+    if (this.busy) { this.setTravelMode(false); this.setPickMode(null); this.closeModal(); return; }
     const p = state.pending;
     if (!p) {
-      this.travelMode = false; this.setPickMode(null);
+      this.setTravelMode(false); this.setPickMode(null);
       // 자발적 판매 모달은 대기(pending) 없이 떠 있으므로 유지·갱신 (판매 시 잔액/목록 갱신)
       if (this.openKind.startsWith('sell:') && this._lastState) this.sellModal(state, null);
       else this.closeModal();
       return;
     }
-    if (p.kind === 'info') { this.travelMode = false; this.setPickMode(null); this.showInfo(p.tile, p.text); return; }
+    if (p.kind === 'info') { this.setTravelMode(false); this.setPickMode(null); this.showInfo(p.tile, p.text); return; }
     const cur = state.order[state.turnIdx]!;
     const mine = cur === myPeerId && !isSpectator;
     // 세금 등 이벤트 — 모두에게 창, 밟은 사람(cur)만 확인해 닫음
-    if (p.kind === 'event') { this.travelMode = false; this.setPickMode(null); this.eventModal(p.tile, p.text, mine, state.players[cur]!.nickname); return; }
+    if (p.kind === 'event') { this.setTravelMode(false); this.setPickMode(null); this.eventModal(p.tile, p.text, mine, state.players[cur]!.nickname); return; }
     // 자금 마련(통행료/세금 부족) — 밟은 사람은 판매 모달, 나머지는 대기
     if (p.kind === 'raiseFunds') {
-      this.travelMode = false; this.setPickMode(null);
+      this.setTravelMode(false); this.setPickMode(null);
       if (mine) this.sellModal(state, p.amount);
       else { this.closeModal(); this.showActing(state, p, cur); }
       return;
     }
+    // 보너스 게임 — 구경하는 사람도 판돈/누적/선택을 실시간으로 보게. 버튼만 차례인 사람 것.
+    if (p.kind === 'bonusOffer' || p.kind === 'bonus') {
+      this.setTravelMode(false); this.setPickMode(null);
+      const key = p.kind === 'bonus' ? `bonus:${p.round}:${p.pot}` : 'bonusOffer:';
+      if (this.openKind === key && this.modalScrim) return;
+      const who = state.players[cur]!.nickname;
+      if (p.kind === 'bonusOffer') this.bonusOfferModal(state.players[cur]!.money, mine, who);
+      else this.bonusModal(p.round, p.pot, mine, who);
+      return;
+    }
     // 세계여행 = 아무 칸 클릭 / 올림픽·추가건설 = 내 땅만 클릭(나머지 어둡게)
-    this.travelMode = p.kind === 'travel' && mine;
+    this.setTravelMode(p.kind === 'travel' && mine);
     const owned = (owner: string): number[] => Object.keys(state.owner).map(Number).filter((i) => state.owner[i] === owner && BOARD[i].type === 'city');
     const oppCities = (): number[] => Object.keys(state.owner).map(Number).filter((i) => state.owner[i] !== undefined && state.owner[i] !== myPeerId && BOARD[i].type === 'city');
     let pick: number[] | null = null;
@@ -683,15 +708,15 @@ export class BlueMarbleRenderer {
     }
     this.setPickMode(pick);
     if (!mine) { this.showActing(state, p, cur); return; }
-    if (p.kind === 'travel') { this.showBanner('이동할 칸을 클릭하세요', false); return; }
-    if (p.kind === 'olympic') { this.showBanner('올림픽 열 내 도시를 클릭 (기존 개최지는 해제) · 안 열려면 건너뛰기', true); return; }
+    if (p.kind === 'travel') { this.showBanner('어디든 클릭! 목적지는 추가 비용 없어요', false); return; }
+    if (p.kind === 'olympic') { this.showBanner('올림픽 열 내 도시 클릭 · 같은 곳이면 배수 ×2씩', true); return; }
     if (p.kind === 'startBuild') { this.showBanner('건설할 내 땅을 클릭하세요', true); return; }
     if (p.kind === 'cardSwapMine') { this.showBanner('바꿀 내 도시를 클릭', false); return; }
     if (p.kind === 'cardSwapTheirs') { this.showBanner('바꿔올 상대 도시를 클릭', false); return; }
     if (p.kind === 'cardQuake') { this.showBanner('부술 상대 건물을 클릭', false); return; }
     if (p.kind === 'cardBlackout') { this.showBanner('정전시킬 상대 도시를 클릭', false); return; }
     // 내 결정 모달 (이미 같은 종류 열려있으면 유지)
-    const disc = p.kind === 'bonus' ? `${p.round}:${p.pot}` : ('tile' in p ? p.tile : '');
+    const disc = 'tile' in p ? p.tile : '';
     const kind = `${p.kind}:${disc}`;
     if (this.openKind === kind && this.modalScrim) { if (p.kind === 'build') this.refreshBuildMenu(state); return; }
     this.openKind = kind;
@@ -699,8 +724,6 @@ export class BlueMarbleRenderer {
     else if (p.kind === 'acquire') this.buyOrAcquireModal(state, p.tile, true);
     else if (p.kind === 'build') this.buildMenuModal(state, p.tile);
     else if (p.kind === 'card') this.cardModal(state, p.card);
-    else if (p.kind === 'bonusOffer') this.bonusOfferModal(state.players[myPeerId]!.money);
-    else if (p.kind === 'bonus') this.bonusModal(p.round, p.pot);
   }
 
   /** 세금 등 이벤트 창 — 모두에게 표시. 밟은 사람만 확인 버튼, 나머지는 대기 */
@@ -715,7 +738,7 @@ export class BlueMarbleRenderer {
     const scrim = document.createElement('div'); scrim.className = 'bm-scrim';
     scrim.innerHTML = `<div class="bm-modal"><div class="bm-top" style="background:${tileColor(tile)}">${t.name}</div>
       <div class="bm-body"><div class="bm-cardic">${IC.coin}</div><div class="bm-ctitle">${text}</div>${foot}</div></div>`;
-    document.body.appendChild(scrim); this.modalScrim = scrim; this.openKind = key;
+    this.mountScrim(scrim); this.openKind = key;
     scrim.querySelector<HTMLButtonElement>('.bm-yes')?.addEventListener('click', () => this.cb.onEventOk());
   }
 
@@ -727,11 +750,24 @@ export class BlueMarbleRenderer {
     const key = raiseAmount != null ? `raise:${raiseAmount}:${mine.length}:${money}` : `sell:${mine.length}:${money}`;
     if (this.openKind === key && this.modalScrim) return;
     this.closeModal();
+    // 자금 마련 중이면 "아직 얼마 부족한지" 기준으로 각 땅이 부족액을 얼마나 메우는지 같이 보여준다
+    const short = raiseAmount != null ? Math.max(0, raiseAmount - money) : 0;
     const rows = mine.length
-      ? mine.map((i) => `<div class="bm-sellrow"><span class="bm-sellnm" style="border-left-color:${tileColor(i)}">${(BOARD[i] as { name: string }).name}</span><span class="bm-sellval">+₩${sellRefund(state, i).toLocaleString()}</span><button class="bm-sellone" data-t="${i}">팔기</button></div>`).join('')
+      ? mine.map((i) => {
+        const rf = sellRefund(state, i);
+        const fill = raiseAmount == null ? ''
+          : short === 0 ? ''
+            : rf >= short ? `<span class="bm-sellfill done">이거면 충분!</span>`
+              : `<span class="bm-sellfill">팔아도 ₩${(short - rf).toLocaleString()} 부족</span>`;
+        return `<div class="bm-sellrow"><span class="bm-sellnm" style="border-left-color:${tileColor(i)}">${(BOARD[i] as { name: string }).name}</span>${fill}<span class="bm-sellval">+₩${rf.toLocaleString()}</span><button class="bm-sellone" data-t="${i}">팔기</button></div>`;
+      }).join('')
       : `<div class="bm-sub" style="padding:12px 0">팔 수 있는 땅이 없어요</div>`;
     const head = raiseAmount != null
-      ? `<div class="bm-ctitle">₩${raiseAmount.toLocaleString()} 내야 해요</div><div class="bm-sub">땅을 팔아 마련하세요 · 지금 ₩${money.toLocaleString()}</div>`
+      ? `<div class="bm-ctitle">₩${raiseAmount.toLocaleString()} 내야 해요</div>
+         <div class="bm-raisebar"><span style="width:${Math.min(100, Math.round(money / Math.max(1, raiseAmount) * 100))}%"></span></div>
+         <div class="bm-sub">지금 ₩${money.toLocaleString()} · ${short > 0
+        ? `<b style="color:#ff2d55">₩${short.toLocaleString()} 더 필요</b>`
+        : `<b style="color:#2f9e44">지불 가능!</b>`}</div>`
       : `<div class="bm-ctitle">내 땅 팔기</div><div class="bm-sub">지금 ₩${money.toLocaleString()}</div>`;
     const foot = raiseAmount != null
       ? `<div class="bm-btns"><button class="bm-yes" id="bm-pay" ${money >= raiseAmount ? '' : 'disabled'} style="flex:1">지불</button><button class="bm-no" id="bm-giveup" style="flex:1">파산</button></div>`
@@ -739,21 +775,31 @@ export class BlueMarbleRenderer {
     const scrim = document.createElement('div'); scrim.className = 'bm-scrim';
     scrim.innerHTML = `<div class="bm-modal" style="width:330px"><div class="bm-top" style="background:linear-gradient(90deg,#ff9bbb,#ff5a92)">🏷️ 땅 판매</div>` +
       `<div class="bm-body">${head}<div class="bm-selllist">${rows}</div>${foot}</div></div>`;
-    document.body.appendChild(scrim); this.modalScrim = scrim; this.openKind = key;
+    this.mountScrim(scrim); this.openKind = key;
     scrim.querySelectorAll<HTMLButtonElement>('.bm-sellone').forEach((b) => b.addEventListener('click', () => this.cb.onSell(Number(b.dataset.t))));
     scrim.querySelector<HTMLButtonElement>('#bm-pay')?.addEventListener('click', () => this.cb.onPayDebt());
     scrim.querySelector<HTMLButtonElement>('#bm-giveup')?.addEventListener('click', () => this.cb.onGiveUp());
     scrim.querySelector<HTMLButtonElement>('#bm-closesell')?.addEventListener('click', () => this.closeModal());
   }
 
-  /** 오락실: ① 한다/안 한다 → ② 한다면 판돈(100·200·300) 선택 */
-  private bonusOfferModal(money: number): void {
+  /**
+   * 오락실: ① 한다/안 한다 → ② 한다면 판돈(100·200·300) 선택.
+   * mine=false 면 구경 모드 — 버튼 없이 "누가 고르는 중"만 표시.
+   * (판돈 고르는 단계는 로컬 UI 상태라 state 에 없어서, 구경하는 쪽엔 진행 단계까진 안 보임)
+   */
+  private bonusOfferModal(money: number, mine: boolean, who: string): void {
     this.closeModal();
     const scrim = document.createElement('div'); scrim.className = 'bm-scrim';
     scrim.innerHTML = `<div class="bm-modal" style="width:300px"><div class="bm-top" style="background:linear-gradient(90deg,#b89aff,#8a5fd0)">보너스 게임</div>
       <div class="bm-body" id="bm-bonusbody"></div></div>`;
-    document.body.appendChild(scrim); this.modalScrim = scrim; this.openKind = 'bonusOffer:';
+    this.mountScrim(scrim); this.openKind = 'bonusOffer:';
     const body = scrim.querySelector<HTMLElement>('#bm-bonusbody')!;
+    if (!mine) {
+      body.innerHTML = `<div class="bm-sub">판돈을 걸고 2지선다! 맞히면 ×2씩(최대 8배)</div>
+        <div class="bm-bonuspot">할지 · 판돈 고민 중</div>
+        <div class="bm-actft"><span class="bm-sp"></span><span><b>${who}</b>님 차례…</span></div>`;
+      return;
+    }
     const askStep = (): void => {
       body.innerHTML = `<div class="bm-sub">판돈을 걸고 2지선다! 맞히면 ×2씩(최대 8배)</div>
         <div class="bm-bonuspot">할래요?</div>
@@ -770,6 +816,16 @@ export class BlueMarbleRenderer {
       body.querySelector<HTMLButtonElement>('.bm-no')!.onclick = () => this.cb.onBonusStart(0);
     };
     askStep();
+  }
+
+  /**
+   * 세계여행 목적지 선택 모드.
+   * 32칸 전부가 클릭 대상인데 코너·특수칸(.bm-illtile)엔 커서/호버가 아예 없어서
+   * "여긴 못 고르는 칸"처럼 보였다 → bm-traveling 으로 모든 칸에 클릭 표시를 켠다.
+   */
+  private setTravelMode(on: boolean): void {
+    this.travelMode = on;
+    this.root.classList.toggle('bm-traveling', on);
   }
 
   /** 보드 칸 선택 모드 — tiles 만 밝게+클릭 가능, 나머지 어둡게 (없으면 해제) */
@@ -789,23 +845,27 @@ export class BlueMarbleRenderer {
     this.closeModal();
     const scrim = document.createElement('div'); scrim.className = 'bm-scrim bm-noscrim';
     scrim.innerHTML = `<div class="bm-toast">${text}${skippable ? '<button class="bm-bskip">건너뛰기</button>' : ''}</div>`;
-    document.body.appendChild(scrim); this.modalScrim = scrim; this.openKind = key;
+    this.mountScrim(scrim); this.openKind = key;
     scrim.querySelector<HTMLButtonElement>('.bm-bskip')?.addEventListener('click', () => this.cb.onPickCity(-1));
   }
 
   /** 올림픽 개최 / 추가 건설: 내 도시 하나 선택 */
-  /** 오락실(보너스 게임): 2지선다 + 받기 */
-  private bonusModal(round: number, pot: number): void {
+  /** 오락실(보너스 게임): 2지선다 + 받기. mine=false 면 구경 모드(버튼 비활성 + 대기 표시) */
+  private bonusModal(round: number, pot: number, mine: boolean, who: string): void {
     this.closeModal();
     const scrim = document.createElement('div'); scrim.className = 'bm-scrim';
+    const dis = mine ? '' : 'disabled';
     scrim.innerHTML = `<div class="bm-modal" style="width:300px"><div class="bm-top" style="background:linear-gradient(90deg,#b89aff,#8a5fd0)">보너스 게임</div>
       <div class="bm-body">
         <div class="bm-sub">둘 중 하나! 맞히면 ×2 (최대 8배)</div>
         <div class="bm-bonuspot">누적 <b>₩${pot.toLocaleString()}</b>${round > 0 ? ` <span style="color:#8a5fd0">(${Math.pow(2, round)}배)</span>` : ''}</div>
-        <div class="bm-bchoices"><button class="bm-bchoice" data-c="0">왼쪽</button><button class="bm-bchoice" data-c="1">오른쪽</button></div>
-        ${round > 0 ? `<div class="bm-btns"><button class="bm-no" style="flex:1">₩${pot.toLocaleString()} 받고 종료</button></div>` : ''}
+        <div class="bm-bchoices"><button class="bm-bchoice" data-c="0" ${dis}>왼쪽</button><button class="bm-bchoice" data-c="1" ${dis}>오른쪽</button></div>
+        ${mine
+          ? (round > 0 ? `<div class="bm-btns"><button class="bm-no" style="flex:1">₩${pot.toLocaleString()} 받고 종료</button></div>` : '')
+          : `<div class="bm-actft"><span class="bm-sp"></span><span><b>${who}</b>님 선택 대기…</span></div>`}
       </div></div>`;
-    document.body.appendChild(scrim); this.modalScrim = scrim; this.openKind = `bonus:${round}:${pot}`;
+    this.mountScrim(scrim); this.openKind = `bonus:${round}:${pot}`;
+    if (!mine) return;
     scrim.querySelectorAll<HTMLButtonElement>('.bm-bchoice').forEach((b) => {
       b.onclick = () => this.cb.onBonusPick(Number(b.dataset.c));
     });
@@ -836,7 +896,7 @@ export class BlueMarbleRenderer {
     }
     const scrim = document.createElement('div'); scrim.className = 'bm-scrim bm-noscrim';
     scrim.innerHTML = `<div class="bm-modal">${head}${body}</div>`;
-    document.body.appendChild(scrim); this.modalScrim = scrim; this.openKind = key;
+    this.mountScrim(scrim); this.openKind = key;
   }
 
   /** 잠깐 뜨는 안내 토스트(돈 부족 등) — 딤 없이 판 위에 표시, 호스트가 곧 턴을 넘김 */
@@ -847,7 +907,7 @@ export class BlueMarbleRenderer {
     const name = (BOARD[tile] as { name: string }).name;
     const scrim = document.createElement('div'); scrim.className = 'bm-scrim bm-noscrim';
     scrim.innerHTML = `<div class="bm-toast"><b>${name}</b> · ${text}</div>`;
-    document.body.appendChild(scrim); this.modalScrim = scrim; this.openKind = key;
+    this.mountScrim(scrim); this.openKind = key;
   }
 
   private closeModal(): void {
@@ -863,7 +923,7 @@ export class BlueMarbleRenderer {
         <div class="bm-mrow"><span>${isAcquire ? '인수 비용' : '가격'}</span><b>${won(cost)}</b></div>
         <div class="bm-btns"><button class="bm-yes">${isAcquire ? '인수' : '구매'}</button><button class="bm-no">패스</button></div>
       </div></div>`;
-    document.body.appendChild(scrim); this.modalScrim = scrim; this.openKind = `${isAcquire ? 'acquire' : 'buy'}:${tile}`;
+    this.mountScrim(scrim); this.openKind = `${isAcquire ? 'acquire' : 'buy'}:${tile}`;
     scrim.querySelector<HTMLButtonElement>('.bm-yes')!.onclick = () => this.cb.onDecision(true);
     scrim.querySelector<HTMLButtonElement>('.bm-no')!.onclick = () => this.cb.onDecision(false);
   }
@@ -872,7 +932,7 @@ export class BlueMarbleRenderer {
     this.closeModal();
     this.buildSel = new Set();   // 새 건설창 → 선택 초기화
     const scrim = document.createElement('div'); scrim.className = 'bm-scrim';
-    document.body.appendChild(scrim); this.modalScrim = scrim; this.openKind = `build:${tile}`;
+    this.mountScrim(scrim); this.openKind = `build:${tile}`;
     (scrim as HTMLElement & { _tile?: number })._tile = tile;
     this.refreshBuildMenu(state);
   }
@@ -941,7 +1001,7 @@ export class BlueMarbleRenderer {
     scrim.innerHTML = `<div class="bm-modal"><div class="bm-top" style="background:linear-gradient(90deg,#ffd454,#ffb02e)">${IC.key} 황금열쇠</div>
       <div class="bm-body"><div class="bm-cardic">${cardIcon(cardId)}</div>
         <div class="bm-ctitle">${cardTitle(cardId)}</div><div class="bm-cdesc">${cardDesc(cardId)}</div>${btns}</div></div>`;
-    document.body.appendChild(scrim); this.modalScrim = scrim; this.openKind = `card:${cardId}`;
+    this.mountScrim(scrim); this.openKind = `card:${cardId}`;
     scrim.querySelector<HTMLButtonElement>('.bm-yes')!.onclick = () => this.cb.onCard(false);
   }
 
@@ -992,7 +1052,7 @@ export class BlueMarbleRenderer {
     scrim.innerHTML = `<div class="bm-modal" style="width:284px"><div class="bm-top" style="background:${tileColor(tile)}">${t.name}</div>
       <div class="bm-body" style="text-align:left"><div style="text-align:center;margin-bottom:2px"><b>${won(t.price)}</b> · <span style="color:#9a8a9a;font-weight:700">${ownerTxt}</span></div>
       ${cur}${rows}<div class="bm-btns" style="margin-top:12px"><button class="bm-no" style="flex:1">닫기</button></div></div></div>`;
-    document.body.appendChild(scrim);
+    this.mountScrim(scrim, false);
     const close = (): void => { scrim.remove(); el?.classList.remove('bm-selected'); };
     scrim.querySelector<HTMLButtonElement>('.bm-no')!.onclick = close;
     scrim.onclick = (e) => { if (e.target === scrim) close(); };
@@ -1076,7 +1136,7 @@ function injectStyle(): void {
   const css = `
 .bm-root{position:absolute;inset:0;display:flex;gap:13px;padding:11px;box-sizing:border-box;align-items:center;justify-content:center;
   font-family:'Pretendard','Apple SD Gothic Neo','Noto Sans KR',system-ui,sans-serif;color:#4a3a4a;}
-.bm-board{height:100%;aspect-ratio:1;max-width:calc(100% - 275px);display:grid;
+.bm-board{position:relative;height:100%;aspect-ratio:1;max-width:calc(100% - 275px);display:grid;
   grid-template-columns:repeat(9,1fr);grid-template-rows:repeat(9,1fr);
   gap:3px;background:linear-gradient(135deg,#e9f7ff,#ffeaf3);border-radius:16px;padding:7px;box-shadow:0 8px 26px rgba(120,80,140,.14);}
 .bm-tile{position:relative;background:#fff;border:1px solid #efe3f2;border-radius:6px;overflow:hidden;min-width:0;display:flex;flex-direction:column;}
@@ -1084,6 +1144,11 @@ function injectStyle(): void {
 .bm-prop:hover{transform:translateY(-3px) scale(1.05);z-index:6;filter:brightness(1.07) saturate(1.08);
   box-shadow:0 10px 20px rgba(60,40,80,.34);outline:2.5px solid rgba(255,255,255,.92);outline-offset:-2px;border-radius:8px;}
 @media(prefers-reduced-motion:reduce){.bm-prop{transition:none;} .bm-prop:hover{transform:none;}}
+/* 세계여행 목적지 선택 — 32칸 전부 클릭 가능하다는 걸 커서/호버로 알려줌 */
+.bm-root.bm-traveling .bm-tile{cursor:pointer;transition:transform .12s ease,box-shadow .12s ease,filter .12s ease;}
+.bm-root.bm-traveling .bm-tile:hover{transform:translateY(-3px) scale(1.05);z-index:6;filter:brightness(1.07) saturate(1.08);
+  box-shadow:0 10px 20px rgba(60,40,80,.34);outline:3px solid #ffd454;outline-offset:-2px;border-radius:8px;}
+@media(prefers-reduced-motion:reduce){.bm-root.bm-traveling .bm-tile{transition:none;} .bm-root.bm-traveling .bm-tile:hover{transform:none;}}
 /* 칸 선택 모드(올림픽 개최/추가 건설): 내 땅만 밝게, 나머지 어둡게 */
 .bm-root.bm-picking .bm-tile{filter:brightness(.42) saturate(.7);transition:filter .2s;}
 .bm-root.bm-picking .bm-tile.bm-pickable{filter:none;cursor:pointer;outline:3px solid #ffd454;outline-offset:-2px;border-radius:8px;z-index:5;animation:bm-pickpulse 1.1s ease-in-out infinite;}
@@ -1216,6 +1281,11 @@ function injectStyle(): void {
 .bm-sellrow{display:flex;align-items:center;gap:8px;padding:6px 8px;border-radius:10px;background:#faf6f9;}
 .bm-sellnm{flex:1;font-weight:800;font-size:13px;color:#4a3a4a;border-left:4px solid #ccc;padding-left:8px;text-align:left;}
 .bm-sellval{font-weight:800;font-size:12.5px;color:#2f9e44;}
+/* 자금 마련: 부족액 진행바 + 이 땅을 팔면 얼마가 채워지는지 */
+.bm-raisebar{height:9px;border-radius:999px;background:#f0e6ef;overflow:hidden;margin:9px 0 7px;}
+.bm-raisebar span{display:block;height:100%;border-radius:999px;background:linear-gradient(90deg,#ffb01c,#2f9e44);transition:width .25s ease;}
+.bm-sellfill{font-size:11px;font-weight:800;color:#c2255c;white-space:nowrap;}
+.bm-sellfill.done{color:#2f9e44;}
 .bm-sellone{font:inherit;font-weight:800;font-size:12px;color:#fff;background:#ff5a92;border:none;border-radius:8px;padding:5px 12px;cursor:pointer;}
 .bm-sellone:hover{filter:brightness(1.05);}
 .bm-panel{width:262px;display:flex;flex-direction:column;gap:12px;}
@@ -1229,8 +1299,11 @@ function injectStyle(): void {
 .bm-hcard{display:flex;align-items:center;gap:8px;padding:7px 9px;border-radius:11px;background:#fff;border:1.5px solid #ffe0a8;}
 .bm-hic svg{width:22px;height:22px;} .bm-htxt{flex:1;font-size:12px;font-weight:800;}
 .bm-huse{font:inherit;font-size:12px;font-weight:800;color:#fff;background:#b89aff;border:none;border-radius:9px;padding:6px 11px;cursor:pointer;}
-.bm-scrim{position:fixed;inset:0;z-index:200;background:rgba(54,36,56,.42);display:grid;place-items:center;padding:20px;}
-.bm-modal{width:290px;max-width:92vw;background:#fff;border-radius:20px;box-shadow:0 20px 50px rgba(80,50,80,.35);overflow:hidden;animation:bm-pop .26s cubic-bezier(.34,1.56,.64,1);}
+/* 모달 딤은 화면 전체가 아니라 게임판 안쪽만 — 우측 플레이어 패널은 계속 보이게.
+   flex+margin:auto 로 중앙 정렬(모달이 판보다 크면 grid place-items 는 위가 잘려서 스크롤이 안 됨) */
+.bm-scrim{position:absolute;inset:0;z-index:200;background:rgba(54,36,56,.42);border-radius:16px;
+  display:flex;align-items:center;justify-content:center;padding:10px;overflow:auto;}
+.bm-modal{width:290px;max-width:100%;margin:auto;flex:0 0 auto;background:#fff;border-radius:20px;box-shadow:0 20px 50px rgba(80,50,80,.35);overflow:hidden;animation:bm-pop .26s cubic-bezier(.34,1.56,.64,1);}
 @keyframes bm-pop{from{transform:scale(.85);opacity:0;}to{transform:scale(1);opacity:1;}}
 .bm-top{height:60px;display:flex;align-items:center;justify-content:center;gap:5px;color:#fff;font-size:15px;font-weight:800;} .bm-top svg{width:19px;height:19px;}
 .bm-body{padding:15px 17px 17px;text-align:center;} .bm-sub{font-size:12px;color:#8a7a8a;margin-bottom:8px;}
@@ -1258,7 +1331,7 @@ function injectStyle(): void {
 .bm-ihdr{font-size:11.5px;font-weight:800;color:#8a7a8a;margin-top:10px;}
 .bm-curbox{background:#fff6fa;border:1px solid #ffd6e6;border-radius:12px;padding:8px 11px;margin:8px 0;}
 .bm-scrim.bm-noscrim{background:transparent;pointer-events:none;}
-.bm-toast{background:rgba(74,58,74,.94);color:#fff;font-size:15px;font-weight:800;padding:14px 26px;border-radius:16px;box-shadow:0 14px 36px rgba(0,0,0,.32);animation:bm-pop .26s cubic-bezier(.34,1.56,.64,1);display:flex;align-items:center;gap:14px;} .bm-toast b{color:#ffd7e6;}
+.bm-toast{max-width:100%;text-align:center;background:rgba(74,58,74,.94);color:#fff;font-size:15px;font-weight:800;padding:14px 22px;border-radius:16px;box-shadow:0 14px 36px rgba(0,0,0,.32);animation:bm-pop .26s cubic-bezier(.34,1.56,.64,1);display:flex;align-items:center;justify-content:center;gap:12px;} .bm-toast b{color:#ffd7e6;}
 .bm-bskip{pointer-events:auto;font:inherit;font-size:13px;font-weight:800;color:#4a3a4a;background:#fff;border:none;border-radius:999px;padding:6px 14px;cursor:pointer;box-shadow:0 3px 8px rgba(0,0,0,.25);}
 .bm-actft{display:flex;align-items:center;justify-content:center;gap:8px;margin-top:12px;padding-top:11px;border-top:1px solid #f0e6f4;font-size:13px;font-weight:700;color:#6a5a6a;} .bm-actft b{color:#4a3a4a;}
 .bm-actft .bm-sp{border-color:rgba(120,90,130,.28);border-top-color:#8a5a78;}
