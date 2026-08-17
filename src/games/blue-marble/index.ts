@@ -28,6 +28,10 @@ const END_DELAY_MS = 3200;
 const ORDER_REVEAL_MS = 2600;
 /** 이 시간 안 굴리면 호스트가 대신 굴려준다(한 명 때문에 방이 멈추지 않게) */
 const ORDER_AUTOROLL_MS = 15000;
+/** 채팅 치트 `/showmethemoney` 로 받는 금액 */
+const CHEAT_MONEY = 200000;
+/** 안내(info) 창이 떠 있는 시간 — 다른 사람도 "누가 왜 못 샀는지" 읽을 수 있어야 해서 넉넉히 */
+const INFO_MS = 1900;
 
 class BlueMarbleModule implements GameModule {
   private ctx!: GameContext;
@@ -195,7 +199,7 @@ class BlueMarbleModule implements GameModule {
         this.state.pending = null;
         this.endStep(peer);      // 더블이면 재굴림, 아니면 다음 턴
         this.afterChange();
-      }, 1000);
+      }, INFO_MS);
       return;
     }
     if (this.dummyTimer !== null) return;
@@ -219,7 +223,8 @@ class BlueMarbleModule implements GameModule {
     if (!this.dummyActs()) return;
     const pend = s.pending;
     if (!pend) { this.hostHandle({ kind: 'roll', by: DUMMY }, DUMMY); return; }
-    if (pend.kind === 'buy') this.hostHandle({ kind: 'decision', accept: Math.random() < 0.75, by: DUMMY }, DUMMY);
+    if (pend.kind === 'travelOffer') this.hostHandle({ kind: 'decision', accept: s.players[DUMMY]!.money >= pend.cost * 10, by: DUMMY }, DUMMY);
+    else if (pend.kind === 'buy') this.hostHandle({ kind: 'decision', accept: Math.random() < 0.75, by: DUMMY }, DUMMY);
     else if (pend.kind === 'acquire') this.hostHandle({ kind: 'decision', accept: Math.random() < 0.35, by: DUMMY }, DUMMY);
     else if (pend.kind === 'tollAsk') this.hostHandle({ kind: 'decision', accept: true, by: DUMMY }, DUMMY);
     else if (pend.kind === 'card') this.hostHandle({ kind: 'card', keep: false, by: DUMMY }, DUMMY);
@@ -276,6 +281,14 @@ class BlueMarbleModule implements GameModule {
     const s = this.state;
     if (s.players[by]?.bankrupt) return;
 
+    // 치트 — 차례/페이즈 상관없이 바로 적용. 로그는 안 남기고(채팅에도 안 남음)
+    // 현금 증감 뱃지로만 드러난다(돈이 늘어난 건 어차피 패널에 보이니까).
+    if (action.kind === 'cheatMoney') {
+      const p = s.players[by];
+      if (p) { p.money += CHEAT_MONEY; this.afterChange(); }
+      return;
+    }
+
     // 순서 정하기 단계에선 굴림만 받는다
     if (s.phase === 'order') {
       if (action.kind === 'orderRoll') this.doOrderRoll(by);
@@ -318,6 +331,19 @@ class BlueMarbleModule implements GameModule {
           if (BOARD[tile].type === 'city' && buildable) { s.pending = { kind: 'build', tile }; this.afterChange(); return; }
         }
         s.pending = null; this.endStep(by);
+      }
+      else if (s.pending?.kind === 'travelOffer') {
+        // 세계여행 갈지 말지 — 가면 비용 내고 목적지 선택(그게 이번 턴의 이동),
+        // 안 가면 그냥 평범하게 주사위를 굴린다.
+        const cost = s.pending.cost;
+        s.pending = null;
+        if (action.accept && s.players[by]!.money >= cost) {
+          this.pay(by, null, cost);
+          s.pending = { kind: 'travel' };
+          s.log = `세계여행 ₩${cost.toLocaleString()} 지불 — 원하는 칸을 고르세요`;
+        } else {
+          s.log = '세계여행 안 가기 — 주사위를 굴리세요';
+        }
       }
       else if (s.pending?.kind === 'tollAsk') {
         // 통행료 면제권 쓸지 답변 — 쓰면 카드 소모 후 통행료 0, 안 쓰면 그대로 정산
@@ -471,6 +497,12 @@ class BlueMarbleModule implements GameModule {
   /** 이 플레이어가 팔 수 있는 땅(도시/섬)을 하나라도 가졌는지 */
   private hasSellable(peer: string): boolean {
     return Object.keys(this.state.owner).some((k) => this.state.owner[+k] === peer);
+  }
+
+  /** 채팅창 치트 코드 (채팅 로그엔 안 남는다 — gameScreen 이 걸러서 여기로만 보냄) */
+  onCheatCode(code: string): void {
+    if (this.destroyed || this.ended || code !== 'showmethemoney') return;
+    this.act({ kind: 'cheatMoney' });
   }
 
   // ============================================
@@ -701,9 +733,12 @@ class BlueMarbleModule implements GameModule {
       const o = s.owner[i];
       if (o === undefined) {
         if (p.money >= t.price) { s.pending = { kind: 'buy', tile: i }; this.render(); return; }
-        // 살 돈이 없으면 잠깐 안내 후 자동으로 턴 넘김 (info pending)
-        s.log = `${t.name} — 살 돈이 부족해요`;
-        s.pending = { kind: 'info', tile: i, text: '살 돈이 부족해요' }; this.render(); return;
+        // 살 돈이 없으면 잠깐 안내 후 자동으로 턴 넘김 (info pending — 전원에게 보임).
+        // 누가 못 샀는지 알 수 있게 닉네임과 금액을 같이 넣는다.
+        s.log = `${p.nickname} · ${t.name} 살 현금이 부족해요`;
+        s.pending = { kind: 'info', tile: i,
+          text: `${p.nickname}님 현금 부족 — ₩${t.price.toLocaleString()} 필요 (현재 ₩${p.money.toLocaleString()})` };
+        this.render(); return;
       } else if (o === peer) {
         if (t.type === 'city' && (['villa', 'house2', 'apt', 'landmark'] as BuildKind[]).some((k) => canBuild(s, i, peer, k))) {
           s.pending = { kind: 'build', tile: i }; this.render(); return;
@@ -765,22 +800,10 @@ class BlueMarbleModule implements GameModule {
       }
       else if (t.kind === 'desert') { this.toDesert(peer); s.log = `${p.nickname} 무인도에 갇힘`; }
       else if (t.kind === 'space') {
-        // 세계여행 — 비용(TRAVEL_COST) 내면 다음 턴에 원하는 칸으로 이동.
-        // 성공/실패 둘 다 info 로 띄운다: 예전엔 s.log 만 넣었는데 log 는 화면에 안 그려져서
-        // 돈이 부족하면 아무 안내 없이 턴이 넘어가 "목적지가 안 골라진다"로 보였음.
-        if (p.money >= TRAVEL_COST) {
-          // 세계여행권을 받았으면 더블이어도 한 번 더는 없음 — 추가 굴림 대신 다음 턴 순간이동을 받는 것.
-          // (예전엔 더블로 한 번 더 굴려서 딴 데 간 뒤에도 세계여행이 살아있어 이중 이득이었다)
-          // 돈이 부족해 못 갔을 때는 받은 게 없으니 더블을 그대로 살려둔다.
-          s.noExtraRoll = true;
-          this.pay(peer, null, TRAVEL_COST); p.travelReady = true;
-          s.log = '세계여행 준비! 다음 턴에 원하는 칸으로';
-          s.pending = { kind: 'info', tile: i, text: `₩${TRAVEL_COST.toLocaleString()} 지불 — 다음 턴에 원하는 칸으로!` };
-        } else {
-          s.log = '세계여행 — 비용이 부족해요';
-          s.pending = { kind: 'info', tile: i, text: `₩${TRAVEL_COST.toLocaleString()} 필요 — 돈이 부족해서 못 가요` };
-        }
-        this.render(); return;
+        // 세계여행 — 도착만으로는 아무 일도 안 일어난다. 비용을 낼지 말지는
+        // **다음 내 턴이 시작될 때** 물어본다(advanceTurn → travelOffer).
+        // 밟자마자 돈이 빠져나가면 "가고 싶지도 않은데 3만원 뜯겼다"가 되므로.
+        s.log = `세계여행 — 다음 내 턴에 갈지 정해요 (₩${TRAVEL_COST.toLocaleString()})`;
       }
     }
     this.endStep(peer);
@@ -801,11 +824,15 @@ class BlueMarbleModule implements GameModule {
     for (const k of Object.keys(s.blackout)) { const n = (s.blackout[+k] ?? 0) - 1; if (n > 0) s.blackout[+k] = n; else delete s.blackout[+k]; }
     s.doubles = 0; s.noExtraRoll = false; s.pending = null; s.dice = null;
     s.turnIdx = nextTurnIdx(s);
-    // 세계여행 대기자의 턴이면 → 원하는 칸 선택(travel)으로 시작
     const cur = s.order[s.turnIdx]!;
-    if (s.players[cur]!.travelReady && !s.players[cur]!.bankrupt) {
+    if (s.players[cur]!.bankrupt) return;
+    if (s.players[cur]!.travelReady) {
+      // 세계여행 카드로 받은 무료 여행권 → 비용 없이 바로 목적지 선택
       s.players[cur]!.travelReady = false;
       s.pending = { kind: 'travel' };
+    } else if (s.pos[cur] === SPACE_TILE && s.players[cur]!.desertLeft === 0) {
+      // 세계여행 칸에 서서 턴 시작 → 갈지 말지 물어본다(돈 없으면 렌더러가 '간다'를 잠금)
+      s.pending = { kind: 'travelOffer', cost: TRAVEL_COST };
     }
   }
 

@@ -10,6 +10,7 @@ import { createWaitingRoomAsHostScreen, createWaitingRoomAsGuestScreen, attemptH
 import { buildReactionBarHTML, wireReactionBar, showReactionBubble, makeReactionBarDraggable } from '../ui/reactions';
 import { buildChatPanelHTML, wireChatPanel, appendChatMessage } from '../ui/chat';
 import type { ChatMsg } from '../games/types';
+import { CHEAT_CODES } from '../games/types';
 import { storage } from '../core/storage';
 import { sound } from '../core/sound';
 import { escapeHtml } from '../ui/escape';
@@ -400,6 +401,18 @@ export interface GameScreenAsHostArgs {
   password: string;
 }
 
+/**
+ * 채팅 입력이 치트 코드면 게임 모듈로만 넘기고 true 를 반환한다(= 채팅으로 안 보냄).
+ * 목록에 없는 `/…` 는 그냥 평범한 채팅으로 나간다.
+ */
+function tryCheatCode(text: string, gameModule: GameModule | null): boolean {
+  if (!text.startsWith('/')) return false;
+  const code = text.slice(1).trim().toLowerCase();
+  if (!CHEAT_CODES.has(code)) return false;
+  gameModule?.onCheatCode?.(code);
+  return true;   // 지원 안 하는 게임이어도 채팅엔 안 남긴다(코드 노출 방지)
+}
+
 export function createGameScreenAsHostScreen(args: GameScreenAsHostArgs): Screen {
   const { host, roomState, isPrivate, password } = args;
   let gameModule: GameModule | null = null;
@@ -767,6 +780,7 @@ export function createGameScreenAsHostScreen(args: GameScreenAsHostArgs): Screen
       // 채팅 패널 — 호스트: 자기 화면 append + 모든 게스트 broadcast
       cleanupChat = wireChatPanel(el, {
         onSend: (text) => {
+          if (tryCheatCode(text, gameModule)) return;   // 치트는 채팅에 안 남기고 게임으로만
           const msg: ChatMsg = {
             type: 'chat',
             peerId: host.myPeerId,
@@ -1081,6 +1095,7 @@ export function createGameScreenAsGuestScreen(args: GameScreenAsGuestArgs): Scre
       // 채팅 패널 — 게스트: 자기 화면 append + 호스트로 송신 (호스트가 다른 게스트로 relay)
       cleanupChat = wireChatPanel(el, {
         onSend: (text) => {
+          if (tryCheatCode(text, gameModule)) return;   // 치트는 채팅에 안 남기고 게임으로만
           const msg: ChatMsg = {
             type: 'chat',
             peerId: guest.myPeerId,

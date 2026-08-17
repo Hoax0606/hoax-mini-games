@@ -7,7 +7,7 @@
 
 import {
   BOARD, BUILD_TYPES, ISLAND_TILES, BASE_TOLL_MUL, DESERT_ESCAPE,
-  buildMeta, buildCostOf, acquireCost, sellRefund, islandCount, seaIslandCount, hasAllHouses, canBuild, SALARY, CARDS,
+  buildMeta, buildCostOf, acquireCost, sellRefund, islandCount, seaIslandCount, hasAllHouses, canBuild, CARDS,
   colorMonopolyMul, ownsGroup, tollBreakdown, totalAssets, estateValue,
   type BMState, type BuildKind, type GroupColor,
 } from './rules';
@@ -346,16 +346,11 @@ export class BlueMarbleRenderer {
   private playFx(fx: NonNullable<BMState['fx']>): void {
     if (this.destroyed) return;
     const { amount, mul, kind } = fx;
-    // 통행료를 "내가 받는" 경우 → 초록 +₩ (흔들림/동전 없음)
+    // 금액 숫자는 판 위에 안 띄운다 — 우측 패널의 현금 증감 뱃지가 담당(중복 + 판 가림 방지).
+    // 여기 남는 건 "느낌"뿐: 통행료 흔들림 / 동전 / 파산 문구.
     const iReceive = kind === 'toll' && fx.to === this.myId;
     if (kind === 'gain' || iReceive) {
-      const jackpot = amount >= 1000000;   // 복권 등 대박
-      const g = document.createElement('div');
-      g.className = 'bm-fxnum gain' + (jackpot ? ' jackpot' : '');
-      g.innerHTML = `${jackpot ? '<span class="bm-fxmul" style="color:#ffab1c">JACKPOT</span>' : ''}<span>+₩${amount.toLocaleString()}</span>`;
-      this.root.appendChild(g);
-      window.setTimeout(() => g.remove(), jackpot ? 1800 : 1300);
-      if (jackpot) this.coinShower(18);
+      if (amount >= 1000000) this.coinShower(18);   // 복권 등 대박만 동전 세례
       return;
     }
     if (kind === 'bankrupt') {
@@ -373,12 +368,6 @@ export class BlueMarbleRenderer {
     void this.root.offsetWidth;   // 리플로우로 애니 재시작
     this.root.classList.add(strong ? 'bm-shake-strong' : 'bm-shake');
     window.setTimeout(() => this.root.classList.remove('bm-shake', 'bm-shake-strong'), 620);
-    // 큰 숫자 팝업
-    const num = document.createElement('div');
-    num.className = 'bm-fxnum' + (strong ? ' fire' : '');
-    num.innerHTML = `<span class="bm-fxmul">${mul > 1 ? `×${mul}` : ''}</span><span>−₩${amount.toLocaleString()}</span>`;
-    this.root.appendChild(num);
-    window.setTimeout(() => num.remove(), 1300);
     this.coinShower(Math.min(14, 5 + mul * 2));
   }
 
@@ -449,10 +438,7 @@ export class BlueMarbleRenderer {
       const st = this._lastState; if (this.destroyed || !st) { this.clearMove(); return; }
       this.dispPos[active] = (this.dispPos[active]! + 1) % BOARD.length;
       this.renderTokens(st);
-      // 출발(0)을 "통과"하는 순간 월급 팝업 (도착 칸이 아니라 지나갈 때)
-      if (this.dispPos[active] === 0 && this.dispPos[active] !== st.pos[active]) {
-        this.playFx({ seq: 0, amount: SALARY, mul: 1, kind: 'gain' });
-      }
+      // (월급 팝업은 판에 안 띄운다 — 우측 패널 현금 증감 뱃지로만)
       // 마지막 칸에 도착 → 말이 잠시 머문 뒤에 결정창(구매/황금열쇠) 표시
       if (this.dispPos[active] === st.pos[active]) { this.clearMove(); this.settle(); }
     }, stepMs);
@@ -491,8 +477,6 @@ export class BlueMarbleRenderer {
       const nxt = path[i]!;
       plane.style.setProperty('--rot', `${Math.atan2(nxt.y - prev.y, nxt.x - prev.x) * 180 / Math.PI}deg`);
       plane.style.left = `${nxt.x}px`; plane.style.top = `${nxt.y}px`;
-      // 출발(0)을 지나가는 순간 월급 팝업 — 주사위 이동과 같은 규칙(도착 칸이면 resolveLanding 이 처리)
-      if ((from + i + 1) % N === 0 && i < path.length - 1) this.playFx({ seq: 0, amount: SALARY, mul: 1, kind: 'gain' });
       prev = nxt; i += 1;
       if (i < path.length) window.setTimeout(hop, stepMs);
       else window.setTimeout(() => { plane.remove(); finish(); }, stepMs + 120);
@@ -537,8 +521,6 @@ export class BlueMarbleRenderer {
       const st = this._lastState; if (this.destroyed || !st) { this.clearMove(); return; }
       this.dispPos[by] = ((this.dispPos[by]! + (back ? -1 : 1)) % N + N) % N;
       this.renderTokens(st);
-      // 정방향으로 출발(0)을 "지나갈" 때 월급 팝업 (도착 칸이면 resolveLanding 이 처리, 역주행은 없음)
-      if (!back && this.dispPos[by] === 0 && left > 1) this.playFx({ seq: 0, amount: SALARY, mul: 1, kind: 'gain' });
       if (--left <= 0) { this.clearMove(); window.setTimeout(finish, 180); }
     }, stepMs);
   }
@@ -830,7 +812,8 @@ export class BlueMarbleRenderer {
     const kind = `${p.kind}:${disc}`;
     if (this.openKind === kind && this.modalScrim) { if (p.kind === 'build') this.refreshBuildMenu(state); return; }
     this.openKind = kind;
-    if (p.kind === 'buy') this.buyOrAcquireModal(state, p.tile, false);
+    if (p.kind === 'travelOffer') this.travelOfferModal(state, p.cost);
+    else if (p.kind === 'buy') this.buyOrAcquireModal(state, p.tile, false);
     else if (p.kind === 'acquire') this.buyOrAcquireModal(state, p.tile, true);
     else if (p.kind === 'tollAsk') this.tollAskModal(p.tile, p.toll, p.card);
     else if (p.kind === 'build') this.buildMenuModal(state, p.tile);
@@ -1001,6 +984,30 @@ export class BlueMarbleRenderer {
   }
 
   /** 다른 사람 차례일 때 — 구매 카드와 같은 크기의 카드로 "OO님이 ~ 중" 표시(딤 없이 판은 계속 보이게) */
+  /**
+   * 세계여행 칸에 서서 턴이 시작됐을 때 — 갈지 말지.
+   * 가면 비용을 내고 원하는 칸으로(그게 이번 턴의 이동), 안 가면 평소처럼 주사위.
+   * 현금이 모자라면 '간다'를 잠근다.
+   */
+  private travelOfferModal(state: BMState, cost: number): void {
+    const money = state.players[this.myId]?.money ?? 0;
+    const canGo = money >= cost;
+    const scrim = document.createElement('div'); scrim.className = 'bm-scrim';
+    scrim.innerHTML = `<div class="bm-modal" style="width:300px">
+      <div class="bm-top" style="background:linear-gradient(90deg,#9cc6f2,#5b9be6)">${IC.rocket} 세계여행</div>
+      <div class="bm-body">
+        <div class="bm-ctitle">₩${cost.toLocaleString()} 내고 원하는 칸으로 갈까요?</div>
+        <div class="bm-sub">가면 이번 턴은 주사위 대신 이동해요${canGo ? '' : `<br><b style="color:#ff2d55">현금이 ₩${(cost - money).toLocaleString()} 부족해요</b>`}</div>
+        <div class="bm-btns">
+          <button class="bm-yes" id="bm-tgo" style="flex:1" ${canGo ? '' : 'disabled'}>간다</button>
+          <button class="bm-no" id="bm-tno" style="flex:1">안 간다</button>
+        </div>
+      </div></div>`;
+    this.mountScrim(scrim);
+    scrim.querySelector<HTMLButtonElement>('#bm-tgo')?.addEventListener('click', () => this.cb.onDecision(true));
+    scrim.querySelector<HTMLButtonElement>('#bm-tno')?.addEventListener('click', () => this.cb.onDecision(false));
+  }
+
   /**
    * 게임 시작 전 순서 정하기 창.
    * 좌석 순으로 전원을 늘어놓고 각자 굴린 값을 보여준다. 아직 안 굴린 사람은 흐리게,
@@ -1374,7 +1381,7 @@ const cardDesc = (id: number): string => CARDS[id]?.desc ?? '';
 const pendingLabel = (p: NonNullable<BMState['pending']>): string =>
   p.kind === 'buy' ? '구매 고민' : p.kind === 'build' ? '건설' : p.kind === 'acquire' ? '인수 고민'
   : p.kind === 'tollAsk' ? '면제권 사용 고민'
-  : p.kind === 'olympic' ? '올림픽 개최' : p.kind === 'travel' ? '세계여행'
+  : p.kind === 'olympic' ? '올림픽 개최' : p.kind === 'travel' || p.kind === 'travelOffer' ? '세계여행'
   : p.kind === 'startBuild' ? '추가 건설' : p.kind === 'bonus' || p.kind === 'bonusOffer' ? '보너스 게임'
   : p.kind === 'cardSwapMine' || p.kind === 'cardSwapTheirs' ? '도시 교환' : p.kind === 'cardQuake' ? '지진' : p.kind === 'cardBlackout' ? '정전'
   : p.kind === 'raiseFunds' ? '자금 마련' : '카드 확인';
@@ -1560,19 +1567,20 @@ function injectStyle(): void {
 /* 현금 증감 뱃지 오버레이 — 행 HTML 은 매 렌더 다시 그려지므로 뱃지는 이 밖에 얹는다 */
 .bm-pcard{position:relative;background:rgba(255,255,255,.72);border:1px solid rgba(216,199,255,.7);border-radius:14px;padding:12px;box-shadow:0 4px 14px rgba(120,80,140,.08);}
 .bm-pcard h3{margin:0 0 8px;font-size:12px;color:#8a7a8a;font-weight:800;}
-.bm-mfx{position:absolute;left:0;right:0;top:0;bottom:0;pointer-events:none;overflow:hidden;border-radius:14px;}
-.bm-mdelta{position:absolute;right:10px;padding:4px 10px;border-radius:999px;font-size:13px;font-weight:900;
+/* 카드 바깥(오른쪽)으로 빼서 현금 숫자를 가리지 않게 한다 → overflow 는 visible */
+.bm-mfx{position:absolute;left:0;right:0;top:0;bottom:0;pointer-events:none;overflow:visible;}
+.bm-mdelta{position:absolute;left:calc(100% + 10px);padding:4px 10px;border-radius:999px;font-size:13px;font-weight:900;
   font-variant-numeric:tabular-nums;white-space:nowrap;color:#fff;
   box-shadow:0 3px 10px rgba(60,40,60,.22);animation:bm-mdelta 2.2s ease-out forwards;}
 .bm-mdelta.up{background:#2f9e44;}
 .bm-mdelta.down{background:#e03131;}
-/* 팝 → 충분히 머무름(여기서 읽음) → 위로 흘리며 사라짐 */
+/* 패널 옆에서 살짝 밀려나오며 팝 → 충분히 머무름(여기서 읽음) → 위로 흘리며 사라짐 */
 @keyframes bm-mdelta{
-  0%{transform:translateY(6px) scale(.7);opacity:0;}
-  9%{transform:translateY(0) scale(1.12);opacity:1;}
-  16%{transform:translateY(0) scale(1);opacity:1;}
-  72%{transform:translateY(0) scale(1);opacity:1;}
-  100%{transform:translateY(-22px) scale(.94);opacity:0;}
+  0%{transform:translateX(-10px) scale(.7);opacity:0;}
+  9%{transform:translateX(0) scale(1.12);opacity:1;}
+  16%{transform:translateX(0) scale(1);opacity:1;}
+  72%{transform:translateX(0) scale(1);opacity:1;}
+  100%{transform:translateX(0) translateY(-22px) scale(.94);opacity:0;}
 }
 @media(prefers-reduced-motion:reduce){
   .bm-mdelta{animation:bm-mdelta-rm 2.2s linear forwards;}

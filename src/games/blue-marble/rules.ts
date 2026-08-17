@@ -203,17 +203,18 @@ export interface GoldCard {
 /**
  * 황금열쇠 20종. weight 합 = 100 이라 weight 가 곧 % 다(뽑기 확률 조정할 때 합 100 유지할 것).
  *
- * 분포: 돈 획득 24 · 돈 손실 21 · 이동 23 · 보관형 9 · 공격 14 · 올림픽 5 · 기금 4
+ * 분포: 돈 획득 24 · 돈 손실 18 · 이동 23 · 보관형 9 · 공격 14 · 올림픽 5 · 기금 7
+ * (돈 손실에서 줄인 3 을 사회복지기금으로 그대로 옮겼다 — 나간 돈이 다시 돌아올 확률을 높인 것)
  */
 export const CARDS: GoldCard[] = [
   { id: 0, title: '은행 이자', desc: '은행에서 ₩150,000 받기', icon: 'coin', effect: 'money', money: 150000, weight: 11 },
   { id: 1, title: '보너스 마블', desc: '보너스 ₩250,000 받기', icon: 'coin', effect: 'money', money: 250000, weight: 7 },
   { id: 2, title: '복권 당첨', desc: '대박! ₩1,500,000 획득', icon: 'ticket', effect: 'money', money: 1500000, weight: 2 },
   { id: 3, title: '생일 축하', desc: '다른 모두에게 각 ₩100,000 받기', icon: 'cake', effect: 'birthday', money: 100000, weight: 4 },
-  { id: 4, title: '사회복지기금', desc: '그동안 모인 벌금·세금을 전액 수령', icon: 'welfare', effect: 'welfare', weight: 4 },
-  { id: 5, title: '병원비', desc: '₩120,000 납부', icon: 'cross', effect: 'money', money: -120000, weight: 8 },
-  { id: 6, title: '속도위반 벌금', desc: '₩80,000 납부', icon: 'siren', effect: 'money', money: -80000, weight: 8 },
-  { id: 7, title: '재산세', desc: '보유 현금의 10% 납부', icon: 'coin', effect: 'proptax', weight: 5 },
+  { id: 4, title: '사회복지기금', desc: '그동안 모인 벌금·세금을 전액 수령', icon: 'welfare', effect: 'welfare', weight: 7 },
+  { id: 5, title: '병원비', desc: '₩120,000 납부', icon: 'cross', effect: 'money', money: -120000, weight: 7 },
+  { id: 6, title: '속도위반 벌금', desc: '₩80,000 납부', icon: 'siren', effect: 'money', money: -80000, weight: 7 },
+  { id: 7, title: '재산세', desc: '보유 현금의 10% 납부', icon: 'coin', effect: 'proptax', weight: 4 },
   { id: 8, title: '출발로 이동', desc: '출발로 이동하고 월급 받기', icon: 'flag', effect: 'go', weight: 4 },
   { id: 9, title: '무인도 유배', desc: '무인도로! 3턴 갇힘', icon: 'island', effect: 'jail', weight: 6 },
   { id: 10, title: '뒤로 3칸', desc: '뒤로 3칸 이동', icon: 'flag', effect: 'back3', weight: 4 },
@@ -293,6 +294,7 @@ export type Pending =
   | { kind: 'cardQuake' }                           // 지진: 부술 상대 도시 선택
   | { kind: 'cardBlackout' }                        // 정전: 마비시킬 상대 도시 선택
   | { kind: 'olympic'; free?: boolean }             // 올림픽 도착(또는 카드=free) → 내 도시 하나에 개최
+  | { kind: 'travelOffer'; cost: number }           // 세계여행 칸에 서서 턴 시작 → 갈지 말지 선택
   | { kind: 'travel' }                              // 세계여행 → 원하는 칸 선택해 이동
   | { kind: 'startBuild' }                          // 출발 정확히 멈춤 → 내 도시 하나 추가 건설
   | { kind: 'bonusOffer' }                          // 오락실: 할지/판돈(100·200·300) 선택

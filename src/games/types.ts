@@ -166,7 +166,15 @@ export interface GameModule {
    * 미구현 게임은 기존대로 "누가 나가면 게임 종료".
    */
   onPeerLeft?(peerId: string): void;
+  /**
+   * (선택) 채팅창에 `/코드` 를 친 경우. gameScreen 이 채팅으로 보내지 않고 이쪽으로만 넘긴다
+   * (채팅 로그에도 안 남음). code 는 앞의 `/` 를 뗀 소문자 문자열.
+   * 구현 안 한 게임에선 그냥 일반 채팅으로 나간다.
+   */
+  onCheatCode?(code: string): void;
 }
+/** 채팅으로 입력했을 때 게임에 전달되는 치트 코드 목록 (여기 없는 `/…` 는 그냥 채팅) */
+export const CHEAT_CODES = new Set(['showmethemoney']);
 
 /** 게임 레지스트리 엔트리 — 메타 + 실제 모듈 팩토리 */
 export interface GameEntry {
