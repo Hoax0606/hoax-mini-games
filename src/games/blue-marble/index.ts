@@ -281,11 +281,16 @@ class BlueMarbleModule implements GameModule {
     const s = this.state;
     if (s.players[by]?.bankrupt) return;
 
-    // 치트 — 차례/페이즈 상관없이 바로 적용. 로그는 안 남기고(채팅에도 안 남음)
-    // 현금 증감 뱃지로만 드러난다(돈이 늘어난 건 어차피 패널에 보이니까).
+    // 치트 — 차례/페이즈 상관없이 바로 적용. 로그도 뱃지도 없이 조용히 올린다.
+    // diffMoney 가 스냅샷 대비 증감으로 뱃지를 띄우므로, 스냅샷도 같이 올려서
+    // 이번 변화를 "이미 반영된 것"으로 만들어 +₩ 뱃지가 안 뜨게 한다.
     if (action.kind === 'cheatMoney') {
       const p = s.players[by];
-      if (p) { p.money += CHEAT_MONEY; this.afterChange(); }
+      if (p) {
+        p.money += CHEAT_MONEY;
+        this.moneySnap[by] = p.money;
+        this.afterChange();
+      }
       return;
     }
 
