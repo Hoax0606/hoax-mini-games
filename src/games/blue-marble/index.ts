@@ -789,7 +789,7 @@ class BlueMarbleModule implements GameModule {
     } else if (t.type === 'corner') {
       if (t.kind === 'start') {
         // 출발에 "도착"(딱 멈춤/세계여행) → 월급 + 추가 건설 기회
-        p.money += SALARY; s.log = '출발 도착! 월급';
+        p.money += SALARY; s.log = `출발 도착! 월급 ₩${SALARY.toLocaleString()}`;
         s.fx = { seq: (s.fx?.seq ?? 0) + 1, amount: SALARY, mul: 1, kind: 'gain' };
         if (this.hasBuildableCity(peer)) { s.pending = { kind: 'startBuild' }; this.render(); return; }
       }
@@ -892,7 +892,7 @@ class BlueMarbleModule implements GameModule {
           return;
         }
         p.money += c.money!; gain(c.money!);
-        s.log = `${c.title}`; this.endStep(peer); return;
+        s.log = c.title; this.endStep(peer); return;
       case 'birthday': {
         // 나 빼고 전원이 각 c.money 씩 낸다. 현금이 모자란 사람은 한 명씩 땅 팔기 창을 거친다.
         s.log = `생일 축하 · 모두에게 ₩${c.money!.toLocaleString()}씩`;
@@ -1015,7 +1015,7 @@ class BlueMarbleModule implements GameModule {
         this.render(); return true;
       }
       this.pay(peer, owner, toll);
-      s.log = `${t.name} 통행료 ${toll.toLocaleString()} → ${s.players[owner]!.nickname}`;
+      s.log = `${t.name} 통행료 ₩${toll.toLocaleString()} → ${s.players[owner]!.nickname}`;
       // 타격감 연출용 (배수 클수록 강하게)
       if (toll > 0) s.fx = { seq: (s.fx?.seq ?? 0) + 1, amount: toll, mul: info.base > 0 ? Math.round(info.total / info.base) : 1, kind: 'toll', from: peer, to: owner };
     }

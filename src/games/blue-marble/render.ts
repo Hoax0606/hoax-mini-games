@@ -6,8 +6,8 @@
  */
 
 import {
-  BOARD, BUILD_TYPES, ISLAND_TILES, BASE_TOLL_MUL, DESERT_ESCAPE,
-  buildMeta, buildCostOf, acquireCost, sellRefund, islandCount, seaIslandCount, hasAllHouses, canBuild, CARDS,
+  BOARD, BUILD_TYPES, BASE_TOLL_MUL, DESERT_ESCAPE,
+  buildMeta, buildCostOf, acquireCost, sellRefund, seaIslandCount, hasAllHouses, canBuild, CARDS,
   colorMonopolyMul, ownsGroup, tollBreakdown, totalAssets, estateValue,
   type BMState, type BuildKind, type GroupColor,
 } from './rules';
@@ -79,13 +79,6 @@ const IC: Record<string, string> = {
   arrow: '<svg viewBox="0 0 24 24"><path d="M5 12 H17 M13 8 L17 12 L13 16" stroke="#9a8a9a" stroke-width="2.3" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>',
   welfare: '<svg viewBox="0 0 24 24"><path d="M12 9.2 C10.6 6.6 6.8 7.2 6.8 10.3 C6.8 12.6 9.4 14.3 12 16.2 C14.6 14.3 17.2 12.6 17.2 10.3 C17.2 7.2 13.4 6.6 12 9.2 Z" fill="#ff7aa5" stroke="#e0558a" stroke-width="0.9" stroke-linejoin="round"/><path d="M4 17.5 C6.5 20.5 17.5 20.5 20 17.5" stroke="#f2c94c" stroke-width="2.4" fill="none" stroke-linecap="round"/></svg>',
 };
-/** 특수/코너 칸 → 아이콘 키 */
-function tileIcon(i: number): string {
-  const t = BOARD[i];
-  if (t.type === 'corner') return { start: 'flag', desert: 'sos', olympic: 'rings', space: 'rocket' }[t.kind];
-  if (t.type === 'special') return t.kind === 'goldkey' ? 'key' : t.kind === 'tax' ? 'coin' : 'music';
-  return '';
-}
 /** 카드 id → 아이콘 키 */
 const cardIcon = (id: number): string => IC[CARDS[id]?.icon ?? 'coin'] ?? IC.coin!;
 
@@ -648,8 +641,8 @@ export class BlueMarbleRenderer {
     turnEl.innerHTML = state.phase === 'order'
       ? `<b style="background:#b89aff">순서 정하기</b>`
       : `<b style="background:${colorOf(state, cur)}">${isMine ? '내 차례' : curP.nickname + ' 차례'}</b>`;
-    // state.log 는 여태 어디서도 안 그려졌다 → '더블! 한 번 더', '더블 3연속 → 무인도!' 같은
-    // 규칙 안내가 전부 안 보여서 왜 그렇게 됐는지 알 수 없었음. 판 중앙에 한 줄로 노출.
+    // 진행 안내 한 줄. 더블! 한 번 더 / 더블 3연속 → 무인도 같은 규칙 판정은 모달로 안 뜨는 게 많아서,
+    // 이 줄이 없으면 왜 그렇게 됐는지 알 수가 없다. state.log 를 세팅하는 곳이 곧 안내 문구.
     const logEl = this.root.querySelector<HTMLElement>('#bm-log')!;
     logEl.textContent = state.log;
     const roll = this.root.querySelector<HTMLButtonElement>('#bm-roll')!;
@@ -817,7 +810,7 @@ export class BlueMarbleRenderer {
     else if (p.kind === 'acquire') this.buyOrAcquireModal(state, p.tile, true);
     else if (p.kind === 'tollAsk') this.tollAskModal(p.tile, p.toll, p.card);
     else if (p.kind === 'build') this.buildMenuModal(state, p.tile);
-    else if (p.kind === 'card') this.cardModal(state, p.card);
+    else if (p.kind === 'card') this.cardModal(p.card);
   }
 
   /** 세금 등 이벤트 창 — 모두에게 표시. 밟은 사람만 확인 버튼, 나머지는 대기 */
@@ -1131,7 +1124,7 @@ export class BlueMarbleRenderer {
       const label = p.kind === 'acquire' ? '인수' : p.kind === 'build' ? '건설' : p.kind === 'tollAsk' ? '통행료'
         : (BOARD[tile].type === 'island' ? '섬 구매' : '도시 구매');
       head = `<div class="bm-top" style="background:${tileColor(tile)}">${label}</div>`;
-      body = `<div class="bm-body">${deedHTML(state, tile)}${foot}</div>`;
+      body = `<div class="bm-body">${deedHTML(tile)}${foot}</div>`;
     } else {
       // 올림픽/세계여행/추가건설/보너스 — 타일 없는 행동
       head = `<div class="bm-top" style="background:linear-gradient(90deg,#b89aff,#8a5fd0)">${pendingLabel(p)}</div>`;
@@ -1162,7 +1155,7 @@ export class BlueMarbleRenderer {
     const cost = isAcquire ? acquireCost(state, tile) : (BOARD[tile] as { price: number }).price;
     const scrim = document.createElement('div'); scrim.className = 'bm-scrim';
     scrim.innerHTML = `<div class="bm-modal"><div class="bm-top" style="background:${tileColor(tile)}">${isAcquire ? '인수' : (BOARD[tile].type === 'island' ? '섬 구매' : '도시 구매')}</div>
-      <div class="bm-body">${deedHTML(state, tile)}
+      <div class="bm-body">${deedHTML(tile)}
         <div class="bm-mrow"><span>${isAcquire ? '인수 비용' : '가격'}</span><b>${won(cost)}</b></div>
         <div class="bm-btns"><button class="bm-yes">${isAcquire ? '인수' : '구매'}</button><button class="bm-no">패스</button></div>
       </div></div>`;
@@ -1256,7 +1249,7 @@ export class BlueMarbleRenderer {
     };
   }
 
-  private cardModal(state: BMState, cardId: number): void {
+  private cardModal(cardId: number): void {
     this.closeModal();
     // 뽑은 즉발 카드는 전부 즉시 사용 — 보관 옵션 없음(보관형 카드는 애초에 뽑는 즉시 자동 저장됨)
     const scrim = document.createElement('div'); scrim.className = 'bm-scrim';
@@ -1372,7 +1365,7 @@ function tokenSvg(color: string, dark: string): string {
     <ellipse cx="10.1" cy="4.5" rx="1.5" ry="1" fill="rgba(255,255,255,.6)"/>
   </svg>`;
 }
-function deedHTML(state: BMState, tile: number): string {
+function deedHTML(tile: number): string {
   const t = BOARD[tile] as { name: string; price: number };
   const info = BOARD[tile].type === 'island'
     ? `섬 · 보유 개수만큼 통행료 ↑ · 인수 불가`
@@ -1491,7 +1484,6 @@ function injectStyle(): void {
 .bm-cardtoast{position:absolute;top:32%;left:50%;transform:translate(-50%,-50%);z-index:60;pointer-events:none;
   background:rgba(74,58,74,.94);color:#fff;font-size:15px;font-weight:800;padding:11px 22px;border-radius:14px;
   box-shadow:0 12px 30px rgba(0,0,0,.3);animation:bm-fxnum 1.4s cubic-bezier(.2,1.3,.4,1) forwards;}
-.bm-fxnum.jackpot{color:#ffab1c;text-shadow:0 0 18px rgba(255,171,28,.7),0 3px 10px rgba(0,0,0,.3);}
 /* 동작 최소화 — 흔들림·비행·파편 등 전정계 자극 애니를 정적/페이드로 대체 */
 @media(prefers-reduced-motion:reduce){
   .bm-plane{transition:none;}
