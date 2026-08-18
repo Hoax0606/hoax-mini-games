@@ -356,8 +356,6 @@ export interface BMState {
   debtQueue: Array<{ from: string; to: string | null; amount: number; toFund: boolean }>;
   /** 승자 peerId (phase==='ended') */
   winnerPeerId: string | null;
-  /** UI 안내 문구 */
-  log: string;
   /** 타격감/획득 연출용 (seq가 바뀌면 렌더러가 1회 재생). kind: toll=통행료, gain=획득, bankrupt=파산. from=낸사람, to=받는사람 */
   fx: { seq: number; amount: number; mul: number; kind: 'toll' | 'gain' | 'bankrupt'; from?: string; to?: string; nick?: string } | null;
   /** 세계여행 비행기 애니 (seq 바뀌면 from→to 비행 재생) */
@@ -548,6 +546,6 @@ export function createInitialState(players: Array<{ peerId: string; nickname: st
     turnIdx: 0, dice: null, doubles: 0, noExtraRoll: false, pending: null, fund: 0,
     olympic: {}, beachVisits: {}, blackout: {},
     phase: 'order', orderRolls: {}, orderDice: {}, orderPending: order.slice(), orderLast: null, debtQueue: [],
-    winnerPeerId: null, log: '', fx: null, travelFx: null, cardFx: null, moneyFx: null,
+    winnerPeerId: null, fx: null, travelFx: null, cardFx: null, moneyFx: null,
   };
 }

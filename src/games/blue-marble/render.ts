@@ -249,7 +249,6 @@ export class BlueMarbleRenderer {
       <div class="bm-dice"><div class="bm-die" id="bm-d1">${diceFace(1)}</div><div class="bm-die" id="bm-d2">${diceFace(1)}</div></div>
       <div class="bm-diceres" id="bm-diceres"></div>
       <div class="bm-turn" id="bm-turn"></div>
-      <div class="bm-log" id="bm-log"></div>
       <button class="bm-roll" id="bm-roll">${IC.dice} 주사위 굴리기</button>
       <button class="bm-escape" id="bm-escape" style="display:none"></button>
       <button class="bm-sellbtn" id="bm-sell" style="display:none">🏷️ 내 땅 팔기</button>
@@ -641,10 +640,6 @@ export class BlueMarbleRenderer {
     turnEl.innerHTML = state.phase === 'order'
       ? `<b style="background:#b89aff">순서 정하기</b>`
       : `<b style="background:${colorOf(state, cur)}">${isMine ? '내 차례' : curP.nickname + ' 차례'}</b>`;
-    // 진행 안내 한 줄. 더블! 한 번 더 / 더블 3연속 → 무인도 같은 규칙 판정은 모달로 안 뜨는 게 많아서,
-    // 이 줄이 없으면 왜 그렇게 됐는지 알 수가 없다. state.log 를 세팅하는 곳이 곧 안내 문구.
-    const logEl = this.root.querySelector<HTMLElement>('#bm-log')!;
-    logEl.textContent = state.log;
     const roll = this.root.querySelector<HTMLButtonElement>('#bm-roll')!;
     const canAct = isMine && !state.pending && state.phase === 'playing';
     roll.disabled = !canAct;
@@ -1519,9 +1514,6 @@ function injectStyle(): void {
 .bm-ddbl{font-size:14px;font-weight:900;color:#fff;background:linear-gradient(135deg,#ff8ab0,#ff5a92);border-radius:999px;padding:4px 12px;box-shadow:0 4px 12px rgba(255,90,146,.38);animation:bm-dblpop .5s ease;}
 @keyframes bm-dblpop{0%{transform:scale(.5) rotate(-8deg);}60%{transform:scale(1.18) rotate(4deg);}100%{transform:scale(1) rotate(0);}}
 .bm-turn{font-size:14px;font-weight:800;} .bm-turn b{padding:1px 10px;border-radius:999px;color:#fff;}
-/* 진행 안내(state.log) — 방금 무슨 일이 일어났는지 한 줄 */
-.bm-log{max-width:min(90%,340px);min-height:17px;font-size:12px;font-weight:700;line-height:1.35;color:#8a7a8a;text-align:center;
-  display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden;}
 .bm-roll{font:inherit;font-weight:800;font-size:14px;color:#fff;background:#ff5a92;border:none;border-radius:999px;padding:9px 20px;cursor:pointer;box-shadow:0 6px 16px rgba(255,90,146,.32);display:flex;align-items:center;gap:5px;}
 .bm-roll svg{width:18px;height:18px;} .bm-roll:disabled{opacity:.45;cursor:default;}
 .bm-escape{font:inherit;font-weight:800;font-size:13px;color:#7a5a10;background:linear-gradient(135deg,#ffe7a0,#ffcf4a);border:none;border-radius:999px;padding:8px 18px;cursor:pointer;box-shadow:0 5px 14px rgba(200,150,30,.32);align-items:center;justify-content:center;}

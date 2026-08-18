@@ -86,7 +86,6 @@ class BlueMarbleModule implements GameModule {
       if (players.length === 1) players.push({ peerId: DUMMY, nickname: '연습 상대' });
       this.state = createInitialState(players);
       this.seatOrder = this.state.order.slice();
-      this.state.log = '주사위를 굴려 순서를 정해요';
       // 순서 정하기 진행 감시(안 굴리는 사람 대신 굴리기 + 더미 자동)
       this.orderTimer = window.setInterval(() => this.tickOrderPhase(), 500);
       this.afterChange();
@@ -317,7 +316,6 @@ class BlueMarbleModule implements GameModule {
       const p = s.players[by]!;
       if (!s.pending && p.desertLeft > 0 && p.money >= DESERT_ESCAPE) {
         p.money -= DESERT_ESCAPE; p.desertLeft = 0;
-        s.log = `${p.nickname} ₩${DESERT_ESCAPE.toLocaleString()} 내고 무인도 탈출!`;
       }
       this.afterChange(); return;
     }
@@ -345,9 +343,7 @@ class BlueMarbleModule implements GameModule {
         if (action.accept && s.players[by]!.money >= cost) {
           this.pay(by, null, cost);
           s.pending = { kind: 'travel' };
-          s.log = `세계여행 ₩${cost.toLocaleString()} 지불 — 원하는 칸을 고르세요`;
         } else {
-          s.log = '세계여행 안 가기 — 주사위를 굴리세요';
         }
       }
       else if (s.pending?.kind === 'tollAsk') {
@@ -403,7 +399,7 @@ class BlueMarbleModule implements GameModule {
         const mine = s.pending.mine, their = action.tile, from = s.owner[their];
         if (from !== undefined && from !== by && BOARD[their].type === 'city') {
           s.owner[mine] = from; s.owner[their] = by;
-          s.log = `${BOARD[mine].name} ↔ ${BOARD[their].name} 교환!`; sound.play('pop');
+          sound.play('pop');
           this.cardFxEvt('swap', { tile: mine, tile2: their });
         }
         s.pending = null; this.checkMonopolyWin(by); if (!this.ended) this.endStep(by);
@@ -411,12 +407,12 @@ class BlueMarbleModule implements GameModule {
         const tile = action.tile, arr = s.builds[tile];
         if (s.owner[tile] !== undefined && s.owner[tile] !== by && arr && arr.length) {
           const top = (['landmark', 'apt', 'house2', 'villa'] as BuildKind[]).find((k) => arr.includes(k));
-          if (top) { arr.splice(arr.indexOf(top), 1); s.log = `${BOARD[tile].name} 건물 1단계 파괴!`; sound.play('pop'); this.cardFxEvt('quake', { tile }); }
+          if (top) { arr.splice(arr.indexOf(top), 1); sound.play('pop'); this.cardFxEvt('quake', { tile }); }
         }
         s.pending = null; this.endStep(by);
       } else if (s.pending?.kind === 'cardBlackout') {
         const tile = action.tile;
-        if (s.owner[tile] !== undefined && s.owner[tile] !== by && BOARD[tile].type === 'city') { s.blackout[tile] = 3; s.log = `${BOARD[tile].name} 정전! 3턴 통행료 0`; sound.play('pop'); }
+        if (s.owner[tile] !== undefined && s.owner[tile] !== by && BOARD[tile].type === 'city') { s.blackout[tile] = 3; sound.play('pop'); }
         s.pending = null; this.endStep(by);
       }
     } else if (action.kind === 'travelTo') {
@@ -444,7 +440,6 @@ class BlueMarbleModule implements GameModule {
         if (stake > 0 && s.players[by]!.money >= stake) {
           s.players[by]!.money -= stake;
           s.pending = { kind: 'bonus', stake, round: 0, pot: stake };
-          s.log = `보너스 게임 시작! 판돈 ₩${stake.toLocaleString()}`;
         } else { s.pending = null; this.endStep(by); }   // 안 함
       }
     } else if (action.kind === 'bonusPick') {
@@ -457,10 +452,8 @@ class BlueMarbleModule implements GameModule {
         // 세금 낼 돈 부족 + 팔 땅 있으면 → 마련 페이즈, 아니면 납부(파산 가능)
         if (s.players[by]!.money < ev.amount && this.hasSellable(by)) {
           s.pending = { kind: 'raiseFunds', debtor: by, to: null, amount: ev.amount, toFund: true };
-          s.log = `세금 ₩${ev.amount.toLocaleString()} — 낼 현금이 부족해요. 땅을 파세요`;
         } else {
           this.pay(by, null, ev.amount, true);   // 세금 → 사회복지기금 적립
-          s.log = `${BOARD[ev.tile].name} · ₩${ev.amount.toLocaleString()} 납부`;
           this.endStep(by);
         }
       }
@@ -524,7 +517,6 @@ class BlueMarbleModule implements GameModule {
     (s.orderRolls[peer] ??= []).push(dice[0] + dice[1]);
     (s.orderDice[peer] ??= []).push(dice);
     s.orderLast = { seq: (s.orderLast?.seq ?? 0) + 1, peer, dice };
-    s.log = `${s.players[peer]!.nickname} · ${dice[0]}+${dice[1]} = ${dice[0] + dice[1]}`;
     sound.play('pop');
     if (s.orderPending.length === 0) this.finishOrderRound();
     this.afterChange();
@@ -537,12 +529,10 @@ class BlueMarbleModule implements GameModule {
     const round = Math.max(...Object.values(s.orderRolls).map((a) => a.length), 1);
     if (tied.length > 0 && round < ORDER_MAX_ROUNDS) {
       s.orderPending = this.seatOrder.filter((p) => tied.includes(p));   // 좌석 순으로 재굴림
-      s.log = `동점! ${tied.map((p) => s.players[p]!.nickname).join(' · ')} 다시 굴리기`;
       return;
     }
     s.order = sorted;
     s.turnIdx = 0;
-    s.log = `${s.players[sorted[0]!]!.nickname}님 먼저!`;
     // 결과를 잠깐 보여준 뒤 시작 (바로 넘기면 누가 몇 나왔는지 못 봄)
     this.orderStartTimer = window.setTimeout(() => {
       this.orderStartTimer = null;
@@ -602,7 +592,6 @@ class BlueMarbleModule implements GameModule {
       if (!p || p.bankrupt || d.amount <= 0) { s.debtQueue.shift(); continue; }
       if (p.money < d.amount && this.hasSellable(d.from)) {
         s.pending = { kind: 'raiseFunds', debtor: d.from, to: d.to, amount: d.amount, toFund: d.toFund };
-        s.log = `${p.nickname} · ₩${d.amount.toLocaleString()} 낼 현금이 부족해요. 땅을 파세요`;
         this.render();
         return false;
       }
@@ -621,7 +610,6 @@ class BlueMarbleModule implements GameModule {
     delete s.owner[tile];
     delete s.builds[tile];
     delete s.olympic[tile];
-    s.log = `${BOARD[tile].name} 판매 → ₩${refund.toLocaleString()} 회수`;
     sound.play('pop');
   }
   private cityBuildable(peer: string, tile: number): boolean {
@@ -637,31 +625,28 @@ class BlueMarbleModule implements GameModule {
     // 같은 도시를 다시 고르면 배수가 2배씩 뛴다(×2→×4→×8→×16→×32 상한).
     const next = Math.min(OLYMPIC_MAX_MUL, (s.olympic[tile] ?? 1) * 2);
     s.olympic = { [tile]: next };
-    s.log = `${BOARD[tile].name} 올림픽 개최 ×${next}! (이전 개최지는 해제)`;
     sound.play('pop');
   }
   private doBonusPick(peer: string, choice: number): void {
     const s = this.state; const pend = s.pending; if (pend?.kind !== 'bonus') return;
     const win = Math.floor(Math.random() * 2) === (choice & 1);
     if (!win) {
-      s.log = `보너스 실패… 판돈 ₩${pend.stake.toLocaleString()} 소멸`;
       this.bonusResult(peer, `실패… 판돈 ₩${pend.stake.toLocaleString()} 날림`);
       return;
     }
     const pot = pend.pot * 2; const round = pend.round + 1;
     if (round >= 3) {   // 8배 달성 → 자동 지급
-      s.players[peer]!.money += pot; s.log = `보너스 게임 8배! ₩${pot.toLocaleString()} 획득`;
+      s.players[peer]!.money += pot; 
       s.fx = { seq: (s.fx?.seq ?? 0) + 1, amount: pot, mul: 1, kind: 'gain', to: peer };
       this.bonusResult(peer, `8배 성공!! ₩${pot.toLocaleString()} 획득`);
       return;
     }
     s.pending = { kind: 'bonus', stake: pend.stake, round, pot };
-    s.log = `보너스 성공! 누적 ₩${pot.toLocaleString()}`;
     sound.play('pop');
   }
   private doBonusStop(peer: string): void {
     const s = this.state; const pend = s.pending; if (pend?.kind !== 'bonus') return;
-    s.players[peer]!.money += pend.pot; s.log = `보너스 게임 ₩${pend.pot.toLocaleString()} 획득`;
+    s.players[peer]!.money += pend.pot; 
     s.fx = { seq: (s.fx?.seq ?? 0) + 1, amount: pend.pot, mul: 1, kind: 'gain', to: peer };
     this.bonusResult(peer, `₩${pend.pot.toLocaleString()} 받고 종료`);
   }
@@ -682,11 +667,11 @@ class BlueMarbleModule implements GameModule {
 
     if (p.desertLeft > 0) {
       if (a === b) {
-        p.desertLeft = 0; s.log = `${p.nickname} · ${a}+${b} 더블! 무인도 탈출!`;
+        p.desertLeft = 0; 
         s.noExtraRoll = true;   // 탈출용 더블 → 한 번 더는 없음
         this.move(peer, a + b); this.sync(); this.render(); this.resolveLanding(peer);
       } else {
-        p.desertLeft -= 1; s.doubles = 0; s.log = `${p.nickname} · ${a}+${b} — 탈출 실패 (${p.desertLeft}턴 남음)`;
+        p.desertLeft -= 1; s.doubles = 0; 
         this.sync(); this.render();   // 주사위 스핀/결과를 먼저 보여준 뒤 턴 넘김
         this.advanceTurn();
       }
@@ -699,13 +684,11 @@ class BlueMarbleModule implements GameModule {
       // 예전엔 desertLeft 만 세워서 말이 원래 칸(예: 방콕)에 남고 상태만 무인도가 됐다.
       // 무인도 유배 카드처럼 실제로 무인도 칸까지 옮겨야 "왜 여기서 무인도?"가 안 생긴다.
       s.pos[peer] = DESERT_TILE;
-      s.log = `${p.nickname} 더블 3연속 → 무인도!`;
       // advanceTurn 이 dice 를 지워버리므로, 3번째 더블 주사위와 끌려가는 이동을 먼저 보여준다
       this.sync(); this.render();
       this.advanceTurn();
       return;
     }
-    s.log = `${p.nickname} · ${a}+${b}=${a + b}`;
     this.move(peer, a + b);
     this.sync(); this.render();  // 이동 애니 트리거(dice 살아있을 때) — 통행료/세금 등 결정 없는 착지도 말이 움직이게
     this.resolveLanding(peer);
@@ -740,7 +723,6 @@ class BlueMarbleModule implements GameModule {
         if (p.money >= t.price) { s.pending = { kind: 'buy', tile: i }; this.render(); return; }
         // 살 돈이 없으면 잠깐 안내 후 자동으로 턴 넘김 (info pending — 전원에게 보임).
         // 누가 못 샀는지 알 수 있게 닉네임과 금액을 같이 넣는다.
-        s.log = `${p.nickname} · ${t.name} 살 현금이 부족해요`;
         s.pending = { kind: 'info', tile: i,
           text: `${p.nickname}님 현금 부족 — ₩${t.price.toLocaleString()} 필요 (현재 ₩${p.money.toLocaleString()})` };
         this.render(); return;
@@ -756,7 +738,6 @@ class BlueMarbleModule implements GameModule {
           const card = this.heldTollExemptId(peer);
           if (card !== null) {
             s.pending = { kind: 'tollAsk', tile: i, toll: info.total, to: o, card };
-            s.log = `${t.name} 통행료 ₩${info.total.toLocaleString()} — 면제권을 쓸까요?`;
             this.render(); return;
           }
         }
@@ -768,7 +749,6 @@ class BlueMarbleModule implements GameModule {
         // 보관형 카드(무인도 탈출권 등)는 즉시 쓸 수 없으니 자동으로 보관함에 저장
         if (CARDS[card]!.keep) {
           (s.held[peer] ??= []).push(card);
-          s.log = `황금열쇠 · ${CARDS[card]!.title} — 보관함에 저장`;
           s.pending = { kind: 'info', tile: i, text: `${CARDS[card]!.title} 보관!` };
           this.render(); return;
         }
@@ -782,28 +762,26 @@ class BlueMarbleModule implements GameModule {
       else if (t.kind === 'bonus') {
         // 오락실: 할지/판돈 선택 (최소 판돈 있으면)
         if (p.money >= BONUS_STAKE) { s.pending = { kind: 'bonusOffer' }; this.render(); return; }
-        s.log = '보너스 게임 — 판돈이 부족해요';
         s.pending = { kind: 'info', tile: i, text: `최소 판돈 ₩${BONUS_STAKE.toLocaleString()} 부족 — 못 해요` };
         this.render(); return;
       }
     } else if (t.type === 'corner') {
       if (t.kind === 'start') {
         // 출발에 "도착"(딱 멈춤/세계여행) → 월급 + 추가 건설 기회
-        p.money += SALARY; s.log = `출발 도착! 월급 ₩${SALARY.toLocaleString()}`;
+        p.money += SALARY; 
         s.fx = { seq: (s.fx?.seq ?? 0) + 1, amount: SALARY, mul: 1, kind: 'gain' };
         if (this.hasBuildableCity(peer)) { s.pending = { kind: 'startBuild' }; this.render(); return; }
       }
       else if (t.kind === 'olympic') {
         // 올림픽 개최 — 내 도시 하나에 개최(통행료 배수 누적). 도시 없으면 스킵
         if (this.ownedCities(peer).length) { s.pending = { kind: 'olympic' }; this.render(); return; }
-        s.log = '올림픽 — 개최할 내 도시가 없어요';
+        this.cardFxEvt('toast', { text: '올림픽 — 개최할 내 도시가 없어요' });
       }
-      else if (t.kind === 'desert') { this.toDesert(peer); s.log = `${p.nickname} 무인도에 갇힘`; }
+      else if (t.kind === 'desert') { this.toDesert(peer); }
       else if (t.kind === 'space') {
         // 세계여행 — 도착만으로는 아무 일도 안 일어난다. 비용을 낼지 말지는
         // **다음 내 턴이 시작될 때** 물어본다(advanceTurn → travelOffer).
         // 밟자마자 돈이 빠져나가면 "가고 싶지도 않은데 3만원 뜯겼다"가 되므로.
-        s.log = `세계여행 — 다음 내 턴에 갈지 정해요 (₩${TRAVEL_COST.toLocaleString()})`;
       }
     }
     this.endStep(peer);
@@ -814,7 +792,7 @@ class BlueMarbleModule implements GameModule {
     const s = this.state;
     if (this.ended) return;
     const dbl = s.dice && s.dice[0] === s.dice[1];
-    if (dbl && !s.noExtraRoll && !s.players[peer]!.bankrupt && s.players[peer]!.desertLeft === 0) { s.dice = null; s.log += ' · 더블! 한 번 더'; }
+    if (dbl && !s.noExtraRoll && !s.players[peer]!.bankrupt && s.players[peer]!.desertLeft === 0) { s.dice = null; }
     else this.advanceTurn();
   }
 
@@ -868,7 +846,6 @@ class BlueMarbleModule implements GameModule {
     if (!reason) return;
     s.phase = 'ended';
     s.winnerPeerId = peer;
-    s.log = `${s.players[peer]!.nickname} · ${reason} 달성 — 승리!`;
     this.finishGame();
   }
   /** 뽑은 즉발 카드 적용 (이동 카드는 내부에서 resolveLanding, 그 외엔 endStep) */
@@ -886,16 +863,15 @@ class BlueMarbleModule implements GameModule {
         // 금액이 음수인 money 카드 = 병원비·속도위반 벌금 → 기금 적립 + 현금 부족하면 땅 팔 기회
         if ((c.money ?? 0) < 0) {
           const owe = -c.money!;
-          s.log = c.title; loss(owe);
+          loss(owe);
           s.debtQueue = [{ from: peer, to: null, amount: owe, toFund: true }];
           if (this.processDebts()) this.endStep(peer);
           return;
         }
         p.money += c.money!; gain(c.money!);
-        s.log = c.title; this.endStep(peer); return;
+        this.endStep(peer); return;
       case 'birthday': {
         // 나 빼고 전원이 각 c.money 씩 낸다. 현금이 모자란 사람은 한 명씩 땅 팔기 창을 거친다.
-        s.log = `생일 축하 · 모두에게 ₩${c.money!.toLocaleString()}씩`;
         s.debtQueue = alivePeers(s).filter((o) => o !== peer)
           .map((o) => ({ from: o, to: peer, amount: c.money!, toFund: false }));
         if (this.processDebts()) this.endStep(peer);
@@ -904,47 +880,44 @@ class BlueMarbleModule implements GameModule {
       case 'proptax': {
         // 현금의 10% 라 정의상 항상 낼 수 있음 — 땅 팔 일 없음
         const tax = Math.floor(p.money * 0.1); this.pay(peer, null, tax, true); loss(tax);
-        s.log = `재산세 ₩${tax.toLocaleString()} 납부`; this.endStep(peer); return;
+        this.endStep(peer); return;
       }
       case 'go': this.cardMove(peer, 0); this.resolveLanding(peer); return;        // 출발 corner에서 월급 지급
-      case 'jail': { const from = s.pos[peer]!; this.toDesert(peer); s.pos[peer] = DESERT_TILE; this.setCardFly(peer, from, DESERT_TILE); s.log = '무인도 유배!'; this.endStep(peer); return; }
+      case 'jail': { const from = s.pos[peer]!; this.toDesert(peer); s.pos[peer] = DESERT_TILE; this.setCardFly(peer, from, DESERT_TILE); this.endStep(peer); return; }
       case 'back3': this.cardMove(peer, ((s.pos[peer]! - 3) % BOARD.length + BOARD.length) % BOARD.length, true); this.resolveLanding(peer); return;
       case 'topcity': this.cardMove(peer, topTollTile(s, peer)); this.resolveLanding(peer); return;
       case 'seoul': this.cardMove(peer, SEOUL_TILE); this.resolveLanding(peer); return;
       case 'welfare': {
         const amt = s.fund;
         if (amt <= 0) {
-          s.log = '사회복지기금 — 아직 모인 돈이 없어요';
           this.cardFxEvt('toast', { text: '모인 기금이 없어요' });
         } else {
           s.fund = 0; p.money += amt; gain(amt);
-          s.log = `사회복지기금 ₩${amt.toLocaleString()} 전액 수령!`;
         }
         this.endStep(peer); return;
       }
       case 'swap':
         if (this.ownedCities(peer).length && this.opponentCities(peer).length) s.pending = { kind: 'cardSwapMine' };
-        else { s.log = '교환할 도시가 없어요'; this.endStep(peer); }
+        else { this.cardFxEvt('toast', { text: '교환할 도시가 없어요' }); this.endStep(peer); }
         return;
       case 'quake':
         if (this.opponentCities(peer).some((i) => (s.builds[i]?.length ?? 0) > 0)) s.pending = { kind: 'cardQuake' };
-        else { s.log = '부술 상대 건물이 없어요'; this.endStep(peer); }
+        else { this.cardFxEvt('toast', { text: '부술 상대 건물이 없어요' }); this.endStep(peer); }
         return;
       case 'blackout':
         if (this.opponentCities(peer).length) s.pending = { kind: 'cardBlackout' };
-        else { s.log = '정전시킬 상대 도시가 없어요'; this.endStep(peer); }
+        else { this.cardFxEvt('toast', { text: '정전시킬 상대 도시가 없어요' }); this.endStep(peer); }
         return;
       case 'olympicGrant':
         // 올림픽 개최 — 즉발. 내 도시 하나에 개최(통행료 배수), 없으면 스킵
         if (this.ownedCities(peer).length) s.pending = { kind: 'olympic' };
-        else { s.log = '개최할 내 도시가 없어요'; this.endStep(peer); }
+        else { this.cardFxEvt('toast', { text: '개최할 내 도시가 없어요' }); this.endStep(peer); }
         return;
       case 'travel':
         // 세계여행 카드 — 즉시 세계여행 칸으로 이동, 건물 없이 턴 종료
         // (세계여행 칸에 도착했으니 다음 턴에 원하는 칸으로 이동 준비. 카드라 비용 없음)
         this.cardMove(peer, SPACE_TILE);
         p.travelReady = true;
-        s.log = '세계여행권! 세계여행으로 이동 — 다음 턴 원하는 칸으로';
         this.endStep(peer);
         return;
       default: this.endStep(peer); return;   // (보관형은 이 경로로 안 옴)
@@ -981,10 +954,10 @@ class BlueMarbleModule implements GameModule {
     const idx = arr.indexOf(cardId); if (idx < 0) return;
     const c = CARDS[cardId]!; const p = s.players[peer]!;
     // 사용 조건 검사 (조건 안 맞으면 카드 소모 없이 안내만)
-    if (c.effect === 'jailFree' && p.desertLeft === 0) { s.log = '무인도에 있을 때만 쓸 수 있어요'; return; }
+    if (c.effect === 'jailFree' && p.desertLeft === 0) { return; }
     arr.splice(idx, 1);
     switch (c.effect) {
-      case 'jailFree': p.desertLeft = 0; s.log = '무인도 탈출권 사용!'; this.cardFxEvt('toast', { text: '무인도 탈출!' }); break;
+      case 'jailFree': p.desertLeft = 0; this.cardFxEvt('toast', { text: '무인도 탈출!' }); break;
       default: break;
     }
   }
@@ -1004,18 +977,15 @@ class BlueMarbleModule implements GameModule {
     const s = this.state; const p = s.players[peer]!; const t = BOARD[tile];
     const toll = info.total;
     if (exempt) {
-      s.log = `${t.name} 통행료 ₩${toll.toLocaleString()} — 면제권으로 0원!`;
       this.cardFxEvt('toast', { text: '통행료 면제권 사용! 통행료 0' });
       sound.play('pop');
     } else {
       // 낼 돈 부족 + 팔 땅 있으면 → 자금 마련 페이즈(파산 대신 땅 팔 기회)
       if (toll > 0 && p.money < toll && this.hasSellable(peer)) {
         s.pending = { kind: 'raiseFunds', debtor: peer, to: owner, amount: toll, toFund: false };
-        s.log = `${t.name} 통행료 ₩${toll.toLocaleString()} — 낼 현금이 부족해요. 땅을 파세요`;
         this.render(); return true;
       }
       this.pay(peer, owner, toll);
-      s.log = `${t.name} 통행료 ₩${toll.toLocaleString()} → ${s.players[owner]!.nickname}`;
       // 타격감 연출용 (배수 클수록 강하게)
       if (toll > 0) s.fx = { seq: (s.fx?.seq ?? 0) + 1, amount: toll, mul: info.base > 0 ? Math.round(info.total / info.base) : 1, kind: 'toll', from: peer, to: owner };
     }
@@ -1050,7 +1020,6 @@ class BlueMarbleModule implements GameModule {
     p.bankrupt = true; p.money = 0;
     // 소유 부동산 반환(무주공산)
     for (const k of Object.keys(s.owner)) { if (s.owner[+k] === peer) { delete s.owner[+k]; delete s.builds[+k]; } }
-    s.log = `${p.nickname} 파산!`;
     // 판 흔들림 + "○○ 파산!" 연출. 렌더러엔 예전부터 있었는데 세팅하는 곳이 없어 죽어 있었다.
     s.fx = { seq: (s.fx?.seq ?? 0) + 1, amount: 0, mul: 1, kind: 'bankrupt', from: peer, nick: p.nickname };
     const alive = alivePeers(s);
