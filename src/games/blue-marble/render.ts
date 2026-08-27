@@ -1634,6 +1634,9 @@ function injectStyle(): void {
 .bm-bchoice{flex:1;font:inherit;font-weight:800;font-size:15px;color:#fff;background:linear-gradient(135deg,#b89aff,#8a5fd0);border:none;border-radius:14px;padding:16px 0;cursor:pointer;box-shadow:0 6px 16px rgba(138,95,208,.34);transition:transform .1s;}
 .bm-bchoice:active{transform:scale(.96);}
 .bm-bchoice.bm-bchoice-no{background:#efe9f2;color:#7a6a7a;box-shadow:none;}
+/* 구경 모드(남의 차례) · 판돈 부족 — 눌리는 버튼처럼 보이면 안 되므로 확실히 죽은 티를 낸다 */
+.bm-bchoice:disabled{background:#ece6f2;color:#a99cb6;box-shadow:none;cursor:default;}
+.bm-bchoice:disabled:active{transform:none;}
 .bm-itable{width:100%;font-size:11.5px;border-collapse:collapse;margin-top:2px;} .bm-itable td{padding:3.5px 6px;border-bottom:1px solid #f2eaf4;} .bm-itable td:last-child{text-align:right;font-weight:800;} .bm-itable td:first-child{color:#6a5a6a;}
 .bm-ihdr{font-size:11.5px;font-weight:800;color:#8a7a8a;margin-top:10px;}
 .bm-curbox{background:#fff6fa;border:1px solid #ffd6e6;border-radius:12px;padding:8px 11px;margin:8px 0;}
