@@ -782,6 +782,9 @@ class BlueMarbleModule implements GameModule {
         // 세계여행 — 도착만으로는 아무 일도 안 일어난다. 비용을 낼지 말지는
         // **다음 내 턴이 시작될 때** 물어본다(advanceTurn → travelOffer).
         // 밟자마자 돈이 빠져나가면 "가고 싶지도 않은데 3만원 뜯겼다"가 되므로.
+        // 더블로 도착했어도 "한 번 더"는 주지 않는다. 재굴림을 주면 세계여행 칸을 떠나버려서
+        // 다음 턴에 떠야 할 여행 선택창(advanceTurn → travelOffer)이 영영 안 뜬다.
+        s.noExtraRoll = true;
       }
     }
     this.endStep(peer);
