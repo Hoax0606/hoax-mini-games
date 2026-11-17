@@ -18,20 +18,20 @@ const PANEL_W = CANVAS_W - FIELD_W;  // 240
 
 const FONT = `'Pretendard', 'Apple SD Gothic Neo', 'Noto Sans KR', system-ui, sans-serif`;
 const COLORS = {
-  bg: '#fff9fd',
-  field: '#fffdff',
+  bg: '#f9fffe',
+  field: '#fdffff',
   fieldBorder: '#e6d8ff',
   panelBg: '#faf5ff',
   panelLine: 'rgba(216,199,255,0.5)',
   textMain: '#4a3a4a',
   textMuted: '#8a7a8a',
-  accent: '#ff5a92',
+  accent: '#2a9488',
   lavender: '#9c7aeb',
   mintLo: '#6ed9b3',
   gaugeBg: '#f0e8ff',
   gaugeFill: '#6ed9b3',
   gaugeWarn: '#ffb12e',
-  rowMe: '#fff0f6',
+  rowMe: '#f0fffc',
   cardFrost: 'rgba(255,255,255,0.82)',
   cheek: '#f4a0a8',
 } as const;
@@ -408,7 +408,7 @@ export class DodgeRenderer {
       if (isMe) {
         ctx.fillStyle = COLORS.rowMe;
         this.roundRect(rowX, y + 2, rowW, rowH - 4, 9); ctx.fill();
-        ctx.strokeStyle = 'rgba(255,90,146,0.35)';
+        ctx.strokeStyle = 'rgba(42,148,136,0.35)';
         ctx.lineWidth = 1;
         this.roundRect(rowX, y + 2, rowW, rowH - 4, 9); ctx.stroke();
       }

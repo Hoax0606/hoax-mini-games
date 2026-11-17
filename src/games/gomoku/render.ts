@@ -51,7 +51,7 @@ const STAR_POINTS_19: ReadonlyArray<[number, number]> = [
 ];
 
 const COLORS = {
-  bg: '#fff9fd',
+  bg: '#f9fffe',
   boardFill: '#fff9e8',
   boardBorder: '#d9c7ff',
   gridLine: '#c4b4d8',
@@ -62,20 +62,20 @@ const COLORS = {
   whiteStone: '#fafaf5',   // 거의 흰색, 아주 살짝 따뜻 (실제 바둑알 백돌 느낌)
   whiteStroke: '#a89c86',  // 회색-카키 톤 (기존 노란 테두리 완화)
 
-  lastMoveRing: '#ff5a92',
-  winGlow: 'rgba(255, 90, 146, 0.45)',
+  lastMoveRing: '#2a9488',
+  winGlow: 'rgba(42, 148, 136, 0.45)',
 
   // 프로스티드풍 카드 — 반투명 흰색 위에 소프트 섀도. 활성은 골드 대신 핑크 링 + 리프트
   cardBg: 'rgba(255, 255, 255, 0.55)',
   cardBgActive: 'rgba(255, 255, 255, 0.82)',
   cardBorder: 'rgba(216, 199, 255, 0.7)',
-  cardBorderActive: '#ff5a92',
+  cardBorderActive: '#2a9488',
 
   textMain: '#4a3a4a',
   textMuted: '#8a7a8a',
 
   timerRing: '#9c7aeb',
-  timerWarning: '#ff5a92',
+  timerWarning: '#e0533f',
   timerTrack: '#e5d9ff',
 
   overlayBg: 'rgba(255, 255, 255, 0.75)',
@@ -403,7 +403,7 @@ export class GomokuRenderer {
     }
 
     // 접지 그림자 (아주 옅게 — 바둑판에 놓인 느낌)
-    ctx.fillStyle = 'rgba(80, 50, 80, 0.16)';
+    ctx.fillStyle = 'rgba(50, 80, 75, 0.16)';
     ctx.beginPath();
     ctx.arc(px + 0.6, py + 1.3, r, 0, Math.PI * 2);
     ctx.fill();
@@ -518,7 +518,7 @@ export class GomokuRenderer {
 
     // 카드 배경 — 반투명 흰색 + 소프트 섀도(프로스티드풍). fill 때만 그림자
     ctx.save();
-    ctx.shadowColor = isActive ? 'rgba(255, 90, 146, 0.22)' : 'rgba(120, 80, 140, 0.16)';
+    ctx.shadowColor = isActive ? 'rgba(42, 148, 136, 0.22)' : 'rgba(120, 80, 140, 0.16)';
     ctx.shadowBlur = isActive ? 16 : 10;
     ctx.shadowOffsetY = isActive ? 7 : 4;
     roundRectPath(ctx, x, cardY, CARD_W, CARD_H, 16);

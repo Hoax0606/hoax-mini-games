@@ -20,12 +20,12 @@ const CARD_COLOR: Record<string, string> = {
   r: '#ff6b81', b: '#5b9be6', g: '#57c777', y: '#f2c94c', w: '#3a3242',
 };
 const C = {
-  bg: '#fff5fb',
+  bg: '#f5fffd',
   cardFace: '#ffffff',
   cardBack: '#b89aff',
   text: '#4a3a4a',
   muted: '#9a8a9a',
-  turnHi: '#ff5a92',
+  turnHi: '#2a9488',
   mint: '#5cc9a2',
   frost: 'rgba(255,255,255,0.66)',
   frostLine: 'rgba(216,199,255,0.8)',
@@ -160,7 +160,7 @@ export class OneCardRenderer {
     if (!state.isSpectator && pub.phase === 'playing' && !iAmOut) {
       const s = SURRENDER_RECT;
       this.roundRect(ctx, s.x, s.y, s.w, s.h, 7);
-      ctx.fillStyle = '#f3e0e6';
+      ctx.fillStyle = '#e0f3f0';
       ctx.fill();
       ctx.lineWidth = 1.5;
       ctx.strokeStyle = '#d99';
@@ -229,7 +229,7 @@ export class OneCardRenderer {
 
       // 카드 배경 (프로스티드 / 지금=핑크 채움)
       ctx.save();
-      ctx.shadowColor = isTurn ? 'rgba(255,90,146,0.28)' : 'rgba(120,80,140,0.1)';
+      ctx.shadowColor = isTurn ? 'rgba(42,148,136,0.28)' : 'rgba(120,80,140,0.1)';
       ctx.shadowBlur = isTurn ? 12 : 5;
       ctx.shadowOffsetY = isTurn ? 4 : 2;
       this.roundRect(ctx, x, y, cardW, ch, 14);
@@ -279,7 +279,7 @@ export class OneCardRenderer {
 
       // 진행 화살표 (카드 사이)
       if (i < n - 1) {
-        ctx.fillStyle = 'rgba(154,138,154,0.6)';
+        ctx.fillStyle = 'rgba(138,154,151,0.6)';
         ctx.font = `700 14px ${FONT}`;
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
@@ -444,7 +444,7 @@ export class OneCardRenderer {
       ctx.fill();
     }
     ctx.lineWidth = 1.5;
-    ctx.strokeStyle = 'rgba(74,58,74,0.3)';
+    ctx.strokeStyle = 'rgba(58,74,71,0.3)';
     this.roundRect(ctx, x, y, w, h, 8);
     ctx.stroke();
     // 라벨

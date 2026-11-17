@@ -84,7 +84,7 @@ const ROLE_SVG: Record<Role, string> = {
 const CSS = `
 .ww-root{position:relative;width:100%;flex:1 1 auto;min-height:0;
   display:flex;flex-direction:column;gap:10px;padding:14px;
-  background:linear-gradient(155deg,#fff2f8 0%,#eef4ff 52%,#e9fff6 100%);
+  background:linear-gradient(155deg,#f2fffd 0%,#eef4ff 52%,#e9fff6 100%);
   color:#43384f;font-family:'Pretendard','Apple SD Gothic Neo','Noto Sans KR',system-ui,sans-serif;
   border-radius:var(--radius-md,16px);overflow:hidden;box-sizing:border-box;}
 .ww-root *{box-sizing:border-box;}
@@ -94,7 +94,7 @@ const CSS = `
 .ww-top{display:flex;align-items:center;gap:12px;flex:none;}
 .ww-phase{font-size:17px;font-weight:800;letter-spacing:-.01em;color:#43384f;}
 .ww-phase .r{color:#7b61c9;}
-.ww-timer{margin-left:auto;font-size:20px;font-weight:900;color:#e0679b;font-variant-numeric:tabular-nums;letter-spacing:1px;}
+.ww-timer{margin-left:auto;font-size:20px;font-weight:900;color:#2a9488;font-variant-numeric:tabular-nums;letter-spacing:1px;}
 .ww-timer.warn{color:#e0554d;}
 .ww-steps{display:flex;gap:5px;align-items:center;flex-wrap:wrap;}
 .ww-steps .st{width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;
@@ -109,9 +109,9 @@ const CSS = `
 .ww-prow{display:flex;align-items:center;gap:8px;padding:9px 11px;border-radius:12px;
   background:rgba(255,255,255,.8);border:1px solid #e6dcf4;font-size:13px;
   box-shadow:0 1px 3px rgba(120,90,160,.1);}
-.ww-prow.me{border-color:#ffb3d0;background:#fff0f6;}
+.ww-prow.me{border-color:#ffeeb8;background:#fff8e1;}
 .ww-prow .dot{width:8px;height:8px;border-radius:50%;background:#c3b6da;flex:none;}
-.ww-prow.me .dot{background:#ff6ba0;}
+.ww-prow.me .dot{background:#f5c33d;}
 .ww-prow .nm{font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
 
 .ww-mycard{border-radius:16px;padding:12px;border:1.5px solid;display:flex;gap:10px;align-items:center;flex:none;
@@ -155,9 +155,9 @@ const CSS = `
   border-radius:13px;padding:11px 15px;font:inherit;font-size:13px;font-weight:700;cursor:pointer;
   display:flex;align-items:center;gap:8px;box-shadow:0 2px 6px rgba(120,90,160,.1);
   transition:background .12s,transform .08s,border-color .12s;}
-.ww-choice:hover:not(:disabled){background:#fff0f6;border-color:#ffb3d0;}
+.ww-choice:hover:not(:disabled){background:#fff8e1;border-color:#ffeeb8;}
 .ww-choice:active:not(:disabled){transform:scale(.96);}
-.ww-choice.sel{border-color:#ff6ba0;background:#ffe4ef;}
+.ww-choice.sel{border-color:#f5c33d;background:#fff8e1;}
 .ww-choice:disabled{opacity:.4;cursor:default;}
 .ww-choice svg{width:20px;height:20px;}
 .ww-cardface{display:flex;flex-direction:column;align-items:center;gap:6px;width:78px;padding:12px 6px;}
@@ -167,10 +167,10 @@ const CSS = `
 .ww-tabs{display:flex;gap:8px;justify-content:center;margin-bottom:12px;}
 .ww-tab{border:1px solid #e0d4f0;background:#fff;color:#6a6086;
   border-radius:999px;padding:7px 15px;font:inherit;font-size:12.5px;font-weight:700;cursor:pointer;}
-.ww-tab.on{background:#ff6ba0;color:#fff;border-color:#ff6ba0;}
+.ww-tab.on{background:#2a9488;color:#fff;border-color:#2a9488;}
 
 .ww-btn{border:none;border-radius:999px;padding:12px 22px;font:inherit;font-weight:800;font-size:14px;cursor:pointer;
-  background:linear-gradient(135deg,#ff8bb9,#ff6ba0);color:#fff;box-shadow:0 4px 14px rgba(255,107,160,.35);
+  background:linear-gradient(135deg,#3fb3a2,#2a9488);color:#fff;box-shadow:0 4px 14px rgba(42,107,160,.35);
   transition:transform .08s,filter .12s;}
 .ww-btn:hover{filter:brightness(1.04);}
 .ww-btn:active{transform:scale(.97);}
@@ -183,7 +183,7 @@ const CSS = `
 /* 랜덤 모드 카드 구성 피커 (호스트) */
 .ww-setup{width:100%;max-width:460px;margin:0 auto;display:flex;flex-direction:column;min-height:0;}
 .ww-set-count{text-align:center;font-size:15px;font-weight:900;margin:2px 0;}
-.ww-set-count.ok{color:#2f9e44;} .ww-set-count.bad{color:#e0679b;}
+.ww-set-count.ok{color:#2f9e44;} .ww-set-count.bad{color:#c0392b;}
 .ww-set-sub{text-align:center;font-size:11.5px;color:#8b81a0;margin-bottom:10px;}
 .ww-set-list{flex:1;min-height:0;overflow-y:auto;display:flex;flex-direction:column;gap:6px;padding-right:2px;}
 .ww-set-row{display:flex;align-items:center;gap:10px;padding:6px 10px;border-radius:12px;border:1px solid #ece3f7;background:#fff;}
@@ -205,13 +205,13 @@ const CSS = `
 .ww-log{flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:7px;padding-right:4px;}
 .ww-line{font-size:13px;line-height:1.4;color:#43384f;}
 .ww-line .who{font-weight:800;color:#2f6aa8;margin-right:6px;}
-.ww-line.mine .who{color:#e0679b;}
+.ww-line.mine .who{color:#2a9488;}
 .ww-log-empty{color:#a99fbe;font-size:12.5px;text-align:center;margin:auto;}
 .ww-chat-form{display:flex;gap:8px;margin-top:10px;flex:none;}
 /* min-width:0 — 없으면 input 고유 폭 밑으로 안 줄어서 옆 전송 버튼이 패널 밖으로 밀려난다 */
 .ww-chat-input{flex:1 1 0;min-width:0;border:1px solid #e0d4f0;background:#fff;color:#43384f;
   border-radius:12px;padding:11px 14px;font:inherit;font-size:13px;outline:none;}
-.ww-chat-input:focus{border-color:#ff9ec3;}
+.ww-chat-input:focus{border-color:#3fb3a2;}
 
 /* 투표 */
 .ww-vote{display:flex;flex-wrap:wrap;gap:10px;justify-content:center;margin-top:8px;}
@@ -224,7 +224,7 @@ const CSS = `
 .ww-vote-btn:disabled{opacity:.5;cursor:default;}
 
 /* 결과 오버레이 */
-.ww-result{position:absolute;inset:0;background:rgba(255,247,251,.94);backdrop-filter:blur(8px);
+.ww-result{position:absolute;inset:0;background:rgba(247,255,254,.94);backdrop-filter:blur(8px);
   display:flex;flex-direction:column;align-items:center;justify-content:flex-start;gap:14px;padding:26px 20px;overflow-y:auto;z-index:5;}
 /* 도움말 버튼(상단) + 패널 오버레이 */
 .ww-help-btn{margin-left:8px;flex:none;width:26px;height:26px;border-radius:50%;border:1px solid #d8cdec;

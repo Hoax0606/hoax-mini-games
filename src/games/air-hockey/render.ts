@@ -35,27 +35,15 @@ const COLORS = {
   tableBgGradientEnd: '#e3f0fb',
   tableBorder: '#cfe6fb',
   centerLine: '#c3ddf5',
-  goalZone: 'rgba(255, 168, 199, 0.25)',
-  goalLine: '#ff82ac',
-
-  puckFill: '#ffd6e4',
-  puckStroke: '#ff5a92',
-  puckHeart: '#ff5a92',
-
-  hostBody: '#ff82ac',
-  hostStroke: '#ff5a92',
-  hostInner: '#ffd6e4',
-
-  guestBody: '#b89aff',
-  guestStroke: '#9c7aeb',
-  guestInner: '#e5d9ff',
+  /* 말렛·퍽 색은 draw 함수에서 직접 쓴다(민트/노랑/핫핑크).
+     예전엔 여기에도 상수가 있었는데 아무 데서도 안 쓰여서 제거. */
 
   overlayBg: 'rgba(255, 255, 255, 0.55)',
-  goalText: '#ff5a92',
+  goalText: '#2a9488',
   countdownText: '#4a3a4a',
 } as const;
 
-const GOAL_PARTICLE_COLORS = ['#ff5a92', '#ff82ac', '#b89aff', '#86e8c4', '#ffeec2'];
+const GOAL_PARTICLE_COLORS = ['#3fb3a2', '#ffd454', '#b89aff', '#8ccfc6', '#ffeeb8'];
 
 const FONT_SANS = `'Pretendard', 'Apple SD Gothic Neo', 'Noto Sans KR', system-ui, sans-serif`;
 
@@ -267,7 +255,7 @@ export class Renderer {
         vy: Math.sin(angle) * 0.8,
         life: 1,
         maxLife: 12,
-        color: '#ffc9dd',
+        color: '#c9fff6',
         size: 1.2,
       });
     }

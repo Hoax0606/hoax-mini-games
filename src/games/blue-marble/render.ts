@@ -40,8 +40,8 @@ export interface BMRenderCallbacks {
 }
 
 const GROUP: Record<GroupColor, string> = {
-  tan: '#d9b38c', sky: '#8fc2f0', pink: '#ff9bbb', orange: '#ffb27a', red: '#ff8a8a',
-  yellow: '#f2d24c', green: '#8fe0b0', rose: '#e79ad0', teal: '#7fd6d0', navy: '#8a9ef0',
+  tan: '#d9b38c', sky: '#8fc2f0', pink: '#9fd67c', orange: '#ffb27a', red: '#ff8a8a',
+  yellow: '#f2d24c', green: '#8fe0b0', rose: '#c5a3e8', teal: '#7fd6d0', navy: '#8a9ef0',
 };
 const ISLAND_GRAD = 'linear-gradient(155deg,#33a8dd 0%,#4fbbe8 42%,#ffffff 100%)';   // 섬(파랑) → 끝 흰색
 const BEACH_GRAD = 'linear-gradient(155deg,#f56a5a 0%,#ff8672 42%,#ffffff 100%)';    // 해변(붉은) → 끝 흰색
@@ -58,26 +58,26 @@ const IC: Record<string, string> = {
   // 무인도 — 표류(SOS 깃발) 섬 (관광지 아이콘과 구분)
   sos: '<svg viewBox="0 0 24 24"><ellipse cx="12" cy="20" rx="10" ry="2.4" fill="#c99a52"/><path d="M8 19 V8" stroke="#7a5a38" stroke-width="1.6"/><path d="M8 8 h7 l-2 2.2 2 2.2 h-7 Z" fill="#ee334e" stroke="#c31f38" stroke-width="0.7" stroke-linejoin="round"/><path d="M4 19 q2 -3 4 -3 M20 19 q-2 -3 -4 -3" stroke="#57c777" stroke-width="1.6" fill="none" stroke-linecap="round"/></svg>',
   // 관광지(섬) — 해변 파라솔 (무인도 야자섬과 구분)
-  parasol: '<svg viewBox="0 0 24 24"><path d="M12 20 V10" stroke="#8a6b4a" stroke-width="1.6" stroke-linecap="round"/><path d="M12 4.5 C6.5 4.5 3 8.5 3 11 H21 C21 8.5 17.5 4.5 12 4.5Z" fill="#ff5a92" stroke="#d63f74" stroke-width="0.8" stroke-linejoin="round"/><path d="M12 4.5 C10 4.5 9 8 9 11 M12 4.5 C14 4.5 15 8 15 11" stroke="#fff" stroke-width="1" fill="none"/><circle cx="12" cy="4.5" r="1" fill="#ffd454"/><path d="M12 20 q2 0 2.4 -1.6" stroke="#8a6b4a" stroke-width="1.4" fill="none" stroke-linecap="round"/></svg>',
+  parasol: '<svg viewBox="0 0 24 24"><path d="M12 20 V10" stroke="#8a6b4a" stroke-width="1.6" stroke-linecap="round"/><path d="M12 4.5 C6.5 4.5 3 8.5 3 11 H21 C21 8.5 17.5 4.5 12 4.5Z" fill="#ef5350" stroke="#c0392b" stroke-width="0.8" stroke-linejoin="round"/><path d="M12 4.5 C10 4.5 9 8 9 11 M12 4.5 C14 4.5 15 8 15 11" stroke="#fff" stroke-width="1" fill="none"/><circle cx="12" cy="4.5" r="1" fill="#ffd454"/><path d="M12 20 q2 0 2.4 -1.6" stroke="#8a6b4a" stroke-width="1.4" fill="none" stroke-linecap="round"/></svg>',
   swap: '<svg viewBox="0 0 24 24" fill="none" stroke="#5b9be6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9 H17 l-3 -3 M18 15 H7 l3 3"/></svg>',
   quake: '<svg viewBox="0 0 24 24"><rect x="7" y="9" width="10" height="11" fill="#c99a52" stroke="#8a5f2a" stroke-width="1.2"/><path d="M9 9 L11 3 L13 8 L15 4 L16 9" fill="none" stroke="#8a5f2a" stroke-width="1.2" stroke-linejoin="round"/><path d="M10 12 L13 16 M13 12 L11 20" stroke="#e0640f" stroke-width="1.6" stroke-linecap="round"/></svg>',
   blackout: '<svg viewBox="0 0 24 24"><path d="M13 2 L5 13 h6 l-2 9 10 -13 h-6 z" fill="#ffd454" stroke="#e0a91c" stroke-width="1" stroke-linejoin="round"/></svg>',
   // 올림픽 오륜기
   rings: '<svg viewBox="0 0 24 24" fill="none" stroke-width="1.7"><circle cx="6.5" cy="9.5" r="3.3" stroke="#0081c8"/><circle cx="12" cy="9.5" r="3.3" stroke="#1a1a1a"/><circle cx="17.5" cy="9.5" r="3.3" stroke="#ee334e"/><circle cx="9.25" cy="14" r="3.3" stroke="#f9a01b"/><circle cx="14.75" cy="14" r="3.3" stroke="#00a651"/></svg>',
-  gift: '<svg viewBox="0 0 24 24"><rect x="4.5" y="10" width="15" height="10" rx="1.5" fill="#ff9bbb"/><rect x="4.5" y="8" width="15" height="4" rx="1" fill="#ff7aa5"/><rect x="10.5" y="8" width="3" height="12" fill="#fff" opacity=".85"/><path d="M12 8 C10 4.5 6.5 5.5 8 8 M12 8 C14 4.5 17.5 5.5 16 8" stroke="#ff7aa5" stroke-width="1.6" fill="none"/></svg>',
+  gift: '<svg viewBox="0 0 24 24"><rect x="4.5" y="10" width="15" height="10" rx="1.5" fill="#ffd454"/><rect x="4.5" y="8" width="15" height="4" rx="1" fill="#ef5350"/><rect x="10.5" y="8" width="3" height="12" fill="#fff" opacity=".85"/><path d="M12 8 C10 4.5 6.5 5.5 8 8 M12 8 C14 4.5 17.5 5.5 16 8" stroke="#ef5350" stroke-width="1.6" fill="none"/></svg>',
   torch: '<svg viewBox="0 0 24 24"><rect x="10.4" y="12" width="3.2" height="9" rx="1" fill="#b98a4a" stroke="#8a5f2a" stroke-width="0.8"/><path d="M12 2 C15.2 6 16.2 8.4 15 11.2 C14.2 13.2 9.8 13.2 9 11.2 C7.8 8.4 8.8 6 12 2 Z" fill="#ff8a1c" stroke="#e0640f" stroke-width="0.8" stroke-linejoin="round"/><path d="M12 5 C13.6 7.6 14 9.2 13.2 10.8 C12.8 11.8 11.2 11.8 10.8 10.8 C10 9.2 10.4 7.6 12 5 Z" fill="#ffd454"/></svg>',
   rocket: '<svg viewBox="0 0 24 24"><path d="M12 2.5 C16 5.5 16 11 14 15 H10 C8 11 8 5.5 12 2.5Z" fill="#9cc6f2" stroke="#5b9be6" stroke-width="1"/><circle cx="12" cy="8" r="1.9" fill="#fff"/><path d="M10 14 L7.5 18.5 L10.2 16.5Z M14 14 L16.5 18.5 L13.8 16.5Z" fill="#ff8a5b"/><path d="M11 15 h2 l-1 4.5Z" fill="#ffb845"/></svg>',
   key: '<svg viewBox="0 0 24 24"><circle cx="8.5" cy="8.5" r="4.6" fill="none" stroke="#f2c94c" stroke-width="2.6"/><path d="M11.5 11.5 L19 19 M16 16 l2 2 M18.5 13.5 l1.5 1.5" stroke="#f2c94c" stroke-width="2.6" fill="none" stroke-linecap="round"/></svg>',
   coin: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.6" fill="#f2c94c" stroke="#d9a93c" stroke-width="1.3"/><text x="12" y="16" font-size="11" font-weight="900" fill="#8a5a00" text-anchor="middle" font-family="sans-serif">₩</text></svg>',
   music: '<svg viewBox="0 0 24 24"><path d="M9 5.5 L18 3.5 V15" stroke="#b89aff" stroke-width="2" fill="none" stroke-linecap="round"/><circle cx="7" cy="16.5" r="2.7" fill="#b89aff"/><circle cx="16" cy="15" r="2.7" fill="#b89aff"/></svg>',
-  cake: '<svg viewBox="0 0 24 24"><rect x="5" y="12" width="14" height="8" rx="1.5" fill="#ff9bbb"/><rect x="5" y="12" width="14" height="3" fill="#fff" opacity=".7"/><rect x="11.2" y="6" width="1.6" height="4" fill="#ffd454"/><circle cx="12" cy="5" r="1.4" fill="#ff8a3b"/></svg>',
+  cake: '<svg viewBox="0 0 24 24"><rect x="5" y="12" width="14" height="8" rx="1.5" fill="#ffd454"/><rect x="5" y="12" width="14" height="3" fill="#fff" opacity=".7"/><rect x="11.2" y="6" width="1.6" height="4" fill="#ffd454"/><circle cx="12" cy="5" r="1.4" fill="#ff8a3b"/></svg>',
   ticket: '<svg viewBox="0 0 24 24"><path d="M4 8 h16 v3 a2 2 0 0 0 0 2 v3 h-16 v-3 a2 2 0 0 0 0-2Z" fill="#8fe0c3" stroke="#4fbf9a" stroke-width="1"/><path d="M11 8 v8" stroke="#4fbf9a" stroke-width="1" stroke-dasharray="2 2"/></svg>',
   cross: '<svg viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="4.5" fill="#ff8a8a"/><path d="M12 8 v8 M8 12 h8" stroke="#fff" stroke-width="2.6" stroke-linecap="round"/></svg>',
   siren: '<svg viewBox="0 0 24 24"><rect x="5" y="18" width="14" height="3" rx="1.2" fill="#5b9be6"/><path d="M7 18 C7 12 9 9 12 9 C15 9 17 12 17 18Z" fill="#ff5a5a"/><rect x="11" y="5" width="2" height="3.4" rx="1" fill="#ff5a5a"/></svg>',
-  dice: '<svg viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="4.5" fill="#fff" stroke="#c9b7d6" stroke-width="1.6"/><g fill="#ff5a92"><circle cx="8.5" cy="8.5" r="1.7"/><circle cx="15.5" cy="8.5" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="8.5" cy="15.5" r="1.7"/><circle cx="15.5" cy="15.5" r="1.7"/></g></svg>',
+  dice: '<svg viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="4.5" fill="#fff" stroke="#c9b7d6" stroke-width="1.6"/><g fill="#2a9488"><circle cx="8.5" cy="8.5" r="1.7"/><circle cx="15.5" cy="8.5" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="8.5" cy="15.5" r="1.7"/><circle cx="15.5" cy="15.5" r="1.7"/></g></svg>',
   check: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" fill="#57c777"/><path d="M8 12.5 L11 15.5 L16.5 9" stroke="#fff" stroke-width="2.3" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>',
   arrow: '<svg viewBox="0 0 24 24"><path d="M5 12 H17 M13 8 L17 12 L13 16" stroke="#9a8a9a" stroke-width="2.3" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>',
-  welfare: '<svg viewBox="0 0 24 24"><path d="M12 9.2 C10.6 6.6 6.8 7.2 6.8 10.3 C6.8 12.6 9.4 14.3 12 16.2 C14.6 14.3 17.2 12.6 17.2 10.3 C17.2 7.2 13.4 6.6 12 9.2 Z" fill="#ff7aa5" stroke="#e0558a" stroke-width="0.9" stroke-linejoin="round"/><path d="M4 17.5 C6.5 20.5 17.5 20.5 20 17.5" stroke="#f2c94c" stroke-width="2.4" fill="none" stroke-linecap="round"/></svg>',
+  welfare: '<svg viewBox="0 0 24 24"><path d="M12 9.2 C10.6 6.6 6.8 7.2 6.8 10.3 C6.8 12.6 9.4 14.3 12 16.2 C14.6 14.3 17.2 12.6 17.2 10.3 C17.2 7.2 13.4 6.6 12 9.2 Z" fill="#ef5350" stroke="#c0392b" stroke-width="0.9" stroke-linejoin="round"/><path d="M4 17.5 C6.5 20.5 17.5 20.5 20 17.5" stroke="#f2c94c" stroke-width="2.4" fill="none" stroke-linecap="round"/></svg>',
 };
 /** 카드 id → 아이콘 키 */
 const cardIcon = (id: number): string => IC[CARDS[id]?.icon ?? 'coin'] ?? IC.coin!;
@@ -97,12 +97,12 @@ const PLANE = '<svg viewBox="0 0 48 48"><path d="M4 26 L40 20 L44 22 L40 24 L30 
 
 // ── 모서리/특수칸 칸-전체 일러스트 (viewBox 130) ──
 const ILL: Record<string, { svg: string; dark: boolean }> = {
-  start: { dark: false, svg: `<svg class="bm-illsvg" viewBox="0 0 130 130" preserveAspectRatio="xMidYMid slice"><defs><linearGradient id="ilS" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#c7f5e4"/><stop offset="1" stop-color="#9fe8ff"/></linearGradient></defs><rect width="130" height="130" fill="url(#ilS)"/><g opacity=".9"><circle cx="26" cy="30" r="3" fill="#fff"/><circle cx="104" cy="26" r="4" fill="#fff"/><circle cx="108" cy="92" r="3" fill="#fff"/></g><path d="M84 46 h-22 v-11 l-22 19 l22 19 v-11 h22 z" fill="#ff5a92" stroke="#fff" stroke-width="3.5" stroke-linejoin="round"/><text x="65" y="106" text-anchor="middle" font-size="30" font-weight="900" fill="#2e9370" style="letter-spacing:-1px">GO!</text></svg>` },
+  start: { dark: false, svg: `<svg class="bm-illsvg" viewBox="0 0 130 130" preserveAspectRatio="xMidYMid slice"><defs><linearGradient id="ilS" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#c7f5e4"/><stop offset="1" stop-color="#9fe8ff"/></linearGradient></defs><rect width="130" height="130" fill="url(#ilS)"/><g opacity=".9"><circle cx="26" cy="30" r="3" fill="#fff"/><circle cx="104" cy="26" r="4" fill="#fff"/><circle cx="108" cy="92" r="3" fill="#fff"/></g><path d="M84 46 h-22 v-11 l-22 19 l22 19 v-11 h22 z" fill="#2a9488" stroke="#fff" stroke-width="3.5" stroke-linejoin="round"/><text x="65" y="106" text-anchor="middle" font-size="30" font-weight="900" fill="#2e9370" style="letter-spacing:-1px">GO!</text></svg>` },
   olympic: { dark: true, svg: `<svg class="bm-illsvg" viewBox="0 0 130 130" preserveAspectRatio="xMidYMid slice"><defs><linearGradient id="ilO" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff6df"/><stop offset="1" stop-color="#ffe6ad"/></linearGradient></defs><rect width="130" height="130" fill="url(#ilO)"/><path d="M30 96 q35 -20 70 0" stroke="#e0b850" stroke-width="3" fill="none" opacity=".6"/><g fill="none" stroke-width="4"><circle cx="42" cy="52" r="13" stroke="#0081c8"/><circle cx="65" cy="52" r="13" stroke="#222"/><circle cx="88" cy="52" r="13" stroke="#ee334e"/><circle cx="53.5" cy="65" r="13" stroke="#f9a01b"/><circle cx="76.5" cy="65" r="13" stroke="#00a651"/></g><path d="M20 28 l3 7 7 .6 -5.4 4.7 1.7 7 -6.3 -3.7 -6.3 3.7 1.7 -7 -5.4 -4.7 7 -.6z" fill="#ffcf4a"/></svg>` },
-  travel: { dark: true, svg: `<svg class="bm-illsvg" viewBox="0 0 130 130" preserveAspectRatio="xMidYMid slice"><defs><linearGradient id="ilT" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#bfe6ff"/><stop offset="1" stop-color="#eaf7ff"/></linearGradient></defs><rect width="130" height="130" fill="url(#ilT)"/><g fill="#fff" opacity=".85"><ellipse cx="32" cy="96" rx="16" ry="7"/><ellipse cx="99" cy="102" rx="13" ry="6"/><ellipse cx="104" cy="32" rx="12" ry="5"/></g><path d="M16 98 Q52 38 112 28" stroke="#5b9be6" stroke-width="2.2" stroke-dasharray="3 5" fill="none" opacity=".55" stroke-linecap="round"/><g transform="translate(65 63) rotate(32)"><path d="M-6.5 -14 Q-6.5 -30 0 -34 Q6.5 -30 6.5 -14 L5.5 20 Q4.5 31 0 35 Q-4.5 31 -5.5 20 Z" fill="#fff" stroke="#5b9be6" stroke-width="2.4" stroke-linejoin="round"/><path d="M-5 -4 L-35 9 L-35 16 L-5 9 Z" fill="#9cc6f2" stroke="#5b9be6" stroke-width="1.8" stroke-linejoin="round"/><path d="M5 -4 L35 9 L35 16 L5 9 Z" fill="#9cc6f2" stroke="#5b9be6" stroke-width="1.8" stroke-linejoin="round"/><path d="M-4 22 L-15 28 L-15 32 L-4 27 Z" fill="#7fb2ea" stroke="#5b9be6" stroke-width="1.5" stroke-linejoin="round"/><path d="M4 22 L15 28 L15 32 L4 27 Z" fill="#7fb2ea" stroke="#5b9be6" stroke-width="1.5" stroke-linejoin="round"/><path d="M-6.5 -14 Q-6.5 -30 0 -34 Q6.5 -30 6.5 -14 Z" fill="#ff8fb0"/></g></svg>` },
+  travel: { dark: true, svg: `<svg class="bm-illsvg" viewBox="0 0 130 130" preserveAspectRatio="xMidYMid slice"><defs><linearGradient id="ilT" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#bfe6ff"/><stop offset="1" stop-color="#eaf7ff"/></linearGradient></defs><rect width="130" height="130" fill="url(#ilT)"/><g fill="#fff" opacity=".85"><ellipse cx="32" cy="96" rx="16" ry="7"/><ellipse cx="99" cy="102" rx="13" ry="6"/><ellipse cx="104" cy="32" rx="12" ry="5"/></g><path d="M16 98 Q52 38 112 28" stroke="#5b9be6" stroke-width="2.2" stroke-dasharray="3 5" fill="none" opacity=".55" stroke-linecap="round"/><g transform="translate(65 63) rotate(32)"><path d="M-6.5 -14 Q-6.5 -30 0 -34 Q6.5 -30 6.5 -14 L5.5 20 Q4.5 31 0 35 Q-4.5 31 -5.5 20 Z" fill="#fff" stroke="#5b9be6" stroke-width="2.4" stroke-linejoin="round"/><path d="M-5 -4 L-35 9 L-35 16 L-5 9 Z" fill="#9cc6f2" stroke="#5b9be6" stroke-width="1.8" stroke-linejoin="round"/><path d="M5 -4 L35 9 L35 16 L5 9 Z" fill="#9cc6f2" stroke="#5b9be6" stroke-width="1.8" stroke-linejoin="round"/><path d="M-4 22 L-15 28 L-15 32 L-4 27 Z" fill="#7fb2ea" stroke="#5b9be6" stroke-width="1.5" stroke-linejoin="round"/><path d="M4 22 L15 28 L15 32 L4 27 Z" fill="#7fb2ea" stroke="#5b9be6" stroke-width="1.5" stroke-linejoin="round"/><path d="M-6.5 -14 Q-6.5 -30 0 -34 Q6.5 -30 6.5 -14 Z" fill="#ef5350"/></g></svg>` },
   desert: { dark: true, svg: `<svg class="bm-illsvg" viewBox="0 0 130 130" preserveAspectRatio="xMidYMid slice"><defs><linearGradient id="ilD" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#8fd6ef"/><stop offset="1" stop-color="#4fb3dd"/></linearGradient></defs><rect width="130" height="130" fill="url(#ilD)"/><path d="M0 92 q20 -6 34 0 t34 0 t34 0 t28 0 V130 H0Z" fill="#5fc0e0"/><ellipse cx="65" cy="98" rx="34" ry="12" fill="#e9c483"/><path d="M62 96 V70" stroke="#8a5a34" stroke-width="4"/><path d="M62 70 q-14 -8 -24 -2 q10 -6 24 2 q0 -12 14 -16 q-10 8 -14 16 q10 -6 22 0 q-12 -4 -22 0z" fill="#3fae79"/><rect x="82" y="60" width="2.6" height="20" fill="#b06a4a"/><path d="M84 60 h12 l-3 4 3 4 h-12z" fill="#ee334e"/></svg>` },
   tax: { dark: true, svg: `<svg class="bm-illsvg" viewBox="0 0 130 130" preserveAspectRatio="xMidYMid slice"><defs><linearGradient id="ilTx" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffe0e0"/><stop offset="1" stop-color="#ffc2c2"/></linearGradient></defs><rect width="130" height="130" fill="url(#ilTx)"/><rect x="40" y="30" width="42" height="54" rx="4" fill="#fff" stroke="#e88" stroke-width="2"/><g stroke="#f2a0a0" stroke-width="2.4" stroke-linecap="round"><path d="M48 42h26M48 50h26M48 58h18"/></g><circle cx="84" cy="74" r="16" fill="#ff5a5a"/><text x="84" y="80" text-anchor="middle" font-size="15" font-weight="900" fill="#fff">%</text><g fill="#ffd454" stroke="#e0a91c" stroke-width="1.5"><ellipse cx="44" cy="96" rx="10" ry="4"/><ellipse cx="44" cy="92" rx="10" ry="4"/></g></svg>` },
-  bonus: { dark: false, svg: `<svg class="bm-illsvg" viewBox="0 0 130 130" preserveAspectRatio="xMidYMid slice"><defs><linearGradient id="ilB" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#efe1ff"/><stop offset="1" stop-color="#d3b8ff"/></linearGradient></defs><rect width="130" height="130" fill="url(#ilB)"/><rect x="34" y="34" width="62" height="52" rx="8" fill="#8a5fd0"/><rect x="40" y="42" width="50" height="24" rx="4" fill="#fff"/><g font-size="17" font-weight="900" fill="#ff5a92" text-anchor="middle"><text x="52" y="60">7</text><text x="65" y="60">7</text><text x="78" y="60">7</text></g><rect x="46" y="72" width="38" height="7" rx="3.5" fill="#ffd454"/><circle cx="100" cy="58" r="7" fill="#ff5a92"/><rect x="97" y="58" width="6" height="18" rx="3" fill="#c93d73"/></svg>` },
+  bonus: { dark: false, svg: `<svg class="bm-illsvg" viewBox="0 0 130 130" preserveAspectRatio="xMidYMid slice"><defs><linearGradient id="ilB" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#efe1ff"/><stop offset="1" stop-color="#d3b8ff"/></linearGradient></defs><rect width="130" height="130" fill="url(#ilB)"/><rect x="34" y="34" width="62" height="52" rx="8" fill="#8a5fd0"/><rect x="40" y="42" width="50" height="24" rx="4" fill="#fff"/><g font-size="17" font-weight="900" fill="#ef5350" text-anchor="middle"><text x="52" y="60">7</text><text x="65" y="60">7</text><text x="78" y="60">7</text></g><rect x="46" y="72" width="38" height="7" rx="3.5" fill="#ffd454"/><circle cx="100" cy="58" r="7" fill="#ef5350"/><rect x="97" y="58" width="6" height="18" rx="3" fill="#c0392b"/></svg>` },
   key: { dark: true, svg: `<svg class="bm-illsvg" viewBox="0 0 130 130" preserveAspectRatio="xMidYMid slice"><defs><linearGradient id="ilK" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff4d6"/><stop offset="1" stop-color="#ffe19c"/></linearGradient></defs><rect width="130" height="130" fill="url(#ilK)"/><g transform="rotate(-38 65 62)"><circle cx="65" cy="44" r="15" fill="none" stroke="#f2b01c" stroke-width="8"/><rect x="61" y="56" width="8" height="34" rx="2" fill="#f2b01c"/><rect x="69" y="76" width="10" height="7" rx="2" fill="#f2b01c"/><rect x="69" y="86" width="8" height="7" rx="2" fill="#f2b01c"/></g><g fill="#fff"><path d="M96 34 l2 5 5 2 -5 2 -2 5 -2 -5 -5 -2 5 -2z"/><circle cx="34" cy="92" r="3"/></g></svg>` },
 };
 /** 칸 index → 전체 일러스트 (모서리/특수). 없으면 null */
@@ -844,7 +844,7 @@ export class BlueMarbleRenderer {
         <div class="bm-body">
           <div class="bm-ctitle">₩${raiseAmount.toLocaleString()} 내야 해요</div>
           <div class="bm-sub">현금 ₩${money.toLocaleString()} · 부동산 ₩${estateValue(state, me).toLocaleString()}<br>
-            <b style="color:#ff2d55">전부 팔아도 ₩${lack.toLocaleString()} 부족해요</b></div>
+            <b style="color:#c0392b">전부 팔아도 ₩${lack.toLocaleString()} 부족해요</b></div>
           <div class="bm-btns"><button class="bm-no" id="bm-giveup" style="flex:1">파산하기</button></div>
         </div></div>`;
       this.mountScrim(scrim); this.openKind = key;
@@ -865,14 +865,14 @@ export class BlueMarbleRenderer {
       ? `<div class="bm-ctitle">₩${raiseAmount.toLocaleString()} 내야 해요</div>
          <div class="bm-raisebar"><span style="width:${Math.min(100, Math.round(money / Math.max(1, raiseAmount) * 100))}%"></span></div>
          <div class="bm-sub">지금 ₩${money.toLocaleString()} · ${short > 0
-        ? `<b style="color:#ff2d55">₩${short.toLocaleString()} 더 필요</b>`
+        ? `<b style="color:#c0392b">₩${short.toLocaleString()} 더 필요</b>`
         : `<b style="color:#2f9e44">지불 가능!</b>`}</div>`
       : `<div class="bm-ctitle">내 땅 팔기</div><div class="bm-sub">지금 ₩${money.toLocaleString()}</div>`;
     const foot = raiseAmount != null
       ? `<div class="bm-btns"><button class="bm-yes" id="bm-pay" ${money >= raiseAmount ? '' : 'disabled'} style="flex:1">지불</button><button class="bm-no" id="bm-giveup" style="flex:1">파산</button></div>`
       : `<div class="bm-btns"><button class="bm-no" id="bm-closesell" style="flex:1">닫기</button></div>`;
     const scrim = document.createElement('div'); scrim.className = 'bm-scrim';
-    scrim.innerHTML = `<div class="bm-modal" style="width:330px"><div class="bm-top" style="background:linear-gradient(90deg,#ff9bbb,#ff5a92)">🏷️ 땅 판매</div>` +
+    scrim.innerHTML = `<div class="bm-modal" style="width:330px"><div class="bm-top" style="background:linear-gradient(90deg,#f0876b,#c0392b)">🏷️ 땅 판매</div>` +
       `<div class="bm-body">${head}<div class="bm-selllist">${rows}</div>${foot}</div></div>`;
     this.mountScrim(scrim); this.openKind = key;
     scrim.querySelectorAll<HTMLButtonElement>('.bm-sellone').forEach((b) => b.addEventListener('click', () => this.cb.onSell(Number(b.dataset.t))));
@@ -989,7 +989,7 @@ export class BlueMarbleRenderer {
       <div class="bm-top" style="background:linear-gradient(90deg,#9cc6f2,#5b9be6)">${IC.rocket} 세계여행</div>
       <div class="bm-body">
         <div class="bm-ctitle">₩${cost.toLocaleString()} 내고 원하는 칸으로 갈까요?</div>
-        <div class="bm-sub">가면 이번 턴은 주사위 대신 이동해요${canGo ? '' : `<br><b style="color:#ff2d55">현금이 ₩${(cost - money).toLocaleString()} 부족해요</b>`}</div>
+        <div class="bm-sub">가면 이번 턴은 주사위 대신 이동해요${canGo ? '' : `<br><b style="color:#c0392b">현금이 ₩${(cost - money).toLocaleString()} 부족해요</b>`}</div>
         <div class="bm-btns">
           <button class="bm-yes" id="bm-tgo" style="flex:1" ${canGo ? '' : 'disabled'}>간다</button>
           <button class="bm-no" id="bm-tno" style="flex:1">안 간다</button>
@@ -1209,7 +1209,7 @@ export class BlueMarbleRenderer {
       // 안 그러면 한 창에서 3개를 함께 체크하는 순간 랜드마크까지 열려 땅 구매~랜드마크가 한 턴에 끝난다.
       else if (bt.kind === 'landmark' && !hasAllHouses(arr)) st = '<span style="color:#9a8a9a">3건물 지은 뒤 다시 방문</span>';
       else if (!sel && cost > remain) st = '<span style="color:#e5484d">돈 부족</span>';
-      else { st = `<b style="color:#ff5a92">${won(cost)}</b>`; can = true; }
+      else { st = `<b style="color:#2a9488">${won(cost)}</b>`; can = true; }
       const ic = bt.kind === 'landmark' ? landmarkSvg(t.name) : BSVG[bt.kind];
       const on = owned || sel;
       return `<button class="bm-brow${sel ? ' sel' : ''}" data-k="${bt.kind}" ${can ? '' : 'disabled'}>
@@ -1268,7 +1268,7 @@ export class BlueMarbleRenderer {
     let cur: string, rows: string;
     // 배수 내역 (컬러 독점/올림픽/관광지 패시브) — 소유주 기준으로 계산
     const info = o !== undefined ? tollBreakdown(state, tile, '') : { base: 0, parts: [], total: 0 };
-    const partsHtml = info.parts.map((pt) => `<div class="bm-mrow"><span>${pt.label}</span><b style="color:#ff5a92">×${pt.mul}</b></div>`).join('');
+    const partsHtml = info.parts.map((pt) => `<div class="bm-mrow"><span>${pt.label}</span><b style="color:#ff7a3d">×${pt.mul}</b></div>`).join('');
     if (t.type === 'island') {
       const base = Math.round(t.price * 0.5);
       const isBeach = t.spot === 'beach';
@@ -1324,7 +1324,7 @@ export class BlueMarbleRenderer {
       if (this.destroyed) return;
       const title = iWon ? '승리!' : iBankrupt ? '파산…' : `${name} 승리`;
       const end = document.createElement('div'); end.className = 'bm-end';
-      end.innerHTML = `<div class="bm-endcard"><div class="bm-endt" style="color:${iWon ? '#ff5a92' : '#4a3a4a'}">${title}</div></div>`;
+      end.innerHTML = `<div class="bm-endcard"><div class="bm-endt" style="color:${iWon ? '#2a9488' : '#2f4a46'}">${title}</div></div>`;
       this.root.appendChild(end);
     }, 1100);
   }
@@ -1340,7 +1340,7 @@ export class BlueMarbleRenderer {
 function colorOf(state: BMState, peerId: string): string {
   const idx = state.order.indexOf(peerId);
   // 파스텔 도시색 위에서 확실히 튀도록 진한 채도. 앞 4개(2~4인)를 최대한 대비되게.
-  return ['#0ca678', '#e64980', '#3b5bdb', '#f59f00', '#7950f2', '#e8590c', '#2f9e44', '#1098ad', '#c2255c', '#f783ac'][idx % 10]!;
+  return ['#0ca678', '#c92a2a', '#3b5bdb', '#f59f00', '#7950f2', '#e8590c', '#2f9e44', '#1098ad', '#5f3dc4', '#0b7285'][idx % 10]!;
 }
 /** hex 를 f배 어둡게 (0~1). 건물 색을 진하게 해서 가독성↑ */
 function shade(hex: string, f: number): string {
@@ -1390,7 +1390,7 @@ function injectStyle(): void {
   font-family:'Pretendard','Apple SD Gothic Neo','Noto Sans KR',system-ui,sans-serif;color:#4a3a4a;}
 .bm-board{position:relative;height:100%;aspect-ratio:1;max-width:calc(100% - 275px);display:grid;
   grid-template-columns:repeat(9,1fr);grid-template-rows:repeat(9,1fr);
-  gap:3px;background:linear-gradient(135deg,#e9f7ff,#ffeaf3);border-radius:16px;padding:7px;box-shadow:0 8px 26px rgba(120,80,140,.14);}
+  gap:3px;background:linear-gradient(135deg,#e9f7ff,#eafffb);border-radius:16px;padding:7px;box-shadow:0 8px 26px rgba(120,80,140,.14);}
 .bm-tile{position:relative;background:#fff;border:1px solid #efe3f2;border-radius:6px;overflow:hidden;min-width:0;display:flex;flex-direction:column;}
 .bm-prop{cursor:pointer;transition:transform .12s ease,box-shadow .12s ease,filter .12s ease;}
 .bm-prop:hover{transform:translateY(-3px) scale(1.05);z-index:6;filter:brightness(1.07) saturate(1.08);
@@ -1426,7 +1426,7 @@ function injectStyle(): void {
   background:linear-gradient(135deg,#ffb01c,#ff7a1c);border-radius:999px;padding:2px 8px;line-height:1.25;
   border:1.5px solid rgba(255,255,255,.9);box-shadow:0 2px 7px rgba(160,90,10,.55);animation:bm-bob 1.5s ease-in-out infinite;pointer-events:none;}
 .bm-mulbadge.hot{background:linear-gradient(135deg,#ff9f1c,#ff5a3c);box-shadow:0 3px 10px rgba(255,90,60,.6);}
-.bm-mulbadge.fire{background:linear-gradient(135deg,#ff6a3c,#ff2d55);box-shadow:0 0 12px rgba(255,60,90,.85);animation:bm-bob 1.1s ease-in-out infinite, bm-flame .5s ease-in-out infinite alternate;}
+.bm-mulbadge.fire{background:linear-gradient(135deg,#ff6a3c,#c0392b);box-shadow:0 0 12px rgba(255,90,60,.85);animation:bm-bob 1.1s ease-in-out infinite, bm-flame .5s ease-in-out infinite alternate;}
 /* 올림픽 개최 팡파레 */
 .bm-oly{position:absolute;top:2px;left:2px;z-index:8;width:20px;height:20px;pointer-events:none;animation:bm-twinkle 1.4s ease-in-out infinite;}
 .bm-oly svg{width:100%;height:100%;filter:drop-shadow(0 1px 2px rgba(0,0,0,.3));}
@@ -1451,7 +1451,7 @@ function injectStyle(): void {
   display:flex;flex-direction:column;align-items:center;gap:2px;font-weight:900;color:#4a3a4a;
   text-shadow:0 3px 10px rgba(0,0,0,.28);animation:bm-fxnum 1.25s cubic-bezier(.2,1.3,.4,1) forwards;}
 .bm-fxnum span:last-child{font-size:clamp(30px,6vw,58px);}
-.bm-fxnum.fire{color:#ff2d55;text-shadow:0 0 16px rgba(255,60,90,.7),0 3px 10px rgba(0,0,0,.3);}
+.bm-fxnum.fire{color:#c0392b;text-shadow:0 0 16px rgba(255,90,60,.7),0 3px 10px rgba(0,0,0,.3);}
 @keyframes bm-fxnum{0%{opacity:0;transform:translate(-50%,-30%) scale(.4);}25%{opacity:1;transform:translate(-50%,-50%) scale(1.12);}70%{opacity:1;transform:translate(-50%,-52%) scale(1);}100%{opacity:0;transform:translate(-50%,-80%) scale(.95);}}
 /* 타격감: 동전 */
 .bm-coins{position:absolute;top:44%;left:50%;z-index:59;pointer-events:none;}
@@ -1459,7 +1459,7 @@ function injectStyle(): void {
   box-shadow:0 1px 3px rgba(0,0,0,.3),inset 0 -2px 2px rgba(180,130,10,.5);animation:bm-coin .9s ease-out forwards;}
 @keyframes bm-coin{0%{opacity:1;transform:translate(0,0) scale(.5);}30%{opacity:1;transform:translate(calc(var(--dx) * .6),var(--dy)) scale(1);}100%{opacity:0;transform:translate(var(--dx),120px) scale(.9);}}
 /* 상세창 최종 통행료 강조 */
-.bm-mrow.tollfinal b{color:#ff2d55;font-size:16px;text-shadow:0 1px 6px rgba(255,60,90,.35);}
+.bm-mrow.tollfinal b{color:#c0392b;font-size:16px;text-shadow:0 1px 6px rgba(255,90,60,.35);}
 /* 세계여행 비행기 */
 .bm-plane{position:absolute;width:44px;height:44px;z-index:30;pointer-events:none;
   transition:left .9s cubic-bezier(.45,.05,.3,1),top .9s cubic-bezier(.45,.05,.3,1);
@@ -1477,7 +1477,7 @@ function injectStyle(): void {
 @keyframes bm-swapg{0%,100%{box-shadow:none;}30%,70%{box-shadow:0 0 0 3px #fff,0 0 18px 4px #7950f2;}}
 /* 카드 사용 토스트 */
 .bm-cardtoast{position:absolute;top:32%;left:50%;transform:translate(-50%,-50%);z-index:60;pointer-events:none;
-  background:rgba(74,58,74,.94);color:#fff;font-size:15px;font-weight:800;padding:11px 22px;border-radius:14px;
+  background:rgba(58,74,71,.94);color:#fff;font-size:15px;font-weight:800;padding:11px 22px;border-radius:14px;
   box-shadow:0 12px 30px rgba(0,0,0,.3);animation:bm-fxnum 1.4s cubic-bezier(.2,1.3,.4,1) forwards;}
 /* 동작 최소화 — 흔들림·비행·파편 등 전정계 자극 애니를 정적/페이드로 대체 */
 @media(prefers-reduced-motion:reduce){
@@ -1498,11 +1498,11 @@ function injectStyle(): void {
 .bm-tok.me svg{filter:drop-shadow(0 0 2px #fff) drop-shadow(0 0 2px #fff) drop-shadow(0 3px 4px rgba(0,0,0,.5));animation:bm-tokbob 1.3s ease-in-out infinite;}
 @keyframes bm-tokbob{0%,100%{transform:translateY(0);}50%{transform:translateY(-3px);}}
 @media (prefers-reduced-motion:reduce){.bm-tok.me svg{animation:none;}}
-.bm-selected{z-index:6;filter:brightness(1.12) saturate(1.1);box-shadow:0 0 0 3px #fff,0 0 0 5px #ff5a92;}
+.bm-selected{z-index:6;filter:brightness(1.12) saturate(1.1);box-shadow:0 0 0 3px #fff,0 0 0 5px #f5c33d;}
 .bm-center{grid-column:2/9;grid-row:2/9;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:11px;
-  background:linear-gradient(135deg,rgba(255,255,255,.5),rgba(255,240,247,.5));border-radius:12px;padding:12px;}
+  background:linear-gradient(135deg,rgba(255,255,255,.5),rgba(240,255,252,.5));border-radius:12px;padding:12px;}
 .bm-logo{font-size:clamp(20px,3vw,38px);font-weight:900;letter-spacing:-1px;transform:rotate(-8deg);line-height:.95;text-align:center;
-  background:linear-gradient(90deg,#5b9be6,#ff5a92);-webkit-background-clip:text;background-clip:text;color:transparent;}
+  background:linear-gradient(90deg,#5b9be6,#2a9488);-webkit-background-clip:text;background-clip:text;color:transparent;}
 .bm-dice{display:flex;gap:12px;}
 .bm-die{width:clamp(36px,4.6vw,52px);aspect-ratio:1;background:#fff;border-radius:12px;box-shadow:0 5px 14px rgba(120,80,140,.22);display:grid;place-items:center;}
 .bm-die svg{width:80%;height:80%;} .bm-die.bm-rolling{animation:bm-shake .12s infinite;}
@@ -1510,38 +1510,38 @@ function injectStyle(): void {
 .bm-diceres{display:flex;align-items:center;justify-content:center;gap:8px;height:38px;flex:none;opacity:0;transform:scale(.7);transition:opacity .18s,transform .28s cubic-bezier(.34,1.56,.64,1);}
 .bm-diceres.show{opacity:1;transform:scale(1);}
 .bm-dsum{font-size:20px;font-weight:900;color:#5b3f6e;background:#fff;border-radius:999px;min-width:34px;height:34px;padding:0 8px;display:grid;place-items:center;box-shadow:0 4px 12px rgba(120,80,140,.2);}
-.bm-diceres.dbl .bm-dsum{color:#fff;background:linear-gradient(135deg,#ffb347,#ff5a92);}
-.bm-ddbl{font-size:14px;font-weight:900;color:#fff;background:linear-gradient(135deg,#ff8ab0,#ff5a92);border-radius:999px;padding:4px 12px;box-shadow:0 4px 12px rgba(255,90,146,.38);animation:bm-dblpop .5s ease;}
+.bm-diceres.dbl .bm-dsum{color:#fff;background:linear-gradient(135deg,#ffb347,#ff7a3d);}
+.bm-ddbl{font-size:14px;font-weight:900;color:#fff;background:linear-gradient(135deg,#ffb347,#ff7a3d);border-radius:999px;padding:4px 12px;box-shadow:0 4px 12px rgba(42,148,136,.38);animation:bm-dblpop .5s ease;}
 @keyframes bm-dblpop{0%{transform:scale(.5) rotate(-8deg);}60%{transform:scale(1.18) rotate(4deg);}100%{transform:scale(1) rotate(0);}}
 .bm-turn{font-size:14px;font-weight:800;} .bm-turn b{padding:1px 10px;border-radius:999px;color:#fff;}
-.bm-roll{font:inherit;font-weight:800;font-size:14px;color:#fff;background:#ff5a92;border:none;border-radius:999px;padding:9px 20px;cursor:pointer;box-shadow:0 6px 16px rgba(255,90,146,.32);display:flex;align-items:center;gap:5px;}
+.bm-roll{font:inherit;font-weight:800;font-size:14px;color:#fff;background:#2a9488;border:none;border-radius:999px;padding:9px 20px;cursor:pointer;box-shadow:0 6px 16px rgba(42,148,136,.32);display:flex;align-items:center;gap:5px;}
 .bm-roll svg{width:18px;height:18px;} .bm-roll:disabled{opacity:.45;cursor:default;}
 .bm-escape{font:inherit;font-weight:800;font-size:13px;color:#7a5a10;background:linear-gradient(135deg,#ffe7a0,#ffcf4a);border:none;border-radius:999px;padding:8px 18px;cursor:pointer;box-shadow:0 5px 14px rgba(200,150,30,.32);align-items:center;justify-content:center;}
 .bm-escape:disabled{opacity:.45;cursor:default;}
-.bm-sellbtn{font:inherit;font-weight:800;font-size:12.5px;color:#a83e6a;background:#fff;border:1.5px solid #ffb3cd;border-radius:999px;padding:7px 15px;cursor:pointer;box-shadow:0 4px 12px rgba(255,90,146,.18);align-items:center;justify-content:center;margin-top:6px;}
-.bm-sellbtn:hover{background:#fff0f5;}
+.bm-sellbtn{font:inherit;font-weight:800;font-size:12.5px;color:#c0392b;background:#fff;border:1.5px solid #f0bdb8;border-radius:999px;padding:7px 15px;cursor:pointer;box-shadow:0 4px 12px rgba(42,148,136,.18);align-items:center;justify-content:center;margin-top:6px;}
+.bm-sellbtn:hover{background:#f0fffc;}
 .bm-selllist{display:flex;flex-direction:column;gap:6px;max-height:230px;overflow-y:auto;margin:10px 0;}
-.bm-sellrow{display:flex;align-items:center;gap:8px;padding:6px 8px;border-radius:10px;background:#faf6f9;}
+.bm-sellrow{display:flex;align-items:center;gap:8px;padding:6px 8px;border-radius:10px;background:#f6faf9;}
 .bm-sellnm{flex:1;font-weight:800;font-size:13px;color:#4a3a4a;border-left:4px solid #ccc;padding-left:8px;text-align:left;}
 .bm-sellval{font-weight:800;font-size:12.5px;color:#2f9e44;}
 /* 자금 마련: 부족액 진행바 + 이 땅을 팔면 얼마가 채워지는지 */
-.bm-raisebar{height:9px;border-radius:999px;background:#f0e6ef;overflow:hidden;margin:9px 0 7px;}
+.bm-raisebar{height:9px;border-radius:999px;background:#e6f0ee;overflow:hidden;margin:9px 0 7px;}
 .bm-raisebar span{display:block;height:100%;border-radius:999px;background:linear-gradient(90deg,#ffb01c,#2f9e44);transition:width .25s ease;}
-.bm-sellfill{font-size:11px;font-weight:800;color:#c2255c;white-space:nowrap;}
+.bm-sellfill{font-size:11px;font-weight:800;color:#c0392b;white-space:nowrap;}
 .bm-sellfill.done{color:#2f9e44;}
-.bm-sellone{font:inherit;font-weight:800;font-size:12px;color:#fff;background:#ff5a92;border:none;border-radius:8px;padding:5px 12px;cursor:pointer;}
+.bm-sellone{font:inherit;font-weight:800;font-size:12px;color:#fff;background:#c0392b;border:none;border-radius:8px;padding:5px 12px;cursor:pointer;}
 .bm-sellone:hover{filter:brightness(1.05);}
 .bm-panel{width:262px;display:flex;flex-direction:column;gap:12px;}
 /* 사회복지기금 — 패널 맨 위(화면 우측 상단). 벌금·세금이 여기 쌓이고 카드로 한 방에 나감 */
 .bm-fund{display:flex;align-items:center;gap:7px;padding:9px 12px;border-radius:14px;
-  background:linear-gradient(135deg,#fff6da,#ffe9f2);border:1.5px solid #ffd98a;
+  background:linear-gradient(135deg,#fff6da,#e9fffb);border:1.5px solid #ffd98a;
   box-shadow:0 4px 14px rgba(200,150,60,.14);}
 .bm-fund.empty{background:rgba(255,255,255,.6);border-color:rgba(216,199,255,.7);box-shadow:none;}
 .bm-fund.empty .bm-famt{color:#a99aa9;}
 .bm-fic{display:flex;flex:none;} .bm-fic svg{width:21px;height:21px;}
 .bm-ftxt{flex:1;font-size:11.5px;font-weight:800;color:#8a6a3a;}
 .bm-fund.empty .bm-ftxt{color:#8a7a8a;}
-.bm-famt{font-size:14px;font-weight:900;color:#c2255c;font-variant-numeric:tabular-nums;}
+.bm-famt{font-size:14px;font-weight:900;color:#c0392b;font-variant-numeric:tabular-nums;}
 .bm-fund.bump{animation:bm-fundbump .5s cubic-bezier(.34,1.56,.64,1);}
 @keyframes bm-fundbump{0%{transform:scale(1);}45%{transform:scale(1.07);}100%{transform:scale(1);}}
 /* 현금 증감 뱃지 오버레이 — 행 HTML 은 매 렌더 다시 그려지므로 뱃지는 이 밖에 얹는다 */
@@ -1551,7 +1551,7 @@ function injectStyle(): void {
 .bm-mfx{position:absolute;left:0;right:0;top:0;bottom:0;pointer-events:none;overflow:visible;}
 .bm-mdelta{position:absolute;left:calc(100% + 10px);padding:4px 10px;border-radius:999px;font-size:13px;font-weight:900;
   font-variant-numeric:tabular-nums;white-space:nowrap;color:#fff;
-  box-shadow:0 3px 10px rgba(60,40,60,.22);animation:bm-mdelta 2.2s ease-out forwards;}
+  box-shadow:0 3px 10px rgba(40,60,57,.22);animation:bm-mdelta 2.2s ease-out forwards;}
 .bm-mdelta.up{background:#2f9e44;}
 .bm-mdelta.down{background:#e03131;}
 /* 패널 옆에서 살짝 밀려나오며 팝 → 충분히 머무름(여기서 읽음) → 위로 흘리며 사라짐 */
@@ -1569,7 +1569,7 @@ function injectStyle(): void {
 }
 .bm-plegend{float:right;font-size:10px;font-weight:700;color:#a99aa9;}
 .bm-prow{display:flex;align-items:center;gap:8px;padding:6px 7px;border-radius:9px;}
-.bm-prow.active{background:#fff0f6;box-shadow:inset 0 0 0 1px rgba(255,90,146,.3);} .bm-prow.dead{opacity:.5;}
+.bm-prow.active{background:#f0fffc;box-shadow:inset 0 0 0 1px rgba(42,148,136,.3);} .bm-prow.dead{opacity:.5;}
 .bm-pdot{width:13px;height:13px;border-radius:50%;border:2px solid #fff;box-shadow:0 1px 3px rgba(0,0,0,.18);flex:none;}
 .bm-pcol{flex:1;min-width:0;display:flex;flex-direction:column;gap:1px;}
 .bm-pright{text-align:right;display:flex;flex-direction:column;gap:1px;}
@@ -1607,13 +1607,13 @@ function injectStyle(): void {
    flex+margin:auto 로 중앙 정렬(모달이 판보다 크면 grid place-items 는 위가 잘려서 스크롤이 안 됨) */
 .bm-scrim{position:absolute;inset:0;z-index:200;background:rgba(54,36,56,.42);border-radius:16px;
   display:flex;align-items:center;justify-content:center;padding:10px;overflow:auto;}
-.bm-modal{width:290px;max-width:100%;margin:auto;flex:0 0 auto;background:#fff;border-radius:20px;box-shadow:0 20px 50px rgba(80,50,80,.35);overflow:hidden;animation:bm-pop .26s cubic-bezier(.34,1.56,.64,1);}
+.bm-modal{width:290px;max-width:100%;margin:auto;flex:0 0 auto;background:#fff;border-radius:20px;box-shadow:0 20px 50px rgba(50,80,75,.35);overflow:hidden;animation:bm-pop .26s cubic-bezier(.34,1.56,.64,1);}
 @keyframes bm-pop{from{transform:scale(.85);opacity:0;}to{transform:scale(1);opacity:1;}}
 .bm-top{height:60px;display:flex;align-items:center;justify-content:center;gap:5px;color:#fff;font-size:15px;font-weight:800;} .bm-top svg{width:19px;height:19px;}
 .bm-body{padding:15px 17px 17px;text-align:center;} .bm-sub{font-size:12px;color:#8a7a8a;margin-bottom:8px;}
-.bm-mrow{display:flex;justify-content:space-between;align-items:center;font-size:12px;padding:3px 0;} .bm-mrow span{color:#8a7a8a;font-weight:700;} .bm-mrow b{color:#4a3a4a;font-weight:900;} .bm-mrow.big b{color:#ff5a92;font-size:16px;}
+.bm-mrow{display:flex;justify-content:space-between;align-items:center;font-size:12px;padding:3px 0;} .bm-mrow span{color:#8a7a8a;font-weight:700;} .bm-mrow b{color:#4a3a4a;font-weight:900;} .bm-mrow.big b{color:#2a9488;font-size:16px;}
 .bm-btns{display:flex;gap:10px;margin-top:12px;} .bm-btns button{flex:1;font:inherit;font-size:14px;font-weight:800;padding:11px;border-radius:13px;cursor:pointer;border:none;}
-.bm-yes{background:#6ed9b3;color:#1f6a55;} .bm-no{background:#f0e8ef;color:#8a7a8a;}
+.bm-yes{background:#6ed9b3;color:#1f6a55;} .bm-no{background:#e8f0ef;color:#8a7a8a;}
 /* 비활성 버튼이 눌리는 것처럼 보이면 안 됨 (돈 부족한 '간다'·'지불' 등) */
 .bm-btns button:disabled{background:#ece7ee;color:#b6adb6;cursor:not-allowed;box-shadow:none;}
 .bm-btns button:disabled:active{transform:none;}
@@ -1622,7 +1622,7 @@ function injectStyle(): void {
 .bm-cardic svg{width:46px;height:46px;} .bm-ctitle{font-size:18px;font-weight:900;margin-top:6px;} .bm-cdesc{font-size:12px;color:#8a7a8a;margin-bottom:6px;}
 .bm-bmenu{display:flex;flex-direction:column;gap:7px;}
 .bm-brow{display:flex;align-items:center;gap:9px;padding:7px 9px;border-radius:12px;border:1.5px solid #eadcf2;background:#fff;font:inherit;cursor:pointer;text-align:left;transition:border-color .12s,background .12s;}
-.bm-brow:not(:disabled):hover{border-color:#ff5a92;} .bm-brow:disabled{opacity:.55;cursor:default;}
+.bm-brow:not(:disabled):hover{border-color:#2a9488;} .bm-brow:disabled{opacity:.55;cursor:default;}
 .bm-brow.sel{border-color:#57c777;background:#f2fdf6;}
 .bm-bck{width:20px;height:20px;flex:none;border-radius:50%;border:2px solid #dcdce4;background:#fff;box-sizing:border-box;}
 .bm-bck.on{border:none;} .bm-bck svg{width:20px;height:20px;display:block;}
@@ -1639,12 +1639,12 @@ function injectStyle(): void {
 .bm-bchoice:disabled:active{transform:none;}
 .bm-itable{width:100%;font-size:11.5px;border-collapse:collapse;margin-top:2px;} .bm-itable td{padding:3.5px 6px;border-bottom:1px solid #f2eaf4;} .bm-itable td:last-child{text-align:right;font-weight:800;} .bm-itable td:first-child{color:#6a5a6a;}
 .bm-ihdr{font-size:11.5px;font-weight:800;color:#8a7a8a;margin-top:10px;}
-.bm-curbox{background:#fff6fa;border:1px solid #ffd6e6;border-radius:12px;padding:8px 11px;margin:8px 0;}
+.bm-curbox{background:#f6fffe;border:1px solid #d6fff8;border-radius:12px;padding:8px 11px;margin:8px 0;}
 .bm-scrim.bm-noscrim{background:transparent;pointer-events:none;}
-.bm-toast{max-width:100%;text-align:center;background:rgba(74,58,74,.94);color:#fff;font-size:15px;font-weight:800;padding:14px 22px;border-radius:16px;box-shadow:0 14px 36px rgba(0,0,0,.32);animation:bm-pop .26s cubic-bezier(.34,1.56,.64,1);display:flex;align-items:center;justify-content:center;gap:12px;} .bm-toast b{color:#ffd7e6;}
+.bm-toast{max-width:100%;text-align:center;background:rgba(58,74,71,.94);color:#fff;font-size:15px;font-weight:800;padding:14px 22px;border-radius:16px;box-shadow:0 14px 36px rgba(0,0,0,.32);animation:bm-pop .26s cubic-bezier(.34,1.56,.64,1);display:flex;align-items:center;justify-content:center;gap:12px;} .bm-toast b{color:#d7fff8;}
 .bm-bskip{pointer-events:auto;font:inherit;font-size:13px;font-weight:800;color:#4a3a4a;background:#fff;border:none;border-radius:999px;padding:6px 14px;cursor:pointer;box-shadow:0 3px 8px rgba(0,0,0,.25);}
 .bm-actft{display:flex;align-items:center;justify-content:center;gap:8px;margin-top:12px;padding-top:11px;border-top:1px solid #f0e6f4;font-size:13px;font-weight:700;color:#6a5a6a;} .bm-actft b{color:#4a3a4a;}
-.bm-actft .bm-sp{border-color:rgba(120,90,130,.28);border-top-color:#8a5a78;}
+.bm-actft .bm-sp{border-color:rgba(120,90,130,.28);border-top-color:#3a6b63;}
 .bm-sp{width:14px;height:14px;border:2px solid rgba(255,255,255,.4);border-top-color:#fff;border-radius:50%;animation:bm-spin .7s linear infinite;}
 @keyframes bm-spin{to{transform:rotate(360deg);}}
 .bm-end{position:absolute;inset:0;z-index:50;background:rgba(54,36,56,.55);display:grid;place-items:center;}

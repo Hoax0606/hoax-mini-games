@@ -58,7 +58,7 @@ const COLORS: Record<PieceId, { fill: string; stroke: string }> = {
   L: { fill: '#ffa863', stroke: '#e07d2e' }, // 오렌지
   J: { fill: '#7c98ee', stroke: '#4c6cd6' }, // 파랑
   S: { fill: '#5fdca8', stroke: '#2eb37e' }, // 민트
-  Z: { fill: '#ff7ba1', stroke: '#e84e7c' }, // 핑크
+  Z: { fill: '#f3777d', stroke: '#d14a52' }, // 빨강
 };
 
 // ============================================

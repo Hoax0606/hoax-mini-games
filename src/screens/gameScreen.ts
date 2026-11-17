@@ -107,7 +107,7 @@ function buildHeaderHTML(args: {
     <div class="game-header">
       <div class="game-header-left">
         <button class="game-leave-btn" id="leave-btn" title="나가기" aria-label="나가기">
-          ${icon('exit', { size: 16, hue: '#ff5a92' })}<span>나가기</span>
+          ${icon('exit', { size: 16, hue: '#ad2f3c' })}<span>나가기</span>
         </button>
       </div>
 
@@ -205,7 +205,7 @@ function buildExitChoiceHTML(): string {
   return `
     <div class="game-menu-overlay" id="exit-choice-overlay" hidden>
       <div class="game-menu-card">
-        <div class="game-menu-title">${icon('exit', { size: 20, hue: '#ff5a92' })} 나가기</div>
+        <div class="game-menu-title">${icon('exit', { size: 20, hue: '#ad2f3c' })} 나가기</div>
         <div class="exit-choice-list">
           <button class="btn exit-choice-btn" id="exit-lobby">${icon('sofa', { size: 20, hue: '#9c7aeb' })}<span>대기실로 이동</span></button>
           <button class="btn exit-choice-btn" id="exit-room">${icon('home', { size: 20, hue: '#9c7aeb' })}<span>메인으로</span></button>

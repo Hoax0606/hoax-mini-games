@@ -30,7 +30,7 @@ export function createCreateRoomScreen(): Screen {
         <button class="back-btn" id="back-btn" title="뒤로">←</button>
 
         <div class="card pop-in">
-          <div class="card-title">${icon('home-add', { size: 24, hue: '#ff5a92' })} 방 만들기</div>
+          <div class="card-title">${icon('home-add', { size: 24, hue: '#2a9488' })} 방 만들기</div>
           <div class="card-subtitle">방을 만든 뒤 안에서 게임을 골라요</div>
 
           <div class="toggle-row">

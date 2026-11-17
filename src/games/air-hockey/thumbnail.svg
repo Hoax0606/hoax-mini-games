@@ -1,32 +1,32 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 200" fill="none">
-  <!-- 배경: 파스텔 핑크→민트 그라데이션 -->
+  <!-- 배경: 파스텔 청록→연노랑 그라데이션 -->
   <defs>
     <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#ffe4ee"/>
-      <stop offset="1" stop-color="#e0fff4"/>
+      <stop offset="0" stop-color="#ddf2ef"/>
+      <stop offset="1" stop-color="#fff8e1"/>
     </linearGradient>
     <linearGradient id="tableGrad" x1="0" y1="0" x2="0" y2="1">
       <stop offset="0" stop-color="#d1ecff"/>
       <stop offset="1" stop-color="#b8dfff"/>
     </linearGradient>
     <!-- 소프트 입체: 중앙 일러스트 드롭섀도 -->
-    <filter id="lift" x="-35%" y="-35%" width="170%" height="170%"><feDropShadow dx="0" dy="5" stdDeviation="5" flood-color="#8a5a78" flood-opacity="0.26"/></filter>
+    <filter id="lift" x="-35%" y="-35%" width="170%" height="170%"><feDropShadow dx="0" dy="5" stdDeviation="5" flood-color="#3a6b63" flood-opacity="0.26"/></filter>
   </defs>
   <rect width="320" height="200" rx="22" fill="url(#bg)"/>
 
   <!-- 배경 데코: 작은 점들 -->
-  <circle cx="28" cy="28" r="3" fill="#ffc9dd"/>
-  <circle cx="292" cy="38" r="2.5" fill="#b8f5e0"/>
-  <circle cx="282" cy="172" r="3" fill="#d9c7ff"/>
-  <circle cx="38" cy="176" r="2.2" fill="#ffc9dd"/>
-  <circle cx="300" cy="100" r="2" fill="#ffeec2"/>
-  <circle cx="18" cy="100" r="2" fill="#d9c7ff"/>
+  <circle cx="28" cy="28" r="3" fill="#c5e8e1"/>
+  <circle cx="292" cy="38" r="2.5" fill="#ffeeb8"/>
+  <circle cx="282" cy="172" r="3" fill="#8ccfc6"/>
+  <circle cx="38" cy="176" r="2.2" fill="#c5e8e1"/>
+  <circle cx="300" cy="100" r="2" fill="#ffeeb8"/>
+  <circle cx="18" cy="100" r="2" fill="#8ccfc6"/>
 
   <!-- 작은 별 데코 -->
   <path d="M 50,45 L 52,50 L 57,50 L 53,53 L 55,58 L 50,55 L 45,58 L 47,53 L 43,50 L 48,50 Z"
-        fill="#ffc9dd" opacity="0.7"/>
+        fill="#c5e8e1" opacity="0.7"/>
   <path d="M 270,150 L 272,155 L 277,155 L 273,158 L 275,163 L 270,160 L 265,163 L 267,158 L 263,155 L 268,155 Z"
-        fill="#b8f5e0" opacity="0.7"/>
+        fill="#ffeeb8" opacity="0.7"/>
 
   <!-- 소프트 입체: 중앙 일러스트 드롭섀도 -->
   <g filter="url(#lift)">
@@ -41,29 +41,29 @@
   <circle cx="160" cy="100" r="16" fill="none" stroke="#86c9ff" stroke-width="1.5" opacity="0.7"/>
 
   <!-- 골대 표시 (양쪽) -->
-  <rect x="56" y="82" width="4" height="36" rx="2" fill="#ff82ac" opacity="0.8"/>
-  <rect x="260" y="82" width="4" height="36" rx="2" fill="#ff82ac" opacity="0.8"/>
+  <rect x="56" y="82" width="4" height="36" rx="2" fill="#2e8a70" opacity="0.8"/>
+  <rect x="260" y="82" width="4" height="36" rx="2" fill="#c49a1f" opacity="0.8"/>
 
-  <!-- 말렛 1 (왼쪽, 고양이귀 핑크) -->
+  <!-- 말렛 1 (왼쪽, 호스트 민트) -->
   <g transform="translate(100, 100)">
     <!-- 귀 (뾰족) -->
-    <path d="M -10,-10 L -6,-19 L -2,-10 Z" fill="#ff82ac"/>
-    <path d="M 2,-10 L 6,-19 L 10,-10 Z" fill="#ff82ac"/>
+    <path d="M -10,-10 L -6,-19 L -2,-10 Z" fill="#6ed9b3"/>
+    <path d="M 2,-10 L 6,-19 L 10,-10 Z" fill="#6ed9b3"/>
     <!-- 말렛 몸통 -->
-    <circle r="13" fill="#ff82ac" stroke="#ff5a92" stroke-width="1"/>
+    <circle r="13" fill="#6ed9b3" stroke="#2e8a70" stroke-width="1"/>
     <!-- 손잡이 -->
-    <circle r="5" fill="#ffd6e4"/>
+    <circle r="5" fill="#c9f0e2"/>
   </g>
 
-  <!-- 말렛 2 (오른쪽, 곰귀 라벤더) -->
+  <!-- 말렛 2 (오른쪽, 게스트 노랑) -->
   <g transform="translate(220, 100)">
     <!-- 귀 (둥근) -->
-    <circle cx="-9" cy="-10" r="5" fill="#b89aff" stroke="#9c7aeb" stroke-width="1"/>
-    <circle cx="9" cy="-10" r="5" fill="#b89aff" stroke="#9c7aeb" stroke-width="1"/>
+    <circle cx="-9" cy="-10" r="5" fill="#ffd454" stroke="#c49a1f" stroke-width="1"/>
+    <circle cx="9" cy="-10" r="5" fill="#ffd454" stroke="#c49a1f" stroke-width="1"/>
     <!-- 말렛 몸통 -->
-    <circle r="13" fill="#b89aff" stroke="#9c7aeb" stroke-width="1"/>
+    <circle r="13" fill="#ffd454" stroke="#c49a1f" stroke-width="1"/>
     <!-- 손잡이 -->
-    <circle r="5" fill="#e5d9ff"/>
+    <circle r="5" fill="#ffeec2"/>
   </g>
 
   <!-- 퍽 (하트 모양) -->

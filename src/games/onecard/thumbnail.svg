@@ -1,20 +1,20 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 200">
   <defs>
     <linearGradient id="ocBg" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#ffe4ee"/>
-      <stop offset="1" stop-color="#e0fff4"/>
+      <stop offset="0" stop-color="#ddf2ef"/>
+      <stop offset="1" stop-color="#fff8e1"/>
     </linearGradient>
     <!-- 소프트 입체: 중앙 일러스트 드롭섀도 -->
-    <filter id="lift" x="-35%" y="-35%" width="170%" height="170%"><feDropShadow dx="0" dy="5" stdDeviation="5" flood-color="#8a5a78" flood-opacity="0.26"/></filter>
+    <filter id="lift" x="-35%" y="-35%" width="170%" height="170%"><feDropShadow dx="0" dy="5" stdDeviation="5" flood-color="#3a6b63" flood-opacity="0.26"/></filter>
   </defs>
   <rect width="320" height="200" rx="22" fill="url(#ocBg)"/>
 
   <!-- 배경 데코 -->
-  <circle cx="30" cy="30" r="3" fill="#ffc9dd"/>
-  <circle cx="290" cy="40" r="2.5" fill="#b8f5e0"/>
-  <circle cx="290" cy="170" r="3" fill="#d9c7ff"/>
-  <circle cx="30" cy="170" r="2.2" fill="#ffeec2"/>
-  <path d="M 54 60 L 56 66 L 62 66 L 57 70 L 59 76 L 54 72 L 49 76 L 51 70 L 46 66 L 52 66 Z" fill="#ffd0dc" opacity="0.85"/>
+  <circle cx="30" cy="30" r="3" fill="#c5e8e1"/>
+  <circle cx="290" cy="40" r="2.5" fill="#ffeeb8"/>
+  <circle cx="290" cy="170" r="3" fill="#8ccfc6"/>
+  <circle cx="30" cy="170" r="2.2" fill="#ffeeb8"/>
+  <path d="M 54 60 L 56 66 L 62 66 L 57 70 L 59 76 L 54 72 L 49 76 L 51 70 L 46 66 L 52 66 Z" fill="#ffeeb8" opacity="0.85"/>
   <path d="M 270 130 L 272 135 L 277 135 L 273 138 L 274 143 L 270 140 L 266 143 L 267 138 L 263 135 L 268 135 Z" fill="#c5e8d8" opacity="0.85"/>
 
   <!-- 소프트 입체: 중앙 일러스트 드롭섀도 -->

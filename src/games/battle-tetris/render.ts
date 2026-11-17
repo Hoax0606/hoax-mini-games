@@ -51,7 +51,7 @@ const NEXT_X = FIELD_X + FIELD_W_PX + GARBAGE_BAR_W + 16; // 286
 const OPP_AREA_X = NEXT_X + NEXT_BOX_W + 22;      // 368
 
 const COLORS = {
-  bg: '#fff7fb',
+  bg: '#f7fffe',
   gridLine: '#efe6f7',
   fieldBg: '#faf5ff',
   panelFill: 'rgba(255, 255, 255, 0.62)',
@@ -64,9 +64,9 @@ const COLORS = {
   // 언브레이커블 — 어두운 차콜로 일반 가비지와 시각 구분 (이건 못 깨는 줄임을 명확히)
   unbreakable: '#3a3640',
   unbreakableStroke: '#1c1820',
-  ghost: 'rgba(74, 58, 74, 0.16)',
+  ghost: 'rgba(58, 74, 71, 0.16)',
   toppedOverlay: 'rgba(200, 190, 210, 0.75)',
-  gaugeGarbage: '#ff5a92',
+  gaugeGarbage: '#ff7a3d',
   labelAccent: '#9c7aeb',
 } as const;
 
@@ -192,7 +192,7 @@ export class TetrisRenderer {
     if (danger) {
       ctx.strokeStyle = COLORS.gaugeGarbage;
       ctx.lineWidth = 3;
-      ctx.shadowColor = 'rgba(255, 90, 146, 0.6)';
+      ctx.shadowColor = 'rgba(42, 148, 136, 0.6)';
       ctx.shadowBlur = 10;
     } else {
       ctx.strokeStyle = COLORS.fieldBorder;
@@ -437,10 +437,10 @@ export class TetrisRenderer {
     const h = this.flashRows * CELL;
     const y = MARGIN + FIELD_H_PX - h;
     ctx.save();
-    ctx.fillStyle = `rgba(255, 90, 146, ${(1 - t) * 0.6})`;
+    ctx.fillStyle = `rgba(42, 148, 136, ${(1 - t) * 0.6})`;
     ctx.fillRect(FIELD_X, y, FIELD_W_PX, h);
     // 올라온 경계선을 밝게 한 줄
-    ctx.strokeStyle = `rgba(255, 120, 170, ${(1 - t) * 0.9})`;
+    ctx.strokeStyle = `rgba(255, 122, 61, ${(1 - t) * 0.9})`;
     ctx.lineWidth = 2;
     ctx.beginPath();
     ctx.moveTo(FIELD_X, y + 1);

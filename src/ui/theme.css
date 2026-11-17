@@ -1,50 +1,71 @@
 /* ============================================
-   Hoax Minigames - 산리오풍 파스텔 테마
+   Hoax Minigames - 파스텔 청록 테마
+   주색 = 청록(teal) / 포인트 = 노랑(yellow)
    ============================================ */
 
 :root {
-  /* 파스텔 팔레트 */
-  --pink-50:  #fff5f8;
-  --pink-100: #ffe4ee;
-  --pink-200: #ffc9dd;
-  --pink-300: #ffa8c7;
-  --pink-400: #ff82ac;
-  --pink-500: #ff5a92;
+  /* 파스텔 팔레트 — 주색. 버튼·링크·테두리·배경 전부 여기서 나옴 */
+  --teal-50:  #f2fbf9;
+  --teal-100: #ddf2ef;
+  --teal-200: #c5e8e1;
+  --teal-300: #8ccfc6;
+  --teal-400: #3fb3a2;
+  --teal-500: #2a9488;
 
-  --mint-100: #e0fff4;
-  --mint-200: #b8f5e0;
-  --mint-300: #86e8c4;
+  /* 포인트색 — "지금 여기" 상태(선택됨/내 차례/내 메시지)에만 쓴다.
+     여기저기 뿌리면 청록이 죽으니 강조 지점에만 아껴서. */
+  --yellow-100: #fff8e1;
+  --yellow-200: #ffeeb8;
+  --yellow-300: #ffd96b;
+  --yellow-400: #f5c33d;
+  --yellow-500: #8a6a10;  /* 노랑 배경 위 글자용 — 연노랑은 글자색으로 못 씀 */
 
+  /* 성공/준비완료 — 주색이 청록이라 구분되게 확실한 초록으로 */
+  --mint-100: #eafaef;
+  --mint-200: #bfe9ce;
+  --mint-300: #5cc98d;
+  --mint-500: #2e8a60;  /* 밝은 배경 위 글자용 */
+
+  /* 보조색 — 2등/무승부/시민역할 같은 게임별 의미색. 청록·노랑과 안 싸움 */
   --lavender-100: #f0e8ff;
   --lavender-200: #d9c7ff;
   --lavender-300: #b89aff;
-
-  --cream-100: #fff9e8;
-  --cream-200: #ffeec2;
 
   --sky-100: #e0f2ff;
   --sky-200: #b8dfff;
   --sky-300: #86c9ff;
 
   /* 시맨틱 컬러 */
-  --bg-main:      var(--pink-50);
+  --bg-main:      var(--teal-50);
   --bg-card:      #ffffff;
-  --bg-subtle:    var(--pink-100);
+  --bg-subtle:    var(--teal-100);
+  --bg-inset:     #f6fcfb;
 
-  --text-main:    #4a3a4a;
-  --text-muted:   #8a7a8a;
+  --text-main:    #2f4a46;
+  --text-muted:   #6b8a85;
   --text-inverse: #ffffff;
 
-  --accent:       var(--pink-400);
-  --accent-hover: var(--pink-500);
-  --accent-soft:  var(--pink-200);
+  --accent:       var(--teal-400);
+  --accent-hover: var(--teal-500);
+  --accent-soft:  var(--teal-200);
 
-  --border:       var(--pink-200);
-  --border-soft:  var(--pink-100);
+  /* 강조(노랑) 시맨틱 — 선택/현재차례 표시용 */
+  --highlight:      var(--yellow-400);
+  --highlight-soft: var(--yellow-100);
+  --highlight-ink:  var(--yellow-500);
 
-  --shadow-sm: 0 2px 6px rgba(255, 130, 172, 0.12);
-  --shadow-md: 0 6px 16px rgba(255, 130, 172, 0.18);
-  --shadow-lg: 0 12px 32px rgba(255, 130, 172, 0.22);
+  /* 경고/오류 — 예전엔 핑크가 이 역할까지 겸했는데, 주색이 청록이 되면서 분리 */
+  --warn:      #a95c15;
+  --warn-soft: #ffe8d6;
+  --danger:      #ad2f3c;
+  --danger-soft: #ffe0e0;
+
+  --border:       var(--teal-200);
+  --border-soft:  var(--teal-100);
+
+  --shadow-sm: 0 2px 6px rgba(42, 148, 136, 0.12);
+  --shadow-md: 0 6px 16px rgba(42, 148, 136, 0.16);
+  --shadow-lg: 0 12px 32px rgba(42, 148, 136, 0.20);
 
   /* 사이즈 */
   --radius-sm: 8px;
@@ -79,9 +100,9 @@ body {
   color: var(--text-main);
   background: var(--bg-main);
   background-image:
-    radial-gradient(circle at 20% 10%, var(--pink-100) 0%, transparent 40%),
-    radial-gradient(circle at 80% 90%, var(--lavender-100) 0%, transparent 40%),
-    radial-gradient(circle at 50% 50%, var(--mint-100) 0%, transparent 60%);
+    radial-gradient(circle at 20% 10%, var(--teal-100) 0%, transparent 40%),
+    radial-gradient(circle at 80% 90%, var(--yellow-100) 0%, transparent 40%),
+    radial-gradient(circle at 50% 50%, var(--teal-50) 0%, transparent 60%);
   background-attachment: fixed;
   -webkit-font-smoothing: antialiased;
   user-select: none;
@@ -170,7 +191,7 @@ input {
 .logo {
   font-size: 56px;
   font-weight: 800;
-  background: linear-gradient(135deg, var(--pink-400), var(--lavender-300));
+  background: linear-gradient(135deg, var(--teal-400), var(--yellow-400));
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
@@ -329,9 +350,9 @@ input {
 
 /* 에러 메시지 박스 */
 .error-message {
-  color: var(--pink-500);
-  background: var(--pink-50);
-  border: 1px solid var(--pink-200);
+  color: var(--teal-500);
+  background: var(--teal-50);
+  border: 1px solid var(--teal-200);
   border-radius: var(--radius-sm);
   padding: 10px 14px;
   font-size: 13px;
@@ -504,7 +525,7 @@ input {
 .game-card:hover {
   transform: translateY(-3px);
   box-shadow: var(--shadow-md);
-  border-color: var(--pink-200);
+  border-color: var(--teal-200);
 }
 
 /* 도감(게임 목록) 카드 — 클릭 없는 정보 표시용 */
@@ -743,8 +764,8 @@ input {
   margin-bottom: 4px;
 }
 .result-tetris-rank-row.is-me {
-  background: var(--pink-100);
-  border: 1px solid var(--pink-200);
+  background: var(--highlight-soft);
+  border: 1px solid var(--yellow-200);
 }
 .result-tetris-rank-badge {
   font-family: var(--font-mono);
@@ -780,8 +801,8 @@ input {
 
 /* ── 사과 게임 전용 결과 화면 추가 스타일 ── */
 .result-apple-myscore {
-  background: linear-gradient(135deg, var(--pink-100), var(--cream-100));
-  border: 2px solid var(--pink-200);
+  background: linear-gradient(135deg, var(--teal-100), var(--yellow-100));
+  border: 2px solid var(--teal-200);
   border-radius: var(--radius-md);
   padding: 14px 16px 18px;
   margin: 4px 0 22px;
@@ -864,7 +885,7 @@ input {
 }
 
 .result-gomoku-player.is-winner {
-  background: var(--cream-200);
+  background: var(--yellow-200);
   border-color: var(--accent-hover);
   transform: translateY(-4px);
   box-shadow: var(--shadow-md);
@@ -1003,7 +1024,7 @@ input {
   backdrop-filter: blur(20px) saturate(180%);
   -webkit-backdrop-filter: blur(20px) saturate(180%);
   border-bottom: 1px solid rgba(255, 255, 255, 0.55);
-  box-shadow: 0 2px 14px rgba(180, 110, 150, 0.10);
+  box-shadow: 0 2px 14px rgba(110, 180, 168, 0.10);
   z-index: 2;
 }
 /* 좌측 클러스터: 나가기 버튼 + 플레이어 칩(넘치면 가로 스크롤) */
@@ -1022,14 +1043,14 @@ input {
   border: 1.5px solid rgba(255, 255, 255, 0.7);
   background: rgba(255, 255, 255, 0.5);
   border-radius: var(--radius-full);
-  color: var(--pink-500);
+  color: var(--teal-500);
   font-family: inherit;
   font-size: 13px;
   font-weight: 700;
   cursor: pointer;
   transition: background 0.15s, transform 0.12s;
 }
-.game-leave-btn:hover { background: var(--pink-100); }
+.game-leave-btn:hover { background: var(--teal-100); }
 .game-leave-btn:active { transform: scale(0.96); }
 /* 플레이어 칩들 */
 .game-players {
@@ -1056,15 +1077,15 @@ input {
   color: var(--text-main);
   white-space: nowrap;
 }
-.game-player-chip.is-host { background: var(--pink-50); }
+.game-player-chip.is-host { background: var(--teal-50); }
 .game-chip-dot {
   width: 8px; height: 8px; border-radius: 50%;
   background: var(--lavender-300); flex-shrink: 0;
 }
-.game-player-chip.is-host .game-chip-dot { background: var(--pink-400); }
+.game-player-chip.is-host .game-chip-dot { background: var(--teal-400); }
 .game-chip-me {
   font-size: 10px; font-weight: 800; color: var(--text-inverse);
-  background: var(--pink-400); padding: 1px 6px; border-radius: var(--radius-full);
+  background: var(--teal-400); padding: 1px 6px; border-radius: var(--radius-full);
 }
 
 .back-btn-inline {
@@ -1122,7 +1143,7 @@ input {
 .ah-scoreboard .ah-num { font-size: 26px; line-height: 1; }
 .ah-scoreboard .ah-num-host { color: #2e8a70; }
 .ah-scoreboard .ah-num-guest { color: #c49a1f; }
-.ah-scoreboard .ah-sep { font-size: 18px; color: rgba(74, 58, 74, 0.3); }
+.ah-scoreboard .ah-sep { font-size: 18px; color: rgba(58, 74, 71, 0.3); }
 .ah-scoreboard .ah-dot { width: 9px; height: 9px; border-radius: 50%; }
 .ah-scoreboard .ah-dot-host { background: #6ed9b3; }
 .ah-scoreboard .ah-dot-guest { background: #ffd454; }
@@ -1145,7 +1166,7 @@ input {
 /* 호스트 민트 / 게스트 노랑 (말렛·골대 색과 통일) */
 .game-score-home { color: #2e8a70; font-size: 22px; }
 .game-score-away { color: #c49a1f; font-size: 22px; }
-.game-score-sep { color: rgba(74, 58, 74, 0.3); font-size: 16px; }
+.game-score-sep { color: rgba(58, 74, 71, 0.3); font-size: 16px; }
 .game-score-sep  { color: var(--text-muted); font-size: 24px; }
 
 /* 관전 중 배지 — 점수판 대체 */
@@ -1210,10 +1231,10 @@ input {
   transition: background 0.3s, color 0.3s;
 }
 .ping-badge.ping-pending { background: var(--bg-subtle); color: var(--text-muted); }
-.ping-badge.ping-good    { background: #e0fff4;          color: #2e8a70; }
-.ping-badge.ping-ok      { background: #fff9e8;          color: #c49a1f; }
-.ping-badge.ping-slow    { background: #ffe4ee;          color: #c93d73; }
-.ping-badge.ping-dead    { background: #ffc9dd;          color: #a82a5c; }
+.ping-badge.ping-good    { background: var(--mint-100);   color: var(--mint-500); }
+.ping-badge.ping-ok      { background: var(--yellow-100); color: var(--yellow-500); }
+.ping-badge.ping-slow    { background: var(--warn-soft);   color: var(--warn); }
+.ping-badge.ping-dead    { background: var(--danger-soft); color: var(--danger); }
 
 .participant-badge-lavender { background: var(--lavender-300); }
 
@@ -1367,10 +1388,10 @@ input {
   align-items: center;
   justify-content: center;
   border: none;
-  background: var(--pink-100);
+  background: var(--teal-100);
   cursor: pointer;
   border-radius: 50%;
-  color: var(--pink-500);
+  color: var(--teal-500);
   font-size: 14px;
   font-weight: 700;
   line-height: 1;
@@ -1378,7 +1399,7 @@ input {
   transition: transform 0.12s ease, background 0.15s ease, color 0.15s ease;
 }
 .participant-kick:hover {
-  background: var(--pink-500);
+  background: var(--teal-500);
   color: #fff;
   transform: scale(1.1);
 }
@@ -1396,14 +1417,14 @@ input {
   margin-left: auto;
   font-size: 11px;
   font-weight: 800;
-  color: #2e8a70;
+  color: var(--mint-500);
   background: var(--mint-100);
   padding: 3px 10px;
   border-radius: var(--radius-full);
   white-space: nowrap;
   flex-shrink: 0;
 }
-.participant-ready.is-ready { color: #2e8a70; background: var(--mint-100); }
+.participant-ready.is-ready { color: var(--mint-500); background: var(--mint-100); }
 /* 준비 배지 뒤에 강퇴 버튼이 오면 그 사이 간격만 */
 .participant-ready + .participant-kick { margin-left: 6px; }
 
@@ -1423,7 +1444,7 @@ input {
   color: var(--text-muted);
   margin-bottom: 20px;
   padding: 10px 14px;
-  background: var(--pink-50);
+  background: var(--teal-50);
   border-radius: var(--radius-sm);
 }
 
@@ -1613,7 +1634,7 @@ input {
   max-height: 200px;
   overflow-y: auto;
   background: var(--bg-card);
-  border: 1.5px solid var(--pink-200);
+  border: 1.5px solid var(--teal-200);
   border-radius: 14px;
   box-shadow: var(--shadow-md);
   padding: 10px;
@@ -1666,9 +1687,9 @@ input {
   transition: transform 0.12s ease, box-shadow 0.12s ease, border-color 0.12s ease;
 }
 .fw-btn:hover:not(.disabled) { transform: translateY(-3px); box-shadow: 0 8px 18px rgba(120, 80, 140, 0.14); }
-.fw-btn.selected { border-color: var(--pink-500); background: #fff4f8; box-shadow: 0 6px 18px rgba(255, 90, 146, 0.22); transform: translateY(-2px); }
+.fw-btn.selected { border-color: var(--highlight); background: var(--highlight-soft); box-shadow: 0 6px 18px rgba(245, 195, 61, 0.30); transform: translateY(-2px); }
 .fw-btn.disabled { opacity: 0.4; cursor: not-allowed; }
-.fw-icon { width: 30px; height: 30px; margin-bottom: 5px; filter: drop-shadow(0 1px 1px rgba(90, 60, 80, 0.15)); }
+.fw-icon { width: 30px; height: 30px; margin-bottom: 5px; filter: drop-shadow(0 1px 1px rgba(60, 90, 85, 0.15)); }
 .fw-icon svg { display: block; width: 30px; height: 30px; }
 .fw-name { font-size: 12.5px; font-weight: 800; color: var(--text-main); letter-spacing: -0.2px; }
 /* 잔탄 = 우상단 알약 */
@@ -1681,14 +1702,14 @@ input {
   line-height: 20px;
   padding: 0 5px;
   border-radius: 999px;
-  background: #efe6f2;
+  background: #e6efed;
   color: var(--text-muted);
   font-size: 11px;
   font-weight: 800;
   box-shadow: 0 1px 3px rgba(120, 80, 140, 0.15);
 }
-.fw-btn.selected .fw-ammo { background: var(--pink-500); color: #fff; }
-.fw-ammo.inf { background: #e7f7f0; color: #2e8a70; }
+.fw-btn.selected .fw-ammo { background: var(--highlight); color: var(--highlight-ink); }
+.fw-ammo.inf { background: var(--mint-100); color: var(--mint-500); }
 
 /* 포트리스 이동 바 (◀ 연료 ▶) */
 .fortress-move-bar {
@@ -1718,7 +1739,7 @@ input {
   width: 120px;
   height: 8px;
   border-radius: var(--radius-full);
-  background: rgba(74, 58, 74, 0.12);
+  background: rgba(58, 74, 71, 0.12);
   overflow: hidden;
 }
 .fm-fuel-fill {
@@ -1760,10 +1781,10 @@ input {
 .lg-pdot { width: 7px; height: 7px; border-radius: 50%; background: var(--lavender-300); flex: 0 0 auto; }
 .lg-pnm { flex: 1; min-width: 0; font-weight: 800; font-size: 14px; color: var(--text-main); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .lg-psc { flex: 0 0 auto; font-weight: 900; font-size: 13px; color: var(--lavender-500, #9c7aeb); }
-.lg-prow.turn { background: var(--pink-500); border-color: var(--pink-500); }
-.lg-prow.turn .lg-pnm, .lg-prow.turn .lg-psc { color: #fff; }
-.lg-prow.turn .lg-pdot { background: #fff; }
-.lg-prow.liar { background: var(--pink-100); border-color: var(--pink-400); }
+.lg-prow.turn { background: var(--highlight); border-color: var(--highlight); }
+.lg-prow.turn .lg-pnm, .lg-prow.turn .lg-psc { color: var(--highlight-ink); }
+.lg-prow.turn .lg-pdot { background: var(--highlight-ink); }
+.lg-prow.liar { background: var(--teal-100); border-color: var(--teal-400); }
 
 /* 우: 메인 */
 .lg-main { display: flex; flex-direction: column; gap: 10px; min-height: 0; }
@@ -1776,12 +1797,12 @@ input {
 .lg-phase { display: flex; align-items: center; gap: 10px; color: var(--text-muted); font-weight: 700; font-size: 13px; }
 .lg-timer { display: inline-flex; align-items: center; gap: 3px; font-weight: 900; color: var(--lavender-500, #9c7aeb); }
 .lg-timer[hidden] { display: none; }
-.lg-timer.warn { color: var(--pink-500); }
+.lg-timer.warn { color: var(--teal-500); }
 .lg-topic { background: var(--lavender-100); color: var(--lavender-500, #9c7aeb); border-radius: 999px; padding: 4px 12px; font-weight: 800; font-size: 12px; }
 
 /* 역할 카드 */
 .lg-role { border-radius: 16px; padding: 14px; text-align: center; font-weight: 900; font-size: 16px; border: 1.5px solid; }
-.lg-role.liar { background: var(--pink-50); border-color: var(--pink-300); color: var(--pink-500); }
+.lg-role.liar { background: var(--teal-50); border-color: var(--teal-300); color: var(--teal-500); }
 .lg-role.citizen { background: var(--lavender-100); border-color: var(--lavender-300); color: var(--lavender-500, #9c7aeb); }
 .lg-role-word { color: var(--text-main); }
 .lg-role-sub { display: block; font-size: 12px; font-weight: 700; color: var(--text-muted); margin-top: 3px; }
@@ -1799,9 +1820,9 @@ input {
   display: flex; gap: 10px; align-items: baseline; padding: 9px 12px; border-radius: 12px;
   background: rgba(255, 255, 255, 0.7); border: 1px solid var(--lavender-200, #e2d4f2);
 }
-.lg-hint.mine { background: var(--pink-50); border-color: var(--pink-200); }
+.lg-hint.mine { background: var(--teal-50); border-color: var(--teal-200); }
 .lg-hint-who { flex: 0 0 auto; min-width: 68px; font-weight: 800; font-size: 13px; color: var(--lavender-500, #9c7aeb); }
-.lg-hint.mine .lg-hint-who { color: var(--pink-500); }
+.lg-hint.mine .lg-hint-who { color: var(--teal-500); }
 .lg-hint-txt { font-weight: 600; font-size: 14px; color: var(--text-main); }
 
 /* 결과 오버레이 */
@@ -1815,10 +1836,10 @@ input {
   box-shadow: var(--shadow-lg); max-width: 80%;
 }
 .lg-result-liar { font-size: 20px; font-weight: 900; color: var(--text-main); }
-.lg-result-word { margin-top: 8px; font-size: 15px; font-weight: 700; color: var(--categoryText, #c93d73); }
+.lg-result-word { margin-top: 8px; font-size: 15px; font-weight: 700; color: var(--categoryText, #2a9488); }
 .lg-result-outcome { margin-top: 12px; font-size: 16px; font-weight: 800; }
-.lg-result-outcome.liar { color: var(--pink-500); }
-.lg-result-outcome.citizen { color: #2e8a70; }
+.lg-result-outcome.liar { color: var(--teal-500); }
+.lg-result-outcome.citizen { color: var(--mint-500); }
 .lg-result-next { margin-top: 10px; font-size: 12px; font-weight: 600; color: var(--text-muted); }
 
 .lg-panel {
@@ -1866,7 +1887,7 @@ input {
 .ramen-up-btn:disabled { opacity: 0.45; cursor: not-allowed; }
 .ramen-up-btn.maxed { opacity: 0.55; }
 .ramen-up-name { font-size: 13px; font-weight: 800; color: var(--text-main); }
-.ramen-up-cost { font-size: 12px; font-weight: 700; color: var(--pink-500); }
+.ramen-up-cost { font-size: 12px; font-weight: 700; color: var(--teal-500); }
 /* 라면가게: 캔버스가 아래 업그레이드 바 공간을 남기도록 */
 .lg-msg {
   font-size: 13px;
@@ -1890,20 +1911,20 @@ input {
   color: var(--text-main);
   outline: none;
 }
-.lg-input:focus { border-color: var(--pink-300); }
+.lg-input:focus { border-color: var(--teal-300); }
 .lg-input:disabled { opacity: 0.5; }
 .lg-submit {
   padding: 10px 18px;
   border-radius: var(--radius-full);
   border: none;
-  background: var(--pink-400);
+  background: var(--teal-400);
   color: #fff;
   font-weight: 700;
   font-size: 14px;
   cursor: pointer;
   transition: background 0.15s, transform 0.1s;
 }
-.lg-submit:hover:not(:disabled) { background: var(--pink-500); }
+.lg-submit:hover:not(:disabled) { background: var(--teal-500); }
 .lg-submit:active:not(:disabled) { transform: scale(0.96); }
 .lg-submit:disabled { opacity: 0.5; cursor: not-allowed; }
 
@@ -1923,7 +1944,7 @@ input {
 }
 .lg-vote-btn:hover:not(:disabled) { background: var(--lavender-100); transform: translateY(-2px); }
 .lg-vote-btn:disabled { opacity: 0.45; cursor: not-allowed; }
-.lg-vote-btn.voted { background: var(--pink-100); border-color: var(--pink-400); }
+.lg-vote-btn.voted { background: var(--teal-100); border-color: var(--teal-400); }
 
 /* 게임 화면 좌측 하단 플로팅 바 — 우측은 채팅 패널 영역이라 좌측으로 이동 */
 .reaction-bar-floating {
@@ -2173,7 +2194,7 @@ input {
   text-align: center;
   color: var(--text-muted);
   background: var(--bg-card);
-  border: 1.5px dashed var(--pink-100);
+  border: 1.5px dashed var(--teal-100);
   border-radius: 16px;
 }
 .public-rooms-empty-sub {
@@ -2182,7 +2203,7 @@ input {
   margin-top: 6px;
 }
 .public-rooms-empty-sub code {
-  background: var(--pink-50);
+  background: var(--teal-50);
   padding: 1px 6px;
   border-radius: 4px;
   font-size: 11px;
@@ -2205,14 +2226,14 @@ input {
 }
 .public-room-card:hover:not(.is-full) {
   transform: translateY(-3px);
-  border-color: var(--pink-200);
+  border-color: var(--teal-200);
   box-shadow: var(--shadow-md);
 }
 .public-room-card:active:not(.is-full) { transform: scale(0.98); }
 .public-room-card:hover:not(:disabled) {
   transform: translateY(-2px);
-  border-color: var(--pink-300);
-  box-shadow: 0 6px 18px rgba(255, 142, 178, 0.2);
+  border-color: var(--teal-300);
+  box-shadow: 0 6px 18px rgba(63, 179, 162, 0.2);
 }
 .public-room-card.is-full {
   opacity: 0.5;
@@ -2246,14 +2267,14 @@ input {
 }
 .public-room-badge.is-waiting {
   background: var(--mint-100);
-  color: #2e8a70;
+  color: var(--mint-500);
 }
 .public-room-badge.is-playing {
   background: var(--lavender-100);
   color: #6b4cb0;
 }
 .public-room-badge.is-locked {
-  background: var(--cream-200);
+  background: var(--yellow-200);
   color: #a8791f;
 }
 .public-room-code {
@@ -2280,7 +2301,7 @@ input {
   -webkit-backdrop-filter: blur(18px) saturate(160%);
   border: 1.5px solid rgba(255, 255, 255, 0.7);
   border-radius: 16px;
-  box-shadow: 0 6px 22px rgba(255, 142, 178, 0.18);
+  box-shadow: 0 6px 22px rgba(63, 179, 162, 0.18);
   z-index: 100;       /* pause-overlay(150) / 모달들보다 낮게 — 일시정지 시 가려짐 */
   overflow: hidden;
   transition: width 0.18s ease, height 0.18s ease;
@@ -2340,7 +2361,7 @@ input {
   padding: 2px 8px;
   border-radius: 8px;
 }
-.chat-toggle:hover { background: var(--pink-100); }
+.chat-toggle:hover { background: var(--teal-100); }
 
 .chat-stream {
   flex: 1;
@@ -2375,7 +2396,7 @@ input {
   padding: 0 4px;
 }
 .chat-row-bubble {
-  background: var(--pink-50);
+  background: var(--teal-50);
   border: 1.5px solid var(--border-soft);
   border-radius: 14px;
   padding: 8px 12px;
@@ -2387,8 +2408,8 @@ input {
 }
 /* 내 메시지 — 핑크 버블 (목업과 동일, 꼬리 없이 전체 라운드) */
 .chat-row.is-me .chat-row-bubble {
-  background: linear-gradient(135deg, var(--pink-100), var(--pink-50));
-  border-color: var(--pink-200);
+  background: linear-gradient(135deg, var(--yellow-200), var(--yellow-100));
+  border-color: var(--yellow-200);
   color: var(--text-main);
 }
 
@@ -2408,14 +2429,14 @@ input {
      40px 전송 버튼이 패널 밖으로 밀려나 overflow:hidden 에 잘렸음. */
   min-width: 0;
   padding: 10px 14px;
-  border: 1.5px solid var(--pink-200);
+  border: 1.5px solid var(--teal-200);
   border-radius: var(--radius-full);
   font-size: 13.5px;
   outline: none;
-  background: var(--bg-inset, #fff7fb);
+  background: var(--bg-inset, #f6fcfb);
   color: var(--text-main);
 }
-.chat-input:focus { border-color: var(--pink-400); }
+.chat-input:focus { border-color: var(--teal-400); }
 /* 전송 — 핑크 원형 (목업과 동일) */
 .chat-send-btn {
   width: 40px;
@@ -2423,14 +2444,14 @@ input {
   flex-shrink: 0;
   border: 0;
   border-radius: 50%;
-  background: var(--pink-500);
+  background: var(--teal-500);
   color: #fff;
   font-weight: 800;
   cursor: pointer;
   font-size: 16px;
   transition: transform 0.1s, background 0.12s;
 }
-.chat-send-btn:hover { background: var(--pink-400); }
+.chat-send-btn:hover { background: var(--teal-400); }
 .chat-send-btn:active { transform: scale(0.92); }
 
 /* ============================================
@@ -2449,15 +2470,15 @@ input {
 .game-countdown-number {
   font-size: 160px;
   font-weight: 900;
-  color: var(--pink-200);
-  text-shadow: 0 6px 24px rgba(0, 0, 0, 0.35), 0 0 32px rgba(255, 138, 172, 0.45);
+  color: var(--teal-200);
+  text-shadow: 0 6px 24px rgba(0, 0, 0, 0.35), 0 0 32px rgba(63, 179, 162, 0.45);
   letter-spacing: -2px;
   user-select: none;
 }
 .game-countdown-number.is-go {
   font-size: 100px;
-  color: var(--mint-300);
-  text-shadow: 0 6px 24px rgba(0, 0, 0, 0.35), 0 0 32px rgba(134, 232, 196, 0.55);
+  color: var(--teal-300);
+  text-shadow: 0 6px 24px rgba(0, 0, 0, 0.35), 0 0 32px rgba(140, 207, 198, 0.55);
 }
 .game-countdown-number.animate {
   animation: countdownPop 0.7s ease-out;
@@ -2526,7 +2547,7 @@ input {
   padding: 12px 16px;
   font-size: 16px;
   font-weight: 600;
-  border: 2px solid var(--pink-200);
+  border: 2px solid var(--teal-200);
   border-radius: var(--radius-full);
   outline: none;
   background: var(--bg-card);
@@ -2536,14 +2557,14 @@ input {
 
 .wc-input:focus {
   border-color: var(--accent);
-  box-shadow: 0 0 0 3px rgba(255, 90, 146, 0.18);
+  box-shadow: 0 0 0 3px rgba(42, 148, 136, 0.18);
 }
 
 .wc-input:disabled {
-  background: #f3eef0;
+  background: #eef3f2;
   color: var(--text-muted);
   cursor: not-allowed;
-  border-color: var(--cream-200);
+  border-color: var(--yellow-200);
 }
 
 .wc-input-submit {
@@ -2567,7 +2588,7 @@ input {
 }
 
 .wc-input:disabled + .wc-input-submit {
-  background: var(--cream-200);
+  background: var(--yellow-200);
   color: var(--text-muted);
   cursor: not-allowed;
 }
@@ -2576,8 +2597,8 @@ input {
   font-size: 13px;
   font-weight: 700;
   color: var(--accent);
-  background: var(--pink-50);
-  border: 1px solid var(--pink-200);
+  background: var(--teal-50);
+  border: 1px solid var(--teal-200);
   border-radius: 10px;
   padding: 6px 14px;
   opacity: 0;
@@ -2680,10 +2701,10 @@ input {
   gap: 8px;
   font-size: 24px;
   padding: 18px 12px;
-  border-color: var(--pink-300);
-  background: linear-gradient(135deg, #fff, #fff6fb);
+  border-color: var(--teal-300);
+  background: linear-gradient(135deg, #fff, #f6fcfb);
 }
-.dq-choose-word:hover { background: var(--pink-50); border-color: var(--accent); }
+.dq-choose-word:hover { background: var(--teal-50); border-color: var(--accent); }
 .dq-choose-divider {
   display: flex;
   align-items: center;
@@ -2738,7 +2759,7 @@ input {
   gap: 8px 12px;
   padding: 8px 14px;
   background: var(--bg-card);
-  border: 1.5px solid var(--pink-200);
+  border: 1.5px solid var(--teal-200);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-sm);
   max-width: 620px;
@@ -2750,7 +2771,7 @@ input {
   gap: 6px;
   /* 그룹 사이 얇은 구분선 */
   padding-right: 10px;
-  border-right: 1px solid var(--pink-100);
+  border-right: 1px solid var(--teal-100);
 }
 .dq-tool-group:last-of-type { border-right: none; padding-right: 0; }
 .dq-color-btn {
@@ -2802,7 +2823,7 @@ input {
 .dq-tool-btn:hover { background: var(--accent-soft); }
 .dq-tool-btn.is-active {
   border-color: var(--accent);
-  background: var(--pink-100);
+  background: var(--teal-100);
 }
 
 /* 도형 그룹 — 펜/마커 아닐 때 흐리게(사용 불가 표시). 클릭은 되지만(펜 복귀) 시각 힌트만. */
@@ -2842,7 +2863,7 @@ input {
   font-size: 14px;
   font-weight: 700;
   color: #fff;
-  background: var(--accent, #ff5a92);
+  background: var(--accent, #3fb3a2);
   border: none;
   border-radius: 8px;
   cursor: pointer;
@@ -2874,14 +2895,14 @@ input {
 .sd-cut { font-weight: 800; font-size: 13px; color: var(--text-main); white-space: nowrap; }
 .sd-mid { flex: 1; display: flex; flex-direction: column; gap: 4px; align-items: center; }
 .sd-tbar { width: 100%; max-width: 280px; height: 8px; border-radius: 999px; background: var(--lavender-100); overflow: hidden; }
-.sd-tbar i { display: block; height: 100%; width: 100%; background: var(--pink-300); border-radius: 999px; transition: width 0.25s linear; }
-.sd-tbar i.warn { background: var(--pink-500); }
+.sd-tbar i { display: block; height: 100%; width: 100%; background: var(--teal-300); border-radius: 999px; transition: width 0.25s linear; }
+.sd-tbar i.warn { background: var(--teal-500); }
 .sd-tsec { display: inline-flex; gap: 3px; align-items: center; font-weight: 900; font-size: 12px; color: var(--lavender-500, #9c7aeb); }
-.sd-tsec.warn { color: var(--pink-500); }
+.sd-tsec.warn { color: var(--teal-500); }
 .sd-right { display: inline-flex; align-items: center; }
 .sd-prompt {
-  background: var(--pink-50); color: var(--pink-500);
-  border: 1.5px solid var(--pink-200); border-radius: 999px;
+  background: var(--teal-50); color: var(--teal-500);
+  border: 1.5px solid var(--teal-200); border-radius: 999px;
   padding: 6px 14px; font-weight: 900; font-size: 14px; white-space: nowrap;
 }
 .sd-cont { display: inline-flex; align-items: center; gap: 4px; color: var(--lavender-500, #9c7aeb); font-weight: 800; font-size: 13px; white-space: nowrap; }
@@ -2903,11 +2924,11 @@ input {
   font-family: inherit;
   transition: transform 0.14s cubic-bezier(.2,.9,.3,1), box-shadow 0.15s, border-color 0.15s;
 }
-.sd-book:hover { transform: translateY(-4px); box-shadow: var(--shadow-lg); border-color: var(--pink-300); }
+.sd-book:hover { transform: translateY(-4px); box-shadow: var(--shadow-lg); border-color: var(--teal-300); }
 .sd-book:active { transform: translateY(-1px) scale(0.99); }
 .sd-cover {
   aspect-ratio: 4 / 3; display: grid; place-items: center; font-size: 2rem;
-  background: linear-gradient(135deg, var(--pink-50), var(--lavender-100)); overflow: hidden;
+  background: linear-gradient(135deg, var(--teal-50), var(--lavender-100)); overflow: hidden;
 }
 .sd-cover-img { width: 100%; height: 100%; object-fit: contain; display: block; }
 .sd-meta { padding: 10px 12px; display: flex; flex-direction: column; gap: 2px; }
@@ -2918,7 +2939,7 @@ input {
   display: block; margin: 20px auto 0;
   padding: 11px 24px;
   font-family: inherit; font-weight: 800; font-size: 14px;
-  color: #fff; background: var(--pink-500);
+  color: #fff; background: var(--teal-500);
   border: none; border-radius: 999px; cursor: pointer;
   transition: transform 0.12s, box-shadow 0.15s;
 }
@@ -2951,15 +2972,15 @@ input {
   color: var(--text-main); cursor: pointer;
   transition: background 0.15s, border-color 0.15s, color 0.15s;
 }
-.sd-vx:hover { background: var(--pink-500); border-color: var(--pink-500); color: #fff; }
+.sd-vx:hover { background: var(--teal-500); border-color: var(--teal-500); color: #fff; }
 .sd-vstage {
   aspect-ratio: 4 / 3; display: grid; place-items: center; position: relative;
-  background: linear-gradient(135deg, var(--pink-50), var(--lavender-100));
+  background: linear-gradient(135deg, var(--teal-50), var(--lavender-100));
 }
 .sd-vstage.cut { background: #fff; }
 .sd-cover-box { text-align: center; padding: 0 20px; }
 .sd-cover-who { color: var(--text-muted); font-weight: 700; font-size: 16px; }
-.sd-cover-ttl { color: var(--pink-500); font-weight: 900; font-size: 34px; margin-top: 6px; }
+.sd-cover-ttl { color: var(--teal-500); font-weight: 900; font-size: 34px; margin-top: 6px; }
 .sd-cover-hint { color: var(--text-muted); font-weight: 500; font-size: 13px; margin-top: 10px; }
 .sd-cut-img { width: 100%; height: 100%; object-fit: contain; display: block; }
 .sd-cut-top { position: absolute; left: 0; right: 0; top: 12px; text-align: center; color: var(--text-muted); font-size: 13px; font-weight: 700; }
@@ -2971,11 +2992,11 @@ input {
 .sd-vnav { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 12px 16px; border-top: 1px solid var(--border-soft); }
 .sd-dots { display: flex; gap: 6px; }
 .sd-dots i { width: 8px; height: 8px; border-radius: 50%; background: var(--lavender-200); }
-.sd-dots i.on { background: var(--pink-500); }
+.sd-dots i.on { background: var(--teal-500); }
 .sd-vbtn {
   font-family: inherit; font-weight: 800; font-size: 14px;
   border: 0; border-radius: 999px; padding: 9px 18px; cursor: pointer;
-  background: var(--pink-500); color: #fff;
+  background: var(--teal-500); color: #fff;
   transition: transform 0.12s, filter 0.15s;
 }
 .sd-vbtn:hover:not(:disabled) { filter: brightness(1.06); transform: translateY(-1px); }
@@ -3022,7 +3043,7 @@ input {
 }
 .dq-guess-input:focus {
   border-color: var(--accent);
-  box-shadow: 0 0 0 3px rgba(255, 90, 146, 0.18);
+  box-shadow: 0 0 0 3px rgba(42, 148, 136, 0.18);
 }
 .dq-guess-submit {
   padding: 11px 20px;
@@ -3060,8 +3081,8 @@ input {
 }
 
 .change-game-card-wrap {
-  background: var(--cream-100);
-  border: 1.5px solid var(--pink-200);
+  background: var(--yellow-100);
+  border: 1.5px solid var(--teal-200);
   border-radius: 22px;
   padding: 28px 28px 22px;
   width: 100%;
@@ -3215,7 +3236,7 @@ input {
 }
 .change-game-card:hover:not(:disabled) {
   transform: translateY(-3px);
-  border-color: var(--pink-200);
+  border-color: var(--teal-200);
   box-shadow: var(--shadow-md);
 }
 .change-game-card:active:not(:disabled) { transform: scale(0.97); }
@@ -3223,9 +3244,9 @@ input {
 /* 선택된 게임 (대기실=is-current / 오버레이 클릭=is-selected) — 핑크 링 + 체크 뱃지 */
 .change-game-card.is-selected,
 .change-game-card.is-current {
-  border: 2px solid var(--pink-500);
-  background: var(--pink-50);
-  box-shadow: 0 0 0 3px rgba(255, 90, 146, 0.28), 0 8px 20px rgba(255, 142, 178, 0.22);
+  border: 2px solid var(--highlight);
+  background: var(--highlight-soft);
+  box-shadow: 0 0 0 3px rgba(245, 195, 61, 0.35), 0 8px 20px rgba(245, 195, 61, 0.22);
 }
 .change-game-card.is-selected::after,
 .change-game-card.is-current::after {
@@ -3236,8 +3257,8 @@ input {
   width: 24px;
   height: 24px;
   border-radius: 50%;
-  background: var(--pink-500);
-  color: #fff;
+  background: var(--highlight);
+  color: var(--highlight-ink);
   font-size: 14px;
   font-weight: 900;
   display: flex;
@@ -3266,13 +3287,13 @@ input {
   aspect-ratio: 16 / 10;
   object-fit: cover;
   border-radius: 8px;
-  background: #f7e8ee;
+  background: #e8f3f0;
 }
 
 /* .change-game-card-name 은 위 통합 규칙에서 정의됨 (중복 제거) */
 .change-game-card-meta {
   font-size: 11px;
-  color: var(--pink-500);
+  color: var(--teal-500);
   font-weight: 700;
   text-align: center;
   line-height: 1.3;
@@ -3353,12 +3374,12 @@ input {
   position: relative;
   z-index: 1;
   background: var(--bg-card);
-  border: 4px solid var(--pink-300);
+  border: 4px solid var(--teal-300);
   border-radius: 32px;
   padding: 56px 72px 48px;
   max-width: 680px;
   text-align: center;
-  box-shadow: 0 24px 64px rgba(255, 90, 146, 0.36);
+  box-shadow: 0 24px 64px rgba(42, 148, 136, 0.36);
   animation: birthdayPop 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 @keyframes birthdayPop {
@@ -3380,7 +3401,7 @@ input {
   font-size: 34px;
   font-weight: 900;
   line-height: 1.5;
-  color: var(--pink-500);
+  color: var(--teal-500);
   margin-bottom: 24px;
   word-break: keep-all;
 }
@@ -3466,7 +3487,7 @@ input {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(74, 58, 74, 0.42);
+  background: rgba(58, 74, 71, 0.42);
   backdrop-filter: blur(2px);
 }
 .reconnect-box {
@@ -3483,8 +3504,8 @@ input {
 .reconnect-spinner {
   width: 34px;
   height: 34px;
-  border: 4px solid var(--pink-100);
-  border-top-color: var(--pink-400, #ff82ac);
+  border: 4px solid var(--teal-100);
+  border-top-color: var(--teal-400);
   border-radius: 50%;
   animation: reconnect-rot 0.8s linear infinite;
 }
@@ -3545,23 +3566,23 @@ input {
   backdrop-filter: blur(8px);
   border: 1px solid rgba(255, 255, 255, .85);
   color: var(--text-main);
-  box-shadow: 0 2px 8px rgba(255, 130, 172, .10), inset 0 1px 0 rgba(255, 255, 255, .8);
+  box-shadow: 0 2px 8px rgba(63, 179, 162, .10), inset 0 1px 0 rgba(255, 255, 255, .8);
 }
 /* 마우스 올린 항목은 핑크로 물들며 살짝 떠오름 (아이콘·글자는 흰색) */
 .menu-card .btn-secondary:not(:disabled):hover {
-  background: linear-gradient(180deg, var(--pink-300), var(--pink-400));
+  background: linear-gradient(180deg, var(--teal-300), var(--teal-400));
   border-color: transparent;
   color: #fff;
-  box-shadow: 0 10px 22px rgba(255, 90, 146, .30);
+  box-shadow: 0 10px 22px rgba(42, 148, 136, .30);
   transform: translateY(-2px);
 }
 .menu-card .btn-secondary:not(:disabled):hover .ic { color: #fff; }
 /* 주 버튼 = 분홍 채움 + 밝은 윗엣지 + 깊은 그림자 */
 .menu-card .btn-primary {
-  background: linear-gradient(180deg, #ff8fb5, var(--pink-500));
-  box-shadow: 0 10px 22px rgba(255, 90, 146, .34), inset 0 1px 0 rgba(255, 255, 255, .5);
+  background: linear-gradient(180deg, #4ec3b1, var(--teal-500));
+  box-shadow: 0 10px 22px rgba(42, 148, 136, .34), inset 0 1px 0 rgba(255, 255, 255, .5);
 }
 .menu-card .btn-primary:not(:disabled):hover {
-  box-shadow: 0 14px 28px rgba(255, 90, 146, .42);
+  box-shadow: 0 14px 28px rgba(42, 148, 136, .42);
   transform: translateY(-2px);
 }

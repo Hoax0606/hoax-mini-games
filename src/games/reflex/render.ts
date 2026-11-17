@@ -24,11 +24,11 @@ const CANVAS_H = 400;
 const FONT = `'Pretendard', 'Apple SD Gothic Neo', 'Noto Sans KR', system-ui, sans-serif`;
 
 const COLORS = {
-  bg: '#fff9fd',
+  bg: '#f9fffe',
   textMain: '#4a3a4a',
   textMuted: '#8a7a8a',
   // 상태별 원 색
-  waitFill: '#ff82ac',     waitStroke: '#c93d73',  // 빨강 (클릭 X)
+  waitFill: '#ef5350',     waitStroke: '#c0392b',  // 빨강 (클릭 X)
   goFill: '#86e8c4',       goStroke: '#2e8a70',    // 초록 (클릭!)
   resultFill: '#d9c7ff',   resultStroke: '#9c7aeb',// 보라 (결과)
   foulFill: '#ff6b83',     foulStroke: '#c9304e',  // 실격 — 흰 글씨 가독되게 또렷한 코랄레드
@@ -162,7 +162,7 @@ export class ReflexRenderer {
   private frosted(x: number, y: number, w: number, h: number, radius: number, active = false): void {
     const ctx = this.ctx;
     ctx.save();
-    ctx.shadowColor = active ? 'rgba(255, 90, 146, 0.2)' : 'rgba(120, 80, 140, 0.14)';
+    ctx.shadowColor = active ? 'rgba(42, 148, 136, 0.2)' : 'rgba(120, 80, 140, 0.14)';
     ctx.shadowBlur = active ? 13 : 8;
     ctx.shadowOffsetY = active ? 5 : 3;
     ctx.beginPath();
@@ -200,9 +200,9 @@ export class ReflexRenderer {
       const cyp = y + 26 + 8;
       ctx.beginPath();
       ctx.roundRect(cxp, cyp, cw, ch, ch / 2);
-      ctx.fillStyle = 'rgba(201, 48, 78, 0.12)';
+      ctx.fillStyle = 'rgba(239, 83, 80, 0.12)';
       ctx.fill();
-      ctx.strokeStyle = 'rgba(201, 48, 78, 0.35)';
+      ctx.strokeStyle = 'rgba(239, 83, 80, 0.35)';
       ctx.lineWidth = 1;
       ctx.stroke();
       ctx.fillStyle = COLORS.foulStroke;
@@ -294,7 +294,7 @@ export class ReflexRenderer {
     if (phase.kind === 'foul' && !prefersReducedMotion) {
       const ft = clamp01(age / 420);
       if (ft < 1) {
-        ctx.strokeStyle = `rgba(201, 48, 78, ${(1 - ft) * 0.6})`;
+        ctx.strokeStyle = `rgba(239, 83, 80, ${(1 - ft) * 0.6})`;
         ctx.lineWidth = 3;
         ctx.beginPath();
         ctx.arc(cx, cy, r + ft * 60, 0, Math.PI * 2);
@@ -509,7 +509,7 @@ export class ReflexRenderer {
 function oppPhaseStyle(opp: OpponentState): { dot: string; bg: string } {
   if (opp.finished) return { dot: COLORS.goStroke, bg: 'rgba(230, 255, 245, 0.7)' };
   switch (opp.phase) {
-    case 'waiting': return { dot: COLORS.waitFill,     bg: 'rgba(255, 240, 245, 0.7)' };
+    case 'waiting': return { dot: COLORS.waitFill,     bg: 'rgba(240, 255, 252, 0.7)' };
     case 'go':      return { dot: COLORS.goFill,       bg: 'rgba(230, 255, 245, 0.8)' };
     case 'result':  return { dot: COLORS.resultStroke, bg: 'rgba(245, 237, 255, 0.7)' };
     case 'foul':    return { dot: COLORS.foulStroke,   bg: 'rgba(255, 230, 230, 0.75)' };

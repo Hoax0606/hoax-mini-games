@@ -52,7 +52,7 @@ const PANEL_W = 340;
 // ============================================
 
 const COLORS = {
-  bg: '#fff9fd',
+  bg: '#f9fffe',
 
   // 다트보드 번호 링 — 실제 다트판 참고해 얇은 플럼 링(방사 그라데이션은 drawBoard 에서).
   boardOuterRing: '#2a2238',
@@ -70,7 +70,7 @@ const COLORS = {
   inactiveRingB:   '#5a4d56',
 
   // Double / Triple 링 색 (짝/홀) — "리워드 링"이라 또렷하게 (채도 살짝 ↑)
-  ringPink: '#ff4d89',
+  ringAlt: '#2a9488',
   ringMint: '#3fd398',
 
   // 세그먼트 구분선(스파이더) — 실제 보드의 금속 와이어처럼 raised 느낌(어두운 바탕 + 은색 코어 + 교차 스터드)
@@ -82,8 +82,8 @@ const COLORS = {
   // Bull
   outerBull: '#86e8c4',
   outerBullStroke: '#2e8a70',
-  innerBull: '#ff82ac',
-  innerBullStroke: '#c93d73',
+  innerBull: '#ef5350',
+  innerBullStroke: '#c0392b',
 
   // 숫자 라벨 — 어두운 외곽 링 위에 올라가므로 밝은 크림색
   segNumber: '#fff6e4',
@@ -93,16 +93,16 @@ const COLORS = {
   dartShaftStroke: '#8a7a8a',
   dartTip: '#1c1820',        // 검정 팁 복원
   dartFlight1: '#b89aff',
-  dartFlight2: '#ff82ac',
+  dartFlight2: '#ffd454',
 
   // 패널 (다른 게임들과 동일)
   panelBg: '#faf5ff',
   panelBorder: '#d9c7ff',
 
   // 현재 플레이어 카드 — 노랑 → pink (사과 게임 내 점수 카드와 통일)
-  currentCardBg: '#ffe4ee',
-  currentCardStroke: '#ff6b9e',
-  currentCardAccent: '#ff5a92',
+  currentCardBg: '#e4fffa',
+  currentCardStroke: '#3fb3a2',
+  currentCardAccent: '#2a9488',
 
   // Bust 상태 카드 — 톤 낮춘 붉은색
   bustCardBg: '#ffdede',
@@ -126,7 +126,7 @@ const COLORS = {
   textWin: '#2e8a70',
 
   // 게임 오버 오버레이 (배경 더 파스텔)
-  overlayBg: 'rgba(255, 249, 253, 0.92)',
+  overlayBg: 'rgba(249, 255, 254, 0.92)',
   overlayTitle: '#4a3a4a',
 
   // BUST 배너 (과녁 위 큰 경고) — 톤 다운
@@ -316,7 +316,7 @@ export class DartsRenderer {
       const py = BOARD_CY + d.localY;
       if (i === lastIdx && popActive && popT < 1) {
         // 임팩트 링 (착탄 순간 퍼지는 링)
-        ctx.strokeStyle = `rgba(255, 90, 146, ${(1 - popT) * 0.7})`;
+        ctx.strokeStyle = `rgba(42, 148, 136, ${(1 - popT) * 0.7})`;
         ctx.lineWidth = 2.4;
         ctx.beginPath();
         ctx.arc(px, py, 4 + popT * 18, 0, Math.PI * 2);
@@ -382,7 +382,7 @@ export class DartsRenderer {
     const grow = prefersReducedMotion ? 1 : 0.6 + 0.6 * easeOut(clamp01(age * 2));
     const alpha = 1 - clamp01((age - 0.6) / 0.4); // 뒤쪽 40% 구간에 페이드아웃
     const color =
-      pop.kind === 'triple' ? COLORS.ringPink
+      pop.kind === 'triple' ? COLORS.ringAlt
         : pop.kind === 'double' ? COLORS.ringMint
           : (pop.kind === 'inner-bull' || pop.kind === 'outer-bull') ? COLORS.innerBull
             : COLORS.textAccent;
@@ -413,7 +413,7 @@ export class DartsRenderer {
     ctx.save();
     ctx.shadowColor = opt.danger
       ? 'rgba(255, 90, 90, 0.28)'
-      : opt.active ? 'rgba(255, 90, 146, 0.22)' : 'rgba(120, 80, 140, 0.15)';
+      : opt.active ? 'rgba(42, 148, 136, 0.22)' : 'rgba(120, 80, 140, 0.15)';
     ctx.shadowBlur = opt.active || opt.danger ? 15 : 9;
     ctx.shadowOffsetY = opt.active || opt.danger ? 6 : 4;
     ctx.beginPath();
@@ -531,7 +531,7 @@ export class DartsRenderer {
         : (isEven ? COLORS.singleLight : COLORS.singleDark);
       const ringColor = inactive
         ? (isEven ? COLORS.inactiveRingA : COLORS.inactiveRingB)
-        : (isEven ? COLORS.ringPink : COLORS.ringMint);
+        : (isEven ? COLORS.ringAlt : COLORS.ringMint);
 
       this.fillRing(startA, endA, R * BOARD_RATIOS.TRIPLE_OUTER, R * BOARD_RATIOS.DOUBLE_INNER, singleColor);
       this.fillRing(startA, endA, R * BOARD_RATIOS.DOUBLE_INNER, R * BOARD_RATIOS.DOUBLE_OUTER, ringColor);
@@ -931,7 +931,7 @@ export class DartsRenderer {
     const cur = state.players[state.currentPlayerIdx];
     if (cur) {
       const isMe = state.myPlayerIdx !== null && state.myPlayerIdx === state.currentPlayerIdx;
-      ctx.fillStyle = isMe ? '#ff5a92' : COLORS.textMain;
+      ctx.fillStyle = isMe ? '#2a9488' : COLORS.textMain;
       ctx.font = `700 11px ${FONT}`;
       ctx.textAlign = 'left';
       ctx.fillText(`▶ ${truncate(cur.nickname, 12)}${isMe ? ' (나)' : ''} 차례`, x + 12, y + 40);
@@ -970,13 +970,13 @@ export class DartsRenderer {
       danger: bust,
       fill: bust
         ? 'rgba(255, 222, 222, 0.82)'
-        : isMyTurn ? 'rgba(255, 240, 246, 0.8)' : 'rgba(255, 240, 246, 0.55)',
+        : isMyTurn ? 'rgba(240, 255, 252, 0.8)' : 'rgba(240, 255, 252, 0.55)',
     });
 
     // 상단 라벨 — bust / 지금 차례 / 내 점수
     ctx.fillStyle = bust
       ? COLORS.bustCardAccent
-      : isMyTurn ? COLORS.currentCardAccent : '#d9689a';
+      : isMyTurn ? COLORS.currentCardAccent : '#6b8a85';
     ctx.font = bust ? `900 12px ${FONT}` : `800 11px ${FONT}`;
     ctx.textAlign = 'left';
     ctx.textBaseline = 'alphabetic';
@@ -1100,9 +1100,9 @@ export class DartsRenderer {
 
     switch (hit.kind) {
       case 'triple':
-        border = '#ff5a92';
+        border = '#2a9488';
         badge = 'T';
-        badgeColor = '#ff5a92';
+        badgeColor = '#2a9488';
         break;
       case 'double':
         border = '#2e8a70';
@@ -1110,16 +1110,16 @@ export class DartsRenderer {
         badgeColor = '#2e8a70';
         break;
       case 'inner-bull':
-        fill = '#ff82ac';
-        border = '#c93d73';
+        fill = '#f5c33d';
+        border = '#c49a1f';
         labelColor = '#fff';
         badge = 'BULL';
         badgeColor = '#fff';
         break;
       case 'outer-bull':
-        fill = '#ffd9e6';
-        border = '#ff82ac';
-        labelColor = '#c93d73';
+        fill = '#fff3cf';
+        border = '#f5c33d';
+        labelColor = '#8a6a10';
         break;
       case 'miss':
         fill = '#eeeaf0';
@@ -1349,7 +1349,7 @@ export class DartsRenderer {
     const cy = CANVAS_H / 2;
 
     // 과녁 영역만 덮기 (패널은 그대로). 알파를 진행도에 비례.
-    ctx.fillStyle = `rgba(255, 249, 253, ${0.92 * t})`;
+    ctx.fillStyle = `rgba(249, 255, 254, ${0.92 * t})`;
     ctx.fillRect(0, 0, PANEL_X - 10, CANVAS_H);
 
     const scale = prefersReducedMotion ? 1 : 0.92 + 0.08 * t;

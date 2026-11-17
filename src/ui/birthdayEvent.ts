@@ -12,7 +12,7 @@ import { storage } from '../core/storage';
 import { sound } from '../core/sound';
 
 /** 폭죽 색 — 산리오풍 파스텔 팔레트 */
-const COLORS = ['#ff6b9e', '#86e8c4', '#b89aff', '#ffd454', '#86c9ff', '#ff82ac', '#ffb12e'];
+const COLORS = ['#3fb3a2', '#8ccfc6', '#b89aff', '#ffd454', '#86c9ff', '#ffeeb8', '#ffb12e'];
 
 /**
  * 생일 축하 노래 ("Happy Birthday to You" 멜로디 — 멜로디는 퍼블릭 도메인) 합성 재생.

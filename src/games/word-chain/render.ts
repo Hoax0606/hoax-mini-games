@@ -33,19 +33,19 @@ const RX = HX + HW + 14;        // 우: 히스토리 (584)
 const RW = CANVAS_W - RX - 18;  // 198
 
 const COLORS = {
-  bg: '#fff9fd',
+  bg: '#f9fffe',
   textMain: '#4a3a4a',
   textMuted: '#8a7a8a',
-  pink: '#ff5a92',
-  pinkSoft: '#ffa8c7',
+  accent: '#2a9488',
+  accentSoft: '#c5e8e1',
   lavender: '#9c7aeb',
   timerTrack: '#f0e8ff',
 
   // 프로스티드 카드(반투명)
   cardFill: 'rgba(255, 255, 255, 0.62)',
   cardLine: 'rgba(216, 199, 255, 0.7)',
-  cardActiveFill: 'rgba(255, 240, 246, 0.9)',
-  cardDeadFill: 'rgba(240, 236, 240, 0.5)',
+  cardActiveFill: 'rgba(240, 255, 252, 0.9)',
+  cardDeadFill: 'rgba(236, 240, 239, 0.5)',
 
   endScrim: 'rgba(54, 36, 56, 0.62)',
 } as const;
@@ -161,7 +161,7 @@ export class WordChainRenderer {
     // 진행(남은 시간)
     const fw = Math.max(h, w * ratio);
     this.roundRect(x, y, fw, h, h / 2);
-    ctx.fillStyle = warn ? COLORS.pink : COLORS.pinkSoft;
+    ctx.fillStyle = warn ? COLORS.accent : COLORS.accentSoft;
     ctx.fill();
     // 남은 시간은 바 자체로 표시 — 숫자 없음
   }
@@ -188,11 +188,11 @@ export class WordChainRenderer {
 
       // 행 배경 (프로스티드) — 현재 차례 = 핑크 채움
       ctx.save();
-      ctx.shadowColor = active ? 'rgba(255, 90, 146, 0.25)' : 'rgba(120, 80, 140, 0.1)';
+      ctx.shadowColor = active ? 'rgba(42, 148, 136, 0.25)' : 'rgba(120, 80, 140, 0.1)';
       ctx.shadowBlur = active ? 10 : 5;
       ctx.shadowOffsetY = active ? 4 : 2;
       this.roundRect(PLX, y, PLW, rowH, rowH / 2.4);
-      ctx.fillStyle = active ? COLORS.pink : dead ? COLORS.cardDeadFill : COLORS.cardFill;
+      ctx.fillStyle = active ? COLORS.accent : dead ? COLORS.cardDeadFill : COLORS.cardFill;
       ctx.fill();
       ctx.restore();
       if (!active) {
@@ -262,12 +262,12 @@ export class WordChainRenderer {
     ctx.textAlign = 'left';
     ctx.fillStyle = COLORS.textMain;
     ctx.fillText(head, cx - tot / 2, 108);
-    ctx.fillStyle = COLORS.pink;
+    ctx.fillStyle = COLORS.accent;
     ctx.fillText(tail, cx - tot / 2 + hw, 108);
     ctx.restore();
 
     // 화살표
-    ctx.fillStyle = COLORS.pinkSoft;
+    ctx.fillStyle = COLORS.accentSoft;
     ctx.font = `700 20px ${FONT}`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
@@ -288,11 +288,11 @@ export class WordChainRenderer {
     ctx.scale(chipSc, chipSc);
     ctx.translate(-cx, -(chipY + chipH / 2));
     ctx.save();
-    ctx.shadowColor = 'rgba(255, 90, 146, 0.3)';
+    ctx.shadowColor = 'rgba(42, 148, 136, 0.3)';
     ctx.shadowBlur = 18;
     ctx.shadowOffsetY = 6;
     this.roundRect(chipX, chipY, chipW, chipH, chipH / 2);
-    ctx.fillStyle = COLORS.pink;
+    ctx.fillStyle = COLORS.accent;
     ctx.fill();
     ctx.restore();
     ctx.fillStyle = '#fff';
@@ -342,7 +342,7 @@ export class WordChainRenderer {
       ctx.fillStyle = isLast ? COLORS.cardActiveFill : COLORS.cardFill;
       ctx.fill();
       this.roundRect(RX + dx, y, RW, rowH, 10);
-      ctx.strokeStyle = isLast ? 'rgba(255, 90, 146, 0.5)' : COLORS.cardLine;
+      ctx.strokeStyle = isLast ? 'rgba(42, 148, 136, 0.5)' : COLORS.cardLine;
       ctx.lineWidth = isLast ? 1.6 : 1;
       ctx.stroke();
 
@@ -382,7 +382,7 @@ export class WordChainRenderer {
     ctx.fillText(isDraw ? '⚖️' : '🏆', CANVAS_W / 2, CANVAS_H / 2 - 28);
 
     ctx.font = `900 30px ${FONT}`;
-    ctx.fillStyle = iWon ? COLORS.pink : '#fff';
+    ctx.fillStyle = iWon ? COLORS.accent : '#fff';
     const title = isDraw ? '무승부' : iWon ? '승리!' : `${winner?.nickname ?? '?'} 승리`;
     ctx.fillText(title, CANVAS_W / 2, CANVAS_H / 2 + 26);
   }

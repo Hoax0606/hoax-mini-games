@@ -38,19 +38,19 @@ const PANEL_X = DRAW_W;
 const PANEL_W = CANVAS_W - DRAW_W;
 
 const COLORS = {
-  bg: '#fff9fd',
+  bg: '#f9fffe',
   paper: '#ffffff',
   paperBorder: '#d9c7ff',
   panelBg: '#faf5ff',
   textMain: '#4a3a4a',
   textMuted: '#8a7a8a',
-  accentPink: '#ff5a92',
+  accent: '#2a9488',
   accentLavender: '#9c7aeb',
   timerRingBg: '#f0e8ff',
-  timerRingFill: '#ff82ac',
-  timerRingWarn: '#ff5a92',
-  scoreMe: '#ff5a92',
-  scoreRow: '#fff5f8',
+  timerRingFill: '#3fb3a2',
+  timerRingWarn: '#e0533f',
+  scoreMe: '#2a9488',
+  scoreRow: '#f5fffd',
   drawerBadge: '#6ed9b3',
 } as const;
 
@@ -415,7 +415,7 @@ export class DrawQuizRenderer {
     ctx.fillStyle = '#fff';
     ctx.font = `600 16px ${FONT}`;
     ctx.fillText('정답은', cx, DRAW_H / 2 - 36);
-    ctx.fillStyle = COLORS.accentPink;
+    ctx.fillStyle = COLORS.accent;
     ctx.font = `900 44px ${FONT}`;
     ctx.fillText(state.revealedWord, cx, DRAW_H / 2 + 8);
 
@@ -464,7 +464,7 @@ export class DrawQuizRenderer {
       ctx.lineCap = 'butt';
     }
 
-    ctx.fillStyle = drawing && remainSec <= 10 ? COLORS.accentPink : COLORS.textMain;
+    ctx.fillStyle = drawing && remainSec <= 10 ? COLORS.accent : COLORS.textMain;
     ctx.font = `900 16px ${FONT}`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
@@ -540,7 +540,7 @@ export class DrawQuizRenderer {
       const isCorrect = game.correctThisRound.includes(p.peerId);
 
       // 행 = 프로스티드 카드 (내 카드 핑크 강조). fillRoundRect 가 경로+채움 → 같은 경로에 stroke.
-      ctx.fillStyle = isMe ? 'rgba(255, 240, 246, 0.9)' : 'rgba(255, 255, 255, 0.5)';
+      ctx.fillStyle = isMe ? 'rgba(240, 255, 252, 0.9)' : 'rgba(255, 255, 255, 0.5)';
       this.fillRoundRect(rowX, ry, rowW, rowH, 9);
       ctx.strokeStyle = isMe ? COLORS.scoreMe : 'rgba(216, 199, 255, 0.7)';
       ctx.lineWidth = isMe ? 1.6 : 1;

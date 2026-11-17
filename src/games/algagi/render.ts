@@ -41,28 +41,28 @@ const PANEL_PAD = 16;
 
 /** 색 팔레트 — HANDOFF 규약 */
 const COLORS = {
-  bg: '#fff9fd',
+  bg: '#f9fffe',
   boardFill: '#fff9e8',           // 크림 — 바둑판 느낌
   boardBorder: '#6e5872',         // 짙은 라벤더 — 절벽 외곽
   gridLine: 'rgba(110, 88, 114, 0.18)',
   gridStarPoint: 'rgba(110, 88, 114, 0.55)',
 
   // 플레이어 알 색 (0=호스트~3=마지막 게스트)
-  playerFill: ['#6ed9b3', '#ff6b9e', '#b89aff', '#ffd454'] as const,
-  playerStroke: ['#2e8a70', '#c93d73', '#7a5fc7', '#c49a1f'] as const,
-  playerDeep: ['#1f6a55', '#a82a5c', '#5a3da3', '#8e6f10'] as const,
+  playerFill: ['#6ed9b3', '#ffd454', '#b89aff', '#5b9cff'] as const,
+  playerStroke: ['#2e8a70', '#c49a1f', '#7a5fc7', '#3f78c9'] as const,
+  playerDeep: ['#1f6a55', '#8e6f10', '#5a3da3', '#2a5a99'] as const,
 
   textMain: '#4a3a4a',
   textMuted: '#8a7a8a',
   cardBg: '#faf5ff',
   cardBorder: '#d9c7ff',
-  accentPink: '#ff5a92',
+  accent: '#2a9488',
   accentLavender: '#9c7aeb',
 
-  dragLine: 'rgba(255, 90, 146, 0.85)',
-  dragArrow: '#ff5a92',
+  dragLine: 'rgba(42, 148, 136, 0.85)',
+  dragArrow: '#2a9488',
   dragWeak: '#86e8c4',
-  dragStrong: '#ff5a92',
+  dragStrong: '#ff7a3d',
 
   endOverlay: 'rgba(54, 36, 56, 0.65)',
 } as const;
@@ -281,7 +281,7 @@ export class AlgagiRenderer {
 
       // 차례 펄스 ring (자기 차례 + 그 사람 알만, 보드 안에 있을 때만)
       if (s.owner === currentTurn && outDist === 0) {
-        ctx.strokeStyle = `rgba(255, 90, 146, ${pulse})`;
+        ctx.strokeStyle = `rgba(42, 148, 136, ${pulse})`;
         ctx.lineWidth = 2.5;
         ctx.beginPath();
         ctx.arc(cx, cy, STONE_RADIUS + 5, 0, Math.PI * 2);
@@ -470,9 +470,9 @@ export class AlgagiRenderer {
     const isDead = p.liveCount === 0;
 
     // 카드 배경
-    ctx.fillStyle = isDead ? '#f3eef0' : COLORS.cardBg;
+    ctx.fillStyle = isDead ? '#eef3f2' : COLORS.cardBg;
     this.fillRoundRect(x, y, w, h, 10);
-    ctx.strokeStyle = isMe ? COLORS.accentPink : COLORS.cardBorder;
+    ctx.strokeStyle = isMe ? COLORS.accent : COLORS.cardBorder;
     ctx.lineWidth = isMe ? 2 : 1;
     this.strokeRoundRect(x, y, w, h, 10);
 
@@ -521,7 +521,7 @@ export class AlgagiRenderer {
     ctx.fillText(isDraw ? '⚖️' : '🏆', BOARD_CX, BOARD_CY - 32);
 
     ctx.font = `900 28px ${FONT}`;
-    ctx.fillStyle = iWon ? COLORS.accentPink : isDraw ? '#fff' : '#fff';
+    ctx.fillStyle = iWon ? COLORS.accent : isDraw ? '#fff' : '#fff';
     const title = isDraw ? '무승부' : iWon ? '승리!' : `${winner?.nickname ?? '?'} 승리`;
     ctx.fillText(title, BOARD_CX, BOARD_CY + 24);
   }

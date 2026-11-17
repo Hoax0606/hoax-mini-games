@@ -2,32 +2,32 @@
   <!-- 배경 (다른 게임과 같은 톤) -->
   <defs>
     <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#ffe4ee"/>
-      <stop offset="1" stop-color="#e0fff4"/>
+      <stop offset="0" stop-color="#ddf2ef"/>
+      <stop offset="1" stop-color="#fff8e1"/>
     </linearGradient>
     <!-- 소프트 입체: 중앙 일러스트 드롭섀도 -->
-    <filter id="lift" x="-35%" y="-35%" width="170%" height="170%"><feDropShadow dx="0" dy="5" stdDeviation="5" flood-color="#8a5a78" flood-opacity="0.26"/></filter>
+    <filter id="lift" x="-35%" y="-35%" width="170%" height="170%"><feDropShadow dx="0" dy="5" stdDeviation="5" flood-color="#3a6b63" flood-opacity="0.26"/></filter>
   </defs>
   <rect width="320" height="200" rx="22" fill="url(#bg)"/>
 
   <!-- 배경 데코 점 -->
-  <circle cx="28" cy="28" r="3" fill="#ffc9dd"/>
-  <circle cx="292" cy="38" r="2.5" fill="#b8f5e0"/>
-  <circle cx="296" cy="172" r="3" fill="#d9c7ff"/>
-  <circle cx="28" cy="174" r="2.2" fill="#ffeec2"/>
+  <circle cx="28" cy="28" r="3" fill="#c5e8e1"/>
+  <circle cx="292" cy="38" r="2.5" fill="#ffeeb8"/>
+  <circle cx="296" cy="172" r="3" fill="#8ccfc6"/>
+  <circle cx="28" cy="174" r="2.2" fill="#ffeeb8"/>
 
   <!-- 작은 별 데코 -->
   <path d="M 48,50 L 50,54 L 55,54 L 51,57 L 53,62 L 48,59 L 43,62 L 45,57 L 41,54 L 46,54 Z"
-        fill="#ffc9dd" opacity="0.7"/>
+        fill="#c5e8e1" opacity="0.7"/>
   <path d="M 272,148 L 274,152 L 279,152 L 275,155 L 277,160 L 272,157 L 267,160 L 269,155 L 265,152 L 270,152 Z"
-        fill="#b8f5e0" opacity="0.7"/>
+        fill="#ffeeb8" opacity="0.7"/>
 
   <!-- 소프트 입체: 중앙 일러스트 드롭섀도 -->
   <g filter="url(#lift)">
   <!-- 오목판 (중앙, 일부만 확대해서 보여줌) -->
   <g transform="translate(90, 32)">
     <!-- 판 배경 (크림 톤) -->
-    <rect x="-4" y="-4" width="148" height="144" rx="8" fill="#fff9e8" stroke="#d9c7ff" stroke-width="2"/>
+    <rect x="-4" y="-4" width="148" height="144" rx="8" fill="#fff9e8" stroke="#8ccfc6" stroke-width="2"/>
 
     <!-- 격자 (9x8, cell 16px) — 바둑판처럼 교차점에 돌 -->
     <g stroke="#c4b4d8" stroke-width="0.8" stroke-linecap="round">

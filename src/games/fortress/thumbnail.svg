@@ -1,7 +1,7 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 200">
   <defs>
     <linearGradient id="frSky" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0%" stop-color="#ffe4ee"/>
+      <stop offset="0%" stop-color="#fff8e1"/>
       <stop offset="100%" stop-color="#e0f2ff"/>
     </linearGradient>
     <linearGradient id="frSoil" x1="0" y1="0" x2="0" y2="1">
@@ -9,20 +9,20 @@
       <stop offset="100%" stop-color="#b8946e"/>
     </linearGradient>
     <!-- 소프트 입체: 중앙 일러스트 드롭섀도 -->
-    <filter id="lift" x="-35%" y="-35%" width="170%" height="170%"><feDropShadow dx="0" dy="5" stdDeviation="5" flood-color="#8a5a78" flood-opacity="0.26"/></filter>
+    <filter id="lift" x="-35%" y="-35%" width="170%" height="170%"><feDropShadow dx="0" dy="5" stdDeviation="5" flood-color="#3a6b63" flood-opacity="0.26"/></filter>
   </defs>
 
   <!-- 하늘 배경 -->
   <rect x="0" y="0" width="320" height="200" rx="22" fill="url(#frSky)"/>
 
   <!-- 모서리 점 데코 -->
-  <circle cx="26" cy="26" r="3" fill="#ff6b9e" opacity="0.5"/>
-  <circle cx="296" cy="30" r="3" fill="#86e8c4" opacity="0.55"/>
-  <circle cx="30" cy="60" r="2.5" fill="#b89aff" opacity="0.5"/>
+  <circle cx="26" cy="26" r="3" fill="#c5e8e1" opacity="0.5"/>
+  <circle cx="296" cy="30" r="3" fill="#8ccfc6" opacity="0.55"/>
+  <circle cx="30" cy="60" r="2.5" fill="#8ccfc6" opacity="0.5"/>
 
   <!-- 별 데코 -->
   <path d="M 250 42 l 1.5 3.8 4.1 0.35 -3.2 2.6 0.95 4 -3.35 -2.25 -3.35 2.25 0.95 -4 -3.2 -2.6 4.1 -0.35 z"
-        fill="#ff82ac" opacity="0.7"/>
+        fill="#ffeeb8" opacity="0.7"/>
 
   <!-- 소프트 입체: 중앙 일러스트 드롭섀도 -->
   <g filter="url(#lift)">
@@ -42,14 +42,14 @@
     <rect x="0" y="-4" width="20" height="5" rx="2" fill="#2e8a70" transform="rotate(-32 0 -2)"/>
   </g>
 
-  <!-- 우측 포대 (핑크) -->
+  <!-- 우측 포대 (노랑) -->
   <g transform="translate(250, 118)">
-    <path d="M -11 5 L -11 0 A 11 11 0 0 1 11 0 L 11 5 Z" fill="#ff6b9e" stroke="#c93d73" stroke-width="1.4"/>
-    <rect x="-20" y="-4" width="20" height="5" rx="2" fill="#c93d73" transform="rotate(32 0 -2)"/>
+    <path d="M -11 5 L -11 0 A 11 11 0 0 1 11 0 L 11 5 Z" fill="#ffd454" stroke="#c49a1f" stroke-width="1.4"/>
+    <rect x="-20" y="-4" width="20" height="5" rx="2" fill="#c49a1f" transform="rotate(32 0 -2)"/>
   </g>
 
   <!-- 포탄 포물선 궤적 (점선) -->
-  <path d="M 78 108 Q 160 40 232 100" fill="none" stroke="#ff5a92" stroke-width="2.5"
+  <path d="M 78 108 Q 160 40 232 100" fill="none" stroke="#ff7a3d" stroke-width="2.5"
         stroke-dasharray="3 6" stroke-linecap="round" opacity="0.85"/>
   <!-- 날아가는 포탄 -->
   <circle cx="160" cy="62" r="5" fill="#4a3a4a"/>

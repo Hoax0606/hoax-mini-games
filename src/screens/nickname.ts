@@ -59,7 +59,7 @@ export function createNicknameScreen(options?: {
         const name = input.value.trim();
         if (name.length === 0) {
           input.focus();
-          input.style.borderColor = 'var(--pink-500)';
+          input.style.borderColor = 'var(--danger)';
           return;
         }
         storage.setNickname(name);

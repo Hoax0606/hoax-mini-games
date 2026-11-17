@@ -20,16 +20,16 @@ const MAX_VIEW_W = 820;
 
 /** 포대 색 — 플레이어별 (최대 10인). 서로 구분되는 10색 */
 const FILL = [
-  '#6ed9b3', '#ff6b9e', '#b89aff', '#ffd454', '#5b9cff',
+  '#6ed9b3', '#ffd454', '#b89aff', '#ff9f43', '#5b9cff',
   '#ffb12e', '#ff8a5b', '#7ed957', '#e07aff', '#4fd0d9',
 ] as const;
 const STROKE = [
-  '#2e8a70', '#c93d73', '#7a5fc7', '#c49a1f', '#3f78c9',
+  '#2e8a70', '#c49a1f', '#7a5fc7', '#cf7417', '#3f78c9',
   '#c47f1a', '#c95f34', '#4e9e33', '#9a3fc4', '#2f9aa1',
 ] as const;
 
 const COLORS = {
-  skyTop: '#ffe9f2',
+  skyTop: '#e9fffb',
   skyBot: '#e6f7ff',
   soil: '#d8b89a',
   soilDark: '#b8946e',
@@ -41,12 +41,12 @@ const COLORS = {
   stoneStroke: '#8a7a8a',
   textMain: '#4a3a4a',
   textMuted: '#8a7a8a',
-  accentPink: '#ff5a92',
-  hpBack: 'rgba(74,58,74,0.18)',
+  accent: '#2a9488',
+  hpBack: 'rgba(58,74,71,0.18)',
   hpFill: '#6ed9b3',
-  hpLow: '#ff5a92',
+  hpLow: '#e0533f',
   projectile: '#4a3a4a',
-  aimLine: 'rgba(255,90,146,0.85)',
+  aimLine: 'rgba(42,148,136,0.85)',
   hudBg: 'rgba(255,255,255,0.82)',
   endOverlay: 'rgba(54,36,56,0.6)',
 } as const;
@@ -340,14 +340,14 @@ export class FortressRenderer {
         const r = 21;
         const cyRing = baseY - 12;
         // 배경 트랙 (옅게)
-        ctx.strokeStyle = 'rgba(255,90,146,0.16)';
+        ctx.strokeStyle = 'rgba(42,148,136,0.16)';
         ctx.lineWidth = 3;
         ctx.beginPath();
         ctx.arc(f.x, cyRing, r, 0, Math.PI * 2);
         ctx.stroke();
         // 남은 시간 arc
         const start = -Math.PI / 2; // 12시 방향
-        ctx.strokeStyle = ratio <= 0.25 ? 'rgba(255,90,146,0.95)' : 'rgba(255,90,146,0.75)';
+        ctx.strokeStyle = ratio <= 0.25 ? 'rgba(42,148,136,0.95)' : 'rgba(42,148,136,0.75)';
         ctx.lineWidth = 3;
         ctx.lineCap = 'round';
         ctx.beginPath();
@@ -379,7 +379,7 @@ export class FortressRenderer {
 
       // 닉네임 (내 포대면 강조)
       const isMe = f.ownerPeerId === state.myPeerId;
-      ctx.fillStyle = isMe ? COLORS.accentPink : COLORS.textMuted;
+      ctx.fillStyle = isMe ? COLORS.accent : COLORS.textMuted;
       ctx.font = `${isMe ? 700 : 500} 11px ${FONT}`;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'bottom';
@@ -400,7 +400,7 @@ export class FortressRenderer {
     const pivotY = hullTop - turretR * 0.3; // 포신 회전 중심(포탑 근처)
 
     // 바닥 그림자
-    ctx.fillStyle = 'rgba(90,74,82,0.2)';
+    ctx.fillStyle = 'rgba(74,90,87,0.2)';
     ctx.beginPath();
     ctx.ellipse(x, baseY + 1, hullW * 0.6, 3.5, 0, 0, Math.PI * 2);
     ctx.fill();
@@ -511,7 +511,7 @@ export class FortressRenderer {
         ctx.strokeStyle = 'rgba(63,90,38,0.6)'; ctx.lineWidth = 0.8;
         ctx.beginPath(); ctx.moveTo(s.x - 3, s.y); ctx.lineTo(s.x + 3, s.y); ctx.moveTo(s.x, s.y - 3); ctx.lineTo(s.x, s.y + 3); ctx.stroke();
         if (s.fuseLeft !== Infinity && s.fuseLeft > 0) {
-          ctx.fillStyle = COLORS.accentPink;
+          ctx.fillStyle = COLORS.accent;
           ctx.font = `700 11px ${FONT}`;
           ctx.textAlign = 'center';
           ctx.textBaseline = 'bottom';
@@ -620,7 +620,7 @@ export class FortressRenderer {
     const ctx = this.ctx;
     // 회전하는 레티클 (핑크 원 + 십자) — "락온" 느낌
     ctx.save();
-    ctx.strokeStyle = COLORS.accentPink;
+    ctx.strokeStyle = COLORS.accent;
     ctx.lineWidth = 2.5;
     ctx.lineCap = 'round';
     const pulse = 1 + Math.sin(state.now / 260) * 0.06;
@@ -651,7 +651,7 @@ export class FortressRenderer {
     for (let i = 1; i <= 7; i++) {
       const p = segPos(seg, i * 0.05);
       ctx.globalAlpha = 0.85 - i * 0.1;
-      ctx.fillStyle = COLORS.accentPink;
+      ctx.fillStyle = COLORS.accent;
       ctx.beginPath();
       ctx.arc(p.x, p.y, 3, 0, Math.PI * 2);
       ctx.fill();
@@ -708,17 +708,17 @@ export class FortressRenderer {
 
     // 카드 (세로 그라데이션 + 소프트 그림자 + 상단 하이라이트 + 핑크 테두리)
     ctx.save();
-    ctx.shadowColor = 'rgba(150,110,140,0.22)';
+    ctx.shadowColor = 'rgba(110,150,143,0.22)';
     ctx.shadowBlur = 13;
     ctx.shadowOffsetY = 4;
     const bg = ctx.createLinearGradient(0, boxY, 0, boxY + boxH);
     bg.addColorStop(0, '#ffffff');
-    bg.addColorStop(1, '#fff4f9');
+    bg.addColorStop(1, '#f4fffd');
     ctx.fillStyle = bg;
     this.roundRect(boxX, boxY, boxW, boxH, 16);
     ctx.fill();
     ctx.restore();
-    ctx.strokeStyle = '#ffd0e0';
+    ctx.strokeStyle = '#d0fff7';
     ctx.lineWidth = 1.5;
     this.roundRect(boxX, boxY, boxW, boxH, 16);
     ctx.stroke();
@@ -738,7 +738,7 @@ export class FortressRenderer {
     ctx.fillStyle = dotCol;
     ctx.fill();
     ctx.restore();
-    ctx.fillStyle = isMyTurn ? COLORS.accentPink : COLORS.textMain;
+    ctx.fillStyle = isMyTurn ? COLORS.accent : COLORS.textMain;
     ctx.font = `800 14.5px ${FONT}`;
     ctx.textAlign = 'left';
     ctx.fillText(turnLabel, boxX + 32, midY + 0.5);
@@ -778,8 +778,8 @@ export class FortressRenderer {
       const count = Math.min(4, 1 + Math.round(mag * 3)); // 1~4
       const g0 = cx0 - 8, g1 = cx0 + (count - 1) * step + 10;
       const grad = ctx.createLinearGradient(dir > 0 ? g0 : g1, 0, dir > 0 ? g1 : g0, 0);
-      grad.addColorStop(0, '#ffc4d8');
-      grad.addColorStop(1, '#ff4f8b');
+      grad.addColorStop(0, '#8ccfc6');
+      grad.addColorStop(1, '#2a9488');
       ctx.fillStyle = grad;
       ctx.strokeStyle = grad;
       ctx.lineJoin = 'round';
@@ -820,7 +820,7 @@ export class FortressRenderer {
     ctx.fillStyle = '#fff';
     ctx.fillText(isDraw ? '⚖️' : '🏆', screenW / 2, screenH / 2 - 26);
     ctx.font = `900 26px ${FONT}`;
-    ctx.fillStyle = iWon ? COLORS.accentPink : '#fff';
+    ctx.fillStyle = iWon ? COLORS.accent : '#fff';
     const winNames = [...new Set(state.game.forts
       .filter((f) => winners.includes(f.ownerPeerId))
       .map((f) => f.ownerNickname))]

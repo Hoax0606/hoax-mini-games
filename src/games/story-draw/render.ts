@@ -20,11 +20,11 @@ export function isCanvasReady(x: number, y: number): boolean {
 }
 
 const COLORS = {
-  bg: '#fff9fd',
+  bg: '#f9fffe',
   paper: '#ffffff',
   paperBorder: '#d9c7ff',
   textMuted: '#8a7a8a',
-  accentPink: '#ff5a92',
+  accent: '#2a9488',
   dim: 'rgba(250, 245, 255, 0.86)',
 } as const;
 
@@ -191,7 +191,7 @@ export class StoryDrawRenderer {
     ctx.fillRect(0, 0, CANVAS_W, CANVAS_H);
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillStyle = COLORS.accentPink;
+    ctx.fillStyle = COLORS.accent;
     ctx.font = `700 28px ${FONT}`;
     ctx.fillText(state.spectator ? '관전 중' : '제출 완료!', CANVAS_W / 2, CANVAS_H / 2 - 16);
     ctx.fillStyle = COLORS.textMuted;

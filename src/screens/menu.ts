@@ -28,7 +28,7 @@ export function createMenuScreen(): Screen {
       el.className = 'screen';
       // 각 메뉴 아이콘 색 (컬러 모드 — iOS 설정처럼 항목별 파스텔 색)
       const HUE = {
-        create: '#ff5a92', find: '#5b9dff', games: '#a06bff',
+        create: '#2a9488', find: '#5b9dff', games: '#a06bff',
         stats: '#2eb872', nick: '#ff9838', settings: '#9a86c0',
       };
       el.innerHTML = `

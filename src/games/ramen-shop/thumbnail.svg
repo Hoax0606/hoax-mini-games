@@ -2,28 +2,28 @@
   <!-- 배경 그라데이션 — 썸네일 공통 규약 -->
   <defs>
     <linearGradient id="rsBg" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#ffe4ee"/>
-      <stop offset="1" stop-color="#e0fff4"/>
+      <stop offset="0" stop-color="#ddf2ef"/>
+      <stop offset="1" stop-color="#fff8e1"/>
     </linearGradient>
     <radialGradient id="rsBroth" cx="0.4" cy="0.35" r="0.9">
       <stop offset="0" stop-color="#ffdf9e"/>
       <stop offset="1" stop-color="#e8b96a"/>
     </radialGradient>
     <!-- 소프트 입체: 중앙 일러스트 드롭섀도 -->
-    <filter id="lift" x="-35%" y="-35%" width="170%" height="170%"><feDropShadow dx="0" dy="5" stdDeviation="5" flood-color="#8a5a78" flood-opacity="0.26"/></filter>
+    <filter id="lift" x="-35%" y="-35%" width="170%" height="170%"><feDropShadow dx="0" dy="5" stdDeviation="5" flood-color="#3a6b63" flood-opacity="0.26"/></filter>
   </defs>
 
   <rect width="320" height="200" rx="22" fill="url(#rsBg)"/>
 
   <!-- 배경 데코 4개 점 (썸네일 공통) -->
-  <circle cx="30" cy="30" r="3" fill="#ffc9dd"/>
-  <circle cx="290" cy="40" r="2.5" fill="#b8f5e0"/>
-  <circle cx="290" cy="170" r="3" fill="#d9c7ff"/>
-  <circle cx="30" cy="170" r="2.2" fill="#ffeec2"/>
+  <circle cx="30" cy="30" r="3" fill="#c5e8e1"/>
+  <circle cx="290" cy="40" r="2.5" fill="#ffeeb8"/>
+  <circle cx="290" cy="170" r="3" fill="#8ccfc6"/>
+  <circle cx="30" cy="170" r="2.2" fill="#ffeeb8"/>
 
   <!-- 별 데코 2개 -->
   <path d="M 52 64 L 54 70 L 60 70 L 55.2 73.8 L 57 79.6 L 52 76 L 47 79.6 L 48.8 73.8 L 44 70 L 50 70 Z"
-        fill="#ffd0dc" opacity="0.85"/>
+        fill="#ffeeb8" opacity="0.85"/>
   <path d="M 270 126 L 272 131 L 277 131 L 273 134.2 L 274.5 139 L 270 136 L 265.5 139 L 267 134.2 L 263 131 L 268 131 Z"
         fill="#c5e8d8" opacity="0.85"/>
 
@@ -58,9 +58,9 @@
     <circle cx="-24" cy="-6" r="9" fill="#fff6e0" stroke="#e8c98a" stroke-width="1.5"/>
     <circle cx="-24" cy="-6" r="4.5" fill="#ffcf5a"/>
     <!-- 토핑: 파 -->
-    <circle cx="16" cy="-2" r="3" fill="#86e8c4"/>
-    <circle cx="26" cy="-10" r="3" fill="#86e8c4"/>
-    <circle cx="6" cy="-14" r="3" fill="#86e8c4"/>
+    <circle cx="16" cy="-2" r="3" fill="#8ccfc6"/>
+    <circle cx="26" cy="-10" r="3" fill="#8ccfc6"/>
+    <circle cx="6" cy="-14" r="3" fill="#8ccfc6"/>
   </g>
 
   <!-- 왼쪽 작은 냄비 (조리 중 암시) -->

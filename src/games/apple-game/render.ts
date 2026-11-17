@@ -40,10 +40,10 @@ const LEFT_PANEL_X = 18;
 const PANEL_Y = 40;
 
 const COLORS = {
-  bg: '#fff9fd',
+  bg: '#f9fffe',
   boardBg: '#fff5ee',
-  boardBorder: '#ffc9dd',
-  gridLine: 'rgba(255, 201, 221, 0.4)',
+  boardBorder: '#c9fff6',
+  gridLine: 'rgba(197, 232, 225, 0.4)',
   appleFill: '#ff7d95',          // 밝고 친근한 사과 핑크 (너무 진하면 폭탄처럼 보임)
   appleStroke: '#e0607d',        // 테두리도 톤 맞춰 부드럽게
   appleHighlight: 'rgba(255, 255, 255, 0.45)',
@@ -54,10 +54,10 @@ const COLORS = {
   appleLeafStroke: '#5dc9a7',
   textMain: '#4a3a4a',
   textMuted: '#8a7a8a',
-  accent: '#ff5a92',
-  timerUrgent: '#ff5a92',
+  accent: '#2a9488',
+  timerUrgent: '#e0533f',
   // 드래그 선택 박스 (합 정보 노출 안 함 — 단일 중립 색)
-  selNeutral: { fill: 'rgba(255, 130, 172, 0.18)', stroke: '#ff6b9e' },
+  selNeutral: { fill: 'rgba(42, 148, 136, 0.18)', stroke: '#2a9488' },
 } as const;
 
 const FONT = `'Pretendard', 'Apple SD Gothic Neo', 'Noto Sans KR', system-ui, sans-serif`;
@@ -185,7 +185,7 @@ export class AppleRenderer {
 
   private drawSpectatorOverlay(): void {
     const ctx = this.ctx;
-    ctx.fillStyle = 'rgba(255, 245, 248, 0.88)';
+    ctx.fillStyle = 'rgba(245, 255, 253, 0.88)';
     ctx.fillRect(BOARD_X, BOARD_Y, BOARD_PX_W, BOARD_PX_H);
     const cx = BOARD_X + BOARD_PX_W / 2;
     const cy = BOARD_Y + BOARD_PX_H / 2;
@@ -352,7 +352,7 @@ export class AppleRenderer {
     // 공통 카드 배경 그리기 헬퍼
     const card = (cy: number, h: number): void => {
       ctx.fillStyle = 'rgba(255, 255, 255, 0.72)';
-      ctx.strokeStyle = 'rgba(255, 201, 221, 0.9)';
+      ctx.strokeStyle = 'rgba(197, 232, 225, 0.9)';
       ctx.lineWidth = 1.5;
       ctx.beginPath();
       ctx.roundRect(cardX, cy, cardW, h, 14);
@@ -396,7 +396,7 @@ export class AppleRenderer {
 
   private drawGameEndOverlay(): void {
     const ctx = this.ctx;
-    ctx.fillStyle = 'rgba(255, 245, 248, 0.7)';
+    ctx.fillStyle = 'rgba(245, 255, 253, 0.7)';
     ctx.fillRect(BOARD_X, BOARD_Y, BOARD_PX_W, BOARD_PX_H);
     ctx.fillStyle = COLORS.accent;
     ctx.font = `900 32px ${FONT}`;

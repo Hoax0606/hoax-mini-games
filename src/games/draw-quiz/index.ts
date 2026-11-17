@@ -846,7 +846,7 @@ class DrawQuizGameModule implements GameModule {
     const wrap = root.querySelector('#dq-tools');
     if (!wrap) return;
     const tools: Array<{ id: DrawTool | 'eyedropper'; icon: string; title: string }> = [
-      { id: 'pen', icon: icon('pen', { size: 19, hue: '#ff5a92' }), title: '펜' },
+      { id: 'pen', icon: icon('pen', { size: 19, hue: '#2a9488' }), title: '펜' },
       { id: 'marker', icon: icon('marker', { size: 19, hue: '#ffb020' }), title: '형광펜' },
       { id: 'eraser', icon: icon('eraser', { size: 19, hue: '#8b93a7' }), title: '지우개' },
       { id: 'fill', icon: icon('fill', { size: 19, hue: '#3fb98f' }), title: '채우기' },

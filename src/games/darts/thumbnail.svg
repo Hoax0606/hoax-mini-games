@@ -2,25 +2,25 @@
   <!-- 배경: 다른 게임과 같은 톤 -->
   <defs>
     <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#ffe4ee"/>
-      <stop offset="1" stop-color="#e0fff4"/>
+      <stop offset="0" stop-color="#ddf2ef"/>
+      <stop offset="1" stop-color="#fff8e1"/>
     </linearGradient>
     <!-- 소프트 입체: 중앙 일러스트 드롭섀도 -->
-    <filter id="lift" x="-35%" y="-35%" width="170%" height="170%"><feDropShadow dx="0" dy="5" stdDeviation="5" flood-color="#8a5a78" flood-opacity="0.26"/></filter>
+    <filter id="lift" x="-35%" y="-35%" width="170%" height="170%"><feDropShadow dx="0" dy="5" stdDeviation="5" flood-color="#3a6b63" flood-opacity="0.26"/></filter>
   </defs>
   <rect width="320" height="200" rx="22" fill="url(#bg)"/>
 
   <!-- 배경 점 데코 -->
-  <circle cx="28" cy="28" r="3" fill="#ffc9dd"/>
-  <circle cx="292" cy="38" r="2.5" fill="#b8f5e0"/>
-  <circle cx="296" cy="172" r="3" fill="#d9c7ff"/>
-  <circle cx="28" cy="174" r="2.2" fill="#ffeec2"/>
+  <circle cx="28" cy="28" r="3" fill="#c5e8e1"/>
+  <circle cx="292" cy="38" r="2.5" fill="#ffeeb8"/>
+  <circle cx="296" cy="172" r="3" fill="#8ccfc6"/>
+  <circle cx="28" cy="174" r="2.2" fill="#ffeeb8"/>
 
   <!-- 별 데코 -->
   <path d="M 50,48 L 52,52 L 57,52 L 53,55 L 55,60 L 50,57 L 45,60 L 47,55 L 43,52 L 48,52 Z"
-        fill="#ffc9dd" opacity="0.7"/>
+        fill="#c5e8e1" opacity="0.7"/>
   <path d="M 270,150 L 272,154 L 277,154 L 273,157 L 275,162 L 270,159 L 265,162 L 267,157 L 263,154 L 268,154 Z"
-        fill="#b8f5e0" opacity="0.7"/>
+        fill="#ffeeb8" opacity="0.7"/>
 
   <!-- 소프트 입체: 중앙 일러스트 드롭섀도 -->
   <g filter="url(#lift)">
@@ -54,15 +54,15 @@
       <path fill="#e9dfff" d="M -4.54 -8.91 L -29.06 -57.02 A 64 64 0 0 1 -9.98 -63.22 L -1.56 -9.88 A 10 10 0 0 0 -4.54 -8.91 Z"/>
     </g>
 
-    <!-- Double 링 (Single 외곽 바로 바깥, pink 교차 대신 단일 링 — 썸네일 단순화) -->
-    <circle r="70" fill="none" stroke="#ff82ac" stroke-width="6"/>
+    <!-- Double 링 (Single 외곽 바로 바깥, 청록 단일 링, 단일 링 — 썸네일 단순화) -->
+    <circle r="70" fill="none" stroke="#3fb3a2" stroke-width="6"/>
 
     <!-- Triple 링 -->
-    <circle r="38" fill="none" stroke="#86e8c4" stroke-width="4"/>
+    <circle r="38" fill="none" stroke="#8ccfc6" stroke-width="4"/>
 
     <!-- Bull -->
-    <circle r="10" fill="#86e8c4" stroke="#2e8a70" stroke-width="1"/>
-    <circle r="5" fill="#ff82ac" stroke="#c93d73" stroke-width="1"/>
+    <circle r="10" fill="#8ccfc6" stroke="#2e8a70" stroke-width="1"/>
+    <circle r="5" fill="#ef5350" stroke="#c0392b" stroke-width="1"/>
   </g>
 
   <!-- 꽂힌 다트 2개 (과녁에 박힌 모습). in-game 과 같은 4단 구조 (팁·배럴·샤프트·플라이트) -->
@@ -70,7 +70,7 @@
   <g transform="translate(165 95) rotate(28)">
     <!-- 플라이트 (뒷깃 2개) -->
     <path d="M 0,-22 Q -8,-23 -7.5,-14 L 0,-14 Z" fill="#b89aff" stroke="#9c7aeb" stroke-width="0.5"/>
-    <path d="M 0,-22 Q 8,-23 7.5,-14 L 0,-14 Z" fill="#ff82ac" stroke="#c93d73" stroke-width="0.5"/>
+    <path d="M 0,-22 Q 8,-23 7.5,-14 L 0,-14 Z" fill="#ffd454" stroke="#c49a1f" stroke-width="0.5"/>
     <!-- 샤프트 -->
     <rect x="-0.7" y="-14" width="1.4" height="4" fill="#faf7e6" stroke="#8a7a8a" stroke-width="0.3"/>
     <!-- 배럴 + grip -->
@@ -86,7 +86,7 @@
   <!-- 다트 2: 트리플 영역 -->
   <g transform="translate(140 80) rotate(-15)">
     <path d="M 0,-22 Q -8,-23 -7.5,-14 L 0,-14 Z" fill="#ffd454" stroke="#c49a1f" stroke-width="0.5"/>
-    <path d="M 0,-22 Q 8,-23 7.5,-14 L 0,-14 Z" fill="#86e8c4" stroke="#2e8a70" stroke-width="0.5"/>
+    <path d="M 0,-22 Q 8,-23 7.5,-14 L 0,-14 Z" fill="#8ccfc6" stroke="#2e8a70" stroke-width="0.5"/>
     <rect x="-0.7" y="-14" width="1.4" height="4" fill="#faf7e6" stroke="#8a7a8a" stroke-width="0.3"/>
     <polygon points="-0.7,-10 -2.6,-9 -2.6,-3 -0.7,-1.5 0.7,-1.5 2.6,-3 2.6,-9 0.7,-10"
              fill="#6e5872" stroke="#3a2a3a" stroke-width="0.4"/>

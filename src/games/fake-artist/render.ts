@@ -48,7 +48,7 @@ const CSS = `
 .fa-top{position:absolute;top:10px;left:12px;right:12px;display:flex;align-items:center;gap:12px;}
 .fa-phase{font-size:15px;font-weight:800;background:rgba(255,255,255,.82);padding:6px 12px;border-radius:999px;
   box-shadow:0 2px 8px rgba(90,110,160,.14);}
-.fa-phase .r{color:#c95b8a;}
+.fa-phase .r{color:#2a9488;}
 .fa-timer{margin-left:auto;font-size:18px;font-weight:900;color:#4d7cc4;font-variant-numeric:tabular-nums;
   background:rgba(255,255,255,.82);padding:4px 12px;border-radius:999px;box-shadow:0 2px 8px rgba(90,110,160,.14);}
 .fa-timer.warn{color:#e0554d;}

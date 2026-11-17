@@ -31,25 +31,25 @@ const RX = HX + HW + 14;        // 우: 폭탄 + 히스토리 (584)
 const RW = CANVAS_W - RX - 18;  // 198
 
 const COLORS = {
-  bg: '#fff9fd',
+  bg: '#f9fffe',
   textMain: '#4a3a4a',
   textMuted: '#8a7a8a',
-  pink: '#ff5a92',
-  pinkSoft: '#ffa8c7',
+  accent: '#2a9488',
+  accentSoft: '#c5e8e1',
   lavender: '#9c7aeb',
 
   // 프로스티드 카드(반투명) — word-chain 과 동일
   cardFill: 'rgba(255, 255, 255, 0.62)',
   cardLine: 'rgba(216, 199, 255, 0.7)',
-  cardActiveFill: 'rgba(255, 240, 246, 0.9)',
-  cardDeadFill: 'rgba(240, 236, 240, 0.5)',
+  cardActiveFill: 'rgba(240, 255, 252, 0.9)',
+  cardDeadFill: 'rgba(236, 240, 239, 0.5)',
 
   // 폭탄
   bomb: '#3a3242',
   bombHi: '#5c5468',
   fuse: '#c99a5a',
   spark: '#ffb845',
-  sparkHot: '#ff5a92',
+  sparkHot: '#ff7a3d',
 
   endScrim: 'rgba(54, 36, 56, 0.62)',
 } as const;
@@ -162,16 +162,16 @@ export class BombRenderer {
 
       // 행 배경 (프로스티드) — 폭탄 홀더 = 핑크 채움
       ctx.save();
-      ctx.shadowColor = holdsBomb ? 'rgba(255, 90, 146, 0.25)' : 'rgba(120, 80, 140, 0.1)';
+      ctx.shadowColor = holdsBomb ? 'rgba(42, 148, 136, 0.25)' : 'rgba(120, 80, 140, 0.1)';
       ctx.shadowBlur = holdsBomb ? 10 : 5;
       ctx.shadowOffsetY = holdsBomb ? 4 : 2;
       this.roundRect(PLX, y, PLW, rowH, rowH / 2.4);
-      ctx.fillStyle = holdsBomb ? COLORS.pink : isLoser ? COLORS.cardDeadFill : COLORS.cardFill;
+      ctx.fillStyle = holdsBomb ? COLORS.accent : isLoser ? COLORS.cardDeadFill : COLORS.cardFill;
       ctx.fill();
       ctx.restore();
       if (!holdsBomb) {
         this.roundRect(PLX, y, PLW, rowH, rowH / 2.4);
-        ctx.strokeStyle = isLoser ? 'rgba(255, 90, 146, 0.5)' : COLORS.cardLine;
+        ctx.strokeStyle = isLoser ? 'rgba(42, 148, 136, 0.5)' : COLORS.cardLine;
         ctx.lineWidth = isLoser ? 1.4 : 1;
         ctx.stroke();
       }
@@ -192,7 +192,7 @@ export class BombRenderer {
 
       // 폭발 패자 = 가로줄
       if (isLoser) {
-        ctx.strokeStyle = COLORS.pink;
+        ctx.strokeStyle = COLORS.accent;
         ctx.lineWidth = 1.3;
         ctx.beginPath();
         ctx.moveTo(tx, y + rowH / 2);
@@ -231,12 +231,12 @@ export class BombRenderer {
     ctx.textAlign = 'left';
     ctx.fillStyle = COLORS.textMain;
     ctx.fillText(head, cx - tot / 2, 108);
-    ctx.fillStyle = COLORS.pink;
+    ctx.fillStyle = COLORS.accent;
     ctx.fillText(tail, cx - tot / 2 + hw, 108);
     ctx.restore();
 
     // 화살표
-    ctx.fillStyle = COLORS.pinkSoft;
+    ctx.fillStyle = COLORS.accentSoft;
     ctx.font = `700 20px ${FONT}`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
@@ -256,11 +256,11 @@ export class BombRenderer {
     ctx.scale(chipSc, chipSc);
     ctx.translate(-cx, -(chipY + chipH / 2));
     ctx.save();
-    ctx.shadowColor = 'rgba(255, 90, 146, 0.3)';
+    ctx.shadowColor = 'rgba(42, 148, 136, 0.3)';
     ctx.shadowBlur = 18;
     ctx.shadowOffsetY = 6;
     this.roundRect(chipX, chipY, chipW, chipH, chipH / 2);
-    ctx.fillStyle = COLORS.pink;
+    ctx.fillStyle = COLORS.accent;
     ctx.fill();
     ctx.restore();
     ctx.fillStyle = '#fff';
@@ -366,7 +366,7 @@ export class BombRenderer {
       ctx.fillStyle = isLast ? COLORS.cardActiveFill : COLORS.cardFill;
       ctx.fill();
       this.roundRect(RX + dx, y, RW, rowH, 10);
-      ctx.strokeStyle = isLast ? 'rgba(255, 90, 146, 0.5)' : COLORS.cardLine;
+      ctx.strokeStyle = isLast ? 'rgba(42, 148, 136, 0.5)' : COLORS.cardLine;
       ctx.lineWidth = isLast ? 1.6 : 1;
       ctx.stroke();
 
@@ -406,7 +406,7 @@ export class BombRenderer {
     ctx.fillText('💥', CANVAS_W / 2, CANVAS_H / 2 - 30);
 
     ctx.font = `900 28px ${FONT}`;
-    ctx.fillStyle = iLost ? COLORS.pink : '#fff';
+    ctx.fillStyle = iLost ? COLORS.accent : '#fff';
     const title = iLost
       ? '펑! 내가 폭탄을 들고 있었다'
       : `${loser?.nickname ?? '?'} 폭발 · 나는 살았다`;

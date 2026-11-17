@@ -2,8 +2,8 @@
   <!-- 배경 그라데이션 — 썸네일 공통 규약 -->
   <defs>
     <linearGradient id="bgGrad" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#ffe4ee"/>
-      <stop offset="1" stop-color="#e0fff4"/>
+      <stop offset="0" stop-color="#ddf2ef"/>
+      <stop offset="1" stop-color="#fff8e1"/>
     </linearGradient>
     <radialGradient id="appleRed" cx="0.35" cy="0.3" r="0.9">
       <stop offset="0" stop-color="#ff9aa8"/>
@@ -14,20 +14,20 @@
       <stop offset="1" stop-color="#ec7080"/>
     </radialGradient>
     <!-- 소프트 입체: 중앙 일러스트 드롭섀도 -->
-    <filter id="lift" x="-35%" y="-35%" width="170%" height="170%"><feDropShadow dx="0" dy="5" stdDeviation="5" flood-color="#8a5a78" flood-opacity="0.26"/></filter>
+    <filter id="lift" x="-35%" y="-35%" width="170%" height="170%"><feDropShadow dx="0" dy="5" stdDeviation="5" flood-color="#3a6b63" flood-opacity="0.26"/></filter>
   </defs>
 
   <rect width="320" height="200" rx="22" fill="url(#bgGrad)"/>
 
   <!-- 배경 데코 4개 점 (썸네일 공통) -->
-  <circle cx="30" cy="30" r="3" fill="#ffc9dd"/>
-  <circle cx="290" cy="40" r="2.5" fill="#b8f5e0"/>
-  <circle cx="290" cy="170" r="3" fill="#d9c7ff"/>
-  <circle cx="30" cy="170" r="2.2" fill="#ffeec2"/>
+  <circle cx="30" cy="30" r="3" fill="#c5e8e1"/>
+  <circle cx="290" cy="40" r="2.5" fill="#ffeeb8"/>
+  <circle cx="290" cy="170" r="3" fill="#8ccfc6"/>
+  <circle cx="30" cy="170" r="2.2" fill="#ffeeb8"/>
 
   <!-- 별 데코 2개 -->
   <path d="M 52 68 L 54 74 L 60 74 L 55.2 77.8 L 57 83.6 L 52 80 L 47 83.6 L 48.8 77.8 L 44 74 L 50 74 Z"
-        fill="#ffd0dc" opacity="0.85"/>
+        fill="#ffeeb8" opacity="0.85"/>
   <path d="M 268 128 L 270 133 L 275 133 L 271 136.2 L 272.5 141 L 268 138 L 263.5 141 L 265 136.2 L 261 133 L 266 133 Z"
         fill="#c5e8d8" opacity="0.85"/>
 
@@ -35,7 +35,7 @@
   <g filter="url(#lift)">
   <!-- 선택 박스 암시 (드래그로 묶음을 보여주는 점선 사각형) -->
   <rect x="92" y="70" width="136" height="72" rx="6"
-        fill="rgba(255,106,158,0.08)" stroke="#ff6b9e" stroke-width="1.8"
+        fill="rgba(42,148,136,0.10)" stroke="#2a9488" stroke-width="1.8"
         stroke-dasharray="5 4"/>
 
   <!-- 왼쪽 작은 사과 (비스듬히, 숫자 2) -->
@@ -43,7 +43,7 @@
     <!-- 줄기 -->
     <rect x="-1.5" y="-24" width="3" height="6" rx="1.2" fill="#8b5a2b"/>
     <!-- 잎 -->
-    <ellipse cx="6" cy="-22" rx="6" ry="3" fill="#86e8c4" transform="rotate(25 6 -22)"/>
+    <ellipse cx="6" cy="-22" rx="6" ry="3" fill="#8ccfc6" transform="rotate(25 6 -22)"/>
     <!-- 사과 몸 -->
     <circle r="22" fill="url(#appleRed)" stroke="#c04050" stroke-width="1.2"/>
     <!-- 하이라이트 -->
@@ -58,7 +58,7 @@
     <!-- 줄기 -->
     <rect x="-2" y="-36" width="4" height="9" rx="1.5" fill="#8b5a2b"/>
     <!-- 잎 -->
-    <ellipse cx="8" cy="-33" rx="8" ry="4" fill="#86e8c4" transform="rotate(25 8 -33)"/>
+    <ellipse cx="8" cy="-33" rx="8" ry="4" fill="#8ccfc6" transform="rotate(25 8 -33)"/>
     <!-- 사과 몸 -->
     <circle r="32" fill="url(#appleRed)" stroke="#b23845" stroke-width="1.6"/>
     <!-- 하이라이트 -->
@@ -71,7 +71,7 @@
   <!-- 오른쪽 작은 사과 (숫자 1) — 2 + 7 + 1 = 10, 실제 터지는 조합 -->
   <g transform="translate(212 100) rotate(8)">
     <rect x="-1.5" y="-24" width="3" height="6" rx="1.2" fill="#8b5a2b"/>
-    <ellipse cx="6" cy="-22" rx="6" ry="3" fill="#86e8c4" transform="rotate(25 6 -22)"/>
+    <ellipse cx="6" cy="-22" rx="6" ry="3" fill="#8ccfc6" transform="rotate(25 6 -22)"/>
     <circle r="22" fill="url(#appleRed2)" stroke="#c04050" stroke-width="1.2"/>
     <ellipse cx="-7" cy="-8" rx="5" ry="7" fill="rgba(255,255,255,0.45)"/>
     <text x="0" y="6" text-anchor="middle" font-family="Pretendard, system-ui, sans-serif"
@@ -81,7 +81,7 @@
   <!-- "= 10" 힌트 풍선 (선택 박스 오른쪽 상단) -->
   <g transform="translate(234 58)">
     <rect x="-20" y="-12" width="40" height="22" rx="11"
-          fill="#ff6b9e" stroke="#a82a5c" stroke-width="1.2"/>
+          fill="#3fb3a2" stroke="#1f6a55" stroke-width="1.2"/>
     <text x="0" y="4" text-anchor="middle" font-family="Pretendard, system-ui, sans-serif"
           font-size="13" font-weight="900" fill="#fff">=10</text>
   </g>
