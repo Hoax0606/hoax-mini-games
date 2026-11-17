@@ -1,0 +1,84 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 200" fill="none">
+  <!-- 배경: 파스텔 청록→연노랑 그라데이션 -->
+  <defs>
+    <linearGradient id="kdbg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#ddf2ef"/>
+      <stop offset="1" stop-color="#fff8e1"/>
+    </linearGradient>
+    <!-- 소프트 입체: 중앙 일러스트 드롭섀도 -->
+    <filter id="kdlift" x="-35%" y="-35%" width="170%" height="170%"><feDropShadow dx="0" dy="5" stdDeviation="5" flood-color="#3a6b63" flood-opacity="0.26"/></filter>
+  </defs>
+  <rect width="320" height="200" rx="22" fill="url(#kdbg)"/>
+
+  <!-- 배경 데코: 작은 점들 -->
+  <circle cx="26" cy="28" r="3" fill="#c5e8e1"/>
+  <circle cx="294" cy="36" r="2.5" fill="#ffeeb8"/>
+  <circle cx="286" cy="170" r="3" fill="#8ccfc6"/>
+  <circle cx="34" cy="174" r="2.2" fill="#c5e8e1"/>
+  <circle cx="302" cy="104" r="2" fill="#ffeeb8"/>
+  <circle cx="18" cy="100" r="2" fill="#8ccfc6"/>
+
+  <!-- 작은 별 데코 -->
+  <path d="M 46,44 L 48,49 L 53,49 L 49,52 L 51,57 L 46,54 L 41,57 L 43,52 L 39,49 L 44,49 Z"
+        fill="#c5e8e1" opacity="0.7"/>
+  <path d="M 274,148 L 276,153 L 281,153 L 277,156 L 279,161 L 274,158 L 269,161 L 271,156 L 267,153 L 272,153 Z"
+        fill="#ffeeb8" opacity="0.7"/>
+
+  <g filter="url(#kdlift)">
+    <!-- 중앙: 추측 그리드 3줄 × 4칸 (자모 한 칸씩) -->
+    <g font-family="'Pretendard','Apple SD Gothic Neo','Noto Sans KR',system-ui,sans-serif"
+       font-size="17" font-weight="800" text-anchor="middle">
+
+      <!-- 1줄: 거의 틀림 -->
+      <rect x="92"  y="44" width="30" height="30" rx="7" fill="#ddf2ef"/>
+      <text x="107" y="65" fill="#6b8a85">ㅈ</text>
+      <rect x="127" y="44" width="30" height="30" rx="7" fill="#f5c33d"/>
+      <text x="142" y="65" fill="#8a6a10">ㅏ</text>
+      <rect x="162" y="44" width="30" height="30" rx="7" fill="#ddf2ef"/>
+      <text x="177" y="65" fill="#6b8a85">ㅁ</text>
+      <rect x="197" y="44" width="30" height="30" rx="7" fill="#3fb3a2"/>
+      <text x="212" y="65" fill="#ffffff">ㅗ</text>
+
+      <!-- 2줄: 거의 맞음 -->
+      <rect x="92"  y="79" width="30" height="30" rx="7" fill="#3fb3a2"/>
+      <text x="107" y="100" fill="#ffffff">ㅅ</text>
+      <rect x="127" y="79" width="30" height="30" rx="7" fill="#3fb3a2"/>
+      <text x="142" y="100" fill="#ffffff">ㅏ</text>
+      <rect x="162" y="79" width="30" height="30" rx="7" fill="#f5c33d"/>
+      <text x="177" y="100" fill="#8a6a10">ㄱ</text>
+      <rect x="197" y="79" width="30" height="30" rx="7" fill="#ddf2ef"/>
+      <text x="212" y="100" fill="#6b8a85">ㅜ</text>
+
+      <!-- 3줄: 입력 대기 (빈 칸 + 커서) -->
+      <rect x="92"  y="114" width="30" height="30" rx="7" fill="#ffffff" stroke="#8ccfc6" stroke-width="2"/>
+      <rect x="127" y="114" width="30" height="30" rx="7" fill="#ffffff" stroke="#c5e8e1" stroke-width="2"/>
+      <rect x="162" y="114" width="30" height="30" rx="7" fill="#ffffff" stroke="#c5e8e1" stroke-width="2"/>
+      <rect x="197" y="114" width="30" height="30" rx="7" fill="#ffffff" stroke="#c5e8e1" stroke-width="2"/>
+      <!-- 깜빡이는 커서 느낌 -->
+      <rect x="105" y="121" width="3" height="16" rx="1.5" fill="#2a9488" opacity="0.75"/>
+    </g>
+  </g>
+
+  <!-- 보조 일러스트: 자모 키보드 조각 (좌하단, 비스듬히) -->
+  <g transform="translate(40, 128) rotate(-11)"
+     font-family="'Pretendard','Apple SD Gothic Neo','Noto Sans KR',system-ui,sans-serif"
+     font-size="9" font-weight="700" text-anchor="middle">
+    <rect x="0"  y="0"  width="15" height="17" rx="3.5" fill="#ffffff" stroke="#c5e8e1" stroke-width="1.4"/>
+    <text x="7.5"  y="12" fill="#2f4a46">ㅂ</text>
+    <rect x="17" y="0"  width="15" height="17" rx="3.5" fill="#3fb3a2"/>
+    <text x="24.5" y="12" fill="#ffffff">ㅅ</text>
+    <rect x="34" y="0"  width="15" height="17" rx="3.5" fill="#ffffff" stroke="#c5e8e1" stroke-width="1.4"/>
+    <text x="41.5" y="12" fill="#2f4a46">ㄷ</text>
+    <rect x="8"  y="19" width="15" height="17" rx="3.5" fill="#f5c33d"/>
+    <text x="15.5" y="31" fill="#8a6a10">ㅏ</text>
+    <rect x="25" y="19" width="15" height="17" rx="3.5" fill="#ffffff" stroke="#c5e8e1" stroke-width="1.4"/>
+    <text x="32.5" y="31" fill="#2f4a46">ㅓ</text>
+  </g>
+
+  <!-- 보조 일러스트: 돋보기(맞히기) 우상단 -->
+  <g transform="translate(252, 62) rotate(12)">
+    <circle cx="0" cy="0" r="13" fill="#ffffff" stroke="#2a9488" stroke-width="3"/>
+    <path d="M 9 9 L 18 18" stroke="#2a9488" stroke-width="4" stroke-linecap="round"/>
+    <path d="M -5 -2 l 4 4 l 7 -8" stroke="#f5c33d" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+  </g>
+</svg>

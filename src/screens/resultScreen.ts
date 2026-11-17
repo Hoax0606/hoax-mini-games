@@ -52,7 +52,7 @@ function buildActionsHTML(isHost: boolean): string {
   return isHost
     ? `
         <button type="button" class="btn btn-primary btn-lg btn-block" id="retry-btn">${icon('refresh', { size: 20, hue: '#fff' })} 다시하기</button>
-        <button type="button" class="btn btn-secondary btn-block" id="lobby-btn">${icon('home', { size: 20, hue: '#ff5a92' })} 대기실로 이동</button>
+        <button type="button" class="btn btn-secondary btn-block" id="lobby-btn">${icon('home', { size: 20, hue: '#2a9488' })} 대기실로 이동</button>
         <button type="button" class="btn btn-ghost btn-block" id="menu-btn">메뉴로</button>
       `
     : `
@@ -317,7 +317,7 @@ function buildAppleResultHTML(args: {
       <span class="result-tetris-rank-num">${rank}</span> / ${totalPlayers}위
     </div>
     <div class="result-apple-myscore">
-      <div class="result-apple-myscore-label">${icon('apple', { size: 16, hue: '#ff5a92' })} 내 점수</div>
+      <div class="result-apple-myscore-label">${icon('apple', { size: 16, hue: '#e0533f' })} 내 점수</div>
       <div class="result-apple-myscore-value">${myScore}</div>
     </div>
   `;
@@ -406,7 +406,7 @@ function parseGomokuSummary(summary: Record<string, unknown>): GomokuSummary | n
 /** 오목 종료 사유를 한국어 뱃지 텍스트로 */
 function gomokuReasonLabel(reason: 'five' | 'timeout' | 'draw'): string {
   switch (reason) {
-    case 'five':    return `${icon('target', { size: 15, hue: '#ff5a92' })} 5목 완성`;
+    case 'five':    return `${icon('target', { size: 15, hue: '#2a9488' })} 5목 완성`;
     case 'timeout': return '⏱ 시간 초과';
     case 'draw':    return `${icon('scale', { size: 15, hue: '#9db4d6' })} 보드 가득참`;
   }
@@ -423,7 +423,7 @@ function buildGomokuResultHTML(args: {
 
   // 관전자는 중립적 타이틀, 플레이어는 내 승/패/무 기준
   const { emoji, title, titleClass } = isSpectator
-    ? { emoji: icon('target', { size: 58, hue: '#ff5a92' }), title: '승부!', titleClass: 'result-title-draw' }
+    ? { emoji: icon('target', { size: 58, hue: '#2a9488' }), title: '승부!', titleClass: 'result-title-draw' }
     : winnerVisuals(myWinner);
 
   const actionsHTML = buildActionsHTML(isHost);
@@ -739,6 +739,84 @@ function buildFakeArtistResultHTML(args: {
 }
 
 // ============================================
+// 꼬들 전용 결과 HTML
+// ============================================
+
+function parseKordleSummary(summary: Record<string, unknown>): {
+  myPeerId: string; rank: number; totalPlayers: number; myScore: number;
+  jamoLen: number; rounds: number; rankings: LiarRankEntry[];
+} | null {
+  if (summary['gameId'] !== 'kordle') return null;
+  const myPeerId = typeof summary['myPeerId'] === 'string' ? (summary['myPeerId'] as string) : null;
+  const rank = typeof summary['rank'] === 'number' ? (summary['rank'] as number) : null;
+  const totalPlayers = typeof summary['totalPlayers'] === 'number' ? (summary['totalPlayers'] as number) : null;
+  if (!myPeerId || rank === null || totalPlayers === null) return null;
+  const raw = summary['rankings'] as unknown;
+  const rankings: LiarRankEntry[] = Array.isArray(raw)
+    ? (raw as Partial<LiarRankEntry>[])
+        .filter((r) => typeof r.peerId === 'string' && typeof r.nickname === 'string'
+          && typeof r.rank === 'number' && typeof r.score === 'number')
+        .map((r) => ({ peerId: r.peerId!, nickname: r.nickname!, rank: r.rank!, score: r.score! }))
+    : [];
+  return {
+    myPeerId, rank, totalPlayers,
+    myScore: typeof summary['myScore'] === 'number' ? (summary['myScore'] as number) : 0,
+    jamoLen: typeof summary['jamoLen'] === 'number' ? (summary['jamoLen'] as number) : 6,
+    rounds: typeof summary['rounds'] === 'number' ? (summary['rounds'] as number) : 0,
+    rankings,
+  };
+}
+
+function buildKordleResultHTML(args: {
+  myWinner: 'me' | 'opponent' | null;
+  rank: number; totalPlayers: number; myScore: number; jamoLen: number; rounds: number;
+  rankings: LiarRankEntry[]; myPeerId: string; isHost: boolean; isSpectator: boolean;
+}): string {
+  const { myWinner, rank, totalPlayers, myScore, jamoLen, rounds, rankings, myPeerId, isHost, isSpectator } = args;
+  // 혼자 한 판은 승패가 없으니 중립 타이틀
+  const solo = totalPlayers < 2;
+  const { emoji, title, titleClass } = isSpectator || solo
+    ? { emoji: icon('abc', { size: 58, hue: '#2a9488' }), title: solo ? '꼬들 연습 종료' : '꼬들 종료', titleClass: 'result-title-draw' }
+    : winnerVisuals(myWinner);
+  const actionsHTML = buildActionsHTML(isHost);
+  const myBlock = isSpectator ? '' : `
+    <div class="result-apple-myscore">
+      <div class="result-apple-myscore-label">${icon('abc', { size: 16, hue: '#2a9488' })} 자모 ${jamoLen}칸 · ${rounds}라운드</div>
+      <div class="result-apple-myscore-value">${myScore}점</div>
+    </div>
+    ${solo ? '' : `<div class="result-tetris-rank"><span class="result-tetris-rank-num">${rank}</span> / ${totalPlayers}위</div>`}
+  `;
+  const rankingsHTML = rankings.length >= 2 ? `
+    <div class="result-tetris-rankings">
+      <div class="result-tetris-rankings-title">${icon('medal', { size: 18, hue: '#ffb12e' })} 최종 순위</div>
+      ${rankings.map((r) => {
+        const isMe = r.peerId === myPeerId;
+        const badgeClass = r.rank <= 3 ? `rank-${r.rank}` : '';
+        return `
+          <div class="result-tetris-rank-row ${isMe ? 'is-me' : ''}">
+            <span class="result-tetris-rank-badge ${badgeClass}">${r.rank}</span>
+            <span class="result-tetris-rank-name">${escapeHtml(r.nickname)}</span>
+            <span class="result-apple-rank-score">${r.score}점</span>
+            ${isMe ? '<span class="result-tetris-rank-me-tag">나</span>' : ''}
+          </div>
+        `;
+      }).join('')}
+    </div>
+  ` : '';
+  return `
+    <div class="result-card result-card-tetris">
+      <div class="result-emoji">${emoji}</div>
+      <div class="result-title ${titleClass}">${title}</div>
+      ${myBlock}
+      ${rankingsHTML}
+      <div class="result-actions">
+        ${actionsHTML}
+      </div>
+    </div>
+  `;
+}
+
+// ============================================
 // 라면가게 전용 결과 HTML
 // ============================================
 
@@ -876,7 +954,7 @@ function buildBombResultHTML(args: {
   const iLost = !isSpectator && s.loserPeerId === s.myPeerId;
   const emoji = isSpectator
     ? icon('bomb', { size: 58, hue: '#5a5568' })
-    : iLost ? icon('burst', { size: 58, hue: '#ff5a92' }) : icon('trophy', { size: 58, hue: '#ffb020' });
+    : iLost ? icon('burst', { size: 58, hue: '#ff7a3d' }) : icon('trophy', { size: 58, hue: '#ffb020' });
   const title = isSpectator ? '폭탄 터짐!' : iLost ? '펑! 내가 폭탄을 들고 있었다' : '살았다!';
   const titleClass = iLost ? 'result-title-lose' : 'result-title-win';
   const actionsHTML = buildActionsHTML(isHost);
@@ -892,7 +970,7 @@ function buildBombResultHTML(args: {
         const badgeClass = p.survived ? '' : 'rank-1';
         return `
           <div class="result-tetris-rank-row ${isMe ? 'is-me' : ''}">
-            <span class="result-tetris-rank-badge ${badgeClass}">${p.survived ? icon('trophy', { size: 15, hue: '#2f9e44' }) : icon('burst', { size: 15, hue: '#e0679b' })}</span>
+            <span class="result-tetris-rank-badge ${badgeClass}">${p.survived ? icon('trophy', { size: 15, hue: '#2f9e44' }) : icon('burst', { size: 15, hue: '#ff7a3d' })}</span>
             <span class="result-tetris-rank-name">${escapeHtml(p.nickname)}</span>
             <span class="result-apple-rank-score">${p.survived ? '생존' : '폭발'}</span>
             ${isMe ? '<span class="result-tetris-rank-me-tag">나</span>' : ''}
@@ -902,7 +980,7 @@ function buildBombResultHTML(args: {
     </div>
   `;
 
-  const reasonBadge = `<div class="result-gomoku-reason">${icon('bomb', { size: 15, hue: '#e0679b' })} ${escapeHtml(s.loserNickname)} 폭발 · ${s.wordCount}단어 이어감</div>`;
+  const reasonBadge = `<div class="result-gomoku-reason">${icon('bomb', { size: 15, hue: '#ff7a3d' })} ${escapeHtml(s.loserNickname)} 폭발 · ${s.wordCount}단어 이어감</div>`;
 
   return `
     <div class="result-card result-card-tetris">
@@ -978,7 +1056,7 @@ function buildDartsResultHTML(args: {
 }): string {
   const { myWinner, summary, isHost, isSpectator } = args;
   const { emoji, title, titleClass } = isSpectator
-    ? { emoji: icon('target', { size: 58, hue: '#ff5a92' }), title: '다트 대결 종료', titleClass: 'result-title-draw' }
+    ? { emoji: icon('target', { size: 58, hue: '#2a9488' }), title: '다트 대결 종료', titleClass: 'result-title-draw' }
     : winnerVisuals(myWinner);
   const actionsHTML = buildActionsHTML(isHost);
 
@@ -988,7 +1066,7 @@ function buildDartsResultHTML(args: {
       <span class="result-tetris-rank-num">${summary.rank}</span> / ${summary.totalPlayers}위
     </div>
     <div class="result-apple-myscore">
-      <div class="result-apple-myscore-label">${icon('target', { size: 16, hue: '#ff5a92' })} ${escapeHtml(myEntry.scoreLabel)}</div>
+      <div class="result-apple-myscore-label">${icon('target', { size: 16, hue: '#2a9488' })} ${escapeHtml(myEntry.scoreLabel)}</div>
       <div class="result-apple-myscore-value">${myEntry.score}</div>
     </div>
   `;
@@ -1374,7 +1452,7 @@ function buildFortressResultHTML(args: {
 }): string {
   const { myWinner, summary, isHost, isSpectator } = args;
   let visuals = isSpectator
-    ? { emoji: icon('burst', { size: 58, hue: '#ff5a92' }), title: '포트리스 종료', titleClass: 'result-title-draw' }
+    ? { emoji: icon('burst', { size: 58, hue: '#ff7a3d' }), title: '포트리스 종료', titleClass: 'result-title-draw' }
     : winnerVisuals(myWinner);
   if (!isSpectator && summary.isCoWin && myWinner === 'me') {
     visuals = { emoji: icon('trophy', { size: 68, hue: '#ffb020' }), title: '공동 우승!', titleClass: 'result-title-win' };
@@ -1388,7 +1466,7 @@ function buildFortressResultHTML(args: {
       ${summary.rankings.map((r) => {
         const isMe = r.peerId === summary.myPeerId;
         const badgeClass = r.rank <= 3 ? `rank-${r.rank}` : '';
-        const status = r.hp > 0 ? `${icon('heart', { size: 14, hue: '#ff5a92' })} ${r.hp}` : `${icon('burst', { size: 14, hue: '#b3a9bf' })} 파괴`;
+        const status = r.hp > 0 ? `${icon('heart', { size: 14, hue: '#e0533f' })} ${r.hp}` : `${icon('burst', { size: 14, hue: '#b3a9bf' })} 파괴`;
         return `
           <div class="result-tetris-rank-row ${isMe ? 'is-me' : ''}">
             <span class="result-tetris-rank-badge ${badgeClass}">${r.rank}</span>
@@ -1625,7 +1703,7 @@ function buildOneCardResultHTML(args: {
 }): string {
   const { myWinner, rank, totalPlayers, rankings, myPeerId, isHost, isSpectator } = args;
   const { emoji, title, titleClass } = isSpectator
-    ? { emoji: icon('games', { size: 56, hue: '#ff5a92' }), title: '원카드 종료', titleClass: 'result-title-draw' }
+    ? { emoji: icon('games', { size: 56, hue: '#2a9488' }), title: '원카드 종료', titleClass: 'result-title-draw' }
     : winnerVisuals(myWinner);
   const actionsHTML = buildActionsHTML(isHost);
 
@@ -1795,6 +1873,7 @@ export function createResultScreenAsHostScreen(args: ResultScreenAsHostArgs): Sc
       const blueMarble = parseBlueMarbleSummary(result.summary);
       const avalon = parseAvalonSummary(result.summary);
       const fakeArtist = parseFakeArtistSummary(result.summary);
+      const kordle = parseKordleSummary(result.summary);
       if (tetris) {
         el.innerHTML = buildTetrisResultHTML({
           myWinner: result.winner,
@@ -1877,6 +1956,19 @@ export function createResultScreenAsHostScreen(args: ResultScreenAsHostArgs): Sc
           totalPlayers: fakeArtist.totalPlayers,
           rankings: fakeArtist.rankings,
           myPeerId: fakeArtist.myPeerId,
+          isHost: true,
+          isSpectator: false,
+        });
+      } else if (kordle) {
+        el.innerHTML = buildKordleResultHTML({
+          myWinner: result.winner,
+          rank: kordle.rank,
+          totalPlayers: kordle.totalPlayers,
+          myScore: kordle.myScore,
+          jamoLen: kordle.jamoLen,
+          rounds: kordle.rounds,
+          rankings: kordle.rankings,
+          myPeerId: kordle.myPeerId,
           isHost: true,
           isSpectator: false,
         });
@@ -2082,6 +2174,7 @@ export function createResultScreenAsGuestScreen(args: ResultScreenAsGuestArgs): 
       const blueMarble = parseBlueMarbleSummary(result.summary);
       const avalon = parseAvalonSummary(result.summary);
       const fakeArtist = parseFakeArtistSummary(result.summary);
+      const kordle = parseKordleSummary(result.summary);
       // 관전자는 summary.myPeerId 가 자기가 아닐 수 있음 — 자기 peerId 는 guest.myPeerId.
       // rankings 에 "나" 가 없으면 관전자로 간주.
       const myPeerIdForResult = guest.myPeerId;
@@ -2181,6 +2274,20 @@ export function createResultScreenAsGuestScreen(args: ResultScreenAsGuestArgs): 
           totalPlayers: fakeArtist.totalPlayers,
           rankings: fakeArtist.rankings,
           myPeerId: isSpec ? myPeerIdForResult : fakeArtist.myPeerId,
+          isHost: false,
+          isSpectator: isSpec,
+        });
+      } else if (kordle) {
+        const isSpec = !kordle.rankings.some((r) => r.peerId === myPeerIdForResult);
+        el.innerHTML = buildKordleResultHTML({
+          myWinner: result.winner,
+          rank: kordle.rank,
+          totalPlayers: kordle.totalPlayers,
+          myScore: kordle.myScore,
+          jamoLen: kordle.jamoLen,
+          rounds: kordle.rounds,
+          rankings: kordle.rankings,
+          myPeerId: isSpec ? myPeerIdForResult : kordle.myPeerId,
           isHost: false,
           isSpectator: isSpec,
         });

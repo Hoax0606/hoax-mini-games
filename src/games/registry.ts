@@ -30,6 +30,7 @@ import blueMarbleThumbnail from './blue-marble/thumbnail.svg';
 import werewolfThumbnail from './werewolf/thumbnail.svg';
 import avalonThumbnail from './avalon/thumbnail.svg';
 import fakeArtistThumbnail from './fake-artist/thumbnail.svg';
+import kordleThumbnail from './kordle/thumbnail.svg';
 
 export const games: GameEntry[] = [
   {
@@ -524,6 +525,44 @@ export const games: GameEntry[] = [
     load: async () => {
       const mod = await import('./fake-artist');
       return mod.createFakeArtistGame();
+    },
+  },
+  {
+    meta: {
+      id: 'kordle',
+      name: '꼬들',
+      description: '한국어 워들! 단어를 자모로 풀어쓴 칸을 6번 안에 맞혀요. 초록은 자리까지 정답, 노랑은 자리만 틀림. 혼자서는 랜덤 문제, 여럿이면 돌아가며 문제를 내고 시도 횟수와 시간으로 점수를 겨뤄요.',
+      thumbnail: kordleThumbnail,
+      minPlayers: 1,
+      maxPlayers: 10,
+      roomOptions: [
+        {
+          key: 'len',
+          label: '칸 수 (자모)',
+          type: 'select',
+          choices: [
+            { value: '6', label: '6칸 (기본)' },
+            { value: '12', label: '12칸 (어려움)' },
+          ],
+          defaultValue: '6',
+        },
+        {
+          key: 'rounds',
+          label: '라운드 수',
+          type: 'select',
+          choices: [
+            { value: '3', label: '3라운드' },
+            { value: '5', label: '5라운드' },
+            { value: '10', label: '10라운드' },
+            { value: '0', label: '무제한 (방장이 끝내기)' },
+          ],
+          defaultValue: '5',
+        },
+      ],
+    },
+    load: async () => {
+      const mod = await import('./kordle');
+      return mod.createKordle();
     },
   },
 ];
