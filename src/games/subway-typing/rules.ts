@@ -10,26 +10,49 @@
  */
 
 import { LINES } from './stations';
+import { LINES_JA } from './stationsJa';
 
-export const LINE_NAMES: readonly string[] = LINES.map((l) => l.name);
+/** 수도권(한국) / 도쿄(일본) */
+export type Region = 'kr' | 'jp';
+
+/** 두 나라 노선을 같은 모양으로 다루기 위한 공통 형태 */
+interface AnyLine {
+  name: string;
+  loop: boolean;
+  stations: string[];
+  /** 일본만 있다. 한자 역명 위에 후리가나로 띄운다 */
+  kana?: string[];
+}
+
+function linesOf(region: Region): AnyLine[] {
+  return region === 'jp' ? LINES_JA : LINES;
+}
 
 /** 운행 방향 — 배열 정방향이 하행, 역방향이 상행 */
 export type Direction = 'down' | 'up';
 
 /**
- * 방 옵션 값은 `노선|방향` 한 덩어리다 (예: `3호선|up`).
- * 노선을 고르면 행선지 목록이 바뀌어야 하는데 방 옵션이 그런 의존 관계를 못 만들어서,
- * 아예 둘을 합쳐 하나의 목록으로 보여준다. 고르는 느낌은 같고 옵션은 하나로 줄어든다.
+ * 방 옵션 값은 `지역:노선|방향` 한 덩어리다 (예: `jp:山手線|down`).
+ * 지역을 고르면 노선 목록이, 노선을 고르면 행선지가 바뀌어야 하는데
+ * 방 옵션이 그런 의존 관계를 못 만들어서 셋을 합쳐 하나의 목록으로 보여준다.
  */
 export interface Route {
+  region: Region;
   lineName: string;
   dir: Direction;
 }
 
 export function parseRoute(raw: string | undefined): Route {
-  const [name, d] = (raw ?? '').split('|');
+  const s = raw ?? '';
+  const colon = s.indexOf(':');
+  // 지역 접두사가 없으면 예전 형식(`2호선|down`) → 수도권으로 본다
+  const region: Region = s.slice(0, colon) === 'jp' ? 'jp' : 'kr';
+  const rest = colon >= 0 ? s.slice(colon + 1) : s;
+  const [name, d] = rest.split('|');
+  const names = linesOf(region).map((l) => l.name);
   return {
-    lineName: name && LINE_NAMES.includes(name) ? name : '2호선',
+    region,
+    lineName: name && names.includes(name) ? name : (linesOf(region)[0]?.name ?? '2호선'),
     dir: d === 'up' ? 'up' : 'down',
   };
 }
@@ -37,45 +60,61 @@ export function parseRoute(raw: string | undefined): Route {
 /** 고를 수 있는 모든 운행 — 레지스트리 옵션과 화면 표기의 단일 출처 */
 export function allRoutes(): { value: string; label: string }[] {
   const out: { value: string; label: string }[] = [];
-  for (const l of LINES) {
-    for (const dir of ['down', 'up'] as const) {
-      out.push({
-        value: `${l.name}|${dir}`,
-        label: `${l.name} ${destLabel(l.name, dir)} (${l.stations.length}역)`,
-      });
+  for (const region of ['kr', 'jp'] as const) {
+    const tag = region === 'kr' ? '수도권' : '도쿄';
+    const unit = region === 'kr' ? '역' : '駅';
+    for (const l of linesOf(region)) {
+      for (const dir of ['down', 'up'] as const) {
+        out.push({
+          value: `${region}:${l.name}|${dir}`,
+          label: `[${tag}] ${l.name} ${destLabel(region, l.name, dir)} (${l.stations.length}${unit})`,
+        });
+      }
     }
   }
   return out;
 }
 
-function lineOf(lineName: string) {
-  return LINES.find((l) => l.name === lineName) ?? LINES[0]!;
+function lineOf(region: Region, lineName: string): AnyLine {
+  const ls = linesOf(region);
+  return ls.find((l) => l.name === lineName) ?? ls[0]!;
 }
 
 /**
  * 이번에 달릴 역 목록 — 기점에서 종점까지 **전 구간**.
  * 실제 열차처럼 행선지가 정해지는 거라 중간에 끊지 않는다.
  */
-export function buildCourse(lineName: string, dir: Direction): string[] {
-  const st = lineOf(lineName).stations;
+export function buildCourse(region: Region, lineName: string, dir: Direction): string[] {
+  const st = lineOf(region, lineName).stations;
   return dir === 'up' ? st.slice().reverse() : st.slice();
+}
+
+/** 역 이름의 읽는 법. 일본 노선만 값이 있고, 한국은 전부 빈 문자열 */
+export function buildKana(region: Region, lineName: string, dir: Direction): string[] {
+  const line = lineOf(region, lineName);
+  const k = line.kana ?? line.stations.map(() => '');
+  return dir === 'up' ? k.slice().reverse() : k.slice();
 }
 
 /**
  * 행선지 이름. 실제 열차 표기를 따른다.
- *   보통 노선은 종착역 + '행' (오금행, 춘천행)
- *   순환선(2호선)은 종착역이 없으니 내선/외선순환
+ *   한국  보통 노선은 종착역 + '행' (오금행), 순환선(2호선)은 내선/외선순환
+ *   일본  보통 노선은 종착역 + '行き' (浅草行き), 순환선(山手線)은 内回り/外回り
  */
-export function destLabel(lineName: string, dir: Direction): string {
-  const line = lineOf(lineName);
-  if (line.loop) return dir === 'down' ? '내선순환' : '외선순환';
-  const course = buildCourse(lineName, dir);
-  return `${course[course.length - 1] ?? ''}행`;
+export function destLabel(region: Region, lineName: string, dir: Direction): string {
+  const line = lineOf(region, lineName);
+  if (line.loop) {
+    if (region === 'jp') return dir === 'down' ? '内回り' : '外回り';
+    return dir === 'down' ? '내선순환' : '외선순환';
+  }
+  const course = buildCourse(region, lineName, dir);
+  const last = course[course.length - 1] ?? '';
+  return region === 'jp' ? `${last}行き` : `${last}행`;
 }
 
 /** 출발역 — 화면 안내용 */
-export function originLabel(lineName: string, dir: Direction): string {
-  return buildCourse(lineName, dir)[0] ?? '';
+export function originLabel(region: Region, lineName: string, dir: Direction): string {
+  return buildCourse(region, lineName, dir)[0] ?? '';
 }
 
 // ============================================

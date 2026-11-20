@@ -20,6 +20,8 @@ const T_END = 'sb:end';
 
 /** 호스트가 정한 이번 판의 운행 */
 export interface StartPayload {
+  /** 'kr' = 수도권, 'jp' = 도쿄. 게스트는 이걸로 어느 데이터에서 코스를 만들지 정한다 */
+  region: 'kr' | 'jp';
   lineName: string;
   /** 'down' = 배열 정방향, 'up' = 역방향 */
   dir: 'down' | 'up';
@@ -54,6 +56,8 @@ export function decodeStart(msg: GameMessage): StartPayload | null {
   const p = msg.payload as Partial<StartPayload> | null;
   if (!p || typeof p.lineName !== 'string') return null;
   return {
+    // 예전 버전이 보낸 payload 엔 region 이 없다 → 수도권으로 본다
+    region: p.region === 'jp' ? 'jp' : 'kr',
     lineName: p.lineName,
     dir: p.dir === 'up' ? 'up' : 'down',
     countdownMs: typeof p.countdownMs === 'number' ? p.countdownMs : 3000,

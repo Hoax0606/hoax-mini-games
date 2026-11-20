@@ -10,7 +10,7 @@
 
 import type { GameContext, GameMessage, GameModule, GameResult, Player } from '../types';
 import {
-  buildCourse, parseRoute, destLabel,
+  buildCourse, buildKana, parseRoute, destLabel, type Region,
   isComplete, emptyRecord, kpm, rankSort,
   type Direction, type Record as SbRecord,
 } from './rules';
@@ -46,9 +46,12 @@ class SubwayTypingModule implements GameModule {
   private renderer: SubwayRenderer | null = null;
   private rafId: number | null = null;
 
+  private region: Region = 'kr';
   private lineName = '2호선';
   private dir: Direction = 'down';
   private course: string[] = [];
+  /** 일본 노선일 때만 채워진다 — 한자 위에 띄울 후리가나 */
+  private kana: string[] = [];
 
   /** 출발 시각 (performance.now 기준). 카운트다운이 끝나는 순간 */
   private startAt = 0;
@@ -74,7 +77,8 @@ class SubwayTypingModule implements GameModule {
     this.myPeerId = ctx.myPlayerId;
     this.isHost = ctx.role === 'host';
     this.isSpectator = ctx.isSpectator === true;
-    const route = parseRoute(ctx.roomOptions['route']);
+    const route = parseRoute(ctx.roomOptions['line']);
+    this.region = route.region;
     this.lineName = route.lineName;
     this.dir = route.dir;
 
@@ -88,9 +92,11 @@ class SubwayTypingModule implements GameModule {
       this.seats = orderPlayersHostFirst(ctx.players.filter((p) => p.role === 'player'))
         .map((p) => ({ peerId: p.peerId, nickname: p.nickname }));
       this.records = new Map(this.seats.map((s) => [s.peerId, emptyRecord()]));
-      this.course = buildCourse(this.lineName, this.dir);
+      this.course = buildCourse(this.region, this.lineName, this.dir);
+      this.kana = buildKana(this.region, this.lineName, this.dir);
       this.startAt = performance.now() + COUNTDOWN_MS;
       this.ctx.sendToPeer(encodeStart({
+        region: this.region,
         lineName: this.lineName,
         dir: this.dir,
         countdownMs: COUNTDOWN_MS,
@@ -135,7 +141,9 @@ class SubwayTypingModule implements GameModule {
     if (this.renderer) {
       this.renderer.render({
         lineName: this.lineName,
-        dest: destLabel(this.lineName, this.dir),
+        dest: destLabel(this.region, this.lineName, this.dir),
+        kana: this.kana,
+        region: this.region,
         course: this.course,
         index: this.me.index,
         typed: this.typed,
@@ -282,7 +290,7 @@ class SubwayTypingModule implements GameModule {
             myPeerId: s.peerId,
             rank: mine?.rank ?? rankings.length,
             totalPlayers: rankings.length,
-            lineName: `${this.lineName} ${destLabel(this.lineName, this.dir)}`,
+            lineName: `${this.lineName} ${destLabel(this.region, this.lineName, this.dir)}`,
             stationCount: this.course.length,
             myTimeMs: mine?.timeMs ?? null,
             myKpm: mine?.kpm ?? 0,
@@ -325,9 +333,11 @@ class SubwayTypingModule implements GameModule {
     const st = decodeStart(msg);
     if (st) {
       this.syncedOnce = true;
+      this.region = st.region;
       this.lineName = st.lineName;
       this.dir = st.dir;
-      this.course = buildCourse(st.lineName, st.dir);
+      this.course = buildCourse(st.region, st.lineName, st.dir);
+      this.kana = buildKana(st.region, st.lineName, st.dir);
       this.startAt = performance.now() + st.countdownMs;
       return;
     }

@@ -22,9 +22,13 @@ const STOP_GAP = 108;
 
 export interface SbRenderState {
   lineName: string;
-  /** 행선지 — 오금행 / 내선순환 */
+  /** 행선지 — 오금행 / 内回り */
   dest: string;
   course: string[];
+  /** 'jp' 면 한자 위에 후리가나를 띄운다 */
+  region: 'kr' | 'jp';
+  /** course 와 같은 길이. 한국 노선은 전부 빈 문자열 */
+  kana: string[];
   /** 내가 통과한 역 수 */
   index: number;
   typed: string;
@@ -220,33 +224,50 @@ export class SubwayRenderer {
     }
 
     // 이전 / 현재 / 다음
-    const prev = s.index > 0 ? s.course[s.index - 1] : null;
-    const next = s.course[s.index + 1] ?? null;
-    this.prevEl.innerHTML = prev
-      ? `<span class="sb-lbl">이전 역</span><b>${escapeHtml(prev)}</b>`
-      : `<span class="sb-lbl">출발</span><b>—</b>`;
-    this.nextEl.innerHTML = next
-      ? `<span class="sb-lbl">다음 역</span><b>${escapeHtml(next)}</b>`
-      : `<span class="sb-lbl">다음 역</span><b>종착</b>`;
+    const jp = s.region === 'jp';
+    const L = jp
+      ? { prev: '前の駅', start: '始発', next: '次の駅', last: '終着', fin: '完走！' }
+      : { prev: '이전 역', start: '출발', next: '다음 역', last: '종착', fin: '완주!' };
+    const ruby = (i: number): string => {
+      const name = s.course[i] ?? '';
+      const yomi = jp ? (s.kana[i] ?? '') : '';
+      return yomi
+        ? `<ruby>${escapeHtml(name)}<rt>${escapeHtml(yomi)}</rt></ruby>`
+        : escapeHtml(name);
+    };
+    this.prevEl.innerHTML = s.index > 0
+      ? `<span class="sb-lbl">${L.prev}</span><b>${ruby(s.index - 1)}</b>`
+      : `<span class="sb-lbl">${L.start}</span><b>—</b>`;
+    this.nextEl.innerHTML = s.course[s.index + 1] !== undefined
+      ? `<span class="sb-lbl">${L.next}</span><b>${ruby(s.index + 1)}</b>`
+      : `<span class="sb-lbl">${L.next}</span><b>${L.last}</b>`;
 
-    // 현재 역 — 친 만큼 앞부분을 칠하고, 남은 글자는 밑줄로 글자 수를 보여준다
-    const ok = isOnTrack(s.typed, cur);
-    const hit = ok ? cur.slice(0, s.typed.length) : '';
-    const rest = ok ? cur.slice(s.typed.length) : cur;
-    this.curEl.innerHTML = s.finished
-      ? '<span class="sb-fin2">완주!</span>'
-      : `<span class="sb-hit">${escapeHtml(hit)}</span>` +
-        rest.split('').map((c) => `<span class="sb-restc">${escapeHtml(c)}</span>`).join('');
-    this.curEl.classList.toggle('sb-wrong', !ok && s.typed.length > 0);
+    if (jp) {
+      // 일본어는 한자를 IME 로 변환해 치는 거라 '친 만큼 앞부분을 칠하는' 게 성립하지 않는다.
+      // (변환 전엔 ひらがな 라 한자와 앞글자부터 안 맞는다.)
+      // 대신 한자 위에 후리가나를 띄워 무엇을 쳐야 하는지 보여준다.
+      this.curEl.innerHTML = s.finished ? `<span class="sb-fin2">${L.fin}</span>` : ruby(s.index);
+      this.curEl.classList.remove('sb-wrong');
+    } else {
+      // 현재 역 — 친 만큼 앞부분을 칠하고, 남은 글자는 밑줄로 글자 수를 보여준다
+      const ok = isOnTrack(s.typed, cur);
+      const hit = ok ? cur.slice(0, s.typed.length) : '';
+      const rest = ok ? cur.slice(s.typed.length) : cur;
+      this.curEl.innerHTML = s.finished
+        ? `<span class="sb-fin2">${L.fin}</span>`
+        : `<span class="sb-hit">${escapeHtml(hit)}</span>` +
+          rest.split('').map((c) => `<span class="sb-restc">${escapeHtml(c)}</span>`).join('');
+      this.curEl.classList.toggle('sb-wrong', !ok && s.typed.length > 0);
+    }
 
     this.input.disabled = !running;
-    this.input.placeholder = s.isSpectator
-      ? '관전 중'
-      : s.countdownMs > 0
-        ? '잠시 후 출발…'
-        : s.finished
-          ? '완주했어요'
-          : '역 이름 입력 후 Enter';
+    // 입력창 안내만 일본 모드에선 일본어로 (치는 대상이 일본어라 톤을 맞춘다)
+    const P = jp
+      ? { spec: '観戦中', wait: 'まもなく発車…', fin: '完走しました', go: '駅名を入力して Enter' }
+      : { spec: '관전 중', wait: '잠시 후 출발…', fin: '완주했어요', go: '역 이름 입력 후 Enter' };
+    this.input.placeholder = s.isSpectator ? P.spec
+      : s.countdownMs > 0 ? P.wait
+      : s.finished ? P.fin : P.go;
 
     if (s.countdownMs > 0) {
       this.overlayEl.hidden = false;
@@ -372,7 +393,11 @@ const CSS = `
 .sb-cur{font-size:clamp(28px,4.6vw,50px);font-weight:900;letter-spacing:-1px;min-height:1.2em;
   text-align:center;word-break:keep-all;display:flex;gap:2px;}
 .sb-hit{color:var(--accent);}
-/* 남은 글자는 밑줄로 글자 수를 알려준다 */
+/* 일본 노선 — 한자 위 후리가나. 뭘 쳐야 하는지 알려주는 유일한 단서라 또렷하게 */
+.sb-cur ruby{ruby-position:over;}
+.sb-cur rt{font-size:.34em;font-weight:800;color:var(--accent);letter-spacing:0;}
+.sb-sidest rt{font-size:.4em;font-weight:700;color:var(--text-muted);}
+/* 남은 글자는 밑줄로 글자 수를 알려준다 (한국 노선 전용) */
 .sb-restc{color:var(--text-main);opacity:.28;border-bottom:3px solid var(--border);padding-bottom:2px;}
 .sb-cur.sb-wrong .sb-restc{color:var(--danger);opacity:.75;border-bottom-color:var(--danger);}
 .sb-fin2{color:var(--mint-500);}
