@@ -1244,7 +1244,13 @@ input {
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
+  /* ⚠️ 그냥 center 로 두면 안 된다.
+     이 영역은 .game-screen(height:100vh, overflow-y:auto) 안이라 높이가 화면에 묶여 있다.
+     내용이 그보다 커지면 center 는 넘친 만큼을 **위아래로 똑같이** 밀어내는데,
+     스크롤은 아래쪽으로만 되므로 위로 밀려난 부분은 영영 못 본다
+     (노트북·윈도 배율 125~150% 처럼 세로가 짧은 화면에서 상단이 통째로 잘려 보이던 원인).
+     safe center = 넘칠 때만 flex-start 처럼 동작 → 최소한 위부터는 보인다. */
+  justify-content: safe center;
   padding: 20px;
   gap: 10px;
   min-height: 0; /* flex child가 부모 넘치지 않게 */
