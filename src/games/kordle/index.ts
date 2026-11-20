@@ -22,6 +22,30 @@ import {
 import { answerPool } from './words';
 // 끝말잇기 사전(표준국어대사전 명사 19만) 재사용 — vite 가 공용 청크로 분리해준다
 import { isInDictionary } from '../word-chain/dictionary';
+
+/**
+ * 사전 표제어 뒤에 혼자 붙는 1글자 — 홍길동전·분리수거함 처럼 표제어가 아닌 말을 받아주려고.
+ * 느슨하게 받는 쪽을 택했다. 아는 단어를 쳤는데 거절당하는 게 훨씬 답답하기 때문.
+ */
+const TAIL_1 = new Set('전기법론학과실장원관점소물인용부비료증체식회율권형군가계성적화자집값병통');
+
+/**
+ * 쓸 수 있는 단어인가.
+ *
+ * 표준국어대사전은 복합어를 표제어로 안 싣는다. 그래서 사전만 보면
+ * 항문외과·천연온천 같이 누구나 아는 말이 거절당한다.
+ * 그래서 **사전 단어들로 쪼개지면** 인정한다.
+ *   항문외과 = 항문 + 외과,  천연온천 = 천연 + 온천,  홍길동전 = 홍길동 + 전
+ */
+function isUsableWord(w: string): boolean {
+  if (isInDictionary(w)) return true;
+  for (let i = 2; i <= w.length - 2; i++) {
+    if (isInDictionary(w.slice(0, i)) && isInDictionary(w.slice(i))) return true;
+  }
+  const last = w[w.length - 1];
+  if (w.length >= 3 && last && TAIL_1.has(last) && isInDictionary(w.slice(0, -1))) return true;
+  return false;
+}
 import { KordleRenderer } from './render';
 import {
   encodeHello, decodeHello, encodeSetWord, decodeSetWord, encodeGuess, decodeGuess,
@@ -317,7 +341,7 @@ class KordleModule implements GameModule {
     // decompose 는 완성형 음절만 받는다 → 조합 중인 글자(ㄷ, 도ㅈ …)가 남아 있으면 여기서 걸린다
     if (!j) return '글자를 완성해주세요.';
     if (j.length !== this.jamoLen) return `자모 ${this.jamoLen}칸이어야 해요 (지금 ${j.length}칸).`;
-    if (!isInDictionary(w)) return `'${w}' 는 사전에 없는 단어예요.`;
+    if (!isUsableWord(w)) return `'${w}' 는 쓸 수 없는 단어예요.`;
     return null;
   }
 
@@ -433,7 +457,7 @@ class KordleModule implements GameModule {
     }
     // 자모만으로는 원래 글자를 하나로 못 정한다(각가이 ↔ 가까이).
     // 그래서 "조합 가능한 것 중 사전에 있는 단어" 를 찾아 그걸 제출한다.
-    const w = findComposition(this.jamo, (x) => isInDictionary(x));
+    const w = findComposition(this.jamo, isUsableWord);
     if (!w) {
       this.showNotice('사전에 없는 단어예요.');
       return;
