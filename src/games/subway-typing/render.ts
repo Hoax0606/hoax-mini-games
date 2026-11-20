@@ -41,6 +41,8 @@ export interface SbRenderState {
 
 export interface SbCallbacks {
   onType(value: string): void;
+  /** 엔터로 제출 — 맞으면 다음 역, 틀리면 오타 1회 + 입력 비움 */
+  onSubmit(value: string): void;
 }
 
 const fmt = (ms: number): string => {
@@ -108,7 +110,7 @@ export class SubwayRenderer {
         </div>
 
         <input class="sb-input" id="sb-input" type="text" autocomplete="off"
-               autocapitalize="off" spellcheck="false" placeholder="역 이름을 입력하세요" />
+               autocapitalize="off" spellcheck="false" placeholder="역 이름 입력 후 Enter" />
         <div class="sb-overlay" id="sb-overlay" hidden></div>
       </div>
       <aside class="sb-side" id="sb-side"></aside>
@@ -136,6 +138,42 @@ export class SubwayRenderer {
     this.input = q<HTMLInputElement>('sb-input');
 
     this.input.addEventListener('input', () => this.cb.onType(this.input.value));
+
+    /* 엔터로 제출.
+     *
+     * ⚠️ IME 조합 중(한글 '리', 일본어 변환 중)에 누른 엔터는 **조합을 확정하는 엔터**다.
+     *    그걸 바로 제출로 쓰면 아직 확정 안 된 글자가 빠진 채로 넘어간다.
+     *    그래서 조합 중이면 깃발만 세우고, compositionend 에서 확정된 값으로 제출한다.
+     *
+     * 예전엔 다 치는 순간 자동으로 넘어갔는데, 그 시점에 마지막 글자가 조합 중이라
+     *    input.value='' 로 지워도 IME 내부 버퍼엔 남아 있었다.
+     *    그래서 왕십리 다음에 한양대를 치면 '리한양' 이 돼버렸다. */
+    this.input.addEventListener('keydown', (e) => {
+      if (e.key !== 'Enter') return;
+      e.preventDefault();
+      if (e.isComposing) { this.pendingSubmit = true; return; }
+      this.submitNow();
+    });
+    this.input.addEventListener('compositionend', () => {
+      if (!this.pendingSubmit) return;
+      this.pendingSubmit = false;
+      this.submitNow();
+    });
+  }
+
+  private pendingSubmit = false;
+
+  private submitNow(): void {
+    const v = this.input.value.trim();
+    if (!v) return;
+    this.cb.onSubmit(v);
+  }
+
+  /** 틀렸을 때 입력창을 흔들어 알려준다 */
+  shake(): void {
+    this.input.classList.remove('sb-shake');
+    void this.input.offsetWidth; // 리플로우 강제 — 안 하면 연속 오타 때 애니메이션이 다시 안 돈다
+    this.input.classList.add('sb-shake');
   }
 
   destroy(): void {
@@ -208,7 +246,7 @@ export class SubwayRenderer {
         ? '잠시 후 출발…'
         : s.finished
           ? '완주했어요'
-          : '역 이름을 입력하세요';
+          : '역 이름 입력 후 Enter';
 
     if (s.countdownMs > 0) {
       this.overlayEl.hidden = false;
@@ -344,6 +382,15 @@ const CSS = `
   background:var(--bg-inset);color:var(--text-main);outline:none;}
 .sb-input:focus{border-color:var(--accent);box-shadow:0 0 0 4px rgba(63,179,162,.20);}
 .sb-input:disabled{opacity:.5;}
+/* 엔터로 틀렸을 때 — 입력은 비워지고 입력창이 짧게 흔들린다 */
+.sb-shake{animation:sbShake .3s;border-color:var(--danger) !important;}
+@keyframes sbShake{
+  0%,100%{transform:translateX(0);}
+  20%{transform:translateX(-7px);}
+  40%{transform:translateX(6px);}
+  60%{transform:translateX(-4px);}
+  80%{transform:translateX(3px);}
+}
 
 .sb-overlay{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
   background:rgba(242,251,249,.82);border-radius:var(--radius-lg);}

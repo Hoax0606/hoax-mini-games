@@ -11,7 +11,7 @@
 import type { GameContext, GameMessage, GameModule, GameResult, Player } from '../types';
 import {
   buildCourse, parseRoute, destLabel,
-  isOnTrack, isComplete, emptyRecord, kpm, rankSort,
+  isComplete, emptyRecord, kpm, rankSort,
   type Direction, type Record as SbRecord,
 } from './rules';
 import { SubwayRenderer } from './render';
@@ -80,6 +80,7 @@ class SubwayTypingModule implements GameModule {
 
     this.renderer = new SubwayRenderer(ctx.canvas, {
       onType: (v) => this.onType(v),
+      onSubmit: (v) => this.onSubmit(v),
     });
     sound.startBgm('apple-game');
 
@@ -175,25 +176,37 @@ class SubwayTypingModule implements GameModule {
   private onType(value: string): void {
     if (this.finished || this.isSpectator) return;
     if (performance.now() < this.startAt) return; // 카운트다운 중엔 안 받는다
-
-    const target = this.course[this.me.index] ?? '';
     // 글자가 늘어난 만큼만 타수로 센다 (지우고 다시 치는 건 안 쳐준다)
     if (value.length > this.typed.length) this.me.chars += value.length - this.typed.length;
-
-    const wasOk = isOnTrack(this.typed, target);
-    const nowOk = isOnTrack(value, target);
-    // 멀쩡하다가 길을 벗어난 순간에만 오타 1회 (틀린 채로 계속 치는 건 추가로 안 센다)
-    if (wasOk && !nowOk) this.me.mistakes++;
     this.typed = value;
+  }
 
-    if (isComplete(value, target)) {
-      this.me.index++;
-      this.typed = '';
-      this.renderer?.clearInput();
-      sound.play('tetris_lock');
-      if (this.me.index >= this.course.length) this.completeRace();
-      else this.report();
+  /**
+   * 엔터 제출. 역을 넘어가는 건 **오직 여기서만** 일어난다.
+   *
+   * 예전엔 다 치는 순간 자동으로 넘어갔는데, 그때 마지막 글자가 아직 IME 조합 중이라
+   * 입력창을 비워도 IME 버퍼에 남아 다음 역으로 흘러들어갔다(왕십리 → 한양대 가 '리한양').
+   * 엔터는 조합을 확정시키고 넘어가므로 그 문제가 구조적으로 사라진다.
+   */
+  private onSubmit(value: string): void {
+    if (this.finished || this.isSpectator) return;
+    if (performance.now() < this.startAt) return;
+
+    const target = this.course[this.me.index] ?? '';
+    this.typed = '';
+    this.renderer?.clearInput();
+
+    if (!isComplete(value, target)) {
+      this.me.mistakes++;
+      this.renderer?.shake();
+      this.report();
+      return;
     }
+
+    this.me.index++;
+    sound.play('tetris_lock');
+    if (this.me.index >= this.course.length) this.completeRace();
+    else this.report();
   }
 
   private completeRace(): void {
