@@ -183,7 +183,8 @@ export function buildGameOptionsHTML(gameId: string, current?: Record<string, st
     return `<div class="change-game-no-options">설정 없이 바로 시작할 수 있어요</div>`;
   }
   return `<div class="change-game-options-title">${icon('settings', { size: 15, hue: '#9a86c0' })} 게임 설정</div>${
-    g.meta.roomOptions.map((opt) => renderOption(opt, current?.[opt.key])).join('')
+    g.meta.roomOptions.map((opt) =>
+      renderOption(opt, current?.[opt.key], g.meta.roomOptions, current ?? {})).join('')
   }`;
 }
 
@@ -214,13 +215,60 @@ function buildOverlayHTML(o: GamePickerOptions, filter: PlayerFilter): string {
   `;
 }
 
-function renderOption(opt: GameRoomOption, currentValue?: string): string {
-  const chosen = currentValue ?? opt.defaultValue;
+/**
+ * 지금 보여줄 선택지만. 상위 옵션(dependsOn) 값에 맞는 것만 남긴다.
+ * (지하철 타자: 국가를 한국으로 두면 한국 노선만)
+ */
+export function visibleChoices(
+  opt: GameRoomOption,
+  all: readonly GameRoomOption[],
+  current: Record<string, string>,
+): GameRoomOption['choices'] {
+  if (!opt.dependsOn) return opt.choices;
+  const parent = all.find((o) => o.key === opt.dependsOn);
+  const pv = current[opt.dependsOn] ?? parent?.defaultValue ?? '';
+  const shown = opt.choices.filter((c) => c.when === undefined || c.when === pv);
+  return shown.length > 0 ? shown : opt.choices;
+}
+
+/**
+ * 상위 옵션이 바뀌어 하위 값이 목록에서 사라졌으면 첫 유효값으로 되돌린다.
+ * 안 하면 국가를 한국으로 바꿔도 roomOptions 엔 일본 노선이 남아 그대로 시작된다.
+ */
+export function reconcileOptions(gameId: string, opts: Record<string, string>): Record<string, string> {
+  const g = getGameById(gameId);
+  if (!g) return opts;
+  const out = { ...opts };
+  for (const opt of g.meta.roomOptions) {
+    const shown = visibleChoices(opt, g.meta.roomOptions, out);
+    const cur = out[opt.key];
+    if (cur !== undefined && shown.some((c) => c.value === cur)) continue;
+    // 기본값이 지금 목록에 있으면 그쪽을 쓴다 (한국으로 되돌렸을 때 1호선 말고 2호선)
+    const fallback = shown.find((c) => c.value === opt.defaultValue) ?? shown[0];
+    if (fallback) out[opt.key] = fallback.value;
+  }
+  return out;
+}
+
+function renderOption(
+  opt: GameRoomOption,
+  currentValue?: string,
+  all?: readonly GameRoomOption[],
+  current?: Record<string, string>,
+): string {
+  const choices = all && current ? visibleChoices(opt, all, current) : opt.choices;
+  // 현재값 > 기본값 > 첫 선택지 순. 기본값을 건너뛰면 기본이 첫 항목이 아닌 게임
+  // (꼬들 라운드 수 등)이 엉뚱한 값으로 보인다.
+  const chosen = currentValue !== undefined && choices.some((c) => c.value === currentValue)
+    ? currentValue
+    : choices.some((c) => c.value === opt.defaultValue)
+      ? opt.defaultValue
+      : (choices[0]?.value ?? opt.defaultValue);
   return `
     <div class="form-group">
       <label class="input-label">${escapeHtml(opt.label)}</label>
       <select class="select" id="opt-${escapeAttr(opt.key)}">
-        ${opt.choices.map((c) => `
+        ${choices.map((c) => `
           <option value="${escapeAttr(c.value)}"${c.value === chosen ? ' selected' : ''}>
             ${escapeHtml(c.label)}
           </option>
@@ -271,7 +319,8 @@ export function openGamePickerOverlay(parent: HTMLElement, o: GamePickerOptions)
         if (game.meta.roomOptions.length > 0) {
           optsContainer.innerHTML = `
             <div class="change-game-options-title">${icon('settings', { size: 15, hue: '#9a86c0' })} 게임 설정</div>
-            ${game.meta.roomOptions.map(renderOption).join('')}
+            ${game.meta.roomOptions.map((o) =>
+              renderOption(o, selectedOptions[o.key], game.meta.roomOptions, selectedOptions)).join('')}
           `;
           for (const opt of game.meta.roomOptions) {
             const sel = optsContainer.querySelector<HTMLSelectElement>(`#opt-${opt.key}`);

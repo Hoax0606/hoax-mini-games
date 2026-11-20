@@ -12,7 +12,7 @@ import type { ChatMsg } from '../games/types';
 import { publishRoom, updatePublicRoom, unpublishRoom } from '../core/roomDirectory';
 import {
   buildGameTilesHTML, buildGameOptionsHTML,
-  buildPlayerFilterHTML, wirePlayerFilter, type PlayerFilter,
+  buildPlayerFilterHTML, wirePlayerFilter, reconcileOptions, type PlayerFilter,
 } from '../ui/gamePicker';
 import { escapeHtml } from '../ui/escape';
 import { showReconnectOverlay, hideReconnectOverlay } from '../ui/reconnectOverlay';
@@ -296,7 +296,7 @@ export function createWaitingRoomAsHostScreen(args: WaitingRoomAsHostArgs): Scre
           return;
         }
         gameId = newGameId;
-        roomOptions = { ...newOptions };
+        roomOptions = reconcileOptions(newGameId, { ...newOptions });
         // 게임이 바뀌면 모두 다시 준비해야 함 → 게스트 ready 리셋
         guestPlayers.forEach((p) => { p.ready = false; });
         // 정원 좁힘 — 이후 입장은 이 게임 기준으로 막힘
@@ -329,7 +329,9 @@ export function createWaitingRoomAsHostScreen(args: WaitingRoomAsHostArgs): Scre
         gameOptionsEl.querySelectorAll<HTMLSelectElement>('select[id^="opt-"]').forEach((sel) => {
           sel.addEventListener('change', () => {
             const key = sel.id.replace('opt-', '');
-            roomOptions = { ...roomOptions, [key]: sel.value };
+            // reconcile — 상위 옵션(국가 등)이 바뀌면 거기 안 맞는 하위 값(노선)을 첫 유효값으로.
+            // 안 하면 국가를 한국으로 바꿔도 노선엔 일본 노선이 남아 그대로 시작된다.
+            roomOptions = reconcileOptions(gameId, { ...roomOptions, [key]: sel.value });
             // 설정이 바뀌면 게스트가 본 조건이 달라짐 → 준비 리셋(다시 확인하고 준비하도록)
             guestPlayers.forEach((p) => { p.ready = false; });
             host.send({ type: 'room_state', roomState: snapshotRoomState() });

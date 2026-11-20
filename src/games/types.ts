@@ -48,8 +48,22 @@ export interface GameRoomOption {
   /** 화면에 표시될 라벨 (한국어) */
   label: string;
   type: 'select';
-  choices: { value: string; label: string }[];
+  choices: {
+    value: string;
+    label: string;
+    /**
+     * 이 선택지를 보여줄 조건 — 상위 옵션(dependsOn)의 값이 이것과 같을 때만 보인다.
+     * 없으면 항상 보인다.
+     */
+    when?: string;
+  }[];
   defaultValue: string;
+  /**
+   * 상위 옵션 key. 그 값에 따라 이 옵션의 선택지가 걸러진다.
+   * (예: 지하철 타자의 country -> line. 한국을 고르면 한국 노선만 뜬다)
+   * 상위 값이 바뀌어 지금 값이 목록에서 사라지면 첫 번째 유효값으로 되돌아간다.
+   */
+  dependsOn?: string;
 }
 
 // ============================================
