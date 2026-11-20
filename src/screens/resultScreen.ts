@@ -817,6 +817,107 @@ function buildKordleResultHTML(args: {
 }
 
 // ============================================
+// 지하철 타자 전용 결과 HTML
+// ============================================
+
+interface SbRankEntry {
+  peerId: string; nickname: string; rank: number;
+  timeMs: number | null; kpm: number; mistakes: number; index: number;
+}
+
+function parseSubwaySummary(summary: Record<string, unknown>): {
+  myPeerId: string; rank: number; totalPlayers: number; lineName: string;
+  stationCount: number; myTimeMs: number | null; myKpm: number; myMistakes: number;
+  rankings: SbRankEntry[];
+} | null {
+  if (summary['gameId'] !== 'subway-typing') return null;
+  const myPeerId = typeof summary['myPeerId'] === 'string' ? (summary['myPeerId'] as string) : null;
+  const rank = typeof summary['rank'] === 'number' ? (summary['rank'] as number) : null;
+  const totalPlayers = typeof summary['totalPlayers'] === 'number' ? (summary['totalPlayers'] as number) : null;
+  if (!myPeerId || rank === null || totalPlayers === null) return null;
+  const raw = summary['rankings'] as unknown;
+  const rankings: SbRankEntry[] = Array.isArray(raw)
+    ? (raw as Partial<SbRankEntry>[])
+        .filter((r) => typeof r.peerId === 'string' && typeof r.nickname === 'string' && typeof r.rank === 'number')
+        .map((r) => ({
+          peerId: r.peerId!, nickname: r.nickname!, rank: r.rank!,
+          timeMs: typeof r.timeMs === 'number' ? r.timeMs : null,
+          kpm: typeof r.kpm === 'number' ? r.kpm : 0,
+          mistakes: typeof r.mistakes === 'number' ? r.mistakes : 0,
+          index: typeof r.index === 'number' ? r.index : 0,
+        }))
+    : [];
+  return {
+    myPeerId, rank, totalPlayers,
+    lineName: typeof summary['lineName'] === 'string' ? (summary['lineName'] as string) : '',
+    stationCount: typeof summary['stationCount'] === 'number' ? (summary['stationCount'] as number) : 0,
+    myTimeMs: typeof summary['myTimeMs'] === 'number' ? (summary['myTimeMs'] as number) : null,
+    myKpm: typeof summary['myKpm'] === 'number' ? (summary['myKpm'] as number) : 0,
+    myMistakes: typeof summary['myMistakes'] === 'number' ? (summary['myMistakes'] as number) : 0,
+    rankings,
+  };
+}
+
+/** 기록 표기 — 1:23.4 */
+function sbTime(ms: number | null): string {
+  if (ms === null) return '미완주';
+  const sec = Math.floor(ms / 1000);
+  return `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, '0')}.${String(Math.floor((ms % 1000) / 100))}`;
+}
+
+function buildSubwayResultHTML(args: {
+  myWinner: 'me' | 'opponent' | null;
+  rank: number; totalPlayers: number; lineName: string; stationCount: number;
+  myTimeMs: number | null; myKpm: number; myMistakes: number;
+  rankings: SbRankEntry[]; myPeerId: string; isHost: boolean; isSpectator: boolean;
+}): string {
+  const { myWinner, rank, totalPlayers, lineName, stationCount, myTimeMs, myKpm, myMistakes,
+          rankings, myPeerId, isHost, isSpectator } = args;
+  const solo = totalPlayers < 2;
+  const { emoji, title, titleClass } = isSpectator || solo
+    ? { emoji: icon('stopwatch', { size: 58, hue: '#2a9488' }),
+        title: solo ? '지하철 타자 기록' : '지하철 타자 종료', titleClass: 'result-title-draw' }
+    : winnerVisuals(myWinner);
+  const actionsHTML = buildActionsHTML(isHost);
+  const myBlock = isSpectator ? '' : `
+    <div class="result-apple-myscore">
+      <div class="result-apple-myscore-label">${icon('stopwatch', { size: 16, hue: '#2a9488' })} ${escapeHtml(lineName)} · ${stationCount}개 역</div>
+      <div class="result-apple-myscore-value">${sbTime(myTimeMs)}</div>
+      <div class="result-gomoku-reason">${myKpm} 타/분 · 오타 ${myMistakes}</div>
+    </div>
+    ${solo ? '' : `<div class="result-tetris-rank"><span class="result-tetris-rank-num">${rank}</span> / ${totalPlayers}위</div>`}
+  `;
+  const rankingsHTML = rankings.length >= 2 ? `
+    <div class="result-tetris-rankings">
+      <div class="result-tetris-rankings-title">${icon('medal', { size: 18, hue: '#ffb12e' })} 최종 순위</div>
+      ${rankings.map((r) => {
+        const isMe = r.peerId === myPeerId;
+        const badgeClass = r.rank <= 3 ? `rank-${r.rank}` : '';
+        return `
+          <div class="result-tetris-rank-row ${isMe ? 'is-me' : ''}">
+            <span class="result-tetris-rank-badge ${badgeClass}">${r.rank}</span>
+            <span class="result-tetris-rank-name">${escapeHtml(r.nickname)}</span>
+            <span class="result-apple-rank-score">${sbTime(r.timeMs)} · ${r.kpm}타</span>
+            ${isMe ? '<span class="result-tetris-rank-me-tag">나</span>' : ''}
+          </div>
+        `;
+      }).join('')}
+    </div>
+  ` : '';
+  return `
+    <div class="result-card result-card-tetris">
+      <div class="result-emoji">${emoji}</div>
+      <div class="result-title ${titleClass}">${title}</div>
+      ${myBlock}
+      ${rankingsHTML}
+      <div class="result-actions">
+        ${actionsHTML}
+      </div>
+    </div>
+  `;
+}
+
+// ============================================
 // 라면가게 전용 결과 HTML
 // ============================================
 
@@ -1874,6 +1975,7 @@ export function createResultScreenAsHostScreen(args: ResultScreenAsHostArgs): Sc
       const avalon = parseAvalonSummary(result.summary);
       const fakeArtist = parseFakeArtistSummary(result.summary);
       const kordle = parseKordleSummary(result.summary);
+      const subway = parseSubwaySummary(result.summary);
       if (tetris) {
         el.innerHTML = buildTetrisResultHTML({
           myWinner: result.winner,
@@ -1969,6 +2071,21 @@ export function createResultScreenAsHostScreen(args: ResultScreenAsHostArgs): Sc
           rounds: kordle.rounds,
           rankings: kordle.rankings,
           myPeerId: kordle.myPeerId,
+          isHost: true,
+          isSpectator: false,
+        });
+      } else if (subway) {
+        el.innerHTML = buildSubwayResultHTML({
+          myWinner: result.winner,
+          rank: subway.rank,
+          totalPlayers: subway.totalPlayers,
+          lineName: subway.lineName,
+          stationCount: subway.stationCount,
+          myTimeMs: subway.myTimeMs,
+          myKpm: subway.myKpm,
+          myMistakes: subway.myMistakes,
+          rankings: subway.rankings,
+          myPeerId: subway.myPeerId,
           isHost: true,
           isSpectator: false,
         });
@@ -2175,6 +2292,7 @@ export function createResultScreenAsGuestScreen(args: ResultScreenAsGuestArgs): 
       const avalon = parseAvalonSummary(result.summary);
       const fakeArtist = parseFakeArtistSummary(result.summary);
       const kordle = parseKordleSummary(result.summary);
+      const subway = parseSubwaySummary(result.summary);
       // 관전자는 summary.myPeerId 가 자기가 아닐 수 있음 — 자기 peerId 는 guest.myPeerId.
       // rankings 에 "나" 가 없으면 관전자로 간주.
       const myPeerIdForResult = guest.myPeerId;
@@ -2288,6 +2406,22 @@ export function createResultScreenAsGuestScreen(args: ResultScreenAsGuestArgs): 
           rounds: kordle.rounds,
           rankings: kordle.rankings,
           myPeerId: isSpec ? myPeerIdForResult : kordle.myPeerId,
+          isHost: false,
+          isSpectator: isSpec,
+        });
+      } else if (subway) {
+        const isSpec = !subway.rankings.some((r) => r.peerId === myPeerIdForResult);
+        el.innerHTML = buildSubwayResultHTML({
+          myWinner: result.winner,
+          rank: subway.rank,
+          totalPlayers: subway.totalPlayers,
+          lineName: subway.lineName,
+          stationCount: subway.stationCount,
+          myTimeMs: subway.myTimeMs,
+          myKpm: subway.myKpm,
+          myMistakes: subway.myMistakes,
+          rankings: subway.rankings,
+          myPeerId: isSpec ? myPeerIdForResult : subway.myPeerId,
           isHost: false,
           isSpectator: isSpec,
         });

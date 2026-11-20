@@ -31,6 +31,7 @@ import werewolfThumbnail from './werewolf/thumbnail.svg';
 import avalonThumbnail from './avalon/thumbnail.svg';
 import fakeArtistThumbnail from './fake-artist/thumbnail.svg';
 import kordleThumbnail from './kordle/thumbnail.svg';
+import subwayTypingThumbnail from './subway-typing/thumbnail.svg';
 
 export const games: GameEntry[] = [
   {
@@ -563,6 +564,78 @@ export const games: GameEntry[] = [
     load: async () => {
       const mod = await import('./kordle');
       return mod.createKordle();
+    },
+  },
+  {
+    meta: {
+      id: 'subway-typing',
+      name: '지하철 타자',
+      description: '노선과 행선지를 고르고 역 이름을 순서대로 빠르게 쳐서 종점까지 완주! 친구들과 동시에 출발해 누가 먼저 도착하는지 겨뤄요. 기록은 완주 시간과 타수, 정확도로 남아요.',
+      thumbnail: subwayTypingThumbnail,
+      minPlayers: 1,
+      maxPlayers: 10,
+      roomOptions: [
+        {
+          key: 'route',
+          label: '운행',
+          type: 'select',
+          choices: [
+            { value: '1호선|down', label: '1호선 광명행 (101역)' },
+            { value: '1호선|up', label: '1호선 연천행 (101역)' },
+            { value: '2호선|down', label: '2호선 내선순환 (43역)' },
+            { value: '2호선|up', label: '2호선 외선순환 (43역)' },
+            { value: '3호선|down', label: '3호선 오금행 (44역)' },
+            { value: '3호선|up', label: '3호선 대화행 (44역)' },
+            { value: '4호선|down', label: '4호선 오이도행 (52역)' },
+            { value: '4호선|up', label: '4호선 진접행 (52역)' },
+            { value: '5호선|down', label: '5호선 하남검단산행 (49역)' },
+            { value: '5호선|up', label: '5호선 방화행 (49역)' },
+            { value: '6호선|down', label: '6호선 신내행 (39역)' },
+            { value: '6호선|up', label: '6호선 응암행 (39역)' },
+            { value: '7호선|down', label: '7호선 석남행 (53역)' },
+            { value: '7호선|up', label: '7호선 장암행 (53역)' },
+            { value: '8호선|down', label: '8호선 모란행 (24역)' },
+            { value: '8호선|up', label: '8호선 별내행 (24역)' },
+            { value: '9호선|down', label: '9호선 중앙보훈병원행 (38역)' },
+            { value: '9호선|up', label: '9호선 개화행 (38역)' },
+            { value: '경의중앙선|down', label: '경의중앙선 지평행 (57역)' },
+            { value: '경의중앙선|up', label: '경의중앙선 임진강행 (57역)' },
+            { value: '경춘선|down', label: '경춘선 춘천행 (24역)' },
+            { value: '경춘선|up', label: '경춘선 청량리행 (24역)' },
+            { value: '수인분당선|down', label: '수인분당선 인천행 (63역)' },
+            { value: '수인분당선|up', label: '수인분당선 청량리행 (63역)' },
+            { value: '신분당선|down', label: '신분당선 광교행 (16역)' },
+            { value: '신분당선|up', label: '신분당선 신사행 (16역)' },
+            { value: '공항철도|down', label: '공항철도 인천공항2터미널행 (14역)' },
+            { value: '공항철도|up', label: '공항철도 서울행 (14역)' },
+            { value: '인천1호선|down', label: '인천1호선 송도달빛축제공원행 (33역)' },
+            { value: '인천1호선|up', label: '인천1호선 검단호수공원행 (33역)' },
+            { value: '인천2호선|down', label: '인천2호선 운연행 (27역)' },
+            { value: '인천2호선|up', label: '인천2호선 검단오류행 (27역)' },
+            { value: '의정부경전철|down', label: '의정부경전철 탑석행 (15역)' },
+            { value: '의정부경전철|up', label: '의정부경전철 발곡행 (15역)' },
+            { value: '용인에버라인|down', label: '용인에버라인 전대·에버랜드행 (15역)' },
+            { value: '용인에버라인|up', label: '용인에버라인 기흥행 (15역)' },
+            { value: '우이신설선|down', label: '우이신설선 신설동행 (13역)' },
+            { value: '우이신설선|up', label: '우이신설선 북한산우이행 (13역)' },
+            { value: '김포골드라인|down', label: '김포골드라인 김포공항행 (10역)' },
+            { value: '김포골드라인|up', label: '김포골드라인 양촌행 (10역)' },
+            { value: '서해선|down', label: '서해선 홍성행 (25역)' },
+            { value: '서해선|up', label: '서해선 대곡행 (25역)' },
+            { value: '신림선|down', label: '신림선 관악산행 (11역)' },
+            { value: '신림선|up', label: '신림선 샛강행 (11역)' },
+            { value: '경강선|down', label: '경강선 여주행 (12역)' },
+            { value: '경강선|up', label: '경강선 판교행 (12역)' },
+            { value: 'GTX-A|down', label: 'GTX-A 동탄행 (9역)' },
+            { value: 'GTX-A|up', label: 'GTX-A 운정중앙행 (9역)' },
+          ],
+          defaultValue: '2호선|down',
+        },
+      ],
+    },
+    load: async () => {
+      const mod = await import('./subway-typing');
+      return mod.createSubwayTyping();
     },
   },
 ];

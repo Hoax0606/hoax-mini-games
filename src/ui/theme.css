@@ -3166,10 +3166,11 @@ input {
    옵션 없는 게임/미선택이면 내용 없이 크림색 빈 박스만 그대로 둔다(숨기지 않음). */
 .waiting-options {
   flex: 0 0 auto;
-  height: 58px;          /* 옵션 유무와 무관하게 항상 동일 크기 */
-  overflow: hidden;
+  min-height: 58px;      /* 옵션이 없어도 바 높이는 유지 */
   display: flex;
-  flex-wrap: nowrap;     /* 옵션 여러 개여도 한 줄 유지 (3개 이상 나오면 그때 재검토) */
+  /* 예전엔 nowrap + overflow:hidden 이라 옵션이 넘치면 그냥 잘려서 안 보였다.
+     (지하철 타자의 긴 라벨에서 실제로 잘림) 잘리느니 줄바꿈이 낫다. */
+  flex-wrap: wrap;
   align-items: center;
   gap: 6px 16px;
   margin: 10px 0 0;
@@ -3184,7 +3185,8 @@ input {
   gap: 6px;
 }
 .waiting-options .input-label { margin: 0; font-size: 12px; white-space: nowrap; }
-.waiting-options .select { width: auto; padding: 5px 9px; font-size: 13px; }
+.waiting-options .select { width: auto; max-width: 100%; padding: 5px 9px; font-size: 13px; }
+.waiting-options .form-group { min-width: 0; }
 /* 기본 .change-game-options:empty 는 숨김이지만, 하단 고정 바는 비어도 크림 박스를 유지.
    두 클래스로 명시해 뒤에 오는 .change-game-options:empty(display:none)보다 우선순위 높임 */
 .change-game-options.waiting-options:empty { display: flex; }

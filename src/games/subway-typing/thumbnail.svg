@@ -1,0 +1,73 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 200" fill="none">
+  <!-- 배경: 파스텔 청록→연노랑 그라데이션 -->
+  <defs>
+    <linearGradient id="sbbg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#ddf2ef"/>
+      <stop offset="1" stop-color="#fff8e1"/>
+    </linearGradient>
+    <!-- 소프트 입체: 중앙 일러스트 드롭섀도 -->
+    <filter id="sblift" x="-35%" y="-35%" width="170%" height="170%"><feDropShadow dx="0" dy="5" stdDeviation="5" flood-color="#3a6b63" flood-opacity="0.26"/></filter>
+  </defs>
+  <rect width="320" height="200" rx="22" fill="url(#sbbg)"/>
+
+  <!-- 배경 데코: 작은 점들 -->
+  <circle cx="26" cy="30" r="3" fill="#c5e8e1"/>
+  <circle cx="292" cy="34" r="2.5" fill="#ffeeb8"/>
+  <circle cx="288" cy="172" r="3" fill="#8ccfc6"/>
+  <circle cx="32" cy="172" r="2.2" fill="#c5e8e1"/>
+  <circle cx="302" cy="104" r="2" fill="#ffeeb8"/>
+  <circle cx="18" cy="96" r="2" fill="#8ccfc6"/>
+
+  <!-- 작은 별 데코 -->
+  <path d="M 48,48 L 50,53 L 55,53 L 51,56 L 53,61 L 48,58 L 43,61 L 45,56 L 41,53 L 46,53 Z"
+        fill="#c5e8e1" opacity="0.7"/>
+  <path d="M 272,146 L 274,151 L 279,151 L 275,154 L 277,159 L 272,156 L 267,159 L 269,154 L 265,151 L 270,151 Z"
+        fill="#ffeeb8" opacity="0.7"/>
+
+  <g filter="url(#sblift)">
+    <!-- 노선도 띠 — 지나온 구간은 청록, 남은 구간은 옅게 -->
+    <rect x="46" y="60" width="140" height="7" rx="3.5" fill="#3fb3a2"/>
+    <rect x="186" y="60" width="88" height="7" rx="3.5" fill="#c5e8e1"/>
+    <!-- 역 동그라미 -->
+    <circle cx="60"  cy="63.5" r="6.5" fill="#ffffff" stroke="#2a9488" stroke-width="3"/>
+    <circle cx="106" cy="63.5" r="6.5" fill="#ffffff" stroke="#2a9488" stroke-width="3"/>
+    <circle cx="152" cy="63.5" r="6.5" fill="#ffffff" stroke="#2a9488" stroke-width="3"/>
+    <!-- 현재 역 — 노랑 강조 -->
+    <circle cx="198" cy="63.5" r="9" fill="#f5c33d" stroke="#ffffff" stroke-width="3"/>
+    <circle cx="244" cy="63.5" r="6.5" fill="#ffffff" stroke="#8ccfc6" stroke-width="3"/>
+
+    <!-- 현재 역 이름 (앞부분은 친 상태 = 청록, 뒷부분은 아직 = 흐림) -->
+    <g font-family="'Pretendard','Apple SD Gothic Neo','Noto Sans KR',system-ui,sans-serif"
+       font-size="30" font-weight="900" text-anchor="middle">
+      <text x="160" y="112">
+        <tspan fill="#2a9488">을지로</tspan><tspan fill="#9fc0ba">3가</tspan>
+      </text>
+    </g>
+
+    <!-- 입력창 -->
+    <rect x="72" y="126" width="176" height="34" rx="17" fill="#ffffff" stroke="#3fb3a2" stroke-width="2.5"/>
+    <g font-family="'Pretendard','Apple SD Gothic Neo','Noto Sans KR',system-ui,sans-serif"
+       font-size="17" font-weight="800">
+      <text x="98" y="149" fill="#2f4a46">을지로</text>
+    </g>
+    <!-- 커서 -->
+    <rect x="152" y="135" width="2.5" height="17" rx="1.25" fill="#2a9488"/>
+  </g>
+
+  <!-- 보조: 지하철 전동차 (좌하단, 비스듬히) -->
+  <g transform="translate(40, 164) rotate(-8)">
+    <rect x="0" y="0" width="52" height="24" rx="7" fill="#ffffff" stroke="#2a9488" stroke-width="2.5"/>
+    <rect x="6" y="5" width="13" height="9" rx="2" fill="#c5e8e1"/>
+    <rect x="22" y="5" width="13" height="9" rx="2" fill="#c5e8e1"/>
+    <rect x="38" y="5" width="9" height="9" rx="2" fill="#c5e8e1"/>
+    <circle cx="14" cy="24" r="3.5" fill="#2f4a46"/>
+    <circle cx="38" cy="24" r="3.5" fill="#2f4a46"/>
+  </g>
+
+  <!-- 보조: 스톱워치 (우상단) -->
+  <g transform="translate(262, 60) rotate(10)">
+    <rect x="-4" y="-16" width="8" height="5" rx="2" fill="#2a9488"/>
+    <circle cx="0" cy="0" r="12.5" fill="#ffffff" stroke="#2a9488" stroke-width="3"/>
+    <path d="M 0 -7 L 0 0 L 5 3" stroke="#f5c33d" stroke-width="2.6" stroke-linecap="round" fill="none"/>
+  </g>
+</svg>
