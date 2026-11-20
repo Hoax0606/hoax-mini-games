@@ -45,8 +45,8 @@ export interface SbRenderState {
 
 export interface SbCallbacks {
   onType(value: string): void;
-  /** 엔터로 제출 — 맞으면 다음 역, 틀리면 오타 1회 + 입력 비움 */
-  onSubmit(value: string): void;
+  /** 엔터로 입력창을 비웠다 — 게임 쪽 버퍼도 같이 비우라고 알린다 */
+  onClear(): void;
 }
 
 const fmt = (ms: number): string => {
@@ -141,44 +141,25 @@ export class SubwayRenderer {
     this.overlayEl = q('sb-overlay');
     this.input = q<HTMLInputElement>('sb-input');
 
-    this.input.addEventListener('input', () => this.cb.onType(this.input.value));
+    this.input.addEventListener('input', () => {
+      if (this.clearing) return; // 비우는 중에 터지는 이벤트는 내 입력이 아니다
+      this.cb.onType(this.input.value);
+    });
 
-    /* 엔터로 제출.
+    /* 엔터 = 입력창 비우기. 꼬인 걸 한 번에 지우는 용도다.
      *
-     * ⚠️ IME 조합 중(한글 '리', 일본어 변환 중)에 누른 엔터는 **조합을 확정하는 엔터**다.
-     *    그걸 바로 제출로 쓰면 아직 확정 안 된 글자가 빠진 채로 넘어간다.
-     *    그래서 조합 중이면 깃발만 세우고, compositionend 에서 확정된 값으로 제출한다.
-     *
-     * 예전엔 다 치는 순간 자동으로 넘어갔는데, 그 시점에 마지막 글자가 조합 중이라
-     *    input.value='' 로 지워도 IME 내부 버퍼엔 남아 있었다.
-     *    그래서 왕십리 다음에 한양대를 치면 '리한양' 이 돼버렸다. */
+     * ⚠️ 조합 중(isComposing)에 누른 엔터는 **IME 의 변환 확정 엔터**라 건드리면 안 된다.
+     *    일본어는 ひらがな→漢字 확정에 엔터를 쓰므로, 여기서 가로채면 한자를 못 친다. */
     this.input.addEventListener('keydown', (e) => {
-      if (e.key !== 'Enter') return;
+      if (e.key !== 'Enter' || e.isComposing) return;
       e.preventDefault();
-      if (e.isComposing) { this.pendingSubmit = true; return; }
-      this.submitNow();
-    });
-    this.input.addEventListener('compositionend', () => {
-      if (!this.pendingSubmit) return;
-      this.pendingSubmit = false;
-      this.submitNow();
+      this.clearInput();
+      this.cb.onClear();
     });
   }
 
-  private pendingSubmit = false;
-
-  private submitNow(): void {
-    const v = this.input.value.trim();
-    if (!v) return;
-    this.cb.onSubmit(v);
-  }
-
-  /** 틀렸을 때 입력창을 흔들어 알려준다 */
-  shake(): void {
-    this.input.classList.remove('sb-shake');
-    void this.input.offsetWidth; // 리플로우 강제 — 안 하면 연속 오타 때 애니메이션이 다시 안 돈다
-    this.input.classList.add('sb-shake');
-  }
+  /** clearInput 이 일으킨 이벤트를 걸러내는 깃발 */
+  private clearing = false;
 
   destroy(): void {
     this.root.remove();
@@ -186,9 +167,27 @@ export class SubwayRenderer {
     this.canvas.style.display = '';
   }
 
-  /** 역을 통과했을 때 입력창 비우기 — 게임 로직이 부른다 */
+  /**
+   * 입력창 비우기 — 역을 통과했을 때, 그리고 엔터를 눌렀을 때.
+   *
+   * ⚠️ `value = ''` 만으로는 **IME 내부 버퍼가 안 지워진다.**
+   *    역 이름을 다 치는 순간은 마지막 글자가 아직 조합 중이라(한글 '리'),
+   *    값만 지우면 다음 글자를 칠 때 '리' 가 먼저 확정돼 튀어나왔다.
+   *    그래서 왕십리 다음에 한양대를 치면 '리한양' 이 됐다.
+   *
+   *    blur 는 조합을 강제로 확정시킨다. 확정된 글자가 값에 들어오면 그때 비우고
+   *    다시 포커스를 준다. 이러면 IME 가 깨끗한 상태로 다시 시작한다.
+   *    blur/focus 가 일으키는 compositionend·input 은 clearing 깃발로 거른다.
+   */
   clearInput(): void {
+    this.clearing = true;
+    const had = document.activeElement === this.input;
+    this.input.blur();
     this.input.value = '';
+    if (had) this.input.focus();
+    this.input.value = '';
+    // 같은 틱에 안 오는 이벤트도 있어서 한 박자 뒤에 깃발을 내린다
+    window.setTimeout(() => { this.clearing = false; }, 0);
   }
 
   focus(): void {
@@ -263,8 +262,8 @@ export class SubwayRenderer {
     this.input.disabled = !running;
     // 입력창 안내만 일본 모드에선 일본어로 (치는 대상이 일본어라 톤을 맞춘다)
     const P = jp
-      ? { spec: '観戦中', wait: 'まもなく発車…', fin: '完走しました', go: '駅名を入力して Enter' }
-      : { spec: '관전 중', wait: '잠시 후 출발…', fin: '완주했어요', go: '역 이름 입력 후 Enter' };
+      ? { spec: '観戦中', wait: 'まもなく発車…', fin: '完走しました', go: '駅名を入力（Enterで消去）' }
+      : { spec: '관전 중', wait: '잠시 후 출발…', fin: '완주했어요', go: '역 이름 입력 (Enter 로 지움)' };
     this.input.placeholder = s.isSpectator ? P.spec
       : s.countdownMs > 0 ? P.wait
       : s.finished ? P.fin : P.go;
@@ -407,15 +406,6 @@ const CSS = `
   background:var(--bg-inset);color:var(--text-main);outline:none;}
 .sb-input:focus{border-color:var(--accent);box-shadow:0 0 0 4px rgba(63,179,162,.20);}
 .sb-input:disabled{opacity:.5;}
-/* 엔터로 틀렸을 때 — 입력은 비워지고 입력창이 짧게 흔들린다 */
-.sb-shake{animation:sbShake .3s;border-color:var(--danger) !important;}
-@keyframes sbShake{
-  0%,100%{transform:translateX(0);}
-  20%{transform:translateX(-7px);}
-  40%{transform:translateX(6px);}
-  60%{transform:translateX(-4px);}
-  80%{transform:translateX(3px);}
-}
 
 .sb-overlay{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
   background:rgba(242,251,249,.82);border-radius:var(--radius-lg);}
