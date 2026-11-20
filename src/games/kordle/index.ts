@@ -91,8 +91,11 @@ class KordleModule implements GameModule {
 
   // --- 로컬 ---
   private myGuesses: string[] = [];
-  private draft = '';
-  /** 추측 입력 버퍼 — 기본 자모만 쌓인다 */
+  /**
+   * 입력 버퍼 — 기본 자모만 쌓인다.
+   * 출제(setword)와 추측(guess)이 **같은 버퍼·같은 키보드**를 쓴다.
+   * 출제만 따로 텍스트 입력창을 두면 한쪽은 IME, 한쪽은 풀어쓰기라 손이 헷갈린다.
+   */
   private jamo: string[] = [];
   private myWord: string | null = null;
   private notice = '';
@@ -124,14 +127,21 @@ class KordleModule implements GameModule {
     this.totalRounds = parseRounds(ctx.roomOptions['rounds']);
 
     this.renderer = new KordleRenderer(ctx.canvas, {
-      onSubmitWord: (w) => this.submitWord(w),
-      onDraftChange: (t) => { this.draft = t; },
       onJamo: (j) => {
         if (this.jamo.length < this.jamoLen) this.jamo.push(j);
       },
       onBackspace: () => { this.jamo.pop(); },
-      onSubmitGuess: () => this.submitGuess(),
+      onSubmit: () => {
+        if (this.amSetting()) this.submitWord();
+        else this.submitGuess();
+      },
       onFinish: () => this.requestFinish(),
+      onPickRandom: () => {
+        // 출제가 막힐 때 단어장에서 하나. 60초 백스톱에 걸려 방이 멈추는 것보다 낫다
+        const pool = answerPool(this.jamoLen);
+        const w = pool[Math.floor(Math.random() * pool.length)] ?? '';
+        this.jamo = decompose(w) ?? [];
+      },
     });
     sound.startBgm('apple-game'); // 가벼운 퍼즐용 BGM 재사용
 
@@ -189,9 +199,9 @@ class KordleModule implements GameModule {
       myPeerId: this.myPeerId,
       isSpectator: this.isSpectator,
       myGuesses: this.myGuesses,
-      draft: this.draft,
       jamo: this.jamo,
       myWord: this.myWord,
+      wordCheck: this.amSetting() ? this.checkJamo(this.jamo) : null,
       elapsedMs: this.pub.phase === 'guess' ? Math.max(0, now - this.localRoundStart) : 0,
       isHost: this.isHost,
       notice: this.notice,
@@ -235,7 +245,6 @@ class KordleModule implements GameModule {
     this.pub.answer = null;
     this.rounds = new Map(seats.map((s) => [s.peerId, emptyPlayerRound()]));
     this.myGuesses = [];
-    this.draft = '';
     this.jamo = [];
     this.myWord = null;
 
@@ -441,13 +450,22 @@ class KordleModule implements GameModule {
   // 입력
   // ============================================
 
-  private submitWord(word: string): void {
-    const err = this.validateWord(word);
-    if (err) { this.showNotice(err); return; }
-    this.draft = '';
-    this.myWord = word.trim();
+  /** 지금 내가 출제할 차례인가 (= 입력 버퍼가 '추측' 이 아니라 '출제' 용인가) */
+  private amSetting(): boolean {
+    return this.pub.phase === 'setword' && this.pub.setterPeerId === this.myPeerId;
+  }
+
+  private submitWord(): void {
+    const c = this.checkJamo(this.jamo);
+    if (!c.ok || !c.word) {
+      this.showNotice(c.message || `자모 ${this.jamoLen}칸을 채워주세요.`);
+      return;
+    }
+    const word = c.word;
+    this.jamo = [];
+    this.myWord = word;
     if (this.isHost) this.handleSetWord(this.myPeerId, word);
-    else this.ctx.sendToPeer(encodeSetWord(this.myPeerId, word.trim()));
+    else this.ctx.sendToPeer(encodeSetWord(this.myPeerId, word));
   }
 
   private submitGuess(): void {
@@ -468,10 +486,27 @@ class KordleModule implements GameModule {
     else this.ctx.sendToPeer(encodeGuess(this.myPeerId, w));
   }
 
+  /**
+   * 출제 입력 실시간 검증. 제출해봐야 거절당하는 걸 막으려고 치는 동안 계속 돌린다.
+   *
+   * 자모만으로는 글자를 하나로 못 정한다(ㄱㅏㄱㄱㅏㅇㅣ = 각가이 ↔ 가까이).
+   * 그래서 추측 제출과 **똑같이** 조합 가능한 것 중 사전에 있는 단어를 찾아
+   * 그걸 출제어로 쓴다. 찾은 단어를 안내 문구에 그대로 보여줘서
+   * 내가 생각한 말과 다르면 지우고 다시 칠 수 있게 한다.
+   */
+  private checkJamo(j: readonly string[]): { ok: boolean; word: string | null; message: string } {
+    if (j.length === 0) return { ok: false, word: null, message: '' };
+    if (j.length < this.jamoLen) {
+      return { ok: false, word: null, message: `자모 ${j.length}칸 — ${this.jamoLen - j.length}칸 더 필요해요` };
+    }
+    const w = findComposition(j, isUsableWord);
+    if (!w) return { ok: false, word: null, message: '쓸 수 있는 단어가 아니에요' };
+    return { ok: true, word: w, message: `'${w}' — 출제할 수 있어요` };
+  }
+
   private showNotice(text: string): void {
     this.notice = text;
     this.noticeUntil = performance.now() + NOTICE_MS;
-    this.renderer?.focusInput();
   }
 
   // ============================================
@@ -506,7 +541,6 @@ class KordleModule implements GameModule {
       this.syncedOnce = true;
       if (newRound) {
         this.myGuesses = [];
-        this.draft = '';
         this.jamo = [];
         this.myWord = null;
       }

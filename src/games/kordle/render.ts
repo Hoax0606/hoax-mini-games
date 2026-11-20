@@ -12,7 +12,7 @@
  */
 
 import type { Mark } from './rules';
-import { JAMO_ROWS, MAX_TRIES, KEY_TO_JAMO, decompose, mergeKeyboard } from './rules';
+import { JAMO_ROWS, MAX_TRIES, KEY_TO_JAMO, decompose, decomposeInput, mergeKeyboard } from './rules';
 import type { KdPublic } from './netSync';
 import { icon } from '../../ui/icons';
 import { escapeHtml } from '../../ui/escape';
@@ -23,12 +23,12 @@ export interface KdRenderState {
   isSpectator: boolean;
   /** 내가 제출한 추측들 (로컬 보관) */
   myGuesses: string[];
-  /** 출제자가 입력 중인 단어 (출제 화면 전용, 일반 한글 입력) */
-  draft: string;
-  /** 추측 입력 버퍼 — 기본 자모만 담긴다 */
+  /** 입력 버퍼 — 기본 자모만 담긴다. 출제·추측이 같이 쓴다 */
   jamo: string[];
   /** 내가 출제자면 내가 낸 단어 */
   myWord: string | null;
+  /** 출제 입력 실시간 검증 — 치는 동안 몇 칸인지/어떤 단어로 읽히는지 알려준다 */
+  wordCheck: { ok: boolean; word: string | null; message: string } | null;
   /** 라운드 시작 후 경과 ms (로컬 시계 기준) */
   elapsedMs: number;
   /** 방장만 '게임 끝내기' 를 쓸 수 있다 */
@@ -38,15 +38,15 @@ export interface KdRenderState {
 }
 
 export interface KdCallbacks {
-  onSubmitWord(word: string): void;
-  onDraftChange(text: string): void;
   /** 자모 한 글자 입력 (화면 키보드 클릭 / 물리 키) */
   onJamo(jamo: string): void;
   onBackspace(): void;
-  /** 지금 버퍼를 제출 */
-  onSubmitGuess(): void;
+  /** 지금 버퍼를 제출 — 출제 화면이면 출제, 추측 화면이면 추측 */
+  onSubmit(): void;
   /** 무제한 모드에서 방장이 끝내기 */
   onFinish(): void;
+  /** 출제가 막힐 때 단어장에서 하나 뽑아오기 */
+  onPickRandom(): void;
 }
 
 const fmtTime = (ms: number): string => {
@@ -127,7 +127,7 @@ export class KordleRenderer {
       // 채팅 등 다른 입력창에 타이핑 중이면 가로채지 않는다
       if (a instanceof HTMLInputElement || a instanceof HTMLTextAreaElement) return;
       if (e.ctrlKey || e.altKey || e.metaKey) return;
-      if (e.key === 'Enter') { e.preventDefault(); this.cb.onSubmitGuess(); return; }
+      if (e.key === 'Enter') { e.preventDefault(); this.cb.onSubmit(); return; }
       if (e.key === 'Backspace') { e.preventDefault(); this.cb.onBackspace(); return; }
       const j = KEY_TO_JAMO[e.code];
       if (j) { e.preventDefault(); this.cb.onJamo(j); }
@@ -135,12 +135,17 @@ export class KordleRenderer {
     window.addEventListener('keydown', this.onKeyDown);
   }
 
-  /** 지금 자모를 받아도 되는 상태인가 (내 차례의 추측 단계) */
+  /**
+   * 지금 자모를 받아도 되는 상태인가.
+   * 출제자의 출제 입력과 참가자의 추측 입력, 두 경우 다 같은 네모칸에 직접 친다.
+   */
   private canType(): boolean {
     const s = this.last;
     if (!s || s.isSpectator) return false;
+    const amSetter = s.pub.setterPeerId === s.myPeerId;
+    if (s.pub.phase === 'setword') return amSetter;
     if (s.pub.phase !== 'guess') return false;
-    if (s.pub.setterPeerId === s.myPeerId) return false;
+    if (amSetter) return false;
     const me = s.pub.players.find((p) => p.peerId === s.myPeerId);
     return !!me && !me.solved && !me.failed;
   }
@@ -191,11 +196,13 @@ export class KordleRenderer {
     // --- 입력 영역 ---
     // marks.length 를 키에 넣어 **제출할 때마다 입력창을 새로 만든다**.
     // 이걸 안 하면 ① 친 글자가 입력창에 그대로 남고 ② 'n번 남음' 안내가 안 바뀌고
-    // ③ draft 가 안 바뀌어 그리드 다시 그리기가 한 박자 밀린다.
+    // ③ 안내 문구가 안 바뀌어 그리드 다시 그리기가 한 박자 밀린다.
     const actionKey = [
       pub.phase, amSetter ? '1' : '0', s.isSpectator ? '1' : '0', pub.round,
       me?.marks.length ?? 0, me?.solved ? '1' : '0', me?.failed ? '1' : '0',
       pub.totalRounds, s.isHost ? '1' : '0',
+      // 출제 화면은 치는 동안 안내 문구와 버튼 상태가 바뀐다
+      pub.phase === 'setword' ? `${s.wordCheck?.ok}|${s.wordCheck?.message ?? ''}` : '',
     ].join('|');
     if (actionKey !== this.actionKey) {
       this.actionKey = actionKey;
@@ -213,11 +220,6 @@ export class KordleRenderer {
       this.panelKey = panelKey;
       this.drawPanel(s);
     }
-  }
-
-  /** 입력창에 글자를 되돌려 넣기 (제출 실패 시) */
-  focusInput(): void {
-    this.root.querySelector<HTMLInputElement>('#kd-input')?.focus();
   }
 
   // ------------------------------------------------
@@ -244,7 +246,20 @@ export class KordleRenderer {
 
   private drawGrid(s: KdRenderState, marks: Mark[][], amSetter: boolean): void {
     const { jamoLen } = s.pub;
-    // 출제자/관전자는 남의 그리드를 베낄 수 없으니 자기 칸을 안 보여준다
+    // 출제 중이면 그리드를 '내가 낼 단어' 미리보기로 쓴다.
+    // 자모 몇 칸인지 세어볼 방법이 없으면 출제가 답답해진다.
+    if (amSetter && s.pub.phase === 'setword') {
+      const j = s.jamo;
+      const cells: string[] = [];
+      for (let c = 0; c < jamoLen; c++) {
+        const ch = j[c] ?? '';
+        const caret = c === j.length ? ' kd-caret' : '';
+        cells.push(`<i class="kd-cell${ch ? ' kd-typing' : ''}${caret}">${escapeHtml(ch)}</i>`);
+      }
+      this.gridEl.innerHTML = `<div class="kd-row kd-setrow">${cells.join('')}</div>`;
+      return;
+    }
+    // 관전자와 '맞히는 단계의 출제자' 는 자기 칸이 없다
     if (amSetter || s.isSpectator) {
       this.gridEl.innerHTML = `<div class="kd-grid-off">${
         amSetter ? '출제자는 이번 라운드를 쉬어요' : '관전 중이에요'
@@ -304,7 +319,7 @@ export class KordleRenderer {
       if (!el) return;
       const act = el.dataset['act'];
       if (act === 'back') this.cb.onBackspace();
-      else if (act === 'go') this.cb.onSubmitGuess();
+      else if (act === 'go') this.cb.onSubmit();
       else if (el.dataset['j']) this.cb.onJamo(el.dataset['j']!);
     };
   }
@@ -323,15 +338,22 @@ export class KordleRenderer {
     if (s.isSpectator || pub.phase === 'ended') {
       this.actionEl.innerHTML = finishBtn;
     } else if (pub.phase === 'setword' && amSetter) {
+      // 추측과 똑같이 네모칸에 직접 친다 — 입력창 없음
+      const wc = s.wordCheck;
+      const ok = wc?.ok === true;
       this.actionEl.innerHTML = `
-        <form class="kd-form" id="kd-form">
-          <input class="kd-input" id="kd-input" type="text" maxlength="12" autocomplete="off"
-                 placeholder="자모 ${pub.jamoLen}칸짜리 단어" />
-          <button type="submit" class="kd-btn">출제</button>
-        </form>
-        <p class="kd-hint">사전에 있는 단어, 자모 ${pub.jamoLen}칸.</p>`;
+        <p class="kd-hint">자판을 치거나 아래 키를 눌러 <b>칸에 직접</b> 입력해요 · <b>Enter</b> 출제</p>
+        <div class="kd-check${ok ? ' kd-check-ok' : wc && wc.message ? ' kd-check-bad' : ''}">${
+          wc && wc.message ? escapeHtml(wc.message) : `자모 ${pub.jamoLen}칸짜리 단어를 생각해보세요`
+        }</div>
+        <div class="kd-setbtns">
+          <button type="button" class="kd-btn kd-btn-ghost kd-pick" id="kd-pick">단어장에서 뽑기</button>
+          <button type="button" class="kd-btn" id="kd-go"${ok ? '' : ' disabled'}>출제</button>
+        </div>`;
     } else if (pub.phase === 'setword') {
-      this.actionEl.innerHTML = `<p class="kd-hint">잠시만 기다려주세요…</p>${finishBtn}`;
+      const setter = pub.players.find((p) => p.peerId === pub.setterPeerId);
+      this.actionEl.innerHTML =
+        `<p class="kd-hint">${escapeHtml(setter?.nickname ?? '출제자')} 님이 낼 단어를 고르는 중이에요</p>${finishBtn}`;
     } else if (pub.phase === 'guess' && amSetter) {
       this.actionEl.innerHTML = `<p class="kd-hint">모두가 맞히거나 기회를 다 쓰면 다음 라운드로 넘어가요.</p>${finishBtn}`;
     } else if (pub.phase === 'guess' && me && !me.solved && !me.failed) {
@@ -342,27 +364,15 @@ export class KordleRenderer {
       this.actionEl.innerHTML = `<p class="kd-hint">다른 사람을 기다리는 중…</p>${finishBtn}`;
     }
 
-    const form = this.actionEl.querySelector<HTMLFormElement>('#kd-form');
-    const input = this.actionEl.querySelector<HTMLInputElement>('#kd-input');
-    if (form && input) {
-      // 출제 전용 입력창 — 출제자는 평소처럼 한글로 단어를 친다
-      input.value = s.draft;
-      input.addEventListener('input', () => this.cb.onDraftChange(input.value));
-      form.addEventListener('submit', (e) => {
-        e.preventDefault();
-        const v = input.value.trim();
-        if (v) this.cb.onSubmitWord(v);
-      });
-      // 채팅 등 다른 입력에 포커스가 가 있으면 뺏지 않는다
-      const canFocus = () => {
-        const a = document.activeElement;
-        return !a || a === document.body || this.root.contains(a);
-      };
-      if (canFocus()) window.setTimeout(() => { if (canFocus()) input.focus(); }, 30);
-    }
+    this.actionEl
+      .querySelector<HTMLButtonElement>('#kd-go')
+      ?.addEventListener('click', () => this.cb.onSubmit());
     this.actionEl
       .querySelector<HTMLButtonElement>('#kd-finish')
       ?.addEventListener('click', () => this.cb.onFinish());
+    this.actionEl
+      .querySelector<HTMLButtonElement>('#kd-pick')
+      ?.addEventListener('click', () => this.cb.onPickRandom());
   }
 
   private drawPanel(s: KdRenderState): void {
@@ -418,12 +428,26 @@ export class KordleRenderer {
    🟩 hit = 주색 청록 / 🟨 present = 포인트 노랑 / ⬜ miss = 흐린 회색 */
 const CSS = `
 .kd-screen{position:absolute;inset:0;display:flex;gap:14px;padding:14px;box-sizing:border-box;
-  font-family:var(--font-sans);color:var(--text-main);overflow:auto;}
+  font-family:var(--font-sans);color:var(--text-main);overflow:auto;
+  /* 칸 크기는 **가로와 세로를 둘 다** 봐야 한다.
+     --kd-w  : 가로 기준(예전부터 쓰던 값). 6칸이면 360px, 12칸이면 648px.
+     --kd-wh : 세로 기준. 그리드가 6줄이고 칸은 정사각형이라, 한 칸이 커질수록
+               세로로 6배씩 먹는다. 상단바·안내·키보드가 쓰는 360px 를 빼고 6으로 나눈 값.
+     예전엔 가로만 봐서 세로 700px 아래 화면(노트북, 윈도 배율 125~150%)에서
+     그리드+키보드가 화면보다 길어졌고, 그게 위아래로 잘려 보였다. */
+  --kd-w: max(360px, calc(var(--kd-cols,6) * 54px));
+  --kd-wh: calc(var(--kd-cols,6) * max(30px, (100vh - 360px) / 6));}
 /* 상단바·그리드·입력·키보드를 전부 같은 폭(= 칸 수 × 칸 크기)으로 묶어 가운데 정렬.
-   안 묶으면 6칸 모드에서 타이머가 화면 오른쪽 끝까지 날아간다. */
+   안 묶으면 6칸 모드에서 타이머가 화면 오른쪽 끝까지 날아간다.
+   justify-content 는 safe center — 그래도 넘치는 극단적인 화면에서 위쪽이 잘려 안 보이는 걸 막는다
+   (자세한 이유는 theme.css .game-canvas-wrap 주석). */
 .kd-main{flex:1 1 0;min-width:0;display:flex;flex-direction:column;align-items:center;
-  justify-content:center;gap:10px;}
-.kd-main > *{width:100%;max-width:max(360px, calc(var(--kd-cols,6) * 54px));}
+  justify-content:safe center;gap:10px;}
+.kd-main > *{width:100%;max-width:var(--kd-w);}
+/* 세로가 짧을 때 줄어드는 건 **그리드만**.
+   상단바·안내문·키보드까지 같이 줄이면 글자가 두 줄로 접히고 자모 키가 줄을 넘는다.
+   그리드만 작아지고 나머지는 그대로 가운데 정렬 — 보기에도 이게 낫다. */
+.kd-main > .kd-grid{max-width:min(var(--kd-w), var(--kd-wh));}
 .kd-top{display:flex;align-items:center;gap:10px;justify-content:center;}
 .kd-pill{font-size:11.5px;font-weight:800;padding:4px 10px;border-radius:var(--radius-full);
   background:var(--bg-subtle);color:var(--text-muted);white-space:nowrap;}
@@ -447,7 +471,10 @@ const CSS = `
 
 .kd-kb{display:flex;flex-direction:column;gap:5px;align-items:center;margin-top:8px;}
 .kd-kbrow{display:flex;gap:4px;justify-content:center;flex-wrap:nowrap;}
-.kd-key{width:30px;height:38px;display:flex;align-items:center;justify-content:center;
+/* 키 높이도 세로에 맞춰 줄인다 — 자모 키보드가 4줄이라 세로를 꽤 먹는다.
+   폭(30px)은 그대로 둔다. 한 줄에 10개가 들어가야 해서 더 줄이면 줄이 넘친다. */
+.kd-key{width:30px;height:max(26px, min(38px, (100vh - 420px) / 6));
+  display:flex;align-items:center;justify-content:center;
   font-size:14px;font-weight:700;font-style:normal;border-radius:6px;
   background:var(--bg-subtle);color:var(--text-main);user-select:none;}
 .kd-key.kd-hit{background:var(--accent);color:#fff;}
@@ -455,23 +482,26 @@ const CSS = `
 .kd-key.kd-miss{background:var(--border-soft);color:var(--text-muted);opacity:.55;}
 
 .kd-action{display:flex;flex-direction:column;align-items:center;gap:6px;}
-.kd-form{display:flex;gap:8px;width:100%;max-width:340px;}
 /* 키보드 키는 버튼 — 마우스로도 칠 수 있다 */
 .kd-key{font:inherit;border:none;cursor:pointer;padding:0;}
 .kd-key-wide{width:auto;padding:0 12px;font-size:12px;}
 .kd-key-go{background:var(--accent);color:#fff;}
 .kd-key-go:hover{background:var(--accent-hover);}
-/* flex 자식 input 은 min-width:0 을 꼭 붙인다 — 안 그러면 고유 폭 밑으로 안 줄어서 버튼이 밀려난다 */
-.kd-input{flex:1 1 0;min-width:0;padding:9px 14px;border:1.5px solid var(--border);
-  border-radius:var(--radius-full);font:inherit;font-size:14px;background:var(--bg-inset);
-  color:var(--text-main);outline:none;text-align:center;}
-.kd-input:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(63,179,162,.20);}
+.kd-setbtns{display:flex;gap:8px;align-items:center;justify-content:center;}
 .kd-btn{font:inherit;font-weight:800;font-size:13.5px;color:#fff;background:var(--accent);
   border:none;border-radius:var(--radius-full);padding:9px 18px;cursor:pointer;white-space:nowrap;}
 .kd-btn:hover{background:var(--accent-hover);}
 .kd-btn-ghost{background:transparent;color:var(--text-muted);border:1.5px solid var(--border);}
 .kd-btn-ghost:hover{background:var(--bg-subtle);}
 .kd-hint{font-size:12px;color:var(--text-muted);margin:0;text-align:center;}
+/* 출제 실시간 안내 */
+.kd-check{font-size:12.5px;font-weight:700;color:var(--text-muted);text-align:center;min-height:1.2em;}
+.kd-check-ok{color:var(--mint-500);}
+.kd-check-bad{color:var(--danger);}
+.kd-pick{font-size:12px;padding:6px 14px;}
+.kd-setrow{max-width:none;}
+.kd-btn:disabled{opacity:.45;cursor:not-allowed;}
+.kd-btn:disabled:hover{background:var(--accent);}
 .kd-notice{font-size:12.5px;font-weight:700;color:var(--danger);min-height:0;text-align:center;}
 
 .kd-side{width:200px;flex:0 0 200px;display:flex;flex-direction:column;gap:6px;overflow:auto;}
