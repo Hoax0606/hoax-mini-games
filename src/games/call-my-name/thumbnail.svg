@@ -1,0 +1,66 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 200" fill="none">
+  <!-- 배경: 파스텔 청록→연노랑 그라데이션 -->
+  <defs>
+    <linearGradient id="cnbg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#ddf2ef"/>
+      <stop offset="1" stop-color="#fff8e1"/>
+    </linearGradient>
+    <!-- 소프트 입체: 중앙 일러스트 드롭섀도 -->
+    <filter id="cnlift" x="-35%" y="-35%" width="170%" height="170%"><feDropShadow dx="0" dy="5" stdDeviation="5" flood-color="#3a6b63" flood-opacity="0.26"/></filter>
+  </defs>
+  <rect width="320" height="200" rx="22" fill="url(#cnbg)"/>
+
+  <!-- 배경 데코: 작은 점들 -->
+  <circle cx="26" cy="30" r="3" fill="#c5e8e1"/>
+  <circle cx="292" cy="34" r="2.5" fill="#ffeeb8"/>
+  <circle cx="288" cy="172" r="3" fill="#8ccfc6"/>
+  <circle cx="32" cy="172" r="2.2" fill="#c5e8e1"/>
+  <circle cx="302" cy="104" r="2" fill="#ffeeb8"/>
+  <circle cx="18" cy="96" r="2" fill="#8ccfc6"/>
+
+  <!-- 작은 별 데코 -->
+  <path d="M 48,46 L 50,51 L 55,51 L 51,54 L 53,59 L 48,56 L 43,59 L 45,54 L 41,51 L 46,51 Z"
+        fill="#c5e8e1" opacity="0.7"/>
+  <path d="M 274,150 L 276,155 L 281,155 L 277,158 L 279,163 L 274,160 L 269,163 L 271,158 L 267,155 L 272,155 Z"
+        fill="#ffeeb8" opacity="0.7"/>
+
+  <g filter="url(#cnlift)">
+    <!-- 남의 이마 쪽지 (뒤, 비스듬히) — 단어가 보인다 -->
+    <g transform="translate(186, 66) rotate(9)">
+      <rect x="0" y="0" width="96" height="62" rx="12" fill="#ffffff" stroke="#8ccfc6" stroke-width="2.5"/>
+      <rect x="34" y="-7" width="28" height="12" rx="6" fill="#ffeeb8" stroke="#e8c96a" stroke-width="2"/>
+      <g font-family="'Pretendard','Apple SD Gothic Neo','Noto Sans KR',system-ui,sans-serif"
+         font-size="26" font-weight="900" text-anchor="middle">
+        <text x="48" y="41" fill="#2a9488">사자</text>
+      </g>
+    </g>
+
+    <!-- 내 이마 쪽지 (앞, 크게) — 내 것만 ??? -->
+    <g transform="translate(40, 58) rotate(-6)">
+      <rect x="0" y="0" width="126" height="80" rx="14" fill="#ffffff" stroke="#2a9488" stroke-width="3"/>
+      <rect x="44" y="-8" width="38" height="14" rx="7" fill="#f5c33d" stroke="#c49a1f" stroke-width="2"/>
+      <g font-family="'Pretendard','Apple SD Gothic Neo','Noto Sans KR',system-ui,sans-serif"
+         font-size="40" font-weight="900" text-anchor="middle">
+        <text x="63" y="56" fill="#2f4a46">???</text>
+      </g>
+    </g>
+  </g>
+
+  <!-- 보조: 말풍선 (질문은 채팅으로) -->
+  <g transform="translate(206, 142)">
+    <rect x="0" y="0" width="72" height="30" rx="12" fill="#ffffff" stroke="#3fb3a2" stroke-width="2.5"/>
+    <path d="M 16,30 L 14,39 L 27,30 Z" fill="#ffffff" stroke="#3fb3a2" stroke-width="2.5" stroke-linejoin="round"/>
+    <circle cx="22" cy="15" r="3.2" fill="#8ccfc6"/>
+    <circle cx="36" cy="15" r="3.2" fill="#8ccfc6"/>
+    <circle cx="50" cy="15" r="3.2" fill="#8ccfc6"/>
+  </g>
+
+  <!-- 보조: 작은 물음표 배지 (좌하단, 비스듬히) -->
+  <g transform="translate(42, 150) rotate(-12)">
+    <circle cx="14" cy="14" r="14" fill="#ffffff" stroke="#2a9488" stroke-width="2.5"/>
+    <g font-family="'Pretendard','Apple SD Gothic Neo','Noto Sans KR',system-ui,sans-serif"
+       font-size="19" font-weight="900" text-anchor="middle">
+      <text x="14" y="21" fill="#f5c33d">?</text>
+    </g>
+  </g>
+</svg>

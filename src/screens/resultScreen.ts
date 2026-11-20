@@ -825,6 +825,99 @@ interface SbRankEntry {
   timeMs: number | null; kpm: number; mistakes: number; index: number;
 }
 
+// ============================================
+// 양세찬 게임 전용 결과 HTML
+// ============================================
+
+interface CnRankEntry {
+  peerId: string; nickname: string; rank: number;
+  word: string; solved: boolean; tries: number;
+}
+
+function parseCallMyNameSummary(summary: Record<string, unknown>): {
+  myPeerId: string; rank: number; totalPlayers: number; theme: string;
+  myWord: string; mySolved: boolean; myTries: number; rankings: CnRankEntry[];
+} | null {
+  if (summary['gameId'] !== 'call-my-name') return null;
+  const myPeerId = typeof summary['myPeerId'] === 'string' ? (summary['myPeerId'] as string) : null;
+  const rank = typeof summary['rank'] === 'number' ? (summary['rank'] as number) : null;
+  const totalPlayers = typeof summary['totalPlayers'] === 'number' ? (summary['totalPlayers'] as number) : null;
+  if (!myPeerId || rank === null || totalPlayers === null) return null;
+  const raw = summary['rankings'] as unknown;
+  const rankings: CnRankEntry[] = Array.isArray(raw)
+    ? (raw as Partial<CnRankEntry>[])
+        .filter((r) => typeof r.peerId === 'string' && typeof r.nickname === 'string' && typeof r.rank === 'number')
+        .map((r) => ({
+          peerId: r.peerId!, nickname: r.nickname!, rank: r.rank!,
+          word: typeof r.word === 'string' ? r.word : '',
+          solved: r.solved === true,
+          tries: typeof r.tries === 'number' ? r.tries : 0,
+        }))
+    : [];
+  return {
+    myPeerId, rank, totalPlayers,
+    theme: typeof summary['theme'] === 'string' ? (summary['theme'] as string) : '',
+    myWord: typeof summary['myWord'] === 'string' ? (summary['myWord'] as string) : '',
+    mySolved: summary['mySolved'] === true,
+    myTries: typeof summary['myTries'] === 'number' ? (summary['myTries'] as number) : 0,
+    rankings,
+  };
+}
+
+function buildCallMyNameResultHTML(args: {
+  myWinner: 'me' | 'opponent' | null;
+  rank: number; totalPlayers: number; theme: string;
+  myWord: string; mySolved: boolean; myTries: number;
+  rankings: CnRankEntry[]; myPeerId: string; isHost: boolean; isSpectator: boolean;
+}): string {
+  const { myWinner, rank, totalPlayers, theme, myWord, mySolved, myTries,
+          rankings, myPeerId, isHost, isSpectator } = args;
+  const { emoji, title, titleClass } = isSpectator
+    ? { emoji: icon('medal', { size: 58, hue: '#2a9488' }), title: '양세찬 게임 종료', titleClass: 'result-title-draw' }
+    : winnerVisuals(myWinner);
+  const actionsHTML = buildActionsHTML(isHost);
+  const myBlock = isSpectator ? '' : `
+    <div class="result-apple-myscore">
+      <div class="result-apple-myscore-label">내 이마에 붙어있던 건 · ${escapeHtml(theme)}</div>
+      <div class="result-apple-myscore-value">${escapeHtml(myWord)}</div>
+      <div class="result-gomoku-reason">${
+        mySolved ? `${myTries}번 만에 맞혔어요` : '끝내 못 맞혔어요'
+      }</div>
+    </div>
+    <div class="result-tetris-rank"><span class="result-tetris-rank-num">${rank}</span> / ${totalPlayers}위</div>
+  `;
+  const rankingsHTML = rankings.length >= 2 ? `
+    <div class="result-tetris-rankings">
+      <div class="result-tetris-rankings-title">${icon('medal', { size: 18, hue: '#ffb12e' })} 최종 순위</div>
+      ${rankings.map((r) => {
+        const isMe = r.peerId === myPeerId;
+        const badgeClass = r.rank <= 3 ? `rank-${r.rank}` : '';
+        return `
+          <div class="result-tetris-rank-row ${isMe ? 'is-me' : ''}">
+            <span class="result-tetris-rank-badge ${badgeClass}">${r.rank}</span>
+            <span class="result-tetris-rank-name">${escapeHtml(r.nickname)}</span>
+            <span class="result-apple-rank-score">${escapeHtml(r.word)} · ${
+              r.solved ? `${r.tries}번` : '실패'
+            }</span>
+            ${isMe ? '<span class="result-tetris-rank-me-tag">나</span>' : ''}
+          </div>
+        `;
+      }).join('')}
+    </div>
+  ` : '';
+  return `
+    <div class="result-card result-card-tetris">
+      <div class="result-emoji">${emoji}</div>
+      <div class="result-title ${titleClass}">${title}</div>
+      ${myBlock}
+      ${rankingsHTML}
+      <div class="result-actions">
+        ${actionsHTML}
+      </div>
+    </div>
+  `;
+}
+
 function parseSubwaySummary(summary: Record<string, unknown>): {
   myPeerId: string; rank: number; totalPlayers: number; lineName: string;
   stationCount: number; myTimeMs: number | null; myKpm: number; myMistakes: number;
@@ -1976,6 +2069,7 @@ export function createResultScreenAsHostScreen(args: ResultScreenAsHostArgs): Sc
       const fakeArtist = parseFakeArtistSummary(result.summary);
       const kordle = parseKordleSummary(result.summary);
       const subway = parseSubwaySummary(result.summary);
+      const cmn = parseCallMyNameSummary(result.summary);
       if (tetris) {
         el.innerHTML = buildTetrisResultHTML({
           myWinner: result.winner,
@@ -2086,6 +2180,20 @@ export function createResultScreenAsHostScreen(args: ResultScreenAsHostArgs): Sc
           myMistakes: subway.myMistakes,
           rankings: subway.rankings,
           myPeerId: subway.myPeerId,
+          isHost: true,
+          isSpectator: false,
+        });
+      } else if (cmn) {
+        el.innerHTML = buildCallMyNameResultHTML({
+          myWinner: result.winner,
+          rank: cmn.rank,
+          totalPlayers: cmn.totalPlayers,
+          theme: cmn.theme,
+          myWord: cmn.myWord,
+          mySolved: cmn.mySolved,
+          myTries: cmn.myTries,
+          rankings: cmn.rankings,
+          myPeerId: cmn.myPeerId,
           isHost: true,
           isSpectator: false,
         });
@@ -2293,6 +2401,7 @@ export function createResultScreenAsGuestScreen(args: ResultScreenAsGuestArgs): 
       const fakeArtist = parseFakeArtistSummary(result.summary);
       const kordle = parseKordleSummary(result.summary);
       const subway = parseSubwaySummary(result.summary);
+      const cmn = parseCallMyNameSummary(result.summary);
       // 관전자는 summary.myPeerId 가 자기가 아닐 수 있음 — 자기 peerId 는 guest.myPeerId.
       // rankings 에 "나" 가 없으면 관전자로 간주.
       const myPeerIdForResult = guest.myPeerId;
@@ -2424,6 +2533,21 @@ export function createResultScreenAsGuestScreen(args: ResultScreenAsGuestArgs): 
           myPeerId: isSpec ? myPeerIdForResult : subway.myPeerId,
           isHost: false,
           isSpectator: isSpec,
+        });
+      } else if (cmn) {
+        const isSpecCmn = !cmn.rankings.some((r) => r.peerId === myPeerIdForResult);
+        el.innerHTML = buildCallMyNameResultHTML({
+          myWinner: result.winner,
+          rank: cmn.rank,
+          totalPlayers: cmn.totalPlayers,
+          theme: cmn.theme,
+          myWord: cmn.myWord,
+          mySolved: cmn.mySolved,
+          myTries: cmn.myTries,
+          rankings: cmn.rankings,
+          myPeerId: isSpecCmn ? myPeerIdForResult : cmn.myPeerId,
+          isHost: false,
+          isSpectator: isSpecCmn,
         });
       } else if (ramen) {
         const isSpec = !ramen.rankings.some((r) => r.peerId === myPeerIdForResult);

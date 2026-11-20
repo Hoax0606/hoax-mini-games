@@ -31,6 +31,7 @@ import werewolfThumbnail from './werewolf/thumbnail.svg';
 import avalonThumbnail from './avalon/thumbnail.svg';
 import fakeArtistThumbnail from './fake-artist/thumbnail.svg';
 import kordleThumbnail from './kordle/thumbnail.svg';
+import callMyNameThumbnail from './call-my-name/thumbnail.svg';
 import subwayTypingThumbnail from './subway-typing/thumbnail.svg';
 
 export const games: GameEntry[] = [
@@ -564,6 +565,36 @@ export const games: GameEntry[] = [
     load: async () => {
       const mod = await import('./kordle');
       return mod.createKordle();
+    },
+  },
+  {
+    meta: {
+      id: 'call-my-name',
+      name: '양세찬 게임',
+      description: '내 이마에 붙은 단어만 나만 못 봐요! 돌아가며 채팅으로 스무고개하듯 물어보고 내 정체를 맞혀요. 거짓말은 금지, 애매하게 답하는 건 허용이에요.',
+      thumbnail: callMyNameThumbnail,
+      minPlayers: 2,
+      maxPlayers: 10,
+      roomOptions: [
+        {
+          key: 'theme',
+          label: '주제',
+          type: 'select',
+          choices: [
+            { value: 'all', label: '전체' },
+            { value: 'food', label: '음식' },
+            { value: 'animal', label: '동물' },
+            { value: 'thing', label: '사물' },
+            { value: 'place', label: '장소/나라' },
+            { value: 'job', label: '직업/스포츠' },
+          ],
+          defaultValue: 'all',
+        },
+      ],
+    },
+    load: async () => {
+      const mod = await import('./call-my-name');
+      return mod.createCallMyName();
     },
   },
   {
