@@ -47,12 +47,32 @@ import {
 /** 내 상태를 이 간격으로 broadcast (ms) — 10Hz */
 const STATE_BROADCAST_MS = 100;
 
-/** 키 반복 시작까지 지연 (DAS) — 좌우/아래 이동만 반복. 낮출수록 꾹 눌렀을 때 반응이 빠릿 */
-const DAS_DELAY_MS = 100;
-/** 좌우 이동 반복 간격 (ARR) — 작을수록 좌우로 쭉 미끄러져 가볍게 느껴짐 */
-const DAS_INTERVAL_MS = 20;
-/** 소프트드롭(↓) 반복 간격 — 좌우보다 훨씬 빠르게. 대략 125칸/초 */
+/**
+ * 키 반복 시작까지 지연 (DAS) — 60fps 기준 딱 8프레임.
+ *
+ * **톡 눌렀다 떼는 시간보다 길어야 한다.** 100ms 였을 땐 한 칸만 옮기려고 누른 게
+ * 자주 반복으로 넘어가서 두세 칸씩 밀려버렸다 — 미끄러진다고 느낀 주범.
+ * 사람이 키를 톡 누르는 시간이 보통 80~120ms 라 그 위로 올린다.
+ *
+ * 반대로 너무 올리면 굼뜨다. 양옆은 판을 가로지르는 일보다 **2~3칸만 옮기는 일**이
+ * 훨씬 많고, 그 구간은 ARR 이 아니라 DAS 가 거의 다 먹기 때문이다.
+ * 170ms 로 올렸더니 3칸 옮기는 데 270ms 가 걸려서 바로 느리다는 말이 나왔다.
+ */
+const DAS_DELAY_MS = 133;
+/**
+ * 좌우 이동 반복 간격 (ARR) — 60fps 기준 딱 2프레임, 초당 30칸.
+ * 루프에서 돌리니 프레임 단위로 떨어지는 값이라야 들쭉날쭉하지 않다.
+ * 45ms 는 2.7프레임이라 실제로는 3프레임(50ms)으로 반올림돼서 굼떠 보였다.
+ */
+const DAS_INTERVAL_MS = 33;
+/** 소프트드롭(↓) 반복 간격 — 초당 120칸 */
 const SOFT_DROP_INTERVAL_MS = 8;
+/**
+ * 소프트드롭만 한 프레임에 여러 칸 허용.
+ * 아래로 쭉 내리는 게 목적이라 좌우처럼 한 칸씩 정밀할 필요가 없다.
+ * 그래도 프레임이 밀렸을 때 한 번에 쏟아지지 않게 상한은 둔다.
+ */
+const SOFT_DROP_MAX_PER_FRAME = 2;
 
 // ============================================
 // 옵션 파싱 (방 만들기 화면에서 선택된 값)
@@ -122,7 +142,10 @@ class BattleTetrisGame implements GameModule {
 
   // 입력 상태
   private pressedKeys = new Set<string>();
-  private repeatTimers = new Map<string, { timeout?: number; interval?: number }>();
+  /** 반복 키의 다음 실행 예정 시각 (performance.now 기준). 타이머 대신 게임 루프가 돌린다 */
+  private repeatAt = new Map<string, number>();
+  /** 좌우를 동시에 누르고 있을 때 이기는 쪽. 둘 다 돌리면 제자리에서 덜덜 떤다 */
+  private lastDir: string | null = null;
 
   // ============================================
   // GameModule
@@ -299,6 +322,8 @@ class BattleTetrisGame implements GameModule {
 
     // 관전자/일시정지 시 engine.update / broadcast 스킵 — 상대 스냅샷 받은 것만 렌더
     if (!this.ctx.isSpectator && !this.gameFinished && !this.paused) {
+      // 키 반복을 중력보다 먼저 — 이번 프레임에 민 칸이 이번 프레임에 그려진다
+      this.tickRepeat(now);
       const events = this.engine.update(dt);
       if (events.length > 0) this.handleEngineEvents(events);
 
@@ -477,13 +502,13 @@ class BattleTetrisGame implements GameModule {
     window.removeEventListener('keydown', this.onKeyDown);
     window.removeEventListener('keyup', this.onKeyUp);
     window.removeEventListener('blur', this.onBlur);
-    // 반복 타이머 정리
-    for (const t of this.repeatTimers.values()) {
-      if (t.timeout !== undefined) window.clearTimeout(t.timeout);
-      if (t.interval !== undefined) window.clearInterval(t.interval);
-    }
-    this.repeatTimers.clear();
+    this.clearKeys();
+  }
+
+  private clearKeys(): void {
     this.pressedKeys.clear();
+    this.repeatAt.clear();
+    this.lastDir = null;
   }
 
   private onKeyDown = (e: KeyboardEvent): void => {
@@ -497,49 +522,59 @@ class BattleTetrisGame implements GameModule {
     this.pressedKeys.add(e.code);
     e.preventDefault();
 
+    if (e.code === 'ArrowLeft' || e.code === 'ArrowRight') this.lastDir = e.code;
+
     // 즉시 한 번 실행
     this.performKey(e.code);
 
     // 반복 키면 DAS 세팅
-    if (this.isRepeatKey(e.code)) {
-      const to = window.setTimeout(() => this.startRepeating(e.code), DAS_DELAY_MS);
-      this.repeatTimers.set(e.code, { timeout: to });
-    }
+    if (this.isRepeatKey(e.code)) this.repeatAt.set(e.code, performance.now() + DAS_DELAY_MS);
   };
 
   private onKeyUp = (e: KeyboardEvent): void => {
     this.pressedKeys.delete(e.code);
-    const t = this.repeatTimers.get(e.code);
-    if (t) {
-      if (t.timeout !== undefined) window.clearTimeout(t.timeout);
-      if (t.interval !== undefined) window.clearInterval(t.interval);
-      this.repeatTimers.delete(e.code);
+    this.repeatAt.delete(e.code);
+    // 이기고 있던 방향을 뗐으면 반대쪽에게 넘긴다.
+    // 이때 DAS 부터 다시 — 안 그러면 손을 떼자마자 반대로 쭉 쏘아버린다.
+    if (this.lastDir === e.code) {
+      const other = e.code === 'ArrowLeft' ? 'ArrowRight' : 'ArrowLeft';
+      this.lastDir = this.pressedKeys.has(other) ? other : null;
+      if (this.lastDir) this.repeatAt.set(this.lastDir, performance.now() + DAS_DELAY_MS);
     }
   };
 
   private onBlur = (): void => {
     // 포커스 잃으면 모든 키 해제 (유령키 방지)
-    this.pressedKeys.clear();
-    for (const t of this.repeatTimers.values()) {
-      if (t.timeout !== undefined) window.clearTimeout(t.timeout);
-      if (t.interval !== undefined) window.clearInterval(t.interval);
-    }
-    this.repeatTimers.clear();
+    this.clearKeys();
   };
 
-  private startRepeating(code: string): void {
-    if (!this.pressedKeys.has(code)) return;
-    // 아래키(소프트드롭)는 좌우 이동보다 빠른 간격으로 반복
-    const intervalMs = code === 'ArrowDown' ? SOFT_DROP_INTERVAL_MS : DAS_INTERVAL_MS;
-    const interval = window.setInterval(() => {
-      if (!this.pressedKeys.has(code)) {
-        window.clearInterval(interval);
-        return;
+  /**
+   * 꾹 누른 키의 반복 — setInterval 이 아니라 **게임 루프**에서 돌린다.
+   *
+   * 타이머로 돌리면 프레임이 한 번 밀릴 때 콜백이 그만큼 몰려서 한 프레임에
+   * 서너 칸을 순간이동하듯 건너뛴다. 20ms 간격이면 60fps 한 프레임(16ms)에
+   * 한 번꼴이라 조금만 버벅여도 바로 티가 났다 — 미끄러져 보이던 또 하나의 이유.
+   * 루프에서 돌리면 한 프레임에 많아야 한 칸으로 묶인다.
+   */
+  private tickRepeat(now: number): void {
+    for (const code of this.pressedKeys) {
+      const due = this.repeatAt.get(code);
+      if (due === undefined || now < due) continue;
+      // 좌우 동시 입력은 나중에 누른 쪽만 움직인다
+      if ((code === 'ArrowLeft' || code === 'ArrowRight') && this.lastDir !== code) continue;
+
+      if (code === 'ArrowDown') {
+        // 8ms 간격은 한 프레임(16ms)보다 짧다 → 밀린 만큼 상한까지 채워서 내린다
+        const n = Math.min(SOFT_DROP_MAX_PER_FRAME, 1 + Math.floor((now - due) / SOFT_DROP_INTERVAL_MS));
+        for (let i = 0; i < n; i++) this.performKey(code);
+        this.repeatAt.set(code, now + SOFT_DROP_INTERVAL_MS);
+        continue;
       }
+
       this.performKey(code);
-    }, intervalMs);
-    const existing = this.repeatTimers.get(code) ?? {};
-    this.repeatTimers.set(code, { ...existing, interval });
+      // due 에 더하지 않고 now 기준으로 다시 잡는다. 더하면 밀린 프레임만큼 몰아서 실행된다
+      this.repeatAt.set(code, now + DAS_INTERVAL_MS);
+    }
   }
 
   private performKey(code: string): void {
