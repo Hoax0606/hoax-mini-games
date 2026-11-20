@@ -10,7 +10,10 @@ import { buildReactionBarHTML, wireReactionBar, showReactionBubble } from '../ui
 import { buildChatPanelHTML, wireChatPanel, appendChatMessage } from '../ui/chat';
 import type { ChatMsg } from '../games/types';
 import { publishRoom, updatePublicRoom, unpublishRoom } from '../core/roomDirectory';
-import { buildGameTilesHTML, buildGameOptionsHTML } from '../ui/gamePicker';
+import {
+  buildGameTilesHTML, buildGameOptionsHTML,
+  buildPlayerFilterHTML, wirePlayerFilter, type PlayerFilter,
+} from '../ui/gamePicker';
 import { escapeHtml } from '../ui/escape';
 import { showReconnectOverlay, hideReconnectOverlay } from '../ui/reconnectOverlay';
 import { icon } from '../ui/icons';
@@ -181,7 +184,10 @@ export function createWaitingRoomAsHostScreen(args: WaitingRoomAsHostArgs): Scre
             </div>
 
             <div class="waiting-right">
-              <div class="waiting-section-title">${icon('games', { size: 18, hue: '#a06bff' })} 게임 선택 <span class="waiting-section-hint">인원 초과 게임은 잠겨요</span></div>
+              <div class="waiting-section-title">
+                ${icon('games', { size: 18, hue: '#a06bff' })} 게임 선택
+                <span class="pf-wrap" id="game-filter"></span>
+              </div>
               <div class="change-game-grid waiting-grid" id="game-grid"></div>
               <div class="change-game-options waiting-options" id="game-options"></div>
             </div>
@@ -196,7 +202,10 @@ export function createWaitingRoomAsHostScreen(args: WaitingRoomAsHostArgs): Scre
       const participantsEl = el.querySelector<HTMLDivElement>('#participants')!;
       const startBtn = el.querySelector<HTMLButtonElement>('#start-btn')!;
       const gameGridEl = el.querySelector<HTMLDivElement>('#game-grid')!;
+      const gameFilterEl = el.querySelector<HTMLDivElement>('#game-filter')!;
       const gameOptionsEl = el.querySelector<HTMLDivElement>('#game-options')!;
+      /** 인원수 필터. refreshUI 가 자주 도니까 바깥에 둬서 사람이 고른 값이 안 날아가게 한다 */
+      let gameFilter: PlayerFilter = null;
       const shareBtn = el.querySelector<HTMLButtonElement>('#share-btn')!;
       const leaveBtn = el.querySelector<HTMLButtonElement>('#leave-btn')!;
       const toastEl = el.querySelector<HTMLDivElement>('#toast')!;
@@ -232,8 +241,14 @@ export function createWaitingRoomAsHostScreen(args: WaitingRoomAsHostArgs): Scre
         // 게임 타일 그리드 (항상 노출, 인원 초과 게임은 잠금). 재렌더 시 스크롤 위치 보존
         //   (게임 고를 때마다 innerHTML 재생성돼 스크롤이 위로 튀던 문제 방지)
         const gridScroll = gameGridEl.scrollTop;
-        gameGridEl.innerHTML = buildGameTilesHTML(players.length, gameId, { enforceMin: false });
+        gameGridEl.innerHTML = buildGameTilesHTML(players.length, gameId, {
+          enforceMin: false,
+          filter: gameFilter,
+        });
         gameGridEl.scrollTop = gridScroll;
+        // 필터 칩도 같이 갱신 — 인원이 바뀌면 '지금 방 인원' 표시가 따라가야 한다
+        gameFilterEl.innerHTML = buildPlayerFilterHTML(gameFilter, players.length);
+        wirePlayerFilter(gameFilterEl, (n) => { gameFilter = n; refreshUI(); });
         // 옵션 박스는 항상 노출(통일성) — 옵션 있으면 셀렉트, 없으면 '설정 없음', 미선택이면 안내.
         gameOptionsEl.innerHTML = buildGameOptionsHTML(gameId, roomOptions);
         wireGameArea();
