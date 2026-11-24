@@ -33,6 +33,7 @@ import fakeArtistThumbnail from './fake-artist/thumbnail.svg';
 import kordleThumbnail from './kordle/thumbnail.svg';
 import callMyNameThumbnail from './call-my-name/thumbnail.svg';
 import subwayTypingThumbnail from './subway-typing/thumbnail.svg';
+import theMindThumbnail from './the-mind/thumbnail.svg';
 
 export const games: GameEntry[] = [
   {
@@ -595,6 +596,33 @@ export const games: GameEntry[] = [
     load: async () => {
       const mod = await import('./call-my-name');
       return mod.createCallMyName();
+    },
+  },
+  {
+    meta: {
+      id: 'the-mind',
+      name: '더 마인드',
+      description: '1~100 카드를 나눠 갖고 말 한 마디 없이 작은 숫자부터 순서대로 내요. 다 같이 이기거나 다 같이 지는 협동 게임. 눈치와 침묵이 전부예요.',
+      thumbnail: theMindThumbnail,
+      minPlayers: 2,
+      maxPlayers: 10,
+      roomOptions: [
+        {
+          key: 'goal',
+          label: '목표 레벨',
+          type: 'select',
+          choices: [
+            { value: '5', label: '짧게 · 5레벨' },
+            { value: '8', label: '보통 · 8레벨' },
+            { value: '12', label: '길게 · 12레벨' },
+          ],
+          defaultValue: '8',
+        },
+      ],
+    },
+    load: async () => {
+      const mod = await import('./the-mind');
+      return mod.createTheMind();
     },
   },
   {

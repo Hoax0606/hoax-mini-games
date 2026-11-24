@@ -826,6 +826,90 @@ interface SbRankEntry {
 }
 
 // ============================================
+// 더 마인드 전용 결과 HTML (협동 — 승패가 갈리지 않는다)
+// ============================================
+
+interface TmRankEntry { peerId: string; nickname: string; rank: number; played: number }
+
+function parseTheMindSummary(summary: Record<string, unknown>): {
+  myPeerId: string; won: boolean; level: number; goal: number;
+  lives: number; stars: number; rankings: TmRankEntry[];
+} | null {
+  if (summary['gameId'] !== 'the-mind') return null;
+  const myPeerId = typeof summary['myPeerId'] === 'string' ? (summary['myPeerId'] as string) : null;
+  if (!myPeerId) return null;
+  const num = (k: string): number => (typeof summary[k] === 'number' ? (summary[k] as number) : 0);
+  const raw = summary['rankings'] as unknown;
+  const rankings: TmRankEntry[] = Array.isArray(raw)
+    ? (raw as Partial<TmRankEntry>[])
+        .filter((r) => typeof r.peerId === 'string' && typeof r.nickname === 'string')
+        .map((r, i) => ({
+          peerId: r.peerId!, nickname: r.nickname!,
+          rank: typeof r.rank === 'number' ? r.rank : i + 1,
+          played: typeof r.played === 'number' ? r.played : 0,
+        }))
+    : [];
+  return {
+    myPeerId, won: summary['won'] === true,
+    level: num('level'), goal: num('goal'), lives: num('lives'), stars: num('stars'),
+    rankings,
+  };
+}
+
+function buildTheMindResultHTML(args: {
+  won: boolean; level: number; goal: number; lives: number;
+  rankings: TmRankEntry[]; myPeerId: string; isHost: boolean; isSpectator: boolean;
+}): string {
+  const { won, level, goal, lives, rankings, myPeerId, isHost, isSpectator } = args;
+  // 협동이라 개인 승패가 없다. 다 같이 깼거나 다 같이 못 깼거나
+  const emoji = won
+    ? icon('trophy', { size: 64, hue: '#ffb020' })
+    : icon('medal', { size: 60, hue: '#b3a9bf' });
+  const title = won ? '다 같이 클리어!' : '여기까지…';
+  const titleClass = won ? 'result-title-win' : 'result-title-lose';
+  const actionsHTML = buildActionsHTML(isHost);
+  const topBlock = `
+    <div class="result-apple-myscore">
+      <div class="result-apple-myscore-label">${
+        won ? `목표 ${goal}레벨 전부 통과` : '도달한 레벨'
+      }</div>
+      <div class="result-apple-myscore-value">레벨 ${level}</div>
+      <div class="result-gomoku-reason">${
+        won ? `생명 ${lives}개 남기고 성공` : '생명을 다 썼어요'
+      }</div>
+    </div>`;
+  const rankingsHTML = rankings.length >= 2 ? `
+    <div class="result-tetris-rankings">
+      <div class="result-tetris-rankings-title">${
+        icon('medal', { size: 18, hue: '#ffb12e' })} 누가 많이 냈나</div>
+      ${rankings.map((r) => {
+        const isMe = r.peerId === myPeerId;
+        const badgeClass = r.rank <= 3 ? `rank-${r.rank}` : '';
+        return `
+          <div class="result-tetris-rank-row ${isMe ? 'is-me' : ''}">
+            <span class="result-tetris-rank-badge ${badgeClass}">${r.rank}</span>
+            <span class="result-tetris-rank-name">${escapeHtml(r.nickname)}</span>
+            <span class="result-apple-rank-score">${r.played}장</span>
+            ${isMe ? '<span class="result-tetris-rank-me-tag">나</span>' : ''}
+          </div>
+        `;
+      }).join('')}
+    </div>
+  ` : '';
+  return `
+    <div class="result-card result-card-tetris">
+      <div class="result-emoji">${emoji}</div>
+      <div class="result-title ${titleClass}">${title}</div>
+      ${isSpectator ? '' : topBlock}
+      ${rankingsHTML}
+      <div class="result-actions">
+        ${actionsHTML}
+      </div>
+    </div>
+  `;
+}
+
+// ============================================
 // 양세찬 게임 전용 결과 HTML
 // ============================================
 
@@ -2070,6 +2154,7 @@ export function createResultScreenAsHostScreen(args: ResultScreenAsHostArgs): Sc
       const kordle = parseKordleSummary(result.summary);
       const subway = parseSubwaySummary(result.summary);
       const cmn = parseCallMyNameSummary(result.summary);
+      const mind = parseTheMindSummary(result.summary);
       if (tetris) {
         el.innerHTML = buildTetrisResultHTML({
           myWinner: result.winner,
@@ -2194,6 +2279,17 @@ export function createResultScreenAsHostScreen(args: ResultScreenAsHostArgs): Sc
           myTries: cmn.myTries,
           rankings: cmn.rankings,
           myPeerId: cmn.myPeerId,
+          isHost: true,
+          isSpectator: false,
+        });
+      } else if (mind) {
+        el.innerHTML = buildTheMindResultHTML({
+          won: mind.won,
+          level: mind.level,
+          goal: mind.goal,
+          lives: mind.lives,
+          rankings: mind.rankings,
+          myPeerId: mind.myPeerId,
           isHost: true,
           isSpectator: false,
         });
@@ -2402,6 +2498,7 @@ export function createResultScreenAsGuestScreen(args: ResultScreenAsGuestArgs): 
       const kordle = parseKordleSummary(result.summary);
       const subway = parseSubwaySummary(result.summary);
       const cmn = parseCallMyNameSummary(result.summary);
+      const mind = parseTheMindSummary(result.summary);
       // 관전자는 summary.myPeerId 가 자기가 아닐 수 있음 — 자기 peerId 는 guest.myPeerId.
       // rankings 에 "나" 가 없으면 관전자로 간주.
       const myPeerIdForResult = guest.myPeerId;
@@ -2548,6 +2645,18 @@ export function createResultScreenAsGuestScreen(args: ResultScreenAsGuestArgs): 
           myPeerId: isSpecCmn ? myPeerIdForResult : cmn.myPeerId,
           isHost: false,
           isSpectator: isSpecCmn,
+        });
+      } else if (mind) {
+        const isSpecTm = !mind.rankings.some((r) => r.peerId === myPeerIdForResult);
+        el.innerHTML = buildTheMindResultHTML({
+          won: mind.won,
+          level: mind.level,
+          goal: mind.goal,
+          lives: mind.lives,
+          rankings: mind.rankings,
+          myPeerId: isSpecTm ? myPeerIdForResult : mind.myPeerId,
+          isHost: false,
+          isSpectator: isSpecTm,
         });
       } else if (ramen) {
         const isSpec = !ramen.rankings.some((r) => r.peerId === myPeerIdForResult);
