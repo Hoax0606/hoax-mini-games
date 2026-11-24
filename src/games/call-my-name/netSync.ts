@@ -31,6 +31,8 @@ export interface SyncPayload {
   theme: string;
   /** 질문·대답·알림이 시간순으로 쌓인 대화 */
   feed: FeedEntry[];
+  /** 이번 차례에 질문을 이미 했나 — 한 차례에 한 번만 물어볼 수 있다 */
+  asked: boolean;
 }
 
 export function encodeHello(peerId: string): GameMessage {
@@ -54,6 +56,7 @@ export function decodeSync(msg: GameMessage): SyncPayload | null {
     turnPeerId: typeof p.turnPeerId === 'string' ? p.turnPeerId : null,
     theme: typeof p.theme === 'string' ? p.theme : '',
     feed: Array.isArray(p.feed) ? (p.feed as FeedEntry[]) : [],
+    asked: p.asked === true,
   };
 }
 

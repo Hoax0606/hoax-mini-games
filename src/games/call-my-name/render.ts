@@ -20,6 +20,8 @@ export interface CnRenderState {
   turnPeerId: string | null;
   theme: string;
   feed: FeedEntry[];
+  /** 차례인 사람이 이번 차례 질문을 이미 했나 */
+  asked: boolean;
   myPeerId: string;
   isSpectator: boolean;
   notice: string;
@@ -31,9 +33,6 @@ export interface CnCallbacks {
   onGuess(word: string): void;
   onPass(): void;
 }
-
-/** 빠른 대답 — 자유 입력이 본체고 이건 거드는 용도. 애매한 쪽을 일부러 섞었다 */
-const QUICK_ANSWERS = ['응', '아니', '글쎄…', '비슷해'];
 
 export class CallMyNameRenderer {
   private canvas: HTMLCanvasElement;
@@ -120,8 +119,9 @@ export class CallMyNameRenderer {
       this.drawBoard(s, me);
     }
 
-    // 차례가 바뀔 때만 다시 그린다 — 남들끼리 차례가 넘어가도 내가 치던 대답은 살아있게
-    const actionKey = `${myTurn}|${s.turnPeerId === null}|${s.isSpectator}|${me?.solved ?? false}`;
+    // 내 상황이 바뀔 때만 다시 그린다 — 남들끼리 차례가 넘어가도 내가 치던 대답은 살아있게
+    const actionKey = `${myTurn}|${myTurn && s.asked}|${s.turnPeerId === null}` +
+      `|${s.isSpectator}|${me?.solved ?? false}`;
     if (actionKey !== this.actionKey) {
       this.actionKey = actionKey;
       this.drawAction(s, me, myTurn);
@@ -216,31 +216,40 @@ export class CallMyNameRenderer {
       this.actionEl.innerHTML = '<p class="cn-hint">곧 결과가 나와요…</p>';
       return;
     }
-    if (myTurn) this.drawAskForm();
+    if (myTurn) this.drawAskForm(s.asked);
     else this.drawAnswerForm(me);
   }
 
-  /** 내 차례 — 묻거나, 맞히거나, 넘기거나 */
-  private drawAskForm(): void {
-    this.actionEl.innerHTML = `
-      <p class="cn-hint">자유롭게 물어보세요 · 감이 오면 정답을 말해요</p>
+  /**
+   * 내 차례 — 질문은 한 번만.
+   * 묻고 나면 질문창이 사라지고 '정답 / 다음 사람' 만 남는다.
+   * 계속 물어볼 수 있게 두면 2인 게임에서 상대가 영영 질문을 못 한다.
+   */
+  private drawAskForm(asked: boolean): void {
+    const guessRow = `
+      <form class="cn-form${asked ? '' : ' cn-form-sub'}" id="cn-guess-form">
+        <input class="cn-input cn-input-sm" id="cn-guess-input" type="text" maxlength="20"
+               autocomplete="off" placeholder="내 이마에 뭐가 붙어있을까?" />
+        <button type="submit" class="cn-btn cn-btn-hl">정답!</button>
+        <button type="button" class="cn-btn cn-btn-ghost" id="cn-pass">${
+          asked ? '다음 사람' : '넘기기'}</button>
+      </form>`;
+
+    this.actionEl.innerHTML = asked
+      ? `<p class="cn-hint">대답을 보고 정답을 말하거나, 다음 사람에게 넘겨요</p>${guessRow}`
+      : `
+      <p class="cn-hint">질문은 한 번이에요 · 묻고 나면 정답을 말하거나 넘겨요</p>
       <form class="cn-form" id="cn-ask-form">
         <input class="cn-input" id="cn-ask-input" type="text" maxlength="60" autocomplete="off"
                placeholder="예: 나 먹을 수 있는 거야?" />
         <button type="submit" class="cn-btn">물어보기</button>
-      </form>
-      <form class="cn-form cn-form-sub" id="cn-guess-form">
-        <input class="cn-input cn-input-sm" id="cn-guess-input" type="text" maxlength="20"
-               autocomplete="off" placeholder="내 이마에 뭐가 붙어있을까?" />
-        <button type="submit" class="cn-btn cn-btn-hl">정답!</button>
-        <button type="button" class="cn-btn cn-btn-ghost" id="cn-pass">넘기기</button>
-      </form>`;
+      </form>${guessRow}`;
 
-    this.wireForm('cn-ask-form', 'cn-ask-input', (v) => this.cb.onAsk(v));
+    if (!asked) this.wireForm('cn-ask-form', 'cn-ask-input', (v) => this.cb.onAsk(v));
     this.wireForm('cn-guess-form', 'cn-guess-input', (v) => this.cb.onGuess(v));
     this.actionEl.querySelector<HTMLButtonElement>('#cn-pass')
       ?.addEventListener('click', () => this.cb.onPass());
-    this.focusSoon('cn-ask-input');
+    this.focusSoon(asked ? 'cn-guess-input' : 'cn-ask-input');
   }
 
   /** 남 차례 — 대답만. 이미 맞힌 사람도 계속 대답한다 */
@@ -250,19 +259,12 @@ export class CallMyNameRenderer {
       : '거짓말은 금지 · 애매하게 답하는 건 OK';
     this.actionEl.innerHTML = `
       <p class="cn-hint">${hint}</p>
-      <div class="cn-quick">${
-        QUICK_ANSWERS.map((a) => `<button type="button" class="cn-chip" data-a="${
-          escapeHtml(a)}">${escapeHtml(a)}</button>`).join('')
-      }</div>
       <form class="cn-form" id="cn-ans-form">
         <input class="cn-input" id="cn-ans-input" type="text" maxlength="60" autocomplete="off"
                placeholder="그건 좀 애매한데…" />
         <button type="submit" class="cn-btn">대답</button>
       </form>`;
 
-    for (const b of this.actionEl.querySelectorAll<HTMLButtonElement>('.cn-chip')) {
-      b.addEventListener('click', () => this.cb.onAnswer(b.dataset['a'] ?? ''));
-    }
     this.wireForm('cn-ans-form', 'cn-ans-input', (v) => this.cb.onAnswer(v));
     this.focusSoon('cn-ans-input');
   }
@@ -366,12 +368,6 @@ const CSS = `
 .cn-btn-ghost{background:transparent;color:var(--text-muted);border:1.5px solid var(--border);
   padding:6px 13px;font-size:13px;}
 .cn-btn-ghost:hover{background:var(--bg-subtle);}
-
-.cn-quick{display:flex;flex-wrap:wrap;gap:6px;justify-content:center;}
-.cn-chip{font:inherit;font-weight:800;font-size:12.5px;color:var(--text-main);
-  background:var(--bg-card);border:1.5px solid var(--border);border-radius:var(--radius-full);
-  padding:5px 14px;cursor:pointer;}
-.cn-chip:hover{border-color:var(--accent);color:var(--accent);background:var(--accent-soft);}
 
 .cn-notice{font-size:12.5px;font-weight:700;color:var(--danger);text-align:center;flex:0 0 auto;}
 .cn-notice[hidden]{display:none;}
