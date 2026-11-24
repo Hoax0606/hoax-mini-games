@@ -16,6 +16,16 @@ export const DECK_MAX = 100;
 export const MAX_LIVES = 5;
 export const MAX_STARS = 3;
 
+/**
+ * 화면에 띄우는 소식 한 줄. 쌓아두지 않고 **가장 최근 것만** 들고 다닌다.
+ * 말이 금지된 게임이라 화면도 조용해야 한다 — 로그가 쌓이면 그쪽으로 눈이 간다.
+ */
+export interface NewsLine {
+  text: string;
+  /** 실수처럼 나쁜 소식이면 true — 색이 달라진다 */
+  bad: boolean;
+}
+
 export interface MindPlayer {
   peerId: string;
   nickname: string;

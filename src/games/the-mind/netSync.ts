@@ -10,7 +10,7 @@
  */
 
 import type { GameMessage, GameResult } from '../types';
-import type { MindPlayer } from './rules';
+import type { MindPlayer, NewsLine } from './rules';
 
 const T_HELLO = 'tm:hello';
 const T_SYNC = 'tm:sync';
@@ -32,7 +32,7 @@ export interface SyncPayload {
   pile: number[];
   /** 실수·수리검으로 버려진 카드 */
   burned: number[];
-  log: string[];
+  news: NewsLine;
 }
 
 export function encodeHello(peerId: string): GameMessage {
@@ -63,8 +63,12 @@ export function decodeSync(msg: GameMessage): SyncPayload | null {
     players: p.players as MindPlayer[],
     pile: arr(p.pile),
     burned: arr(p.burned),
-    log: Array.isArray(p.log) ? (p.log as string[]) : [],
+    news: isNews(p.news) ? p.news : { text: '', bad: false },
   };
+}
+
+function isNews(v: unknown): v is NewsLine {
+  return !!v && typeof (v as NewsLine).text === 'string';
 }
 
 export function encodeReady(from: string): GameMessage {

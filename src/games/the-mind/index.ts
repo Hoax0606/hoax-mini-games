@@ -13,7 +13,8 @@
 import type { GameContext, GameMessage, GameModule, GameResult, Player } from '../types';
 import {
   MAX_LIVES, MAX_STARS, parseGoal, startLives, bonusFor, dealCards,
-  lowerCardsThan, isLevelClear, allWantStar, allReady, type MindPlayer,
+  lowerCardsThan, isLevelClear, allWantStar, allReady,
+  type MindPlayer, type NewsLine,
 } from './rules';
 import { TheMindRenderer } from './render';
 import {
@@ -28,7 +29,6 @@ const HELLO_RETRY_MS = 1_500;
 const END_DELAY_MS = 1_800;
 /** 레벨을 깼을 때 축하 표시를 띄워두는 시간 */
 const LEVEL_CLEAR_MS = 1_600;
-const LOG_KEEP = 5;
 /** 화면에 보여줄 만큼만 들고 다닌다 */
 const PILE_KEEP = 8;
 const BURNED_KEEP = 10;
@@ -52,7 +52,7 @@ class TheMindModule implements GameModule {
   private players: MindPlayer[] = [];
   private pile: number[] = [];
   private burned: number[] = [];
-  private log: string[] = [];
+  private news: NewsLine = { text: '', bad: false };
 
   private notice = '';
   private noticeUntil = 0;
@@ -124,7 +124,7 @@ class TheMindModule implements GameModule {
       level: this.level, goal: this.goal, lives: this.lives, stars: this.stars,
       players: this.players,
       myCards: me?.cards ?? [],
-      pile: this.pile, burned: this.burned, log: this.log,
+      pile: this.pile, burned: this.burned, news: this.news,
       myPeerId: this.myPeerId,
       isSpectator: this.isSpectator,
       notice: this.notice,
@@ -163,8 +163,8 @@ class TheMindModule implements GameModule {
   // 호스트 — 판정
   // ============================================
 
-  private pushLog(line: string): void {
-    this.log = [...this.log, line].slice(-LOG_KEEP);
+  private say(text: string, bad = false): void {
+    this.news = { text, bad };
   }
 
   /** 카드를 새로 나눠주고 준비 단계로. 레벨 시작은 전원이 준비를 눌러야 한다 */
@@ -181,7 +181,7 @@ class TheMindModule implements GameModule {
       // 이미 나간 사람까지 기다리면 레벨이 영영 안 시작된다
       p.ready = this.leftPeers.has(p.peerId);
     });
-    this.pushLog(`레벨 ${level} — 한 사람당 ${level}장`);
+    this.say(`레벨 ${level} — 한 사람당 ${level}장`);
     this.broadcastSync();
   }
 
@@ -192,7 +192,7 @@ class TheMindModule implements GameModule {
     p.ready = true;
     if (allReady(this.players)) {
       this.phase = 'play';
-      this.pushLog('시작! 작은 숫자부터, 말은 금지');
+      this.say('시작! 작은 숫자부터, 말은 금지');
       sound.play('tetris_harddrop');
     }
     this.broadcastSync();
@@ -221,11 +221,11 @@ class TheMindModule implements GameModule {
       lost.sort((a, b) => a - b);
       this.lives--;
       this.burned = [...this.burned, ...lost].slice(-BURNED_KEEP);
-      this.pushLog(`${me.nickname} 님이 ${card} — 더 작은 ${lost.join(', ')} 가 날아갔어요`);
+      this.say(`${me.nickname} 님이 ${card} — 더 작은 ${lost.join(', ')} 가 날아갔어요`, true);
       sound.play('tetris_topout');
       this.clearStarFlags();
     } else {
-      this.pushLog(`${me.nickname} 님이 ${card}`);
+      this.say(`${me.nickname} 님이 ${card}`);
       sound.play('tetris_lock');
     }
 
@@ -259,7 +259,7 @@ class TheMindModule implements GameModule {
     thrown.sort((a, b) => a - b);
     this.burned = [...this.burned, ...thrown].slice(-BURNED_KEEP);
     this.clearStarFlags();
-    this.pushLog(`수리검! ${thrown.join(', ')} 를 버렸어요`);
+    this.say(`수리검! ${thrown.join(', ')} 를 버렸어요`);
     sound.play('tetris_clear');
 
     if (isLevelClear(this.players)) { this.clearLevel(); return; }
@@ -279,7 +279,7 @@ class TheMindModule implements GameModule {
       bonus.lives > 0 ? '생명 +1' : '',
       bonus.stars > 0 ? '수리검 +1' : '',
     ].filter(Boolean).join(' · ');
-    this.pushLog(`레벨 ${this.level} 클리어!${extra ? ` (${extra})` : ''}`);
+    this.say(`레벨 ${this.level} 클리어!${extra ? ` (${extra})` : ''}`);
     sound.play('tetris_tetris');
 
     if (this.level >= this.goal) { this.finishAsHost(true); return; }
@@ -314,7 +314,7 @@ class TheMindModule implements GameModule {
     return {
       phase: this.phase, level: this.level, goal: this.goal,
       lives: this.lives, stars: this.stars,
-      players, pile: this.pile, burned: this.burned, log: this.log,
+      players, pile: this.pile, burned: this.burned, news: this.news,
     };
   }
 
@@ -322,7 +322,7 @@ class TheMindModule implements GameModule {
     if (this.ended) return;
     this.ended = true;
     this.phase = 'done';
-    this.pushLog(won ? `레벨 ${this.goal} 까지 전부 클리어!` : '생명을 다 썼어요…');
+    this.say(won ? `레벨 ${this.goal} 까지 전부 클리어!` : '생명을 다 썼어요…', !won);
     this.broadcastSync();
 
     const rankings = [...this.players]
@@ -386,7 +386,7 @@ class TheMindModule implements GameModule {
       this.players = sync.players;
       this.pile = sync.pile;
       this.burned = sync.burned;
-      this.log = sync.log;
+      this.news = sync.news;
       this.syncedOnce = true;
       // 소리는 호스트가 안 보내준다 — 생명이 줄어든 걸 보고 각자 낸다
       if (this.lives < wasLives) sound.play('tetris_topout');
@@ -405,12 +405,12 @@ class TheMindModule implements GameModule {
     // 나간 사람 카드는 테이블에서 치운다 — 영영 안 나올 카드를 기다릴 순 없다
     this.burned = [...this.burned, ...gone.cards].slice(-BURNED_KEEP);
     this.players.splice(idx, 1);
-    this.pushLog(`${gone.nickname} 님이 나갔어요`);
+    this.say(`${gone.nickname} 님이 나갔어요`, true);
 
     if (this.players.length === 0) { this.finishAsHost(false); return; }
     if (this.phase === 'ready' && allReady(this.players)) {
       this.phase = 'play';
-      this.pushLog('시작! 작은 숫자부터, 말은 금지');
+      this.say('시작! 작은 숫자부터, 말은 금지');
     }
     if (this.phase === 'play' && isLevelClear(this.players)) { this.clearLevel(); return; }
     this.broadcastSync();

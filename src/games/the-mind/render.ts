@@ -9,7 +9,7 @@
  * 남의 카드는 숫자를 절대 안 그린다. 장수만 보여준다.
  */
 
-import type { MindPlayer } from './rules';
+import type { MindPlayer, NewsLine } from './rules';
 import type { Phase } from './netSync';
 import { escapeHtml } from '../../ui/escape';
 
@@ -23,7 +23,7 @@ export interface TmRenderState {
   myCards: number[];
   pile: number[];
   burned: number[];
-  log: string[];
+  news: NewsLine;
   myPeerId: string;
   isSpectator: boolean;
   notice: string;
@@ -51,7 +51,7 @@ export class TheMindRenderer {
   private othersEl: HTMLDivElement;
   private handEl: HTMLDivElement;
   private actionEl: HTMLDivElement;
-  private logEl: HTMLDivElement;
+  private newsEl: HTMLDivElement;
   private noticeEl: HTMLDivElement;
 
   private headKey = '';
@@ -59,7 +59,7 @@ export class TheMindRenderer {
   private othersKey = '';
   private handKey = '';
   private actionKey = '';
-  private logKey = '';
+  private newsKey = '';
 
   constructor(canvas: HTMLCanvasElement, cb: TmCallbacks) {
     this.canvas = canvas;
@@ -72,11 +72,12 @@ export class TheMindRenderer {
 
     this.root = document.createElement('div');
     this.root.className = 'tm-screen';
+    // 상태(레벨·생명·남들)는 위에 모으고, 가운데는 숫자 하나만 남긴다
     this.root.innerHTML = `
       <div class="tm-head" id="tm-head"></div>
-      <div class="tm-pile" id="tm-pile"></div>
       <div class="tm-others" id="tm-others"></div>
-      <div class="tm-log" id="tm-log"></div>
+      <div class="tm-pile" id="tm-pile"></div>
+      <div class="tm-news" id="tm-news"></div>
       <div class="tm-notice" id="tm-notice" hidden></div>
       <div class="tm-hand" id="tm-hand"></div>
       <div class="tm-action" id="tm-action"></div>
@@ -92,7 +93,7 @@ export class TheMindRenderer {
     this.othersEl = q('tm-others');
     this.handEl = q('tm-hand');
     this.actionEl = q('tm-action');
-    this.logEl = q('tm-log');
+    this.newsEl = q('tm-news');
     this.noticeEl = q('tm-notice');
   }
 
@@ -125,13 +126,8 @@ export class TheMindRenderer {
       + `|${me?.wantsStar ?? false}|${s.stars > 0}|${(me?.left ?? 0) > 0}|${cleared}`;
     if (actionKey !== this.actionKey) { this.actionKey = actionKey; this.drawAction(s, me, cleared); }
 
-    const logKey = s.log.join('|');
-    if (logKey !== this.logKey) {
-      this.logKey = logKey;
-      this.logEl.innerHTML = s.log
-        .map((l) => `<div class="tm-logline">${escapeHtml(l)}</div>`).join('');
-      this.logEl.scrollTop = this.logEl.scrollHeight;
-    }
+    const newsKey = `${s.news.text}|${s.news.bad}|${s.burned.join(',')}|${cleared}`;
+    if (newsKey !== this.newsKey) { this.newsKey = newsKey; this.drawNews(s, cleared); }
 
     this.noticeEl.textContent = s.notice;
     this.noticeEl.hidden = !s.notice;
@@ -161,10 +157,20 @@ export class TheMindRenderer {
       <div class="tm-prev">${prev.map((c) => `<span>${c}</span>`).join('')}</div>
       <div class="tm-top${top === undefined ? ' is-empty' : ''}">${
         top === undefined ? '—' : top
-      }</div>
-      <div class="tm-burned">${
-        s.burned.length === 0 ? '' : `날아간 카드 ${s.burned.join(' · ')}`
       }</div>`;
+  }
+
+  /**
+   * 소식 한 줄 + 이번 레벨에 사라진 카드.
+   * 사라진 카드를 계속 띄워두는 건, 영영 안 나올 숫자를 기다리지 말라는 뜻이다.
+   */
+  private drawNews(s: TmRenderState, cleared: boolean): void {
+    const burned = s.burned.length === 0 ? ''
+      : `<div class="tm-burned">사라진 카드 ${s.burned.join(' · ')}</div>`;
+    // 클리어 순간엔 가운데에 큰 글씨가 이미 떠 있다 — 같은 말을 두 번 쓰지 않는다
+    const line = cleared ? ''
+      : `<div class="tm-news-line${s.news.bad ? ' is-bad' : ''}">${escapeHtml(s.news.text)}</div>`;
+    this.newsEl.innerHTML = line + burned;
   }
 
   /** 남들 — 숫자는 절대 안 보여준다. 몇 장 남았는지만 */
@@ -261,14 +267,13 @@ const CSS = `
 .tm-heart{display:block;margin-right:1px;}
 
 /* 중앙 — 마지막 카드 */
-.tm-pile{flex:0 0 auto;display:flex;flex-direction:column;align-items:center;gap:4px;min-height:96px;
-  justify-content:center;}
+.tm-pile{flex:0 0 auto;display:flex;flex-direction:column;align-items:center;gap:4px;
+  min-height:84px;justify-content:center;}
 .tm-prev{display:flex;gap:6px;height:15px;align-items:center;}
 .tm-prev span{font-size:12px;font-weight:800;color:var(--text-muted);opacity:.55;}
 .tm-top{font-size:clamp(40px, 9vh, 60px);font-weight:900;line-height:1;color:var(--accent);
   min-width:92px;text-align:center;}
 .tm-top.is-empty{color:var(--border);}
-.tm-burned{font-size:11px;font-weight:700;color:var(--danger);height:14px;}
 .tm-clear{font-size:clamp(22px, 5vh, 30px);font-weight:900;color:var(--mint-500);}
 
 .tm-others{display:flex;flex-wrap:wrap;gap:6px;justify-content:center;max-width:620px;flex:0 0 auto;}
@@ -284,10 +289,11 @@ const CSS = `
 .tm-starred{color:var(--highlight-ink);}
 .tm-empty{font-size:12.5px;color:var(--text-muted);text-align:center;}
 
-.tm-log{width:100%;max-width:420px;max-height:62px;overflow-y:auto;scrollbar-width:thin;
-  display:flex;flex-direction:column;gap:2px;flex:0 1 auto;}
-.tm-logline{font-size:11px;color:var(--text-muted);background:var(--bg-subtle);
-  border-radius:var(--radius-sm);padding:3px 10px;text-align:center;}
+.tm-news{flex:0 0 auto;display:flex;flex-direction:column;align-items:center;gap:3px;
+  max-width:460px;min-height:32px;justify-content:center;}
+.tm-news-line{font-size:12.5px;font-weight:700;color:var(--text-muted);text-align:center;}
+.tm-news-line.is-bad{color:var(--danger);}
+.tm-burned{font-size:11px;font-weight:700;color:var(--text-muted);opacity:.8;text-align:center;}
 
 /* 내 카드 — 누르면 낸다 */
 .tm-hand{display:flex;flex-wrap:wrap;gap:7px;justify-content:center;max-width:620px;
