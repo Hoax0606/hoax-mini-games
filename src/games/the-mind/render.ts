@@ -166,7 +166,7 @@ export class TheMindRenderer {
    */
   private drawNews(s: TmRenderState, cleared: boolean): void {
     const burned = s.burned.length === 0 ? ''
-      : `<div class="tm-burned">사라진 카드 ${s.burned.join(' · ')}</div>`;
+      : `<div class="tm-burned">버려진 카드 ${s.burned.join(' · ')}</div>`;
     // 클리어 순간엔 가운데에 큰 글씨가 이미 떠 있다 — 같은 말을 두 번 쓰지 않는다
     const line = cleared ? ''
       : `<div class="tm-news-line${s.news.bad ? ' is-bad' : ''}">${escapeHtml(s.news.text)}</div>`;

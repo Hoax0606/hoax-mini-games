@@ -221,11 +221,11 @@ class TheMindModule implements GameModule {
       lost.sort((a, b) => a - b);
       this.lives--;
       this.burned = [...this.burned, ...lost].slice(-BURNED_KEEP);
-      this.say(`${me.nickname} 님이 ${card} — 더 작은 ${lost.join(', ')} 가 날아갔어요`, true);
+      this.say(`${me.nickname} 님이 조금 빨랐어요 — 더 작은 카드가 ${lost.length}장 남아 있었어요`, true);
       sound.play('tetris_topout');
       this.clearStarFlags();
     } else {
-      this.say(`${me.nickname} 님이 ${card}`);
+      this.say(`${me.nickname} 님이 냈어요`);
       sound.play('tetris_lock');
     }
 
@@ -259,7 +259,7 @@ class TheMindModule implements GameModule {
     thrown.sort((a, b) => a - b);
     this.burned = [...this.burned, ...thrown].slice(-BURNED_KEEP);
     this.clearStarFlags();
-    this.say(`수리검! ${thrown.join(', ')} 를 버렸어요`);
+    this.say('수리검! 각자 제일 작은 카드를 버렸어요');
     sound.play('tetris_clear');
 
     if (isLevelClear(this.players)) { this.clearLevel(); return; }
