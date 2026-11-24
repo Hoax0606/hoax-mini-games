@@ -17,7 +17,6 @@ import { CATEGORIES } from '../liar-game/words';
  * 감정·색깔·도형 같은 건 "내가 ○○야?" 로 좁혀갈 수가 없어서 뺐다.
  */
 export const THEMES: { key: string; label: string; cats: string[] }[] = [
-  { key: 'all', label: '전체', cats: [] }, // 아래 주제들을 전부 합친다
   {
     key: 'food', label: '음식',
     cats: ['한식', '분식', '면요리', '패스트푸드', '세계요리', '디저트', '빵',
@@ -41,17 +40,30 @@ export const THEMES: { key: string; label: string; cats: string[] }[] = [
   },
 ];
 
+/** 방 옵션에서 고를 수 있는 '랜덤' — 실제 주제가 아니라 "시작할 때 하나 뽑아라" 는 표시 */
+export const RANDOM_THEME = 'random';
+
 export function parseTheme(raw: string | undefined): string {
-  return THEMES.some((t) => t.key === raw) ? (raw as string) : 'all';
+  if (raw === RANDOM_THEME) return RANDOM_THEME;
+  return THEMES.some((t) => t.key === raw) ? (raw as string) : RANDOM_THEME;
 }
 
-/** 그 주제의 단어 풀. 'all' 이면 나머지 주제를 전부 합친다 */
+/**
+ * 고른 주제를 실제 주제 하나로 확정한다.
+ * '랜덤' 이면 여기서 뽑는다 — **호스트가 시작할 때 딱 한 번만** 부를 것.
+ * 게스트가 따로 부르면 서로 다른 주제를 뽑아버린다 (확정된 주제는 sync 로 내려간다).
+ */
+export function resolveTheme(themeKey: string): { key: string; label: string } {
+  const found = THEMES.find((t) => t.key === themeKey);
+  if (found) return { key: found.key, label: found.label };
+  const t = THEMES[Math.floor(Math.random() * THEMES.length)]!;
+  return { key: t.key, label: t.label };
+}
+
+/** 그 주제의 단어 풀 */
 export function wordPool(themeKey: string): string[] {
   const theme = THEMES.find((t) => t.key === themeKey) ?? THEMES[0]!;
-  const names = theme.cats.length > 0
-    ? theme.cats
-    : THEMES.flatMap((t) => t.cats);
-  const want = new Set(names);
+  const want = new Set(theme.cats);
   const out: string[] = [];
   for (const c of CATEGORIES) {
     if (want.has(c.name)) out.push(...c.words);
@@ -78,6 +90,28 @@ export function pickWords(themeKey: string, count: number): string[] {
 export function isCorrect(guess: string, answer: string): boolean {
   const norm = (s: string): string => s.replace(/\s+/g, '').trim();
   return norm(guess) === norm(answer) && norm(guess).length > 0;
+}
+
+/**
+ * 화면 아래 대화 한 줄.
+ *   ask = 차례인 사람의 질문 · ans = 나머지 사람들의 대답 · sys = 진행 알림
+ *
+ * 대답을 양식(예/아니오)으로 가두지 않은 건 일부러다.
+ * "글쎄…", "반반?" 처럼 **애매하게 답하는 게 이 게임의 묘미**라서,
+ * 빠른 버튼은 거들기만 하고 결국은 자유 입력이 본체다.
+ */
+export interface FeedEntry {
+  kind: 'sys' | 'ask' | 'ans';
+  /** 말한 사람 닉네임. sys 면 빈 문자열 */
+  who: string;
+  text: string;
+}
+
+/** 한 줄 길이 제한 — 너무 길면 화면이 무너진다 */
+export const FEED_TEXT_MAX = 60;
+
+export function clipFeedText(raw: string): string {
+  return raw.trim().replace(/\s+/g, ' ').slice(0, FEED_TEXT_MAX);
 }
 
 export interface PlayerState {
