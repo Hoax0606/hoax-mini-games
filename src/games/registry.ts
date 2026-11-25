@@ -34,6 +34,7 @@ import kordleThumbnail from './kordle/thumbnail.svg';
 import callMyNameThumbnail from './call-my-name/thumbnail.svg';
 import subwayTypingThumbnail from './subway-typing/thumbnail.svg';
 import theMindThumbnail from './the-mind/thumbnail.svg';
+import davinciCodeThumbnail from './davinci-code/thumbnail.svg';
 
 export const games: GameEntry[] = [
   {
@@ -618,6 +619,34 @@ export const games: GameEntry[] = [
     load: async () => {
       const mod = await import('./call-my-name');
       return mod.createCallMyName();
+    },
+  },
+  {
+    meta: {
+      id: 'davinci-code',
+      categories: ['보드게임', '추리', '두뇌'],
+      name: '다빈치 코드',
+      description: '숫자 타일을 가리고 오름차순으로 놓은 뒤, 상대 타일의 숫자를 찍어 맞혀요. 틀리면 내 타일이 공개돼요. 전부 공개되면 탈락, 마지막 한 명이 승리!',
+      thumbnail: davinciCodeThumbnail,
+      minPlayers: 2,
+      maxPlayers: 4,
+      roomOptions: [
+        {
+          key: 'turnLimit',
+          label: '제한 시간',
+          type: 'select',
+          choices: [
+            { value: '0', label: '없음' },
+            { value: '30', label: '30초' },
+            { value: '60', label: '60초' },
+          ],
+          defaultValue: '0',
+        },
+      ],
+    },
+    load: async () => {
+      const mod = await import('./davinci-code');
+      return mod.createDavinciCode();
     },
   },
   {

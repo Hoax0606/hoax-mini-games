@@ -1,0 +1,54 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 200" width="320" height="200">
+  <defs>
+    <linearGradient id="dvbg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#ddf2ef"/>
+      <stop offset="100%" stop-color="#fff8e1"/>
+    </linearGradient>
+    <filter id="dvsh" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow dx="0" dy="3" stdDeviation="3" flood-color="#3a6b63" flood-opacity="0.26"/>
+    </filter>
+  </defs>
+
+  <rect width="320" height="200" rx="22" fill="url(#dvbg)"/>
+
+  <!-- 점 데코 (네 모서리 근처) -->
+  <circle cx="30" cy="30" r="4" fill="#c5e8e1"/>
+  <circle cx="292" cy="38" r="5" fill="#ffeeb8"/>
+  <circle cx="36" cy="170" r="5" fill="#8ccfc6"/>
+  <circle cx="286" cy="166" r="4" fill="#c5e8e1"/>
+
+  <!-- 별 데코 -->
+  <path d="M62 50 l2.6 5.6 6.1.7-4.6 4.1 1.3 6-5.4-3.1-5.4 3.1 1.3-6-4.6-4.1 6.1-.7z" fill="#ffeeb8"/>
+  <path d="M258 146 l2.2 4.7 5.1.6-3.8 3.4 1.1 5-4.6-2.6-4.5 2.6 1.1-5-3.9-3.4 5.2-.6z" fill="#c5e8e1"/>
+
+  <!-- 중앙: 숨겨진 타일 줄 (가운데 하나만 공개) -->
+  <g filter="url(#dvsh)">
+    <rect x="86" y="74" width="30" height="46" rx="7" fill="#2f4a46"/>
+    <rect x="120" y="74" width="30" height="46" rx="7" fill="#fffdf5" stroke="#cfe3df" stroke-width="1.6"/>
+    <rect x="154" y="68" width="34" height="52" rx="8" fill="#fffdf5" stroke="#2a9488" stroke-width="2.4"/>
+    <rect x="192" y="74" width="30" height="46" rx="7" fill="#2f4a46"/>
+    <rect x="226" y="74" width="30" height="46" rx="7" fill="#fffdf5" stroke="#cfe3df" stroke-width="1.6"/>
+  </g>
+  <!-- 공개된 타일의 숫자 -->
+  <text x="171" y="104" text-anchor="middle" font-family="Pretendard, system-ui, sans-serif"
+        font-size="24" font-weight="900" fill="#2a9488">7</text>
+
+  <!-- 닫힌 타일 위의 물음표 -->
+  <text x="101" y="104" text-anchor="middle" font-family="Pretendard, system-ui, sans-serif"
+        font-size="20" font-weight="900" fill="#6b8a85">?</text>
+  <text x="207" y="104" text-anchor="middle" font-family="Pretendard, system-ui, sans-serif"
+        font-size="20" font-weight="900" fill="#6b8a85">?</text>
+
+  <!-- 좌상단 보조: 돋보기 -->
+  <g transform="translate(44 92)">
+    <circle cx="0" cy="0" r="11" fill="none" stroke="#2a9488" stroke-width="3"/>
+    <line x1="8" y1="8" x2="15" y2="15" stroke="#2a9488" stroke-width="3.4" stroke-linecap="round"/>
+  </g>
+
+  <!-- 우하단 보조: 작은 조커 타일 -->
+  <g transform="translate(272 108) rotate(14)">
+    <rect x="-11" y="-16" width="22" height="33" rx="6" fill="#ffd96b" stroke="#f5c33d" stroke-width="1.6"/>
+    <text x="0" y="7" text-anchor="middle" font-family="Pretendard, system-ui, sans-serif"
+          font-size="15" font-weight="900" fill="#8a6a10">J</text>
+  </g>
+</svg>
