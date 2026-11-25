@@ -184,9 +184,9 @@ class SubwayTypingModule implements GameModule {
   /**
    * 역 이름을 다 치면 **자동으로** 다음 역으로 넘어간다 (엔터 안 쳐도 됨).
    *
-   * 넘어갈 때 입력창은 renderer.clearInput 이 IME 버퍼까지 비운다.
-   * 그냥 value='' 로 지우면 조합 중이던 마지막 글자가 다음 역으로 흘러들어간다
-   * (왕십리 다음 한양대를 치면 '리한양'). 자세한 건 render.clearInput 주석 참고.
+   * 넘어갈 때 입력창은 **비우지 않는다.** 그 순간 마지막 글자가 아직 IME 조합 중이라
+   * value 를 건드리면 조합이 깨진다. renderer.markStationPassed 가 표시만 옮기고,
+   * 다음 역 입력은 그 뒤에 이어 쳐진 글자로 읽힌다. 자세한 건 render.ts 상단 주석 참고.
    */
   private onType(value: string): void {
     if (this.finished || this.isSpectator) return;
@@ -205,7 +205,7 @@ class SubwayTypingModule implements GameModule {
     if (isComplete(value, target)) {
       this.me.index++;
       this.typed = '';
-      this.renderer?.clearInput();
+      this.renderer?.markStationPassed();
       sound.play('tetris_lock');
       if (this.me.index >= this.course.length) this.completeRace();
       else this.report();

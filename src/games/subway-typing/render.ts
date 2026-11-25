@@ -8,8 +8,13 @@
  * 역을 하나 맞힐 때마다 전동차가 다음 역으로 들어가는 것처럼 보이게 한다.
  * (전동차를 움직이면 노선이 길 때 화면 밖으로 나가버린다)
  *
- * 입력창은 **한 번 만들고 다시 만들지 않는다.** 다시 만들면 한글 IME 조합이 끊겨
- * 치던 글자가 날아간다.
+ * ⚠️ **입력창은 조합 중에 절대 건드리지 않는다.** 다시 만들거나, value 를 비우거나,
+ *    blur/focus 를 하면 윈도우 IME 조합이 깨져서 글자가 따라붙거나 통째로 사라진다.
+ *    (역 이름을 다 친 순간은 마지막 글자가 아직 조합 중이라 늘 이 상황이다)
+ *
+ *    그래서 역을 통과해도 입력창을 비우지 않는다. `consumed` 로 "여기까지는 지나온 역"
+ *    표시만 옮기고, 지금 치는 역 이름은 `value.slice(consumed)` 로 읽는다.
+ *    대신 진짜 입력창은 투명하게 깔아 IME 만 받고, 보이는 글자는 .sb-typed 에 직접 그린다.
  */
 
 import type { Standing } from './netSync';
@@ -74,6 +79,14 @@ export class SubwayRenderer {
   private panelEl: HTMLDivElement;
   private overlayEl: HTMLDivElement;
   private trainEl: HTMLDivElement;
+  private boxEl: HTMLDivElement;
+  private typedEl: HTMLSpanElement;
+
+  /**
+   * 입력창에 이미 쌓인 "지나온 역들" 의 글자 수.
+   * 역을 통과해도 입력창을 비우지 않고 이 값만 올린다 — 자세한 이유는 파일 상단 주석 참고.
+   */
+  private consumed = 0;
 
   private builtCourseKey = '';
   private lastIndex = -1;
@@ -113,8 +126,11 @@ export class SubwayRenderer {
           <div class="sb-sidest" id="sb-next"></div>
         </div>
 
-        <input class="sb-input" id="sb-input" type="text" autocomplete="off"
-               autocapitalize="off" spellcheck="false" placeholder="역 이름 입력 후 Enter" />
+        <div class="sb-inputbox" id="sb-inputbox">
+          <span class="sb-typed" id="sb-typed"></span>
+          <input class="sb-sink" id="sb-input" type="text" autocomplete="off"
+                 autocapitalize="off" spellcheck="false" aria-label="역 이름 입력" />
+        </div>
         <div class="sb-overlay" id="sb-overlay" hidden></div>
       </div>
       <aside class="sb-side" id="sb-side"></aside>
@@ -139,11 +155,13 @@ export class SubwayRenderer {
     this.nextEl = q('sb-next');
     this.panelEl = q('sb-side');
     this.overlayEl = q('sb-overlay');
+    this.boxEl = q('sb-inputbox');
+    this.typedEl = q('sb-typed');
     this.input = q<HTMLInputElement>('sb-input');
 
+    // 입력창 전체 값에서 '지나온 역들' 몫을 떼어낸 나머지가 지금 치고 있는 역 이름이다
     this.input.addEventListener('input', () => {
-      if (this.clearing) return; // 비우는 중에 터지는 이벤트는 내 입력이 아니다
-      this.cb.onType(this.input.value);
+      this.cb.onType(this.input.value.slice(this.consumed));
     });
 
     /* 엔터 = 입력창 비우기. 꼬인 걸 한 번에 지우는 용도다.
@@ -153,13 +171,10 @@ export class SubwayRenderer {
     this.input.addEventListener('keydown', (e) => {
       if (e.key !== 'Enter' || e.isComposing) return;
       e.preventDefault();
-      this.clearInput();
+      this.resetInput();
       this.cb.onClear();
     });
   }
-
-  /** clearInput 이 일으킨 이벤트를 걸러내는 깃발 */
-  private clearing = false;
 
   destroy(): void {
     this.root.remove();
@@ -168,31 +183,40 @@ export class SubwayRenderer {
   }
 
   /**
-   * 입력창 비우기 — 역을 통과했을 때, 그리고 엔터를 눌렀을 때.
+   * 역을 하나 통과했다. **입력창은 손대지 않는다.** 여기까지가 지나온 역 몫이라고
+   * 표시만 옮긴다. 다음 역 입력은 `value.slice(consumed)` 로 읽힌다.
    *
-   * ⚠️ `value = ''` 만으로는 **IME 내부 버퍼가 안 지워진다.**
-   *    역 이름을 다 치는 순간은 마지막 글자가 아직 조합 중이라(한글 '리'),
-   *    값만 지우면 다음 글자를 칠 때 '리' 가 먼저 확정돼 튀어나왔다.
-   *    그래서 왕십리 다음에 한양대를 치면 '리한양' 이 됐다.
-   *
-   *    blur 는 조합을 강제로 확정시킨다. 확정된 글자가 값에 들어오면 그때 비우고
-   *    다시 포커스를 준다. 이러면 IME 가 깨끗한 상태로 다시 시작한다.
-   *    blur/focus 가 일으키는 compositionend·input 은 clearing 깃발로 거른다.
+   * 역 이름을 다 치는 순간은 마지막 글자가 아직 조합 중이라(한글 '리'),
+   * 이 시점에 value 를 비우거나 blur/focus 를 하면 OS IME 가 깨진다.
+   * 조합 중인 글자가 다음 역으로 따라붙거나('링'), 반대로 다음 글자가 통째로
+   * 사라지는('을지로3가' → '지로3가') 증상이 그거였다.
    */
-  clearInput(): void {
-    this.clearing = true;
-    const had = document.activeElement === this.input;
-    this.input.blur();
-    this.input.value = '';
-    if (had) this.input.focus();
-    this.input.value = '';
-    // 같은 틱에 안 오는 이벤트도 있어서 한 박자 뒤에 깃발을 내린다
-    window.setTimeout(() => { this.clearing = false; }, 0);
+  markStationPassed(): void {
+    this.consumed = this.input.value.length;
   }
 
+  /**
+   * 입력창을 진짜로 비운다. **조합이 확정된 시점에만** 불러야 한다.
+   * 지금은 엔터(조합 중이 아닐 때)에서만 부른다 — 꼬인 입력을 한 번에 지우는 용도.
+   */
+  resetInput(): void {
+    this.input.value = '';
+    this.consumed = 0;
+  }
+
+  /**
+   * 입력창에 포커스를 돌려준다. **render 루프가 매 프레임 부른다는 걸 전제로 짜야 한다.**
+   *
+   * ⚠️ 이미 포커스가 있으면 **아무것도 하지 말 것.** 이미 포커스된 요소에 focus() 를 또
+   *    부르면 Chrome 이 selection 을 복원하는데, 한글 조합 중에 selection 이 리셋되면
+   *    **조합이 취소되면서 조합 중이던 글자가 삭제된다.** focus/blur 이벤트도 안 나가서
+   *    원인이 전혀 안 보인다.
+   *    초당 60번 그러고 있었던 탓에 '을지로3가' 를 치면 '을' 이 통째로 사라져 '지로3가' 가 됐다.
+   */
   focus(): void {
     const a = document.activeElement;
-    if (a instanceof HTMLInputElement && a !== this.input) return; // 채팅 중이면 안 뺏는다
+    if (a === this.input) return; // 이미 포커스 있음 — 건드리면 조합이 깨진다
+    if (a instanceof HTMLInputElement) return; // 채팅 중이면 안 뺏는다
     this.input.focus();
   }
 
@@ -260,13 +284,17 @@ export class SubwayRenderer {
     }
 
     this.input.disabled = !running;
+    this.boxEl.classList.toggle('is-off', !running);
     // 입력창 안내만 일본 모드에선 일본어로 (치는 대상이 일본어라 톤을 맞춘다)
     const P = jp
       ? { spec: '観戦中', wait: 'まもなく発車…', fin: '完走しました', go: '駅名を入力（Enterで消去）' }
       : { spec: '관전 중', wait: '잠시 후 출발…', fin: '완주했어요', go: '역 이름 입력 (Enter 로 지움)' };
-    this.input.placeholder = s.isSpectator ? P.spec
+    // 보이는 글자는 투명한 진짜 입력창 대신 여기에 직접 그린다 (조합 중 input 을 안 건드리려고)
+    const ph = s.isSpectator ? P.spec
       : s.countdownMs > 0 ? P.wait
       : s.finished ? P.fin : P.go;
+    this.typedEl.textContent = s.typed || ph;
+    this.typedEl.classList.toggle('is-ph', s.typed.length === 0);
 
     if (s.countdownMs > 0) {
       this.overlayEl.hidden = false;
@@ -401,11 +429,22 @@ const CSS = `
 .sb-cur.sb-wrong .sb-restc{color:var(--danger);opacity:.75;border-bottom-color:var(--danger);}
 .sb-fin2{color:var(--mint-500);}
 
-.sb-input{width:100%;max-width:420px;padding:12px 20px;border:2px solid var(--border);
-  border-radius:var(--radius-full);font:inherit;font-size:20px;font-weight:700;text-align:center;
-  background:var(--bg-inset);color:var(--text-main);outline:none;}
-.sb-input:focus{border-color:var(--accent);box-shadow:0 0 0 4px rgba(63,179,162,.20);}
-.sb-input:disabled{opacity:.5;}
+/* ── 입력창 ──
+   진짜 <input> 은 투명하게 깔아두고 IME 만 받는다. 보이는 글자는 .sb-typed 에 직접 그린다.
+   역을 통과할 때 input 의 value·포커스를 건드리면 윈도우 IME 조합이 깨지기 때문이다
+   (자세한 건 markStationPassed 주석). 그래서 알약 모양은 바깥 상자가 담당한다. */
+.sb-inputbox{position:relative;width:100%;max-width:420px;min-height:52px;padding:12px 20px;
+  border:2px solid var(--border);border-radius:var(--radius-full);box-sizing:border-box;
+  background:var(--bg-inset);display:flex;align-items:center;justify-content:center;
+  font-size:20px;font-weight:700;}
+.sb-inputbox:focus-within{border-color:var(--accent);box-shadow:0 0 0 4px rgba(63,179,162,.20);}
+.sb-inputbox.is-off{opacity:.5;}
+.sb-typed{color:var(--text-main);white-space:nowrap;overflow:hidden;}
+.sb-typed.is-ph{color:var(--text-muted);font-weight:600;font-size:15px;}
+/* 글자·커서 모두 투명 — 상자 전체를 덮어 어디를 눌러도 포커스가 잡힌다 */
+.sb-sink{position:absolute;inset:0;width:100%;height:100%;padding:0 20px;box-sizing:border-box;
+  border:0;outline:none;background:transparent;font:inherit;text-align:center;
+  color:transparent;caret-color:transparent;}
 
 .sb-overlay{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
   background:rgba(242,251,249,.82);border-radius:var(--radius-lg);}
