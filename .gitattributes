@@ -1,0 +1,7 @@
+# .bat 은 줄바꿈 변환을 하지 않는다 (커밋된 CRLF 가 그대로 보존됨).
+#
+# 이유: public/hoax-fade.bat 은 빌드 때 dist 로 복사돼 사용자가 직접 내려받는 파일이다.
+# core.autocrlf=true 로 커밋하면 저장소에는 LF 로 들어가고, GitHub Actions 는
+# 리눅스에서 체크아웃하므로 LF 그대로 배포된다. 줄바꿈이 LF 인 배치 파일은
+# cmd 에서 괄호 블록(if / for)이나 레이블 처리가 깨질 수 있다.
+*.bat -text

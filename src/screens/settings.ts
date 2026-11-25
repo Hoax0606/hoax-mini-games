@@ -23,7 +23,7 @@ export function createSettingsScreen(): Screen {
 
         <div class="card pop-in">
           <div class="card-title">${icon('settings', { size: 24, hue: '#9a86c0' })} 설정</div>
-          <div class="card-subtitle">사운드 설정을 조절해보세요</div>
+          <div class="card-subtitle">사운드와 화면을 취향대로 맞춰보세요</div>
 
           <div class="slider-row">
             <span class="slider-label">${icon('volume', { size: 18, hue: '#5b9dff' })} 마스터 볼륨</span>
@@ -39,6 +39,25 @@ export function createSettingsScreen(): Screen {
           <div class="toggle-row">
             <span class="toggle-label">${icon('bell', { size: 18, hue: '#ff9838' })} 효과음 (SFX)</span>
             <div class="toggle ${settings.sfxEnabled ? 'on' : ''}" id="sfx-toggle"></div>
+          </div>
+
+          <div class="tool-row">
+            <div class="tool-head">
+              ${icon('eye', { size: 18, hue: '#5b9dff' })}
+              <span class="tool-title">화면 투명하게</span>
+              <span class="tool-tag">Windows 전용</span>
+            </div>
+            <p class="tool-desc">
+              브라우저 창 자체를 반투명하게 만들어, 뒤에 띄워둔 창이 비쳐 보이게 합니다.
+              설치 없이 실행만 하면 화면 구석에 작은 슬라이더가 떠요.
+            </p>
+            <a class="btn btn-secondary btn-sm" href="${import.meta.env.BASE_URL}hoax-fade.bat" download>
+              내려받기
+            </a>
+            <p class="tool-note">
+              처음 실행하면 "Windows의 PC 보호" 경고가 뜰 수 있어요 →
+              <b>추가 정보</b> → <b>실행</b>
+            </p>
           </div>
         </div>
       `;
