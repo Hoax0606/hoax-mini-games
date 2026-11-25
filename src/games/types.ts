@@ -18,6 +18,14 @@
  * 게임 선택 화면에 카드로 뿌려지는 정보 + 방 옵션 스키마.
  * 새 게임 추가 시 이 구조만 채우면 레지스트리에 등록 가능.
  */
+/**
+ * 게임 분류 — 목록/대기실의 분류 드롭다운에 쓴다.
+ * 한 게임이 여러 개에 속할 수 있다(복수 태그). 예: 알까기 = 보드게임 + 순발력.
+ * 값 자체가 UI 에 그대로 나오는 한국어라 별도 라벨 매핑이 없다.
+ */
+export const GAME_CATEGORIES = ['보드게임', '추리', '순발력', '두뇌', '단어', '그림'] as const;
+export type GameCategory = (typeof GAME_CATEGORIES)[number];
+
 export interface GameMeta {
   /** 유일 식별자 (URL 안전한 kebab-case). 예: "air-hockey" */
   id: string;
@@ -25,6 +33,8 @@ export interface GameMeta {
   name: string;
   /** 카드 설명 (1~2줄) */
   description: string;
+  /** 분류 — 최소 1개. 새 게임 추가 시 꼭 채울 것 */
+  categories: GameCategory[];
   /**
    * 썸네일 이미지 URL.
    * 사용법: `import thumb from './air-hockey/thumbnail.svg'` 해서 받은 값을 그대로 넣음.

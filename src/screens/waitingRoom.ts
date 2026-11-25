@@ -11,8 +11,9 @@ import { buildChatPanelHTML, wireChatPanel, appendChatMessage } from '../ui/chat
 import type { ChatMsg } from '../games/types';
 import { publishRoom, updatePublicRoom, unpublishRoom } from '../core/roomDirectory';
 import {
-  buildGameTilesHTML, buildGameOptionsHTML,
+  buildGameTilesHTML, buildGameOptionsHTML, buildPickedGameHTML,
   buildPlayerFilterHTML, wirePlayerFilter, reconcileOptions, type PlayerFilter,
+  buildCategoryFilterHTML, wireCategoryFilter, type CategoryFilter,
 } from '../ui/gamePicker';
 import { escapeHtml } from '../ui/escape';
 import { showReconnectOverlay, hideReconnectOverlay } from '../ui/reconnectOverlay';
@@ -165,17 +166,25 @@ export function createWaitingRoomAsHostScreen(args: WaitingRoomAsHostArgs): Scre
         <button class="back-btn" id="leave-btn" title="방 나가기">×</button>
 
         <div class="card waiting-card">
+          <!-- 제목 줄은 아래 body 와 같은 2단(260px + 나머지). '대기실'은 참가자 칼럼 위,
+               '게임 선택'은 그리드 위에 정확히 얹힌다. -->
           <div class="waiting-head">
             <div class="waiting-head-title">
               <div class="card-title">대기실</div>
-              <div class="card-subtitle" id="game-name">${escapeHtml(gameName())}</div>
             </div>
-            <button class="btn btn-secondary btn-sm" id="share-btn" title="초대 링크 복사">${icon('link', { size: 16, hue: '#5b9dff' })} 초대</button>
+            <div class="waiting-section-title waiting-head-game">
+              게임 선택
+              <span class="pf-wrap" id="game-filter"></span>
+            </div>
           </div>
 
           <div class="waiting-body">
             <div class="waiting-left">
-              <div class="waiting-section-title">${icon('users', { size: 18, hue: '#5b9dff' })} 참가자 <span class="waiting-count" id="player-count">1 / ${maxPlayers()}명</span></div>
+              <div class="waiting-section-title">
+                참가자 <span class="waiting-count" id="player-count">1 / ${maxPlayers()}명</span>
+                <button class="btn btn-secondary btn-sm waiting-invite-btn" id="share-btn"
+                        title="초대 링크 복사">${icon('link', { size: 16, hue: '#5b9dff' })} 초대</button>
+              </div>
               <div class="participants" id="participants"></div>
               <button class="btn btn-primary btn-lg btn-block" id="start-btn" disabled>
                 친구를 기다리는 중
@@ -184,10 +193,6 @@ export function createWaitingRoomAsHostScreen(args: WaitingRoomAsHostArgs): Scre
             </div>
 
             <div class="waiting-right">
-              <div class="waiting-section-title">
-                ${icon('games', { size: 18, hue: '#a06bff' })} 게임 선택
-                <span class="pf-wrap" id="game-filter"></span>
-              </div>
               <div class="change-game-grid waiting-grid" id="game-grid"></div>
               <div class="change-game-options waiting-options" id="game-options"></div>
             </div>
@@ -206,11 +211,11 @@ export function createWaitingRoomAsHostScreen(args: WaitingRoomAsHostArgs): Scre
       const gameOptionsEl = el.querySelector<HTMLDivElement>('#game-options')!;
       /** 인원수 필터. refreshUI 가 자주 도니까 바깥에 둬서 사람이 고른 값이 안 날아가게 한다 */
       let gameFilter: PlayerFilter = null;
+      let catFilter: CategoryFilter = null;
       const shareBtn = el.querySelector<HTMLButtonElement>('#share-btn')!;
       const leaveBtn = el.querySelector<HTMLButtonElement>('#leave-btn')!;
       const toastEl = el.querySelector<HTMLDivElement>('#toast')!;
       const playerCountEl = el.querySelector<HTMLSpanElement>('#player-count')!;
-      const gameNameEl = el.querySelector<HTMLDivElement>('#game-name')!;
 
       // 공개/비공개 모두 디렉토리(Firebase)에 등록. 비공개방은 isPrivate=true 로 목록에 🔒 표시되고,
       // 입장하려면 비번을 입력해야 함(호스트 onJoinRequest 에서 검증). 게스트 입장/퇴장 때 인원 갱신.
@@ -234,7 +239,6 @@ export function createWaitingRoomAsHostScreen(args: WaitingRoomAsHostArgs): Scre
       const refreshUI = (): void => {
         const players = [hostPlayer, ...guestPlayers];
         const max = maxPlayers();
-        gameNameEl.textContent = gameName();
         participantsEl.innerHTML = renderParticipantsHTML(players, max, hostPlayer.peerId, true);
         playerCountEl.textContent = `${players.length} / ${max}명`;
 
@@ -244,10 +248,13 @@ export function createWaitingRoomAsHostScreen(args: WaitingRoomAsHostArgs): Scre
         gameGridEl.innerHTML = buildGameTilesHTML(players.length, gameId, {
           enforceMin: false,
           filter: gameFilter,
+          category: catFilter,
         });
         gameGridEl.scrollTop = gridScroll;
-        // 필터 칩도 같이 갱신 — 인원이 바뀌면 '지금 방 인원' 표시가 따라가야 한다
-        gameFilterEl.innerHTML = buildPlayerFilterHTML(gameFilter, players.length);
+        // 필터도 같이 갱신 — 인원이 바뀌면 '지금 방 인원' 표시가 따라가야 한다
+        gameFilterEl.innerHTML =
+          buildCategoryFilterHTML(catFilter) + buildPlayerFilterHTML(gameFilter, players.length);
+        wireCategoryFilter(gameFilterEl, (c) => { catFilter = c; refreshUI(); });
         wirePlayerFilter(gameFilterEl, (n) => { gameFilter = n; refreshUI(); });
         // 옵션 박스는 항상 노출(통일성) — 옵션 있으면 셀렉트, 없으면 '설정 없음', 미선택이면 안내.
         gameOptionsEl.innerHTML = buildGameOptionsHTML(gameId, roomOptions);
@@ -581,7 +588,6 @@ export function createWaitingRoomAsGuestScreen(args: WaitingRoomAsGuestArgs): Sc
 
   // 게임은 방장이 방 안에서 고름 → gameId 가 '' 일 수 있고, 도중에 바뀔 수도 있음(room_state 로 반영).
   const guestMaxPlayers = (): number => getGameById(roomState.gameId)?.meta.maxPlayers ?? GLOBAL_MAX_PLAYERS;
-  const guestGameName = (): string => getGameById(roomState.gameId)?.meta.name ?? '게임 고르는 중';
 
   return {
     render() {
@@ -594,13 +600,13 @@ export function createWaitingRoomAsGuestScreen(args: WaitingRoomAsGuestArgs): Sc
           <div class="waiting-head">
             <div class="waiting-head-title">
               <div class="card-title">대기실</div>
-              <div class="card-subtitle" id="game-name">${escapeHtml(guestGameName())}</div>
             </div>
+            <div class="waiting-section-title waiting-head-game">방장이 고른 게임</div>
           </div>
 
           <div class="waiting-body">
             <div class="waiting-left">
-              <div class="waiting-section-title">${icon('users', { size: 18, hue: '#5b9dff' })} 참가자 <span class="waiting-count" id="player-count">${roomState.players.length} / ${guestMaxPlayers()}명</span></div>
+              <div class="waiting-section-title">참가자 <span class="waiting-count" id="player-count">${roomState.players.length} / ${guestMaxPlayers()}명</span></div>
               <div class="participants" id="participants"></div>
               <button class="btn btn-primary btn-lg btn-block" id="ready-btn" disabled>
                 방장이 게임을 고르는 중
@@ -609,9 +615,8 @@ export function createWaitingRoomAsGuestScreen(args: WaitingRoomAsGuestArgs): Sc
             </div>
 
             <div class="waiting-right">
-              <div class="waiting-section-title">${icon('games', { size: 18, hue: '#a06bff' })} 방장이 고른 게임</div>
-              <!-- 게스트는 보기 전용: 클릭 못 하게 is-readonly (CSS pointer-events:none) -->
-              <div class="change-game-grid waiting-grid is-readonly" id="game-grid"></div>
+              <!-- 게스트는 고를 수 없으니 전체 목록 대신 고른 게임 한 장만 크게 (설명 포함) -->
+              <div class="waiting-picked" id="game-picked"></div>
               <div class="change-game-options waiting-options" id="game-options"></div>
             </div>
           </div>
@@ -623,8 +628,7 @@ export function createWaitingRoomAsGuestScreen(args: WaitingRoomAsGuestArgs): Sc
       const participantsEl = el.querySelector<HTMLDivElement>('#participants')!;
       const playerCountEl = el.querySelector<HTMLSpanElement>('#player-count')!;
       const leaveBtn = el.querySelector<HTMLButtonElement>('#leave-btn')!;
-      const gameNameEl = el.querySelector<HTMLDivElement>('#game-name')!;
-      const gameGridEl = el.querySelector<HTMLDivElement>('#game-grid')!;
+      const gamePickedEl = el.querySelector<HTMLDivElement>('#game-picked')!;
       const gameOptionsEl = el.querySelector<HTMLDivElement>('#game-options')!;
       const readyBtn = el.querySelector<HTMLButtonElement>('#ready-btn')!;
 
@@ -635,13 +639,10 @@ export function createWaitingRoomAsGuestScreen(args: WaitingRoomAsGuestArgs): Sc
       const refreshUI = (): void => {
         const max = guestMaxPlayers();
         const count = roomState.players.length;
-        gameNameEl.textContent = guestGameName();
         participantsEl.innerHTML = renderParticipantsHTML(roomState.players, max, myPeerId);
         playerCountEl.textContent = `${count} / ${max}명`;
-        // 방장이 고른 게임/설정을 그대로(읽기 전용) 표시 — 방장 화면과 동일 UI. 스크롤 위치 보존.
-        const gridScroll = gameGridEl.scrollTop;
-        gameGridEl.innerHTML = buildGameTilesHTML(count, roomState.gameId, { enforceMin: false });
-        gameGridEl.scrollTop = gridScroll;
+        // 방장이 고른 게임 한 장만 크게(설명 포함). 미선택이면 안내 문구.
+        gamePickedEl.innerHTML = buildPickedGameHTML(roomState.gameId);
         gameOptionsEl.innerHTML = buildGameOptionsHTML(roomState.gameId, roomState.roomOptions);
         // 게스트는 설정을 못 바꿈 → 셀렉트 비활성화
         gameOptionsEl.querySelectorAll('select').forEach((s) => { s.disabled = true; });

@@ -39,6 +39,7 @@ export const games: GameEntry[] = [
   {
     meta: {
       id: 'air-hockey',
+      categories: ['순발력'],
       name: '에어하키',
       description: '퍽을 튕겨서 상대 골대에 넣어라! 먼저 정해진 점수에 도달하는 쪽이 승리.',
       thumbnail: airHockeyThumbnail,
@@ -66,6 +67,7 @@ export const games: GameEntry[] = [
   {
     meta: {
       id: 'battle-tetris',
+      categories: ['순발력', '두뇌'],
       name: '배틀 테트리스',
       description: '떨어지는 블록으로 라인을 지우고 공격을 보내 상대를 밀어내라! 마지막까지 살아남으면 승리.',
       thumbnail: battleTetrisThumbnail,
@@ -104,6 +106,7 @@ export const games: GameEntry[] = [
   {
     meta: {
       id: 'apple-game',
+      categories: ['순발력', '두뇌'],
       name: '사과 게임',
       description: '숫자 사과를 드래그로 묶어 합이 10이 되면 터트려! 2분 안에 최대한 많이 터트리면 승리.',
       thumbnail: appleGameThumbnail,
@@ -119,6 +122,7 @@ export const games: GameEntry[] = [
   {
     meta: {
       id: 'gomoku',
+      categories: ['보드게임', '두뇌'],
       name: '오목',
       description: '교차점에 돌을 놓아 가로·세로·대각선으로 정확히 5목을 먼저 완성하면 승리. 한 턴당 30초 제한.',
       thumbnail: gomokuThumbnail,
@@ -145,6 +149,7 @@ export const games: GameEntry[] = [
   {
     meta: {
       id: 'darts',
+      categories: ['순발력'],
       name: '다트',
       description: '드래그로 조준하고 놓는 순간 날아간다! 101/201/301, Count-up, Low Count-up, Cricket.',
       thumbnail: dartsThumbnail,
@@ -185,6 +190,7 @@ export const games: GameEntry[] = [
   {
     meta: {
       id: 'reflex',
+      categories: ['순발력'],
       name: '반응속도',
       description: '빨강이 초록으로 바뀌는 순간을 가장 빨리 잡아라! 5라운드 평균으로 승부.',
       thumbnail: reflexThumbnail,
@@ -200,6 +206,7 @@ export const games: GameEntry[] = [
   {
     meta: {
       id: 'algagi',
+      categories: ['보드게임', '순발력'],
       name: '알까기',
       description: '자기 알을 드래그해서 튕겨라! 상대 알을 모두 판 밖으로 떨어뜨리는 사람이 승리.',
       thumbnail: algagiThumbnail,
@@ -215,6 +222,7 @@ export const games: GameEntry[] = [
   {
     meta: {
       id: 'word-chain',
+      categories: ['단어'],
       name: '끝말잇기',
       description: '이전 단어의 마지막 글자로 시작하는 단어를 입력! 30초 안에 못 내면 탈락. 최후 1인 승.',
       thumbnail: wordChainThumbnail,
@@ -230,6 +238,7 @@ export const games: GameEntry[] = [
   {
     meta: {
       id: 'draw-quiz',
+      categories: ['그림', '단어'],
       name: '그림 퀴즈',
       description: '돌아가며 제시어를 그리고, 나머지는 채팅으로 맞혀라! 빨리 맞힐수록 높은 점수.',
       thumbnail: drawQuizThumbnail,
@@ -245,6 +254,7 @@ export const games: GameEntry[] = [
   {
     meta: {
       id: 'fortress',
+      categories: ['순발력', '두뇌'],
       name: '포트리스',
       description: '각도와 세기를 조준해 포탄 발사! 바람을 읽고 지형을 무너뜨려 상대 포대를 맞혀라. 최후 생존 승리.',
       thumbnail: fortressThumbnail,
@@ -282,6 +292,7 @@ export const games: GameEntry[] = [
   {
     meta: {
       id: 'liar-game',
+      categories: ['추리'],
       name: '라이어 게임',
       description: '한 명은 제시어를 모르는 라이어! 돌아가며 제시어를 설명하고, 누가 라이어인지 투표로 찾아라. 5라운드 누적 점수 승부.',
       thumbnail: liarGameThumbnail,
@@ -308,6 +319,7 @@ export const games: GameEntry[] = [
   {
     meta: {
       id: 'story-draw',
+      categories: ['그림'],
       name: '스토리텔링',
       description: '각자 제시어로 그림을 그리고, 직전 그림을 이어받아 계속 그린다! 모두가 동시에 그려서 쉬는 사람 없음. 마지막에 이야기가 어떻게 변했는지 슬라이드쇼로 감상 (승패 없음).',
       thumbnail: storyDrawThumbnail,
@@ -344,6 +356,7 @@ export const games: GameEntry[] = [
   {
     meta: {
       id: 'ramen-shop',
+      categories: ['순발력', '두뇌'],
       name: '라면가게',
       description: '손님이 주문한 토핑 라면을 물 붓고 끓여 서빙! 인내심 다 되기 전에 빨리 정확히 내주면 팁↑. 영업 종료 시 매출 1등이 승리.',
       thumbnail: ramenShopThumbnail,
@@ -371,6 +384,7 @@ export const games: GameEntry[] = [
   {
     meta: {
       id: 'bomb-wordchain',
+      categories: ['단어', '순발력'],
       name: '폭탄 끝말잇기',
       description: '숨겨진 폭탄이 30초~3분 사이 언제 터질지 몰라요! 랜덤으로 시작해 끝말잇기로 폭탄을 넘기고, 터질 때 들고 있는 사람이 패배.',
       thumbnail: bombWordChainThumbnail,
@@ -386,6 +400,7 @@ export const games: GameEntry[] = [
   {
     meta: {
       id: 'dodge',
+      categories: ['순발력'],
       name: '똥 피하기',
       description: '위에서 쏟아지는 💩를 피해라! 좌우로 움직이고 Space로 짧게 대시(쿨다운). 오래 버틸수록 고순위, 마지막 생존자 승. 낙하 패턴은 전원 동일(공정) 또는 각자 랜덤 선택.',
       thumbnail: dodgeThumbnail,
@@ -412,6 +427,7 @@ export const games: GameEntry[] = [
   {
     meta: {
       id: 'onecard',
+      categories: ['보드게임'],
       name: '원카드',
       description: '색·숫자·기호를 맞춰 카드를 내고, 건너뛰기·방향바꾸기·+2·색바꾸기로 서로 방해! 손패를 먼저 다 비우면 순위 확정, 최후 1명이 꼴등.',
       thumbnail: oneCardThumbnail,
@@ -427,6 +443,7 @@ export const games: GameEntry[] = [
   {
     meta: {
       id: 'blue-marble',
+      categories: ['보드게임', '두뇌'],
       name: '브루마블',
       description: '주사위를 굴려 세계를 돌며 도시를 사고 건물을 지어요. 별장·2층집·아파트를 골라 짓고, 3개 다 지으면 랜드마크까지! 섬은 인수 불가, 여러 개일수록 통행료가 오르죠. 통행료로 상대를 파산시키면 승리.',
       thumbnail: blueMarbleThumbnail,
@@ -442,6 +459,7 @@ export const games: GameEntry[] = [
   {
     meta: {
       id: 'werewolf',
+      categories: ['추리'],
       name: '한밤의 늑대인간',
       description: '단 한 번의 밤과 낮으로 끝나는 빠른 추리 게임! 밤에 예언자·강도·말썽쟁이가 몰래 움직여 역할 카드가 뒤바뀌어요. 낮 토론으로 늑대를 추리하고 투표로 처형 — 처형자 중 늑대가 있으면 시민 승, 없으면 늑대 승.',
       thumbnail: werewolfThumbnail,
@@ -479,6 +497,7 @@ export const games: GameEntry[] = [
   {
     meta: {
       id: 'avalon',
+      categories: ['추리', '두뇌'],
       name: '아발론',
       description: '아서왕 전설의 선/악 사회추리! 5라운드 원정에서 리더가 원정대를 뽑고 전원이 찬반 투표해요. 원정대는 성공/실패 카드를 비밀로 내고, 선은 3원정 성공을, 악은 3원정 실패나 멀린 암살을 노려요. 멀린·퍼시발·암살자·모르가나가 얽힌 심리전.',
       thumbnail: avalonThumbnail,
@@ -506,6 +525,7 @@ export const games: GameEntry[] = [
   {
     meta: {
       id: 'fake-artist',
+      categories: ['추리', '그림'],
       name: '가짜 화가',
       description: '한 명은 제시어를 모르는 가짜 화가! 순서대로 각자 정해진 색으로 한 획씩 이어 그려요. 다 그리면 누가 가짜인지 투표 — 잡히면 시민 승, 단 가짜가 제시어를 맞히면 역전승. 5라운드 누적 점수 승부.',
       thumbnail: fakeArtistThumbnail,
@@ -533,6 +553,7 @@ export const games: GameEntry[] = [
   {
     meta: {
       id: 'kordle',
+      categories: ['단어', '두뇌'],
       name: '꼬들',
       description: '한국어 워들! 단어를 자모로 풀어쓴 칸을 6번 안에 맞혀요. 초록은 자리까지 정답, 노랑은 자리만 틀림. 혼자서는 랜덤 문제, 여럿이면 돌아가며 문제를 내고 시도 횟수와 시간으로 점수를 겨뤄요.',
       thumbnail: kordleThumbnail,
@@ -571,6 +592,7 @@ export const games: GameEntry[] = [
   {
     meta: {
       id: 'call-my-name',
+      categories: ['단어', '순발력'],
       name: '양세찬 게임',
       description: '내 이마에 붙은 단어만 나만 못 봐요! 돌아가며 채팅으로 스무고개하듯 물어보고 내 정체를 맞혀요. 거짓말은 금지, 애매하게 답하는 건 허용이에요.',
       thumbnail: callMyNameThumbnail,
@@ -601,6 +623,7 @@ export const games: GameEntry[] = [
   {
     meta: {
       id: 'the-mind',
+      categories: ['보드게임', '두뇌'],
       name: '더 마인드',
       description: '1~100 카드를 나눠 갖고 말 한 마디 없이 작은 숫자부터 순서대로 내요. 다 같이 이기거나 다 같이 지는 협동 게임. 눈치와 침묵이 전부예요.',
       thumbnail: theMindThumbnail,
@@ -628,6 +651,7 @@ export const games: GameEntry[] = [
   {
     meta: {
       id: 'subway-typing',
+      categories: ['단어', '순발력'],
       name: '지하철 타자',
       description: '노선과 행선지를 고르고 역 이름을 순서대로 빠르게 쳐서 종점까지 완주! 친구들과 동시에 출발해 누가 먼저 도착하는지 겨뤄요. 기록은 완주 시간과 타수, 정확도로 남아요.',
       thumbnail: subwayTypingThumbnail,

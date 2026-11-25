@@ -1,5 +1,5 @@
 import { games, getGameById } from '../games/registry';
-import type { GameRoomOption } from '../games/types';
+import { GAME_CATEGORIES, type GameRoomOption, type GameCategory } from '../games/types';
 import { escapeHtml, escapeAttr } from './escape';
 import { icon } from './icons';
 
@@ -87,6 +87,49 @@ export function buildPlayerFilterHTML(selected: PlayerFilter, nowN?: number): st
     </div>`;
 }
 
+// ============================================
+// 분류 필터 (게임 목록 / 게임 선택 공용)
+// ============================================
+
+/** 분류 필터. null 이면 전체 보기 */
+export type CategoryFilter = GameCategory | null;
+
+/** 이 게임이 해당 분류에 속하나. 게임은 분류를 여러 개 가질 수 있다(복수 태그) */
+export function inCategory(meta: { categories: GameCategory[] }, c: CategoryFilter): boolean {
+  return c === null || meta.categories.includes(c);
+}
+
+/**
+ * 분류 필터 — 인원 필터와 똑같은 드롭다운. 마크업/CSS(.pf-*)를 그대로 재사용하고
+ * data 속성만 다르다(data-cat). 둘을 나란히 놔도 톤이 안 어긋나게.
+ */
+export function buildCategoryFilterHTML(selected: CategoryFilter): string {
+  const items = [null, ...GAME_CATEGORIES].map((c) => {
+    const label = c ?? '전체';
+    return `<button type="button" class="pf-dd-item${c === selected ? ' is-on' : ''}" data-cat="${escapeAttr(c ?? '')}">
+      <span>${escapeHtml(label)}</span>
+    </button>`;
+  });
+  return `
+    <div class="pf-dd pf-dd-cat">
+      <button type="button" class="pf-dd-btn" aria-expanded="false" aria-haspopup="listbox">
+        ${icon('games', { size: 14, hue: '#2a9488' })}
+        <span class="pf-dd-label">분류</span>
+        <b>${escapeHtml(selected ?? '전체')}</b>
+        <span class="pf-dd-caret" aria-hidden="true"></span>
+      </button>
+      <div class="pf-dd-menu" role="listbox" hidden>${items.join('')}</div>
+    </div>`;
+}
+
+/** 분류 드롭다운 배선. root 안쪽의 .pf-dd-cat 를 잡는다 */
+export function wireCategoryFilter(root: HTMLElement, onChange: (c: CategoryFilter) => void): void {
+  wireDropdown(root.querySelector<HTMLElement>('.pf-dd-cat'), (it) => {
+    const raw = it.dataset['cat'];
+    onChange(raw ? (raw as GameCategory) : null);
+  });
+}
+
 /**
  * 바깥 클릭 / ESC 로 닫기 — 문서에 **딱 한 번만** 건다.
  * wirePlayerFilter 는 재렌더될 때마다 불리는데, 거기서 document 에 걸면 리스너가 계속 쌓인다.
@@ -107,10 +150,12 @@ function wireCloser(): void {
   document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeAll(); });
 }
 
-/** 드롭다운 배선. root 안쪽의 .pf-dd 를 잡는다 */
-export function wirePlayerFilter(root: HTMLElement, onChange: (n: PlayerFilter) => void): void {
+/**
+ * 열기/닫기 + 항목 클릭 배선 — 인원·분류 드롭다운이 똑같아서 여기로 묶었다.
+ * dd 가 없으면(해당 필터를 안 쓰는 화면) 조용히 넘어간다.
+ */
+function wireDropdown(dd: HTMLElement | null, onPick: (item: HTMLButtonElement) => void): void {
   wireCloser();
-  const dd = root.querySelector<HTMLElement>('.pf-dd');
   if (!dd) return;
   const btn = dd.querySelector<HTMLButtonElement>('.pf-dd-btn')!;
   const menu = dd.querySelector<HTMLDivElement>('.pf-dd-menu')!;
@@ -124,10 +169,15 @@ export function wirePlayerFilter(root: HTMLElement, onChange: (n: PlayerFilter) 
   });
 
   menu.querySelectorAll<HTMLButtonElement>('.pf-dd-item').forEach((it) => {
-    it.addEventListener('click', () => {
-      const raw = it.dataset['n'];
-      onChange(raw ? Number(raw) : null);
-    });
+    it.addEventListener('click', () => onPick(it));
+  });
+}
+
+/** 인원 드롭다운 배선. 분류 드롭다운(.pf-dd-cat)이 같은 root 에 있어도 안 집히게 :not 으로 거른다 */
+export function wirePlayerFilter(root: HTMLElement, onChange: (n: PlayerFilter) => void): void {
+  wireDropdown(root.querySelector<HTMLElement>('.pf-dd:not(.pf-dd-cat)'), (it) => {
+    const raw = it.dataset['n'];
+    onChange(raw ? Number(raw) : null);
   });
 }
 
@@ -141,13 +191,16 @@ export function wirePlayerFilter(root: HTMLElement, onChange: (n: PlayerFilter) 
 export function buildGameTilesHTML(
   playerCount: number,
   currentGameId: string,
-  opts?: { enforceMin?: boolean; filter?: PlayerFilter },
+  opts?: { enforceMin?: boolean; filter?: PlayerFilter; category?: CategoryFilter },
 ): string {
   const enforceMin = opts?.enforceMin ?? true;
   const filter = opts?.filter ?? null;
-  const shown = games.filter((g) => playableBy(g.meta, filter));
+  const category = opts?.category ?? null;
+  const shown = games.filter((g) => playableBy(g.meta, filter) && inCategory(g.meta, category));
   if (shown.length === 0) {
-    return `<div class="pf-empty">${filter}명이 할 수 있는 게임이 없어요</div>`;
+    // 두 필터가 겹쳐 0개가 될 수 있어서 어느 조건 때문인지 같이 알려준다
+    const why = [category, filter === null ? null : `${filter}명`].filter(Boolean).join(' · ');
+    return `<div class="pf-empty">${escapeHtml(why)} 조건에 맞는 게임이 없어요</div>`;
   }
   return shown.map((g) => {
     const overMax = playerCount > g.meta.maxPlayers;
@@ -170,6 +223,32 @@ export function buildGameTilesHTML(
       </button>
     `;
   }).join('');
+}
+
+/**
+ * 게스트 대기실용 — 방장이 고른 게임 "한 장"만 크게.
+ *
+ * 게스트는 어차피 못 고르는데(is-readonly) 회색 타일 24개를 스크롤해서 하이라이트 하나를
+ * 찾아야 했다. 고른 것만 설명까지 붙여 보여주는 쪽이 명확하다.
+ * 룩은 도감(.game-card.is-static)을 그대로 재사용 — 같은 게 두 벌 생기지 않게.
+ */
+export function buildPickedGameHTML(gameId: string): string {
+  const g = games.find((x) => x.meta.id === gameId);
+  if (!g) return `<div class="pf-empty">방장이 게임을 고르는 중이에요</div>`;
+  const m = g.meta;
+  const playerLabel = m.minPlayers === m.maxPlayers
+    ? `${m.minPlayers}인 전용`
+    : `${m.minPlayers}~${m.maxPlayers}인`;
+  return `
+    <div class="game-card is-static waiting-picked-card">
+      <img class="game-card-thumb" src="${escapeAttr(m.thumbnail)}" alt="${escapeAttr(m.name)}" />
+      <div class="game-card-name">
+        ${escapeHtml(m.name)}
+        <span class="game-card-players">${escapeHtml(playerLabel)}</span>
+      </div>
+      <div class="game-card-desc">${escapeHtml(m.description)}</div>
+    </div>
+  `;
 }
 
 /** 선택된 게임의 옵션 폼 HTML. current 로 현재 선택값을 반영(없으면 기본값). 옵션 없으면 안내. */
