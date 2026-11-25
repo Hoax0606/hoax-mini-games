@@ -99,9 +99,9 @@
   <!-- 우측 하단 "스코어" 풍선 -->
   <g transform="translate(260 160)">
     <rect x="-30" y="-14" width="60" height="28" rx="14"
-          fill="#fff" stroke="#9c7aeb" stroke-width="1.4"/>
+          fill="#ffd96b" stroke="#f5c33d" stroke-width="1.4"/>
     <text x="0" y="5" text-anchor="middle" font-family="Pretendard, system-ui, sans-serif"
-          font-size="13" font-weight="900" fill="#9c7aeb">180!</text>
+          font-size="13" font-weight="900" fill="#8a6a10">180!</text>
   </g>
   </g>
 </svg>

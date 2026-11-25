@@ -43,7 +43,7 @@ function renderParticipantsHTML(
 ): string {
   const cells = players.map((p) => {
     const badgeText = p.isHost ? '방장' : '손님';
-    const badgeCls = p.isHost ? '' : 'participant-badge-lavender';
+    // 배지 색은 아래 hostCls(.participant-host / .participant-guest)가 결정한다.
     const hostCls = p.isHost ? 'participant-host' : 'participant-guest';
     const isMe = myPeerId !== null && p.peerId === myPeerId;
     const nameHtml = isMe
@@ -59,7 +59,7 @@ function renderParticipantsHTML(
       : '';
     return `
       <div class="participant ${hostCls}">
-        <span class="participant-badge ${badgeCls}">${badgeText}</span>
+        <span class="participant-badge">${badgeText}</span>
         <span class="participant-name">${nameHtml}</span>
         ${readyTag}
         ${kickBtn}

@@ -178,11 +178,13 @@ input {
   /* 하한을 넘어가면 레이아웃을 뒤트는 대신 가로 스크롤로 넘긴다 — .game-screen 과 같은 방식,
      값도 1000px 로 맞춰 앱 전체 하한을 통일했다.
      왜 1000 인가: 카드 안은 참가자 260 + gap 22 + 패딩 ≈ 380 이 고정이라, 게임 타일(최소 124)이
-     들어가려면 카드가 ~644 는 돼야 한다. 거기에 gap 16 + 채팅 300 + 좌우 패딩 160 = 1120.
-     더 좁히면 타일이 한 칸도 못 들어가 그리드가 44px 로 쪼그라든다.
+     들어가려면 카드가 ~644 는 돼야 한다(= 하한 1120).
+     그런데 그 폭이면 게임 설정바가 2줄로 꺾인다. 설정바가 한 줄로 들어가려면 그리드 폭이
+     540 은 돼야 하고(지하철 타자의 `국가 / 운행` 셀렉트 기준), 카드 안 고정분 380 을 더해
+     카드 920 → gap 16 + 채팅 300 + 좌우 패딩 160 = 1396. 1400 으로 올림.
      예전엔 720px 밑에서 세로 배치로 바뀌었는데, 참가자 목록이 높이를 다 먹어서
      게임 그리드가 4px 로 사라지는 상태였다. PC 전용이라 스크롤이 낫다. */
-  min-width: 1120px;
+  min-width: 1400px;
 }
 
 @keyframes screenIn {
@@ -580,8 +582,8 @@ input {
 .game-card-players {
   font-size: 11px;
   font-weight: 600;
-  color: var(--text-inverse);
-  background: var(--lavender-300);
+  color: var(--yellow-500);
+  background: var(--yellow-300);
   padding: 3px 8px;
   border-radius: var(--radius-full);
   letter-spacing: 0.3px;
@@ -1099,7 +1101,8 @@ input {
 .game-player-chip.is-host { background: var(--teal-50); }
 .game-chip-dot {
   width: 8px; height: 8px; border-radius: 50%;
-  background: var(--lavender-300); flex-shrink: 0;
+  /* 8px 점이라 연노랑은 배경에 묻힌다. 램프에서 제일 진한 칠(yellow-400) 사용. */
+  background: var(--yellow-400); flex-shrink: 0;
 }
 .game-player-chip.is-host .game-chip-dot { background: var(--teal-400); }
 .game-chip-me {
@@ -1192,9 +1195,9 @@ input {
 .game-score-spectator {
   font-size: 16px;
   font-weight: 700;
-  color: var(--lavender-300);
-  background: var(--lavender-100);
-  border: 1px solid var(--lavender-300);
+  color: var(--yellow-500);
+  background: var(--yellow-100);
+  border: 1px solid var(--yellow-300);
   border-radius: 999px;
   padding: 6px 14px;
   letter-spacing: 0.5px;
@@ -1233,7 +1236,7 @@ input {
 .game-title-spectator {
   font-size: 12px;
   font-weight: 800;
-  color: var(--lavender-300);
+  color: var(--yellow-500);
 }
 
 /* Ping 배지 — 헤더 우측에 작고 조용히 */
@@ -1255,7 +1258,8 @@ input {
 .ping-badge.ping-slow    { background: var(--warn-soft);   color: var(--warn); }
 .ping-badge.ping-dead    { background: var(--danger-soft); color: var(--danger); }
 
-.participant-badge-lavender { background: var(--lavender-300); }
+/* participant-badge-lavender 는 제거했다 — .participant-guest .participant-badge 와
+   완전히 중복이었고, 노랑으로 바꾼 마당에 이름이 거짓말이 된다. */
 
 /* 캔버스는 자기 자신이 2:1 비율을 유지하고, 래퍼는 여백 제공만 */
 .game-canvas-wrap {
@@ -1493,8 +1497,10 @@ input {
   background: var(--accent);
 }
 
+/* 방장 청록 / 손님 노랑 — 2인 대결색(민트 vs 노랑) 규약과 같은 방향 */
 .participant-guest .participant-badge {
-  background: var(--lavender-300);
+  background: var(--yellow-300);
+  color: var(--yellow-500);
 }
 
 .participant-name {
@@ -1671,7 +1677,8 @@ input {
 }
 
 .stats-winrate {
-  color: var(--lavender-300);
+  /* 흰 카드 위 글자라서 연노랑은 안 읽힌다 — 진노랑 */
+  color: var(--yellow-500);
   font-weight: 700;
   margin-left: 4px;
 }
@@ -2396,12 +2403,16 @@ input {
   color: var(--mint-500);
 }
 .public-room-badge.is-playing {
-  background: var(--lavender-100);
-  color: #6b4cb0;
+  background: var(--yellow-300);
+  color: var(--yellow-500);
 }
+/* 비공개는 원래 노랑이었는데 게임중이 노랑을 가져가면서 구분이 안 돼,
+   ping-pending 과 같은 중립 톤으로 내렸다. 자물쇠는 상태라기보단 속성이라 채도 낮은 게 맞다. */
 .public-room-badge.is-locked {
-  background: var(--yellow-200);
-  color: #a8791f;
+  background: var(--bg-inset);
+  color: var(--text-muted);
+  /* bg-inset 은 흰 카드 위에서 거의 안 보여서 배지 형태가 사라진다. 테두리로 윤곽만 잡아줌. */
+  box-shadow: inset 0 0 0 1px var(--border-soft);
 }
 .public-room-code {
   font-family: 'Pretendard', monospace;
@@ -3275,7 +3286,11 @@ input {
 .waiting-section-hint { font-size: 11px; font-weight: 500; color: var(--text-muted); }
 /* 게임 타일: 우측 영역을 꽉 채움. 지금 게임 수(≈15)는 스크롤 없이 들어감 */
 .waiting-grid {
-  grid-template-columns: repeat(auto-fill, minmax(124px, 1fr));
+  /* 최소 3열 보장. auto-fill 은 "열 개수 하한"을 직접 못 쓰니, 트랙 최소폭을
+     124px 과 (가용폭 - 간격 2개)/3 중 작은 쪽으로 잡는다.
+     - 넓을 땐 (가용폭-24)/3 > 124 라 124 가 이겨서 평소처럼 4열, 5열로 늘어난다
+     - 좁을 땐 트랙 최소가 가용폭의 1/3 이하로 내려가 3열이 깨지지 않는다(타일이 대신 작아짐) */
+  grid-template-columns: repeat(auto-fill, minmax(min(124px, calc((100% - 24px) / 3)), 1fr));
   gap: 12px;
   margin-bottom: 12px;
   flex: 1 1 auto;
@@ -3357,8 +3372,9 @@ input {
 .change-game-card-players {
   font-size: 10.5px;
   font-weight: 700;
-  color: var(--text-inverse);
-  background: var(--lavender-300);
+  /* 연노랑 위엔 흰 글자가 안 보여서 글자색은 진노랑(--yellow-500) */
+  color: var(--yellow-500);
+  background: var(--yellow-300);
   padding: 2px 9px;
   border-radius: var(--radius-full);
   letter-spacing: 0.3px;
