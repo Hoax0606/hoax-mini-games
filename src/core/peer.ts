@@ -18,6 +18,7 @@
 import { Peer, type DataConnection } from 'peerjs';
 import type { NetworkMessage, JoinRejectedMsg, RoomState } from '../games/types';
 import { PEER_OPTIONS } from './netConfig';
+import { setRoomActive } from './backGuard';
 
 // ============================================
 // 방 코드 생성
@@ -36,11 +37,14 @@ const PEER_ID_PREFIX = 'hoaxmg-';
 // 보이거나, 창을 닫아도 방에 계속 남아있던 문제가 생김.
 // pagehide 는 탭 닫힘/이동/모바일 백그라운드 전환을 beforeunload 보다 안정적으로 잡는다.
 const livePeers = new Set<Peer>();
+// 살아있는 연결 유무는 곧 "방에 있다"는 뜻 — 뒤로 가기 가드도 이 시점에 같이 켜고 끈다.
 function registerPeer(p: Peer): void {
   livePeers.add(p);
+  setRoomActive(true);
 }
 function unregisterPeer(p: Peer): void {
   livePeers.delete(p);
+  setRoomActive(livePeers.size > 0);
 }
 if (typeof window !== 'undefined') {
   window.addEventListener('pagehide', () => {

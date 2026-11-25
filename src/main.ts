@@ -1,5 +1,6 @@
 import './ui/theme.css';
 import { router } from './core/screen';
+import { installBackGuard } from './core/backGuard';
 import { storage } from './core/storage';
 import { sound } from './core/sound';
 import { createNicknameScreen } from './screens/nickname';
@@ -10,6 +11,10 @@ const app = document.getElementById('app');
 if (!app) throw new Error('#app 요소를 찾을 수 없습니다');
 
 router.mount(app);
+
+// 방에 있는 동안 브라우저 뒤로 가기로 사이트를 떠나 방이 날아가는 사고 방지.
+// 확인 후 나가기를 고르면 사이트 이탈 대신 앱 안에서 메뉴로 복귀한다(= 정상적인 방 나가기).
+installBackGuard(() => router.reset(() => createMenuScreen()));
 
 // 로딩 splash(index.html inline) 페이드아웃 — JS 번들 로드 완료 + 라우터 마운트 직후
 // body 에 클래스 추가하면 CSS transition 으로 자연스럽게 사라짐 (0.4s).

@@ -142,6 +142,16 @@ export function wireChatPanel(parent: HTMLElement, callbacks: ChatCallbacks): ()
     input.value = '';
   };
 
+  // 빈 입력창에서 Backspace 를 누르면 브라우저가 그걸 "뒤로 가기"로 해석하는 환경이 있다
+  //   (Firefox 의 browser.backspace_action=0, 일부 확장/마우스 매크로 등).
+  //   우리는 SPA 라서 뒤로 가기 = 페이지 이탈 = pagehide 에서 peer destroy = 방 나감.
+  //   입력창이 비어 있을 때의 Backspace 는 어차피 지울 게 없으니 여기서 삼켜버린다.
+  //   (isComposing 중이면 한글 조합 중이라 IME 에 맡긴다)
+  const onKeyDown = (e: KeyboardEvent): void => {
+    if (e.key !== 'Backspace' || e.isComposing) return;
+    if (input.value.length === 0) e.preventDefault();
+  };
+
   const collapse = (): void => {
     panel.classList.add('is-collapsed');
   };
@@ -153,11 +163,13 @@ export function wireChatPanel(parent: HTMLElement, callbacks: ChatCallbacks): ()
   };
 
   form.addEventListener('submit', onSubmit);
+  input.addEventListener('keydown', onKeyDown);
   toggle.addEventListener('click', collapse);
   expander.addEventListener('click', expand);
 
   return () => {
     form.removeEventListener('submit', onSubmit);
+    input.removeEventListener('keydown', onKeyDown);
     toggle.removeEventListener('click', collapse);
     expander.removeEventListener('click', expand);
   };
