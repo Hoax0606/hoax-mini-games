@@ -100,6 +100,8 @@ function buildHeaderHTML(args: {
   spectator?: boolean;
   /** 호스트면 나가기 시 '대기실로 이동' 선택지 제공 */
   canReturnToLobby?: boolean;
+  /** 이 게임은 게임 중 채팅 금지 (meta.noChatInGame) — 패널 자체를 안 만든다 */
+  noChat?: boolean;
 }): string {
   // 헤더는 심플하게: [나가기] · [게임명(+옵션)] · [설정]. 플레이어/핑은 안 넣음
   //   (10인 긴 이름이면 지저분 + 게임 중엔 각 게임 HUD·대기실에서 이미 보임).
@@ -134,7 +136,7 @@ function buildHeaderHTML(args: {
 
     <div class="reaction-bar-floating">${buildReactionBarHTML()}</div>
 
-    ${buildChatPanelHTML()}
+    ${args.noChat ? '' : buildChatPanelHTML()}
 
     ${buildGameMenuModalHTML()}
 
@@ -460,10 +462,13 @@ export function createGameScreenAsHostScreen(args: GameScreenAsHostArgs): Screen
       const hostNickname = roomState.hostNickname;
       const guestNickname = roomState.guestNickname ?? '상대';
       const optionSummary = buildOptionSummary(roomState.gameId, roomState.roomOptions);
+      // 말을 섞으면 성립하지 않는 게임(더 마인드)은 게임 화면에서 채팅을 아예 안 만든다.
+      // 대기실/결과 화면 채팅은 그대로 — 게임 도는 동안만 막는 것.
+      const noChat = game.meta.noChatInGame === true;
 
       const el = document.createElement('div');
       el.className = 'game-screen';
-      el.innerHTML = buildHeaderHTML({ gameName: game.meta.name, optionSummary, canReturnToLobby: true });
+      el.innerHTML = buildHeaderHTML({ gameName: game.meta.name, optionSummary, canReturnToLobby: true, noChat });
 
       const canvas = el.querySelector<HTMLCanvasElement>('#game-canvas')!;
       const scoreHome = el.querySelector<HTMLSpanElement>('#score-home')!;
@@ -593,6 +598,9 @@ export function createGameScreenAsHostScreen(args: GameScreenAsHostArgs): Screen
         }
         // 채팅: 내 화면 append + 다른 게스트에게 relay
         if (msg.type === 'chat') {
+          // 채팅 금지 게임이면 패널이 아예 없다. 중계도 끊어야 한다 —
+          // 호스트만 안 보이고 게스트끼리는 오가면 막은 의미가 없다.
+          if (noChat) return;
           appendChatMessage(el, msg, false);
           for (const pid of host.listGuestPeerIds()) {
             if (pid !== fromPeerId) host.sendTo(pid, msg);
@@ -766,7 +774,7 @@ export function createGameScreenAsHostScreen(args: GameScreenAsHostArgs): Screen
       );
 
       // 채팅 패널 — 호스트: 자기 화면 append + 모든 게스트 broadcast
-      cleanupChat = wireChatPanel(el, {
+      if (!noChat) cleanupChat = wireChatPanel(el, {
         onCheat: (code) => gameModule?.onCheatCode?.(code),   // 채팅엔 안 남고 게임으로만
         onSend: (text) => {
           const msg: ChatMsg = {
@@ -881,10 +889,13 @@ export function createGameScreenAsGuestScreen(args: GameScreenAsGuestArgs): Scre
       //    3인+ 게임에서 둘째 게스트부터 채팅/표시 이름이 첫 게스트 것으로 잘못 나오던 버그.)
       const guestNickname = mySelf?.nickname ?? (isSpectator ? '관전자' : storage.getNickname());
       const optionSummary = buildOptionSummary(roomState.gameId, roomState.roomOptions);
+      // 말을 섞으면 성립하지 않는 게임(더 마인드)은 게임 화면에서 채팅을 아예 안 만든다.
+      // 대기실/결과 화면 채팅은 그대로 — 게임 도는 동안만 막는 것.
+      const noChat = game.meta.noChatInGame === true;
 
       const el = document.createElement('div');
       el.className = 'game-screen';
-      el.innerHTML = buildHeaderHTML({ gameName: game.meta.name, optionSummary, spectator: isSpectator });
+      el.innerHTML = buildHeaderHTML({ gameName: game.meta.name, optionSummary, spectator: isSpectator, noChat });
 
       const canvas = el.querySelector<HTMLCanvasElement>('#game-canvas')!;
       // 관전자 뷰는 점수판 대신 "관전 중" 배지라 score-home/away 엘리먼트가 없다.
@@ -981,6 +992,7 @@ export function createGameScreenAsGuestScreen(args: GameScreenAsGuestArgs): Scre
         }
         // 채팅 — 호스트로부터 (자신이 보낸 건 echo 안 옴)
         if (msg.type === 'chat') {
+          if (noChat) return; // 채팅 금지 게임이면 패널이 없어서 그릴 곳도 없다
           appendChatMessage(el, msg, false);
           return;
         }
@@ -1085,7 +1097,7 @@ export function createGameScreenAsGuestScreen(args: GameScreenAsGuestArgs): Scre
       );
 
       // 채팅 패널 — 게스트: 자기 화면 append + 호스트로 송신 (호스트가 다른 게스트로 relay)
-      cleanupChat = wireChatPanel(el, {
+      if (!noChat) cleanupChat = wireChatPanel(el, {
         onCheat: (code) => gameModule?.onCheatCode?.(code),   // 채팅엔 안 남고 게임으로만
         onSend: (text) => {
           const msg: ChatMsg = {

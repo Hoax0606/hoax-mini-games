@@ -36,6 +36,12 @@ export interface GameMeta {
   /** 분류 — 최소 1개. 새 게임 추가 시 꼭 채울 것 */
   categories: GameCategory[];
   /**
+   * 게임 화면에서 채팅을 막는다. 대기실/결과 화면 채팅은 그대로.
+   * 말을 섞으면 게임이 성립하지 않는 종류를 위한 것 — 더 마인드가 그렇다
+   * (말 없이 숫자 순서를 맞추는 게 규칙의 전부).
+   */
+  noChatInGame?: boolean;
+  /**
    * 썸네일 이미지 URL.
    * 사용법: `import thumb from './air-hockey/thumbnail.svg'` 해서 받은 값을 그대로 넣음.
    * Vite가 static asset으로 처리 + base URL까지 붙여준 완성 경로를 돌려줌.

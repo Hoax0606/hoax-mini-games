@@ -624,6 +624,7 @@ export const games: GameEntry[] = [
     meta: {
       id: 'the-mind',
       categories: ['보드게임', '두뇌'],
+      noChatInGame: true, // 말 없이 하는 게 규칙의 전부 — 채팅이 열려 있으면 게임이 안 된다
       name: '더 마인드',
       description: '1~100 카드를 나눠 갖고 말 한 마디 없이 작은 숫자부터 순서대로 내요. 다 같이 이기거나 다 같이 지는 협동 게임. 눈치와 침묵이 전부예요.',
       thumbnail: theMindThumbnail,
