@@ -7,7 +7,9 @@ import type { Player, RoomState } from '../games/types';
 import { createGameScreenAsHostScreen, createGameScreenAsGuestScreen } from './gameScreen';
 import { createMenuScreen } from './menu';
 import { buildReactionBarHTML, wireReactionBar, showReactionBubble } from '../ui/reactions';
-import { buildChatPanelHTML, wireChatPanel, appendChatMessage } from '../ui/chat';
+import { buildChatPanelHTML, wireChatPanel, appendChatMessage, appendChatSystemMessage } from '../ui/chat';
+import { showToast } from '../ui/toast';
+import { showConfirm } from '../ui/confirm';
 import type { ChatMsg } from '../games/types';
 import { publishRoom, updatePublicRoom, unpublishRoom } from '../core/roomDirectory';
 import {
@@ -35,12 +37,16 @@ import { icon } from '../ui/icons';
 // 공통 헬퍼
 // ============================================
 
-/** 참가자 리스트 HTML — 방 정원만큼 슬롯 생성, 빈 슬롯은 점선 */
+/**
+ * 참가자 리스트 HTML — 방 정원만큼 슬롯 생성, 빈 슬롯은 점선.
+ * @param enteringPeerId 방금 들어온 사람. 그 행에만 입장 모션 클래스를 붙인다.
+ */
 function renderParticipantsHTML(
   players: Player[],
   maxPlayers: number,
   myPeerId: string | null,
   showKick = false,
+  enteringPeerId: string | null = null,
 ): string {
   const cells = players.map((p) => {
     const badgeText = p.isHost ? '방장' : '손님';
@@ -58,8 +64,10 @@ function renderParticipantsHTML(
     const kickBtn = showKick && !p.isHost
       ? `<button class="participant-kick" data-kick-peer="${escapeHtml(p.peerId)}" title="강퇴" aria-label="강퇴">×</button>`
       : '';
+    // data-peer 는 퇴장 애니메이션 때 그 행을 집어내려고 쓴다(없으면 누가 나갔는지 DOM 에서 못 찾음)
+    const enterCls = p.peerId === enteringPeerId ? ' is-entering' : '';
     return `
-      <div class="participant ${hostCls}">
+      <div class="participant ${hostCls}${enterCls}" data-peer="${escapeHtml(p.peerId)}">
         <span class="participant-badge">${badgeText}</span>
         <span class="participant-name">${nameHtml}</span>
         ${readyTag}
@@ -201,7 +209,6 @@ export function createWaitingRoomAsHostScreen(args: WaitingRoomAsHostArgs): Scre
 
         ${buildChatPanelHTML()}
 
-        <div class="toast" id="toast"></div>
       `;
 
       const participantsEl = el.querySelector<HTMLDivElement>('#participants')!;
@@ -212,9 +219,24 @@ export function createWaitingRoomAsHostScreen(args: WaitingRoomAsHostArgs): Scre
       /** 인원수 필터. refreshUI 가 자주 도니까 바깥에 둬서 사람이 고른 값이 안 날아가게 한다 */
       let gameFilter: PlayerFilter = null;
       let catFilter: CategoryFilter = null;
+      /** 강퇴한 사람(닉네임). 같은 방이 살아있는 동안만 유지된다 — 방을 다시 만들면 초기화 */
+      const bannedNicknames = new Set<string>();
+      /** 방금 들어온 사람 — refreshUI 가 그 행에만 입장 모션을 건다. 그리고 바로 비운다 */
+      let enteringPeerId: string | null = null;
+
+      /**
+       * 나간 사람 행을 접은 뒤 다시 그린다.
+       * 바로 refreshUI 를 돌리면 행이 순간삭제돼서 아래 칸들이 덜컥 올라온다.
+       * 행을 못 찾으면(이미 다시 그려졌거나 게스트가 아니면) 그냥 즉시 재렌더.
+       */
+      const collapseParticipant = (peerId: string, done: () => void): void => {
+        const row = participantsEl.querySelector<HTMLElement>(`.participant[data-peer="${CSS.escape(peerId)}"]`);
+        if (!row) { done(); return; }
+        row.classList.add('is-leaving');
+        window.setTimeout(done, 260); // CSS participant-out 길이와 맞춤
+      };
       const shareBtn = el.querySelector<HTMLButtonElement>('#share-btn')!;
       const leaveBtn = el.querySelector<HTMLButtonElement>('#leave-btn')!;
-      const toastEl = el.querySelector<HTMLDivElement>('#toast')!;
       const playerCountEl = el.querySelector<HTMLSpanElement>('#player-count')!;
 
       // 공개/비공개 모두 디렉토리(Firebase)에 등록. 비공개방은 isPrivate=true 로 목록에 🔒 표시되고,
@@ -239,7 +261,7 @@ export function createWaitingRoomAsHostScreen(args: WaitingRoomAsHostArgs): Scre
       const refreshUI = (): void => {
         const players = [hostPlayer, ...guestPlayers];
         const max = maxPlayers();
-        participantsEl.innerHTML = renderParticipantsHTML(players, max, hostPlayer.peerId, true);
+        participantsEl.innerHTML = renderParticipantsHTML(players, max, hostPlayer.peerId, true, enteringPeerId);
         playerCountEl.textContent = `${players.length} / ${max}명`;
 
         // 게임 타일 그리드 (항상 노출, 인원 초과 게임은 잠금). 재렌더 시 스크롤 위치 보존
@@ -262,14 +284,20 @@ export function createWaitingRoomAsHostScreen(args: WaitingRoomAsHostArgs): Scre
 
         // 강퇴 버튼 배선 — 방장이 해당 게스트 연결을 끊음(onGuestDisconnected 가 정리)
         participantsEl.querySelectorAll<HTMLButtonElement>('.participant-kick').forEach((btn) => {
-          btn.addEventListener('click', () => {
+          btn.addEventListener('click', async () => {
             const peerId = btn.dataset.kickPeer;
             if (!peerId) return;
             const target = guestPlayers.find((g) => g.peerId === peerId);
             if (!target) return;
-            if (window.confirm(`${target.nickname} 님을 강퇴할까요?`)) {
-              host.kick(peerId);
-            }
+            const ok = await showConfirm({
+              title: '강퇴할까요?',
+              message: `${target.nickname} 님이 방에서 나가고,\n이 방에 다시 들어올 수 없어요.`,
+              confirmLabel: '강퇴',
+              danger: true,
+            });
+            if (!ok) return;
+            bannedNicknames.add(target.nickname);
+            host.kick(peerId);
           });
         });
 
@@ -299,7 +327,7 @@ export function createWaitingRoomAsHostScreen(args: WaitingRoomAsHostArgs): Scre
         const playerCount = 1 + guestPlayers.length;
         // 현재 인원이 그 게임 최대 인원을 넘으면 못 고름 (picker 에서 이미 비활성이지만 방어)
         if (playerCount > g.meta.maxPlayers) {
-          showToast(`${g.meta.name}은(는) ${g.meta.maxPlayers}명까지예요 (현재 ${playerCount}명)`);
+          showToast(`${g.meta.name}은(는) ${g.meta.maxPlayers}명까지예요 (현재 ${playerCount}명)`, { kind: 'warn' });
           return;
         }
         gameId = newGameId;
@@ -350,6 +378,12 @@ export function createWaitingRoomAsHostScreen(args: WaitingRoomAsHostArgs): Scre
 
       // ---- 방 로직 콜백 ----
       host.onJoinRequest = (req: JoinRequest, fromPeerId: string): JoinDecision => {
+        // 강퇴한 사람이 같은 링크로 곧장 다시 들어오던 문제. 호스트가 차단 목록을 들고 거른다.
+        // 기준이 닉네임인 이유: peerId 는 새로고침하면 바뀌어서 재입장을 못 막는다.
+        // 닉네임을 바꾸면 뚫리지만 친구끼리 쓰는 방이라 이 정도면 충분하다.
+        if (bannedNicknames.has(req.nickname)) {
+          return { accept: false, reason: 'kicked' };
+        }
         if (guestPlayers.length >= maxPlayers() - 1) {
           return { accept: false, reason: 'room_full' };
         }
@@ -380,9 +414,13 @@ export function createWaitingRoomAsHostScreen(args: WaitingRoomAsHostArgs): Scre
         // 전원에게 최신 방 상태 동기화
         host.send({ type: 'room_state', roomState: snapshotRoomState() });
 
+        // 입장은 토스트 대신 참가자 칸에서 직접 보여준다 — 바로 옆에서 목록이 바뀌는데
+        // 화면 반대편 하단에 글자로 또 알릴 이유가 없다. 놓쳐도 채팅에 소식으로 남는다.
+        enteringPeerId = newPlayer.peerId;
         refreshUI();
+        enteringPeerId = null;
+        appendChatSystemMessage(el, `${nickname} 님이 들어왔어요`);
         if (!migrated) updatePublicRoom(host.roomId, { playerCount: 1 + guestPlayers.length }).catch(() => {});
-        showToast(`${nickname} 님이 들어왔어요`);
       };
 
       host.onGuestDisconnected = (peerId) => {
@@ -392,9 +430,11 @@ export function createWaitingRoomAsHostScreen(args: WaitingRoomAsHostArgs): Scre
           host.send({ type: 'player_left', peerId, nickname: removed.nickname });
           host.send({ type: 'room_state', roomState: snapshotRoomState() });
         }
-        refreshUI();
+        // 퇴장도 자리에서 — 행을 바로 지우면 아래 칸들이 덜컥 당겨 올라온다.
+        // 접히는 모션이 끝난 뒤에 다시 그린다.
+        appendChatSystemMessage(el, `${removed?.nickname ?? '게스트'} 님이 나갔어요`);
+        collapseParticipant(peerId, refreshUI);
         if (!migrated) updatePublicRoom(host.roomId, { playerCount: 1 + guestPlayers.length }).catch(() => {});
-        showToast(`${removed?.nickname ?? '게스트'} 님이 나갔어요`);
       };
 
       // 게스트가 일시적으로 끊겼다 유예 안에 재연결 — 현재 방 상태를 돌려줘 그대로 복구
@@ -453,15 +493,19 @@ export function createWaitingRoomAsHostScreen(args: WaitingRoomAsHostArgs): Scre
         },
       });
 
+      // 방장 입장도 소식으로 — 게스트는 "들어왔어요" 가 뜨는데 방장만 조용히 있으면
+      // 채팅이 누가 있는지 모르는 채로 시작한다. 방이 열린 시점을 첫 줄로 남긴다.
+      appendChatSystemMessage(el, `${hostNickname} 님이 방을 만들었어요`);
+
       // ---- 방 링크 복사 (카톡 등 공유 편의용) ----
       shareBtn.addEventListener('click', async () => {
         const shareUrl = buildRoomShareUrl(host.roomId);
         try {
           await navigator.clipboard.writeText(shareUrl);
-          showToast('링크를 복사했어요! 카톡에 붙여넣으세요');
+          showToast('링크를 복사했어요! 카톡에 붙여넣으세요', { kind: 'success', icon: 'link' });
         } catch {
           const ok = window.prompt('링크를 복사하세요:', shareUrl);
-          if (ok !== null) showToast('링크를 확인했어요');
+          if (ok !== null) showToast('링크를 확인했어요', { kind: 'success', icon: 'link' });
         }
       });
 
@@ -479,25 +523,19 @@ export function createWaitingRoomAsHostScreen(args: WaitingRoomAsHostArgs): Scre
       });
 
       // ---- 방 나가기 ----
-      leaveBtn.addEventListener('click', () => {
-        const confirmMsg = guestPlayers.length > 0
-          ? '방을 나가면 모든 참가자의 연결이 끊겨요. 나가시겠어요?'
-          : '방을 나가시겠어요?';
-        if (window.confirm(confirmMsg)) {
-          router.back();
-        }
+      leaveBtn.addEventListener('click', async () => {
+        // 방장이 나가면 방이 통째로 닫히니, 사람이 있을 때는 그 사실을 분명히 말해준다
+        const hasGuests = guestPlayers.length > 0;
+        const ok = await showConfirm({
+          title: '방을 나갈까요?',
+          message: hasGuests
+            ? `지금 ${guestPlayers.length}명이 함께 있어요.\n방장이 나가면 모두의 연결이 끊겨요.`
+            : '만든 방이 사라져요.',
+          confirmLabel: '나가기',
+          danger: hasGuests,
+        });
+        if (ok) router.back();
       });
-
-      // ---- 토스트 헬퍼 ----
-      let toastTimer: number | undefined;
-      function showToast(text: string): void {
-        toastEl.textContent = text;
-        toastEl.classList.add('show');
-        window.clearTimeout(toastTimer);
-        toastTimer = window.setTimeout(() => {
-          toastEl.classList.remove('show');
-        }, 2200);
-      }
 
       return el;
     },
@@ -636,10 +674,31 @@ export function createWaitingRoomAsGuestScreen(args: WaitingRoomAsGuestArgs): Sc
       const amIReady = (): boolean =>
         !!roomState.players.find((p) => p.peerId === myPeerId)?.ready;
 
+      /** 방금 들어온 사람 — 다음 재렌더에서 그 행에만 입장 모션을 건다 */
+      let enteringPeerId: string | null = null;
+      /** 퇴장 모션이 끝나는 시각. 그 전에 다시 그리면 접히는 중에 행이 사라진다 */
+      let holdUntil = 0;
+
+      /** 나간 사람 행을 접기 시작. 재렌더는 refreshSoon 이 알아서 미뤄준다 */
+      const collapseLeavingRow = (peerId: string): void => {
+        const row = participantsEl.querySelector<HTMLElement>(`.participant[data-peer="${CSS.escape(peerId)}"]`);
+        if (!row) return;
+        row.classList.add('is-leaving');
+        holdUntil = Date.now() + 260; // CSS participant-out 길이와 맞춤
+      };
+
+      /** 접히는 중이면 끝난 뒤에, 아니면 바로 */
+      const refreshSoon = (): void => {
+        const wait = holdUntil - Date.now();
+        if (wait > 0) { window.setTimeout(refreshUI, wait); return; }
+        refreshUI();
+      };
+
       const refreshUI = (): void => {
         const max = guestMaxPlayers();
         const count = roomState.players.length;
-        participantsEl.innerHTML = renderParticipantsHTML(roomState.players, max, myPeerId);
+        participantsEl.innerHTML = renderParticipantsHTML(roomState.players, max, myPeerId, false, enteringPeerId);
+        enteringPeerId = null;
         playerCountEl.textContent = `${count} / ${max}명`;
         // 방장이 고른 게임 한 장만 크게(설명 포함). 미선택이면 안내 문구.
         gamePickedEl.innerHTML = buildPickedGameHTML(roomState.gameId);
@@ -678,11 +737,19 @@ export function createWaitingRoomAsGuestScreen(args: WaitingRoomAsGuestArgs): Sc
         switch (msg.type) {
           case 'room_state':
             roomState = msg.roomState;
-            refreshUI();
+            refreshSoon();
             break;
+          // 아래 둘은 UI 를 직접 갱신하지 않는다(뒤따라오는 room_state 가 한다).
+          // 여기선 모션/소식처럼 "그 순간에만 할 수 있는 것"만 처리한다.
           case 'player_joined':
+            // 내 입장은 화면 켜질 때 이미 첫 줄로 적었다. 브로드캐스트가 나한테도 와서 두 번 찍히는 걸 막는다.
+            if (msg.player.peerId === myPeerId) break;
+            enteringPeerId = msg.player.peerId;
+            appendChatSystemMessage(el, `${msg.player.nickname} 님이 들어왔어요`);
+            break;
           case 'player_left':
-            // 호스트가 뒤이어 room_state도 보내므로 여기선 무시 (UI는 room_state 때 갱신)
+            appendChatSystemMessage(el, `${msg.nickname} 님이 나갔어요`);
+            collapseLeavingRow(msg.peerId);
             break;
           case 'reaction':
             // 호스트가 broadcast/relay 한 이모지 반응
@@ -733,6 +800,14 @@ export function createWaitingRoomAsGuestScreen(args: WaitingRoomAsGuestArgs): Sc
         },
       });
 
+      // 들어온 사람 입장에서도 "누가 있는 방인지"를 첫 줄로. 방장이 방을 만든 건
+      // 내가 오기 전 일이라 네트워크로는 안 오니, roomState 의 방장 닉네임으로 직접 적는다.
+      {
+        const hostName = roomState.players.find((p) => p.isHost)?.nickname;
+        if (hostName) appendChatSystemMessage(el, `${hostName} 님이 방을 만들었어요`);
+        appendChatSystemMessage(el, `${storage.getNickname()} 님이 들어왔어요`);
+      }
+
       // 일시적 끊김 — 바로 튕기지 않고 재연결 오버레이를 띄운다(peer.ts 가 자동 재시도)
       guest.onReconnecting = () => showReconnectOverlay();
       guest.onReconnected = () => hideReconnectOverlay();
@@ -744,8 +819,13 @@ export function createWaitingRoomAsGuestScreen(args: WaitingRoomAsGuestArgs): Sc
         attemptHostMigration(guest, roomState, () => { alert('방장이 방을 나갔어요'); router.back(); });
       };
 
-      leaveBtn.addEventListener('click', () => {
-        if (window.confirm('방을 나가시겠어요?')) router.back();
+      leaveBtn.addEventListener('click', async () => {
+        const ok = await showConfirm({
+          title: '방을 나갈까요?',
+          message: '다시 들어오려면 방 코드가 필요해요.',
+          confirmLabel: '나가기',
+        });
+        if (ok) router.back();
       });
 
       return el;

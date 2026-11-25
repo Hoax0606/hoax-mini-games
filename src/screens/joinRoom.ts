@@ -212,6 +212,9 @@ export function createJoinRoomScreen(
             case 'game_in_progress':
               showError('이미 게임이 진행 중이에요');
               break;
+            case 'kicked':
+              showError('이 방에서 내보내졌어요. 다시 들어갈 수 없어요');
+              break;
           }
           return;
         }

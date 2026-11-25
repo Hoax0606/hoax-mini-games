@@ -1476,9 +1476,14 @@ function injectStyle(): void {
 .bm-tile.bm-swapglow{z-index:7;animation:bm-swapg .9s ease-in-out;}
 @keyframes bm-swapg{0%,100%{box-shadow:none;}30%,70%{box-shadow:0 0 0 3px #fff,0 0 18px 4px #7950f2;}}
 /* 카드 사용 토스트 */
+/* 공용 토스트(.toast)와 같은 프로스티드 글래스 룩. 다만 위치는 보드 안(top:32%)에 그대로 둔다 —
+   이건 페이지 알림이 아니라 "카드 쓴 자리"에서 뜨는 게임 연출이라, 화면 하단 스택으로 옮기면
+   무슨 일이 어디서 일어났는지가 사라진다. */
 .bm-cardtoast{position:absolute;top:32%;left:50%;transform:translate(-50%,-50%);z-index:60;pointer-events:none;
-  background:rgba(58,74,71,.94);color:#fff;font-size:15px;font-weight:800;padding:11px 22px;border-radius:14px;
-  box-shadow:0 12px 30px rgba(0,0,0,.3);animation:bm-fxnum 1.4s cubic-bezier(.2,1.3,.4,1) forwards;}
+  background:rgba(255,255,255,.82);-webkit-backdrop-filter:blur(18px) saturate(160%);backdrop-filter:blur(18px) saturate(160%);
+  border:1.5px solid rgba(255,255,255,.8);border-left:4px solid #5cc98d;
+  color:#2f4a46;font-size:15px;font-weight:800;padding:11px 22px;border-radius:999px;
+  box-shadow:0 10px 28px rgba(63,179,162,.28);animation:bm-fxnum 1.4s cubic-bezier(.2,1.3,.4,1) forwards;}
 /* 동작 최소화 — 흔들림·비행·파편 등 전정계 자극 애니를 정적/페이드로 대체 */
 @media(prefers-reduced-motion:reduce){
   .bm-plane{transition:none;}

@@ -15,6 +15,7 @@ import { sound } from '../core/sound';
 import { escapeHtml } from '../ui/escape';
 import { showReconnectOverlay, hideReconnectOverlay } from '../ui/reconnectOverlay';
 import { icon } from '../ui/icons';
+import { showConfirm } from '../ui/confirm';
 
 /**
  * 게임 실행 화면 (호스트용 / 게스트용 factory 2종)
@@ -1039,10 +1040,14 @@ export function createGameScreenAsGuestScreen(args: GameScreenAsGuestArgs): Scre
         attemptHostMigration(guest, roomState, () => { alert('방장이 게임을 나갔어요'); router.reset(() => createMenuScreen()); });
       };
 
-      leaveBtn.addEventListener('click', () => {
-        if (window.confirm('게임을 나가면 방도 같이 나가요. 나가시겠어요?')) {
-          router.reset(() => createMenuScreen());
-        }
+      leaveBtn.addEventListener('click', async () => {
+        const ok = await showConfirm({
+          title: '게임을 나갈까요?',
+          message: '게임만 나가는 게 아니라 방에서도 나가요.',
+          confirmLabel: '나가기',
+          danger: true,
+        });
+        if (ok) router.reset(() => createMenuScreen());
       });
 
       // 인게임 메뉴 모달 (⚙️ / Esc) — 열림/닫힘 시 pause/resume 송신 + 게임 모듈 정지

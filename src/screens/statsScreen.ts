@@ -4,6 +4,7 @@ import { storage, type GameStats } from '../core/storage';
 import { games } from '../games/registry';
 import { escapeHtml, escapeAttr } from '../ui/escape';
 import { icon } from '../ui/icons';
+import { showConfirm } from '../ui/confirm';
 
 /**
  * 통계 화면
@@ -44,12 +45,16 @@ export function createStatsScreen(): Screen {
       `;
 
       el.querySelector('#back-btn')!.addEventListener('click', () => router.back());
-      el.querySelector('#reset-btn')!.addEventListener('click', () => {
-        if (window.confirm('모든 전적과 최고기록이 삭제돼요. 되돌릴 수 없어요.\n\n정말 초기화할까요?')) {
-          storage.clearStats();
-          // 즉시 재렌더
-          router.replace(() => createStatsScreen());
-        }
+      el.querySelector('#reset-btn')!.addEventListener('click', async () => {
+        const ok = await showConfirm({
+          title: '전적을 초기화할까요?',
+          message: '모든 전적과 최고기록이 삭제돼요.\n되돌릴 수 없어요.',
+          confirmLabel: '초기화',
+          danger: true,
+        });
+        if (!ok) return;
+        storage.clearStats();
+        router.replace(() => createStatsScreen()); // 즉시 재렌더
       });
 
       return el;

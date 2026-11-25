@@ -309,7 +309,7 @@ export interface JoinAcceptedMsg {
 /** 호스트 → 게스트: 입장 거절 후 연결 끊김 */
 export interface JoinRejectedMsg {
   type: 'join_rejected';
-  reason: 'wrong_password' | 'room_full' | 'game_in_progress';
+  reason: 'wrong_password' | 'room_full' | 'game_in_progress' | 'kicked';
 }
 
 /** 호스트 → 게스트: 방 상태 브로드캐스트 (옵션 변경 등) */
