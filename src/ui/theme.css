@@ -113,7 +113,11 @@ body {
   min-height: 100vh;
   display: flex;
   align-items: stretch;
-  justify-content: center;
+  /* safe center — 그냥 center 면 안쪽 화면(.screen/.game-screen 은 min-width 1000px)이
+     창보다 넓을 때 좌우로 똑같이 밀려나는데, 가로 스크롤은 오른쪽으로만 되니까
+     왼쪽이 영영 안 보인다(카드 왼쪽이 잘려서 접근 불가). safe 를 붙이면 넘칠 때만
+     start 로 떨어져서 왼쪽 끝부터 보인다. CLAUDE.md 의 세로 금기와 같은 함정의 가로판. */
+  justify-content: safe center;
   position: relative;
 }
 
@@ -162,8 +166,23 @@ input {
   align-items: center;
   justify-content: center;
   gap: 16px;
-  flex-wrap: wrap;
-  padding-right: 20px;
+  /* nowrap 인 이유: wrap 이면 카드가 자기 폭(960px)을 끝까지 고집해서 채팅 자리를 안 비켜준다.
+     그래서 창이 1316px(=960+16+300+패딩) 밑으로만 내려가도 채팅이 통째로 카드 아래로 떨어졌다.
+     nowrap 이면 .card 의 min-width(420px)까지 카드가 먼저 줄어들면서 채팅이 계속 옆에 붙어있다. */
+  flex-wrap: nowrap;
+  /* 좌우 80px: 나가기 × 버튼(.back-btn 은 absolute, x 24~68)이 카드를 덮지 않게 왼쪽을 비운다.
+     오른쪽도 같은 값을 줘야 카드+채팅 묶음이 화면 가운데에 그대로 남는다
+     (한쪽만 주면 그만큼 밀려서 중앙 정렬이 틀어짐). */
+  padding-left: 80px;
+  padding-right: 80px;
+  /* 하한을 넘어가면 레이아웃을 뒤트는 대신 가로 스크롤로 넘긴다 — .game-screen 과 같은 방식,
+     값도 1000px 로 맞춰 앱 전체 하한을 통일했다.
+     왜 1000 인가: 카드 안은 참가자 260 + gap 22 + 패딩 ≈ 380 이 고정이라, 게임 타일(최소 124)이
+     들어가려면 카드가 ~644 는 돼야 한다. 거기에 gap 16 + 채팅 300 + 좌우 패딩 160 = 1120.
+     더 좁히면 타일이 한 칸도 못 들어가 그리드가 44px 로 쪼그라든다.
+     예전엔 720px 밑에서 세로 배치로 바뀌었는데, 참가자 목록이 높이를 다 먹어서
+     게임 그리드가 4px 로 사라지는 상태였다. PC 전용이라 스크롤이 낫다. */
+  min-width: 1120px;
 }
 
 @keyframes screenIn {
@@ -3224,7 +3243,10 @@ input {
 /* 대기실 2단 레이아웃 (좌: 참가자 / 우: 게임 타일)
    카드는 고정 크기 — 게임/옵션이 바뀌어도 흰 카드 크기가 안 흔들리게. 내부에서 채우고 넘치면 스크롤. */
 .waiting-card {
-  width: min(94vw, 960px);
+  /* 94vw 를 쓰면 화면 min-width(1000px) 하한 밑에서도 카드가 vw 따라 계속 줄어든다
+     (가로 스크롤 중인데 카드만 더 쪼그라드는 꼴). 고정 960 을 주고 flex 축소에 맡긴다 —
+     nowrap 플렉스라 채팅(300) 자리를 뺀 만큼 알아서 줄어든다. */
+  width: 960px;
   max-width: none;
   height: min(86vh, 700px);
   display: flex;
@@ -3300,11 +3322,10 @@ input {
 /* 게스트: 게임 그리드는 보기 전용 — 클릭/호버 반응 없이 방장이 고른 게임만 확인 */
 /* 게스트: 그리드 자체는 스크롤 가능해야 하므로, 클릭 차단은 카드에만(그리드 전체 X). */
 .waiting-grid.is-readonly .change-game-card { pointer-events: none; cursor: default; }
-@media (max-width: 720px) {
-  .waiting-card { height: auto; max-height: 88vh; }
-  .waiting-body { flex-direction: column; }
-  .waiting-left { flex: none; }
-}
+/* 예전의 @media (max-width: 720px) 세로 배치 폴백은 제거했다.
+   .waiting-left { flex: none } 때문에 참가자 목록이 세로를 전부 먹고 게임 그리드가
+   4px 로 사라지는 상태였다. 지금은 .screen:has(.waiting-card) 의 min-width 로
+   가로 스크롤을 주고 가로 배치를 그대로 유지한다. */
 
 /* 대기실 게임 타일 = 메인 화면(도감 .game-card) 카드와 동일 룩 (통일) */
 .change-game-card {
