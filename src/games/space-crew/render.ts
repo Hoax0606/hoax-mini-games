@@ -303,7 +303,7 @@ export class ScRenderer {
         <div class="sc-trick">${trickHTML || '<span class="sc-label">첫 카드를 기다리는 중</span>'}</div>
         <div class="sc-news">${esc(s.news)}</div>
       </div>
-      <div class="sc-label">내 손패</div>
+      <div class="sc-label">${s.specHands ? '전원 손패' : '내 손패'}</div>
       <div class="sc-hand">${this.handHTML(s)}</div>
       ${this.actionsHTML(s)}
     `;
