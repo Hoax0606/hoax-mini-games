@@ -841,4 +841,12 @@ export function getGameById(id: string): GameEntry | undefined {
  * 방을 만들 때는 아직 게임이 안 정해져 있어서(방 안에서 고름), 이 상한까지 사람을 받아둔다.
  * 이후 방장이 고른 게임의 maxPlayers 로 실제 정원이 좁혀진다.
  */
+/**
+ * 한 방에 붙을 수 있는 관전자 수.
+ * 관전자는 판에 안 앉으니 게임 정원과 별도로 친다 — 2인 게임에도 구경꾼이 붙게.
+ * 다만 무한정은 안 된다: 호스트가 관전자마다 따로 판을 만들어 보내는 게임도 있어서
+ * 연결이 늘어날수록 호스트 부담이 커진다.
+ */
+export const MAX_SPECTATORS = 8;
+
 export const GLOBAL_MAX_PLAYERS = Math.max(...games.map((g) => g.meta.maxPlayers));

@@ -1,7 +1,7 @@
 import type { Screen } from '../core/screen';
 import { router } from '../core/screen';
 import type { HostSession, GuestSession, JoinRequest, JoinDecision } from '../core/peer';
-import { getGameById } from '../games/registry';
+import { getGameById, MAX_SPECTATORS } from '../games/registry';
 import { updatePublicRoom, unpublishRoom } from '../core/roomDirectory';
 import type { GameContext, GameModule, Player, RoomState, SpectatorLine } from '../games/types';
 import { createMenuScreen } from './menu';
@@ -697,7 +697,10 @@ export function createGameScreenAsHostScreen(args: GameScreenAsHostArgs): Screen
           return { accept: false, reason: 'wrong_password' };
         }
         // 정원(활성+관전) 초과면 거부 → 입장 측에서 "방 꽉참" 알림
-        if (currentOccupancy() >= roomMaxPlayers) {
+        // 게임이 시작된 뒤에 들어오는 사람은 무조건 관전자다.
+        // 예전엔 "활성+관전 ≥ 게임 정원" 으로 막았는데, 그러면 2인 게임은
+        // 시작하는 순간 구경꾼이 영영 못 들어왔다. 관전은 따로 정원을 친다.
+        if (spectators.length >= MAX_SPECTATORS) {
           return { accept: false, reason: 'room_full' };
         }
         const newSpec: Player = {

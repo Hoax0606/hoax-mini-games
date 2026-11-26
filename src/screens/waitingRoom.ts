@@ -2,7 +2,7 @@ import type { Screen } from '../core/screen';
 import { router } from '../core/screen';
 import { storage } from '../core/storage';
 import type { HostSession, GuestSession, JoinRequest, JoinDecision } from '../core/peer';
-import { getGameById, GLOBAL_MAX_PLAYERS } from '../games/registry';
+import { getGameById, GLOBAL_MAX_PLAYERS, MAX_SPECTATORS } from '../games/registry';
 import type { Player, RoomState } from '../games/types';
 import { createGameScreenAsHostScreen, createGameScreenAsGuestScreen } from './gameScreen';
 import { createMenuScreen } from './menu';
@@ -198,7 +198,7 @@ export function createWaitingRoomAsHostScreen(args: WaitingRoomAsHostArgs): Scre
    */
   const recomputeAccept = (): void => {
     const seats = Math.max(1, maxPlayers() - 1);
-    host.maxAccepted = Math.min(GLOBAL_MAX_PLAYERS - 1, seats + watchingGuests());
+    host.maxAccepted = seats + MAX_SPECTATORS;
   };
 
   const hostPlayer: Player = {
@@ -454,7 +454,9 @@ export function createWaitingRoomAsHostScreen(args: WaitingRoomAsHostArgs): Scre
         // 예전엔 그냥 거절해서, 2인 게임은 구경하러 온 사람이 문앱에서 막혐 —
         // 관전을 고를 기회조차 없었다. 자리가 나면 대기실에서 '참가하기'를 누르면 된다.
         const seatFull = seatedGuests() >= maxPlayers() - 1;
-        if (seatFull && guestPlayers.length >= GLOBAL_MAX_PLAYERS - 1) {
+        // 관전은 게임 정원과 별도 정원을 쓴다. 예전엔 전체 연결 수로 막아서
+        // 10인 게임이 차면 구경꾼이 한 명도 못 들어왔다.
+        if (seatFull && watchingGuests() >= MAX_SPECTATORS) {
           return { accept: false, reason: 'room_full' };
         }
         if (isPrivate && !migrated && req.password !== password) {
