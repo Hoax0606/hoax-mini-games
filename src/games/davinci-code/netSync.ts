@@ -25,7 +25,7 @@ const T_END = 'dv:end';
 
 /**
  * 판의 단계.
- *   place    조커를 어디에 넣을지 고르는 중 (해당하는 사람만)
+ *   place    뽑은 타일을 열에 넣는 중 (조커면 자리 선택, 숫자면 확인만)
  *   draw     뽑기 대기 (풀이 비면 건너뛴다)
  *   guess    상대 타일을 지목하는 중
  *   continue 맞힌 뒤 계속할지 멈출지 고르는 중
@@ -54,6 +54,14 @@ export interface SyncPayload {
    * (뽑은 타일이 뭔지 보이면 그 턴이 통째로 무의미해진다).
    */
   myDrawn: { num: number; color: 'black' | 'white' } | null;
+  /**
+   * place 단계에서 내가 놓을 타일. 해당하는 사람에게만 채워 보낸다.
+   * forcedIndex 가 있으면 숫자 타일(자리가 규칙으로 정해짐), null 이면 조커(주인이 고름).
+   *
+   * ⚠️ 숫자 타일도 이 단계를 거치게 한 것은 일부러다. 예전엔 조커만 멈췄기 때문에
+   * "〇〇 님이 자리 고르는 중" 이 뜨는 순간 전원이 조커인 줄 알았다.
+   */
+  myPlacing: { num: number; color: 'black' | 'white'; forcedIndex: number | null } | null;
   /** 한 줄 소식. "영희 님이 민수 님의 3을 맞혔어요" 같은 것 */
   news: string;
   /** 제한 시간(초). 0 이면 무제한 */

@@ -74,6 +74,13 @@ const CSS = `
 .dv-slot{width:16px;height:42px;border-radius:7px;border:2px dashed #7ec8bb;background:rgba(126,200,187,.16);
   cursor:pointer;padding:0;flex:0 0 auto;transition:background .12s ease;}
 .dv-slot:hover{background:rgba(126,200,187,.42);}
+/* 자리가 정해진 숫자 타일 — 어디 들어가는지 자리만 표시하고 확인만 받는다 */
+.dv-slot.fixed{border-style:solid;border-color:#ffc83d;background:rgba(255,200,61,.3);cursor:default;}
+/* 이미 들킨 내 타일 — 숫자는 원래 보이니까 "남도 안다" 는 걸 테두리로 알린다 */
+.dv-tile.is-open{border-color:#ff9838;box-shadow:0 0 0 2px rgba(255,152,56,.28);}
+.dv-open-mark{position:absolute;top:-8px;left:50%;transform:translateX(-50%);font-size:9px;font-weight:900;
+  color:#8a4b00;background:#ffc83d;border-radius:999px;padding:1px 5px;pointer-events:none;white-space:nowrap;}
+.dv-tile-wrap{position:relative;display:inline-flex;flex:0 0 auto;}
 
 /* 숫자 패드 */
 /* 판을 가리지 않는다 — 상대 타일을 보면서 숫자를 골라야 하는 게임이라
@@ -185,7 +192,9 @@ export class DvRenderer {
    * (내가 놓는 중인데 "방장 님이 조커를 놓는 중이에요" 라고 뜨면 남 얘기처럼 읽힌다)
    */
   private newsFor(s: SyncPayload): string {
-    if (s.phase === 'place' && s.turnPeerId === this.myId) return '조커를 어디에 둘지 정하세요';
+    if (s.phase === 'place' && s.turnPeerId === this.myId) {
+      return s.myPlacing?.forcedIndex === null ? '조커를 어디에 둘지 정하세요' : '뽑은 타일을 열에 넣으세요';
+    }
     return s.news;
   }
 
@@ -216,15 +225,27 @@ export class DvRenderer {
     if (!me) return '<div class="dv-mine-label">관전 중</div>';
     const placing = s.phase === 'place' && s.turnPeerId === this.myId;
     const revealing = s.phase === 'reveal' && s.turnPeerId === this.myId;
+    // 자리가 정해진 숫자 타일이면 그 자리만 노랑으로 표시, 조커면 모든 자리가 버튼
+    const fixedAt = placing ? s.myPlacing?.forcedIndex ?? null : null;
+    const freePlacing = placing && fixedAt === null;
+
+    const slot = (i: number): string => {
+      if (freePlacing) return `<button class="dv-slot" data-slot="${i}" title="여기에 넣기"></button>`;
+      if (fixedAt === i) return `<span class="dv-slot fixed" title="여기에 들어가요"></span>`;
+      return '';
+    };
 
     const parts: string[] = [];
     me.tiles.forEach((t, i) => {
-      if (placing) parts.push(`<button class="dv-slot" data-slot="${i}" title="여기에 넣기"></button>`);
-      const cls = ['dv-tile', t.color, revealing && !t.revealed ? 'pickable' : ''].filter(Boolean).join(' ');
+      parts.push(slot(i));
+      // 내 타일은 숫자가 항상 보인다 — 그래서 들킨(revealed) 것을 구분할 방법이 없었다.
+      // 어떤 게 이미 까였는지 알아야 남은 패를 세고 판단을 한다.
+      const cls = ['dv-tile', t.color, t.revealed ? 'is-open' : '',
+        revealing && !t.revealed ? 'pickable' : ''].filter(Boolean).join(' ');
       const attrs = revealing && !t.revealed ? ` data-reveal="${i}"` : '';
-      parts.push(`<button class="${cls}"${attrs} ${revealing && !t.revealed ? '' : 'disabled'}>${tileLabel(t.num)}</button>`);
+      parts.push(`<span class="dv-tile-wrap"><button class="${cls}"${attrs} ${revealing && !t.revealed ? '' : 'disabled'}>${tileLabel(t.num)}</button>${t.revealed ? '<span class="dv-open-mark">들킨</span>' : ''}</span>`);
     });
-    if (placing) parts.push(`<button class="dv-slot" data-slot="${me.tiles.length}" title="여기에 넣기"></button>`);
+    parts.push(slot(me.tiles.length));
 
     const drawn = s.myDrawn
       ? `<div class="dv-drawn">뽑은 타일
@@ -241,14 +262,31 @@ export class DvRenderer {
     if (s.phase === 'done') return '';
     if (!mine) {
       const who = s.players.find((p) => p.peerId === s.turnPeerId)?.nickname ?? '';
-      const what = s.phase === 'place' ? '조커를 놓는 중' : '차례';
-      return `<div class="dv-mine-label">${escapeText(who)} 님 ${what}이에요</div>`;
+      if (s.phase === 'place') {
+        // 시작 직후(turnStartedAt===0)의 place 는 조커를 받은 사람에게만 생긴다.
+        // 이름을 부르면 누가 조커를 들고 있는지 알려주는 꼴이라 그때만 뭔뛛게 둔다.
+        return s.turnStartedAt === 0
+          ? `<div class="dv-mine-label">타일을 정리하는 중이에요</div>`
+          : `<div class="dv-mine-label">${escapeText(who)} 님이 타일을 놓는 중이에요</div>`;
+      }
+      return `<div class="dv-mine-label">${escapeText(who)} 님 차례예요</div>`;
     }
     switch (s.phase) {
       case 'draw':
         return `<div class="dv-actions"><button class="dv-btn" id="dv-draw">타일 뽑기</button></div>`;
-      case 'place':
-        return `<div class="dv-mine-label">조커를 넣을 자리를 고르세요</div>`;
+      case 'place': {
+        const pl = s.myPlacing;
+        if (!pl) return '';
+        if (pl.forcedIndex === null) {
+          return `<div class="dv-mine-label">조커를 넣을 자리를 고르세요</div>`;
+        }
+        // 숫자 타일 — 자리는 규칙으로 정해져 있으니 확인만 받는다
+        return `<div class="dv-actions">
+          <span class="dv-drawn">놓을 타일
+            <span class="dv-tile ${pl.color}">${tileLabel(pl.num)}</span></span>
+          <button class="dv-btn" id="dv-place-ok">여기에 넣기</button>
+        </div>`;
+      }
       case 'guess':
         return `<div class="dv-mine-label">상대 타일을 눌러 숫자를 맞혀보세요</div>`;
       case 'continue':
@@ -265,6 +303,9 @@ export class DvRenderer {
 
   private wire(s: SyncPayload): void {
     this.root.querySelector('#dv-draw')?.addEventListener('click', () => this.cb.onDraw());
+    // 자리가 정해진 타일 — index 는 호스트가 재계산하므로 아무 값이나 보내도 된다
+    this.root.querySelector('#dv-place-ok')?.addEventListener('click',
+      () => this.cb.onPlace(this.last?.myPlacing?.forcedIndex ?? 0));
     this.root.querySelector('#dv-go')?.addEventListener('click', () => this.cb.onContinue(true));
     this.root.querySelector('#dv-stop')?.addEventListener('click', () => this.cb.onContinue(false));
 

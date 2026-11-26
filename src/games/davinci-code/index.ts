@@ -42,8 +42,11 @@ export function createDavinciCode(): GameModule {
   let phase: Phase = 'draw';
   /** 이번 턴에 뽑아서 아직 손에 든 타일. 턴이 끝날 때 열에 들어간다 */
   let drawn: Tile | null = null;
-  /** 조커를 놓아야 하는 순번. 시작 때 여러 명일 수 있어서 큐로 둔다 */
-  let placeQueue: { peerId: string; tile: Tile }[] = [];
+  /**
+   * 타일을 열에 넣는 걸 기다리는 순번. 시작 때 여러 명일 수 있어서 큐로 둔다.
+   * forcedIndex: 숫자 타일은 규칙으로 자리가 정해져 있고(주인은 확인만), 조커는 null(주인이 고름).
+   */
+  let placeQueue: { peerId: string; tile: Tile; forcedIndex: number | null }[] = [];
   let news = '';
   let turnLimit = 0;
   let turnStartedAt = 0;
@@ -79,7 +82,7 @@ export function createDavinciCode(): GameModule {
       for (let i = 0; i < hand; i++) {
         const t = deck.pop();
         if (!t) break;
-        if (t.num === JOKER) placeQueue.push({ peerId: p.peerId, tile: t });
+        if (t.num === JOKER) placeQueue.push({ peerId: p.peerId, tile: t, forcedIndex: null });
         else p.tiles = insertAt(p.tiles, t, insertIndexFor(p.tiles, t));
       }
     }
@@ -89,7 +92,9 @@ export function createDavinciCode(): GameModule {
 
     if (placeQueue.length > 0) {
       phase = 'place';
-      news = `${placerName()} 님이 조커를 놓는 중이에요`;
+      // 시작 때만은 이름을 안 부른다 — 이때 place 는 조커 임자에게만 생기니까
+      // "〇〇 님이 놓는 중" 이라고 하면 누가 조커를 받았는지 알려주는 꼴이 된다.
+      news = '타일을 정리하는 중이에요';
     } else {
       beginTurn();
     }
@@ -141,15 +146,19 @@ export function createDavinciCode(): GameModule {
     const cur = current();
     if (cur && drawn) {
       const tile: Tile = { ...drawn, revealed: reveal };
-      if (tile.num === JOKER) {
-        // 조커는 자리를 주인이 골라야 한다. 큐에 넣고 'place' 로 멈춘다.
-        placeQueue.push({ peerId: cur.peerId, tile });
-        drawn = null;
-        phase = 'place';
-        broadcast();
-        return;
-      }
-      cur.tiles = insertAt(cur.tiles, tile, insertIndexFor(cur.tiles, tile));
+      // 조커든 숫자든 똑같이 'place' 를 거친다. 조커만 멈추면 바깥에서
+      // "지금 멈췄으니 조커네" 가 들통난다. 숫자 타일은 자리를 미리 정해두고 확인만 받는다.
+      placeQueue.push({
+        peerId: cur.peerId,
+        tile,
+        forcedIndex: tile.num === JOKER ? null : insertIndexFor(cur.tiles, tile),
+      });
+      drawn = null;
+      phase = 'place';
+      // news 는 건들지 않는다 — "〇〇 님이 틀렸어요" 같은 방금 결과가 살아 있어야 한다.
+      // "놓는 중" 은 화면 아래 상태줄이 따로 보여준다.
+      broadcast();
+      return;
     }
     drawn = null;
     settleBustAndAdvance();
@@ -220,11 +229,16 @@ export function createDavinciCode(): GameModule {
     if (!pending || pending.peerId !== fromPeerId) return; // 자기 차례 아님 — 무시
     const p = players.find((x) => x.peerId === fromPeerId);
     if (!p) return;
-    p.tiles = insertAt(p.tiles, pending.tile, index);
+    // 숫자 타일은 자리가 규칙으로 정해져 있다 — 게스트가 보낸 index 는 무시한다(변조 방지)
+    const at = pending.forcedIndex ?? index;
+    if (at < 0 || at > p.tiles.length) return;
+    p.tiles = insertAt(p.tiles, pending.tile, at);
     placeQueue.shift();
 
     if (placeQueue.length > 0) {
-      news = `${placerName()} 님이 조커를 놓는 중이에요`;
+      news = turnStartedAt === 0
+        ? '타일을 정리하는 중이에요'
+        : `${placerName()} 님이 타일을 놓는 중이에요`;
       broadcast();
       return;
     }
@@ -304,6 +318,14 @@ export function createDavinciCode(): GameModule {
       poolLeft: pool.length,
       // 뽑은 타일은 뽑은 사람만 본다. 남이 보면 그 턴이 통째로 무의미해진다.
       myDrawn: iAmCurrent && drawn ? { num: drawn.num, color: drawn.color } : null,
+      // 놓는 사람 본인에게만. 남이 보면 조커인지 아닌지가 그대로 드러난다.
+      myPlacing: placeQueue[0] && placeQueue[0].peerId === viewerId
+        ? {
+            num: placeQueue[0].tile.num,
+            color: placeQueue[0].tile.color,
+            forcedIndex: placeQueue[0].forcedIndex,
+          }
+        : null,
       news,
       turnLimit,
       turnStartedAt,
