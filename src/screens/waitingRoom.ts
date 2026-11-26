@@ -113,6 +113,9 @@ function buildRoomShareUrl(roomCode: string): string {
 // 호스트 대기실
 // ============================================
 
+/** 자동 준비 설정 — 브라우저별로 기억한다 */
+const AUTO_READY_KEY = 'hoax:autoReady';
+
 export interface WaitingRoomAsHostArgs {
   host: HostSession;
   gameId: string;
@@ -146,8 +149,12 @@ export function createWaitingRoomAsHostScreen(args: WaitingRoomAsHostArgs): Scre
 
   // 방 내부 상태 — guestPlayers는 방장 제외한 참가자들.
   // 결과 화면에서 되돌아온 경우 이미 연결된 게스트를 seed (준비는 리셋 → 다시 준비해야 시작 가능).
+  // 살아있는 연결만 남긴다. 게임 도중 끊긴 사람은 peerId 가 바뀜 채 관전자로 다시 들어오는데,
+  // 결과 화면에서 관전자를 전부 참가자로 올려버려서 끊긴 옆 항목까지 같이 살아나버렸다
+  // (같은 사람이 두 번 보이던 이유). 유예 중인 끊김은 acceptedConns 에 남아 있어서 안 사라진다.
+  const liveGuestIds = new Set(args.host.listGuestPeerIds());
   let guestPlayers: Player[] = (args.initialPlayers ?? [])
-    .filter((p) => !p.isHost)
+    .filter((p) => !p.isHost && liveGuestIds.has(p.peerId))
     .map((p) => ({ ...p, role: 'player', ready: false }));
 
   // 게임이 아직 안 정해졌을 수 있음(gameId='') → 그때 정원은 전체 상한.
@@ -348,8 +355,8 @@ export function createWaitingRoomAsHostScreen(args: WaitingRoomAsHostArgs): Scre
         }
         gameId = newGameId;
         roomOptions = reconcileOptions(newGameId, { ...newOptions });
-        // 게임이 바뀌면 모두 다시 준비해야 함 → 게스트 ready 리셋
-        guestPlayers.forEach((p) => { p.ready = false; });
+        // 게임·설정이 바뀔 때마다 준비를 풀었더니 방장이 고르는 사이 계속 다시 눌러야 했다.
+        // 이제 준비는 그대로 둔다 — 바뀐 게임이 싫으면 게스트가 직접 준비를 풀면 된다.
         // 정원 좁힘 — 이후 입장은 이 게임 기준으로 막힘
         host.maxAccepted = Math.max(1, g.meta.maxPlayers - 1);
         // 전원에게 새 방 상태 통지 + 공개목록 갱신(게임이름/정원)
@@ -383,8 +390,8 @@ export function createWaitingRoomAsHostScreen(args: WaitingRoomAsHostArgs): Scre
             // reconcile — 상위 옵션(국가 등)이 바뀌면 거기 안 맞는 하위 값(노선)을 첫 유효값으로.
             // 안 하면 국가를 한국으로 바꿔도 노선엔 일본 노선이 남아 그대로 시작된다.
             roomOptions = reconcileOptions(gameId, { ...roomOptions, [key]: sel.value });
-            // 설정이 바뀌면 게스트가 본 조건이 달라짐 → 준비 리셋(다시 확인하고 준비하도록)
-            guestPlayers.forEach((p) => { p.ready = false; });
+            // 게임·설정이 바뀔 때마다 준비를 풀었더니 방장이 고르는 사이 계속 다시 눌러야 했다.
+            // 이제 준비는 그대로 둔다 — 바뀐 게임이 싫으면 게스트가 직접 준비를 풀면 된다.
             host.send({ type: 'room_state', roomState: snapshotRoomState() });
             if (!migrated) updatePublicRoom(host.roomId, { playerCount: 1 + guestPlayers.length }).catch(() => {});
             refreshUI(); // 시작 버튼/참가자 준비 배지 갱신
@@ -423,6 +430,8 @@ export function createWaitingRoomAsHostScreen(args: WaitingRoomAsHostArgs): Scre
 
       host.onGuestConnected = (nickname, peerId) => {
         const newPlayer: Player = { peerId, nickname, isHost: false, role: 'player' };
+        // 같은 peerId 가 이미 있으면 중복 추가 금지 (재연결 등으로 두 번 불릴 수 있다)
+        guestPlayers = guestPlayers.filter((g) => g.peerId !== peerId);
         guestPlayers.push(newPlayer);
 
         // 다른 기존 게스트들에게 새 게스트 입장 알림 (신규 게스트는 join_accepted로 이미 받음)
@@ -655,7 +664,11 @@ export function createWaitingRoomAsGuestScreen(args: WaitingRoomAsGuestArgs): Sc
             <div class="waiting-head-title">
               <div class="card-title">대기실 ${roomVisibilityBadge(roomState.isPrivate)}</div>
             </div>
-            <div class="waiting-section-title waiting-head-game">방장이 고른 게임</div>
+            <div class="waiting-section-title waiting-head-game">
+              <span id="right-title">방장이 고른 게임</span>
+              <button class="btn btn-secondary btn-sm gl-toggle-btn" id="gl-toggle-btn" type="button"
+                      title="이 방에서 할 수 있는 게임 전부 보기">전체 목록</button>
+            </div>
           </div>
 
           <div class="waiting-body">
@@ -665,12 +678,17 @@ export function createWaitingRoomAsGuestScreen(args: WaitingRoomAsGuestArgs): Sc
               <button class="btn btn-primary btn-lg btn-block" id="ready-btn" disabled>
                 방장이 게임을 고르는 중
               </button>
+              <label class="auto-ready" title="방장이 게임을 바꿔도 알아서 준비됩니다">
+                <input type="checkbox" id="auto-ready" /> 자동 준비
+              </label>
               <div style="margin-top: 10px;">${buildReactionBarHTML()}</div>
             </div>
 
             <div class="waiting-right">
               <!-- 게스트는 고를 수 없으니 전체 목록 대신 고른 게임 한 장만 크게 (설명 포함) -->
               <div class="waiting-picked" id="game-picked"></div>
+              <!-- 같은 자리에 갈아끼워 보여주는 전체 목록 (읽기 전용) -->
+              <div class="change-game-grid waiting-grid is-readonly" id="game-all" style="display:none"></div>
               <div class="change-game-options waiting-options" id="game-options"></div>
             </div>
           </div>
@@ -685,6 +703,28 @@ export function createWaitingRoomAsGuestScreen(args: WaitingRoomAsGuestArgs): Sc
       const gamePickedEl = el.querySelector<HTMLDivElement>('#game-picked')!;
       const gameOptionsEl = el.querySelector<HTMLDivElement>('#game-options')!;
       const readyBtn = el.querySelector<HTMLButtonElement>('#ready-btn')!;
+      const gameAllEl = el.querySelector<HTMLDivElement>('#game-all')!;
+      const autoReadyEl = el.querySelector<HTMLInputElement>('#auto-ready')!;
+      const rightTitleEl = el.querySelector<HTMLSpanElement>('#right-title')!;
+      const glToggleBtn = el.querySelector<HTMLButtonElement>('#gl-toggle-btn')!;
+
+      /** 오른쪽 칸이 전체 목록을 보여주는 중인가 (기본은 방장이 고른 게임 한 장) */
+      let showingAll = false;
+
+      /**
+       * 자동 준비 — 켜두면 게임이 정해지는 순간 알아서 준비가 된다.
+       * 설정은 브라우저에 남겨두어 다음 방에서도 유지된다.
+       */
+      let autoReady = false;
+      try { autoReady = localStorage.getItem(AUTO_READY_KEY) === '1'; } catch { autoReady = false; }
+      autoReadyEl.checked = autoReady;
+
+      /** 준비 상태를 바꾸고 호스트에 알린다 (내 화면은 낙관적으로 먼저 반영) */
+      const setReady = (next: boolean): void => {
+        const mine = roomState.players.find((p) => p.peerId === myPeerId);
+        if (mine) mine.ready = next;
+        guest.send({ type: 'ready', ready: next });
+      };
 
       /** roomState 안의 내 ready 값 (없으면 false) */
       const amIReady = (): boolean =>
@@ -718,6 +758,14 @@ export function createWaitingRoomAsGuestScreen(args: WaitingRoomAsGuestArgs): Sc
         playerCountEl.textContent = `${count} / ${max}명`;
         // 방장이 고른 게임 한 장만 크게(설명 포함). 미선택이면 안내 문구.
         gamePickedEl.innerHTML = buildPickedGameHTML(roomState.gameId);
+        // 전체 목록은 방장 그리드를 그대로 쓴다. enforceMin=false — 인원이 모자라도
+        // "이런 게임도 있다" 를 보여주는 게 목적이라 감추면 안 된다.
+        gameAllEl.innerHTML = buildGameTilesHTML(roomState.players.length, roomState.gameId, { enforceMin: false });
+        // hidden 속성은 .waiting-picked 의 display:flex 에 짐룡다 — style 로 직접 끊는다
+        gamePickedEl.style.display = showingAll ? 'none' : '';
+        gameAllEl.style.display = showingAll ? '' : 'none';
+        rightTitleEl.textContent = showingAll ? '전체 게임' : '방장이 고른 게임';
+        glToggleBtn.textContent = showingAll ? '고른 게임' : '전체 목록';
         gameOptionsEl.innerHTML = buildGameOptionsHTML(roomState.gameId, roomState.roomOptions);
         // 게스트는 설정을 못 바꿈 → 셀렉트 비활성화
         gameOptionsEl.querySelectorAll('select').forEach((s) => { s.disabled = true; });
@@ -736,16 +784,41 @@ export function createWaitingRoomAsGuestScreen(args: WaitingRoomAsGuestArgs): Sc
           readyBtn.className = 'btn btn-primary btn-lg btn-block';
           readyBtn.textContent = '준비';
         }
+
+        // 게임이 정해져 있고 자동 준비가 켜져 있는데 아직 안 된 상태면 바로 준비.
+        // 입장 직후·방장이 게임을 고른 직후가 여기로 들어온다.
+        if (autoReady && roomState.gameId && !amIReady()) {
+          setReady(true);
+          refreshUI();
+        }
       };
       refreshUI();
+
+      glToggleBtn.addEventListener('click', () => {
+        showingAll = !showingAll;
+        refreshUI();
+      });
 
       // 준비 토글 — 낙관적으로 내 상태를 로컬 반영 후 호스트에 통지(호스트가 room_state 로 되돌려줌)
       readyBtn.addEventListener('click', () => {
         if (!roomState.gameId) return;
-        const me = roomState.players.find((p) => p.peerId === myPeerId);
-        const next = !me?.ready;
-        if (me) me.ready = next;
-        guest.send({ type: 'ready', ready: next });
+        const next = !roomState.players.find((p) => p.peerId === myPeerId)?.ready;
+        // 자동 준비를 켜둔 채 준비를 풀면 바로 다시 켜져 안 풀린다 — 같이 끔다.
+        if (!next && autoReady) {
+          autoReady = false;
+          autoReadyEl.checked = false;
+          try { localStorage.setItem(AUTO_READY_KEY, '0'); } catch { /* 저장 안 돼도 진행에는 지장 없음 */ }
+        }
+        setReady(next);
+        refreshUI();
+      });
+
+      autoReadyEl.addEventListener('change', () => {
+        autoReady = autoReadyEl.checked;
+        try { localStorage.setItem(AUTO_READY_KEY, autoReady ? '1' : '0'); } catch { /* 동상 */ }
+        // 켰으면 바로 준비, 꿬 때 준비 중이었으면 풀어준다
+        if (autoReady && roomState.gameId && !amIReady()) setReady(true);
+        else if (!autoReady && amIReady()) setReady(false);
         refreshUI();
       });
 
