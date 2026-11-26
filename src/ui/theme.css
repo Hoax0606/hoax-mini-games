@@ -4136,7 +4136,8 @@ input {
 .spec-info {
   position: fixed;
   left: 16px;
-  bottom: 16px;
+  /* 반응 버튼(왼쪽 아래 — 기본 위치)에 깔려 이름이 가려서 한 칸 올렸다 */
+  bottom: 78px;
   z-index: 45;
   min-width: 200px;
   max-width: 280px;
@@ -4147,16 +4148,30 @@ input {
   border: 1.5px solid rgba(255, 255, 255, .8);
   border-radius: 14px;
   box-shadow: var(--shadow-md);
+  /* 게임 안 모달(늑대인간 도움말 등)의 닫기 버튼을 가려 클릭을 먹던 문제.
+     읽기만 하는 패널이니 클릭은 통과시키고, 접기 버튼만 누르게 한다. */
+  pointer-events: none;
 }
+.spec-info.is-folded { min-width: 0; padding: 7px 11px; }
+.spec-info.is-folded .spec-info-row { display: none; }
 .spec-info-title {
   display: flex;
   align-items: center;
   gap: 5px;
   margin-bottom: 7px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  font-family: inherit;
   font-size: 11px;
   font-weight: 800;
   color: var(--text-muted);
+  cursor: pointer;
+  pointer-events: auto;
 }
+.spec-info.is-folded .spec-info-title { margin-bottom: 0; }
+.spec-info-title:hover { color: var(--accent); }
+.spec-info-fold { margin-left: 2px; }
 .spec-info-row {
   display: flex;
   align-items: baseline;

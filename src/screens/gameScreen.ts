@@ -27,20 +27,33 @@ const SPEC_INFO_TYPE = '__spectator_info';
 function paintSpectatorInfo(root: HTMLElement, lines: SpectatorLine[]): void {
   let box = root.querySelector<HTMLDivElement>('#spec-info');
   if (lines.length === 0) { box?.remove(); return; }
+  // 접어뒌 상태는 다시 그려도 유지한다 (게임이 비밀을 갱신할 때마다 펼쳐지면 성가시다)
+  const folded = box?.classList.contains('is-folded') ?? false;
   if (!box) {
     box = document.createElement('div');
     box.id = 'spec-info';
     box.className = 'spec-info';
     root.appendChild(box);
   }
+  box.classList.toggle('is-folded', folded);
   box.innerHTML = `
-    <div class="spec-info-title">${icon('eye', { size: 13, hue: '#9db4d6' })} 관전자만 보여요</div>
+    <button class="spec-info-title" type="button" title="접기 / 펼치기">
+      ${icon('eye', { size: 13, hue: '#9db4d6' })} 관전자만 보여요
+      <span class="spec-info-fold">${folded ? '▴' : '▾'}</span>
+    </button>
     ${lines.map((l) => `
       <div class="spec-info-row${l.hot ? ' is-hot' : ''}">
         <span class="spec-info-label">${escapeHtml(l.label)}</span>
         <span class="spec-info-value">${escapeHtml(l.value)}</span>
       </div>`).join('')}
   `;
+  // 패널 자체는 클릭을 통과시키고(아래 모달 버튼을 가리면 안 된다),
+  // 접기 버튼만 누를 수 있게 둔다.
+  box.querySelector('.spec-info-title')?.addEventListener('click', () => {
+    box.classList.toggle('is-folded');
+    const mark = box.querySelector('.spec-info-fold');
+    if (mark) mark.textContent = box.classList.contains('is-folded') ? '▴' : '▾';
+  });
 }
 
 /**

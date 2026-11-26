@@ -241,12 +241,12 @@ export class DvRenderer {
     const parts: string[] = [];
     me.tiles.forEach((t, i) => {
       parts.push(slot(i));
-      // 내 타일은 숫자가 항상 보인다 — 그래서 들킨(revealed) 것을 구분할 방법이 없었다.
-      // 어떤 게 이미 까였는지 알아야 남은 패를 세고 판단을 한다.
+      // 내 타일은 숫자가 항상 보인다 — 그래서 이미 공개된 걸 구분할 방법이 없었다.
+      // 어떤 게 남은 무기인지 세야 하니 표시가 필요하다.
       const cls = ['dv-tile', t.color, t.revealed ? 'is-open' : '',
         revealing && !t.revealed ? 'pickable' : ''].filter(Boolean).join(' ');
       const attrs = revealing && !t.revealed ? ` data-reveal="${i}"` : '';
-      parts.push(`<span class="dv-tile-wrap"><button class="${cls}"${attrs} ${revealing && !t.revealed ? '' : 'disabled'}>${tileLabel(t.num)}</button>${t.revealed ? '<span class="dv-open-mark">들킨</span>' : ''}</span>`);
+      parts.push(`<span class="dv-tile-wrap"><button class="${cls}"${attrs} ${revealing && !t.revealed ? '' : 'disabled'}>${tileLabel(t.num)}</button>${t.revealed ? '<span class="dv-open-mark">공개</span>' : ''}</span>`);
     });
     parts.push(slot(me.tiles.length));
 
