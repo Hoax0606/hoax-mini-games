@@ -1,0 +1,66 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 200" width="320" height="200">
+  <defs>
+    <linearGradient id="scbg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#ddf2ef"/>
+      <stop offset="100%" stop-color="#fff8e1"/>
+    </linearGradient>
+    <filter id="scsh" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow dx="0" dy="3" stdDeviation="3" flood-color="#3a6b63" flood-opacity="0.26"/>
+    </filter>
+  </defs>
+
+  <rect width="320" height="200" rx="22" fill="url(#scbg)"/>
+
+  <!-- 점 데코 -->
+  <circle cx="28" cy="32" r="4" fill="#c5e8e1"/>
+  <circle cx="292" cy="40" r="5" fill="#ffeeb8"/>
+  <circle cx="34" cy="170" r="5" fill="#8ccfc6"/>
+  <circle cx="288" cy="164" r="4" fill="#c5e8e1"/>
+
+  <!-- 별 데코 -->
+  <path d="M58 56 l2.4 5.2 5.7.7-4.3 3.8 1.2 5.6-5-2.9-5 2.9 1.2-5.6-4.3-3.8 5.7-.7z" fill="#ffeeb8"/>
+  <path d="M262 142 l2 4.3 4.7.6-3.5 3.1 1 4.6-4.2-2.4-4.2 2.4 1-4.6-3.5-3.1 4.7-.6z" fill="#c5e8e1"/>
+
+  <!-- 가운데: 트릭에 깔린 색 카드 4장 (부채꼴) -->
+  <g filter="url(#scsh)">
+    <g transform="translate(118 104) rotate(-16)">
+      <rect x="-20" y="-28" width="40" height="56" rx="8" fill="#fffdf5" stroke="#e86a9a" stroke-width="2.4"/>
+      <text x="0" y="8" text-anchor="middle" font-family="Pretendard, system-ui, sans-serif"
+            font-size="22" font-weight="900" fill="#e86a9a">5</text>
+    </g>
+    <g transform="translate(150 98) rotate(-5)">
+      <rect x="-20" y="-28" width="40" height="56" rx="8" fill="#fffdf5" stroke="#4d93e8" stroke-width="2.4"/>
+      <text x="0" y="8" text-anchor="middle" font-family="Pretendard, system-ui, sans-serif"
+            font-size="22" font-weight="900" fill="#4d93e8">9</text>
+    </g>
+    <g transform="translate(182 100) rotate(6)">
+      <rect x="-20" y="-28" width="40" height="56" rx="8" fill="#fffdf5" stroke="#43b36b" stroke-width="2.4"/>
+      <text x="0" y="8" text-anchor="middle" font-family="Pretendard, system-ui, sans-serif"
+            font-size="22" font-weight="900" fill="#43b36b">3</text>
+    </g>
+    <!-- 로켓 카드가 트릭을 가져간다 -->
+    <g transform="translate(214 106) rotate(17)">
+      <rect x="-20" y="-28" width="40" height="56" rx="8" fill="#2f4a46" stroke="#2f4a46" stroke-width="2.4"/>
+      <path d="M0,-14 C5,-8 6,0 4,7 L-4,7 C-6,0 -5,-8 0,-14 Z" fill="#ffd96b"/>
+      <path d="M-4,5 l-4,7 5,-2 z M4,5 l4,7 -5,-2 z" fill="#f5c33d"/>
+      <circle cx="0" cy="-5" r="2.4" fill="#2f4a46"/>
+    </g>
+  </g>
+
+  <!-- 좌상단: 무전 아이콘 (통신) -->
+  <g transform="translate(46 96)">
+    <rect x="-11" y="-8" width="22" height="18" rx="4" fill="#fffdf5" stroke="#2a9488" stroke-width="2.2"/>
+    <line x1="0" y1="-8" x2="6" y2="-18" stroke="#2a9488" stroke-width="2.2" stroke-linecap="round"/>
+    <circle cx="7" cy="-19" r="2.4" fill="#2a9488"/>
+  </g>
+
+  <!-- 우하단: 임무 토큰 2개 (순서) -->
+  <g transform="translate(252 108)">
+    <circle cx="0" cy="0" r="11" fill="#2a9488"/>
+    <text x="0" y="4" text-anchor="middle" font-family="Pretendard, system-ui, sans-serif"
+          font-size="13" font-weight="900" fill="#fff">1</text>
+    <circle cx="20" cy="10" r="9" fill="#8ccfc6"/>
+    <text x="20" y="14" text-anchor="middle" font-family="Pretendard, system-ui, sans-serif"
+          font-size="11" font-weight="900" fill="#fff">2</text>
+  </g>
+</svg>

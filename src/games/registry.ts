@@ -35,6 +35,7 @@ import callMyNameThumbnail from './call-my-name/thumbnail.svg';
 import subwayTypingThumbnail from './subway-typing/thumbnail.svg';
 import theMindThumbnail from './the-mind/thumbnail.svg';
 import davinciCodeThumbnail from './davinci-code/thumbnail.svg';
+import spaceCrewThumbnail from './space-crew/thumbnail.svg';
 
 export const games: GameEntry[] = [
   {
@@ -619,6 +620,34 @@ export const games: GameEntry[] = [
     load: async () => {
       const mod = await import('./call-my-name');
       return mod.createCallMyName();
+    },
+  },
+  {
+    meta: {
+      id: 'space-crew',
+      categories: ['보드게임', '두뇌'],
+      noChatInGame: true, // 손패 얘기를 못 하는 게 규칙의 핵심 — 채팅이 열려 있으면 게임이 안 된다
+      name: '스페이스 크루',
+      description: '다 같이 이기거나 다 같이 지는 협동 카드 게임. 각자 맡은 카드를 따내야 하는데 손패 얘기는 못 해요. 판당 딱 한 번의 통신으로 뜻을 맞춥니다.',
+      thumbnail: spaceCrewThumbnail,
+      minPlayers: 3,
+      maxPlayers: 5,
+      roomOptions: [
+        {
+          key: 'start',
+          label: '시작',
+          type: 'select',
+          choices: [
+            { value: 'resume', label: '이어하기' },
+            { value: 'new', label: '미션 1부터' },
+          ],
+          defaultValue: 'resume',
+        },
+      ],
+    },
+    load: async () => {
+      const mod = await import('./space-crew');
+      return mod.createSpaceCrew();
     },
   },
   {
