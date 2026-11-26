@@ -174,6 +174,12 @@ export class CallMyNameRenderer {
     if (key === this.feedKey) return;
     this.feedKey = key;
 
+    // 다시 그리기 전에 "지금 맨 아래를 보고 있었나" 를 기억해둔다.
+    // 무조건 맨 아래로 내리면, 위로 올려 이전 대화를 읽는 중에 새 질문이 오는 순간
+    // 끜려 내려가 버려서 읽던 데로 돌아가려면 매번 다시 올려야 했다.
+    const stuckToBottom =
+      this.feedEl.scrollHeight - this.feedEl.scrollTop - this.feedEl.clientHeight < 24;
+
     this.feedEl.innerHTML = s.feed.length === 0
       ? '<div class="cn-f cn-f-sys">질문과 대답이 여기에 쌓여요</div>'
       : s.feed.map((f) => {
@@ -181,7 +187,7 @@ export class CallMyNameRenderer {
         const cls = f.kind === 'ask' ? 'cn-f-ask' : 'cn-f-ans';
         return `<div class="cn-f ${cls}"><b>${escapeHtml(f.who)}</b>${escapeHtml(f.text)}</div>`;
       }).join('');
-    this.feedEl.scrollTop = this.feedEl.scrollHeight;
+    if (stuckToBottom) this.feedEl.scrollTop = this.feedEl.scrollHeight;
   }
 
   /**

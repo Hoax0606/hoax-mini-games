@@ -27,8 +27,12 @@ import { sound } from '../../core/sound';
 /** 게스트가 hello 를 보내고 sync 가 안 오면 재시도하는 간격 */
 const HELLO_RETRY_MS = 1_500;
 const END_DELAY_MS = 1_400;
-/** 대화는 이만큼만 들고 다닌다 — sync 마다 통째로 보내니까 무한정 쌓으면 안 된다 */
-const FEED_KEEP = 40;
+/**
+ * 대화는 이만큼만 들고 다닌다 — sync 마다 통째로 보내니까 무한정 쌓으면 안 된다.
+ * 40 에서 올렸다 — 한 판이 끝나기도 전에 앞부분이 사라져서 올려 봐도 물어봤던 걸 못 찾았다.
+ * 150 이면 한 판 대화는 다 남고, sync 한 번에 실려가는 양도 10KB 안쪽이라 감당된다.
+ */
+const FEED_KEEP = 150;
 /** 도배 방지 — 한 사람이 이 간격 안에 두 번 말할 수 없다 */
 const SAY_COOLDOWN_MS = 400;
 
