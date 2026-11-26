@@ -399,6 +399,13 @@ class AvalonModule implements GameModule {
       }
       if (isDummy(p.peerId)) this.readySet.add(p.peerId);
     }
+    // 관전자는 신 시점 — 전원의 정체를 알고 본다. 선악 구도가 보여야 구경할 맛이 있다.
+    this.ctx.publishSpectatorInfo(players.map((p) => ({
+      label: p.nickname,
+      value: ROLE_META[this.roles[p.peerId]!].name,
+      hot: ROLE_META[this.roles[p.peerId]!].team === 'evil',
+    })));
+
     this.state.readyCount = this.readySet.size;
     this.phaseDeadline = performance.now() + DEAL_TIMEOUT_MS;
     this.sync();

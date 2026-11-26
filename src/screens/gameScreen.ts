@@ -3,7 +3,7 @@ import { router } from '../core/screen';
 import type { HostSession, GuestSession, JoinRequest, JoinDecision } from '../core/peer';
 import { getGameById } from '../games/registry';
 import { updatePublicRoom, unpublishRoom } from '../core/roomDirectory';
-import type { GameContext, GameModule, Player, RoomState } from '../games/types';
+import type { GameContext, GameModule, Player, RoomState, SpectatorLine } from '../games/types';
 import { createMenuScreen } from './menu';
 import { createResultScreenAsHostScreen, createResultScreenAsGuestScreen } from './resultScreen';
 import { createWaitingRoomAsHostScreen, createWaitingRoomAsGuestScreen, attemptHostMigration } from './waitingRoom';
@@ -16,6 +16,32 @@ import { escapeHtml } from '../ui/escape';
 import { showReconnectOverlay, hideReconnectOverlay } from '../ui/reconnectOverlay';
 import { icon } from '../ui/icons';
 import { showConfirm } from '../ui/confirm';
+
+/** 관전자 전용 비밀 패널을 실어나르는 내부 메시지 타입. 게임 모듈은 못 보고 지나간다. */
+const SPEC_INFO_TYPE = '__spectator_info';
+
+/**
+ * '관전자만 보여요' 패널 그리기/지우기.
+ * 관전자 화면에만 썼다. 채팅이 오른쪽에 있으니 왼쪽 아래에 붙인다.
+ */
+function paintSpectatorInfo(root: HTMLElement, lines: SpectatorLine[]): void {
+  let box = root.querySelector<HTMLDivElement>('#spec-info');
+  if (lines.length === 0) { box?.remove(); return; }
+  if (!box) {
+    box = document.createElement('div');
+    box.id = 'spec-info';
+    box.className = 'spec-info';
+    root.appendChild(box);
+  }
+  box.innerHTML = `
+    <div class="spec-info-title">${icon('eye', { size: 13, hue: '#9db4d6' })} 관전자만 보여요</div>
+    ${lines.map((l) => `
+      <div class="spec-info-row${l.hot ? ' is-hot' : ''}">
+        <span class="spec-info-label">${escapeHtml(l.label)}</span>
+        <span class="spec-info-value">${escapeHtml(l.value)}</span>
+      </div>`).join('')}
+  `;
+}
 
 /**
  * 게임 실행 화면 (호스트용 / 게스트용 factory 2종)
@@ -420,6 +446,8 @@ export function createGameScreenAsHostScreen(args: GameScreenAsHostArgs): Screen
   /** 현재 일시정지를 건 사람들의 peerId 집합. 전원이 해제해야(비어야) 게임 재개 —
    *  여러 명이 동시에 메뉴를 열어도 한 명이 닫으면 게임이 재개되던 desync 방지. */
   const pausedBy = new Set<string>();
+  /** 관전자에게 마지막으로 뿌린 비밀 — 도중 들어온 관전자에게 다시 보내야 한다 */
+  let lastSpecLines: SpectatorLine[] = [];
   /** 보스키(가짜 윈도우 업데이트) 켜짐 여부 — 전원 공유 래치. 누가 켜든 켜지고, 누가 끄든 전원 해제. */
   let bossOn = false;
   /** 보스키 오버레이 핸들 (render 에서 mount) */
@@ -524,6 +552,19 @@ export function createGameScreenAsHostScreen(args: GameScreenAsHostArgs): Screen
               createResultScreenAsHostScreen({ host, roomState: snapshotRoomState(), result, isPrivate, password })
             );
           }, 900);
+        },
+        publishSpectatorInfo: (lines) => {
+          // 호스트는 항상 플레이어라 제 화면엔 안 띄운다. 관전자들에게만 1:1 로.
+          // 나중에 들어오는 관전자에게도 보내야 해서 마지막 값을 들고 있는다.
+          lastSpecLines = lines;
+          for (const sp of spectators) {
+            host.sendTo(sp.peerId, {
+              type: 'game_msg',
+              payload: { type: SPEC_INFO_TYPE, payload: { lines } },
+              from: myPlayerId,
+              target: sp.peerId,
+            });
+          }
         },
         onStatusUpdate: (status) => {
           if (!('hostScore' in status) && !('guestScore' in status)) return;
@@ -669,6 +710,15 @@ export function createGameScreenAsHostScreen(args: GameScreenAsHostArgs): Screen
           role: 'spectator',
         };
         spectators.push(newSpec);
+        // 도중 들어온 관전자도 비밀을 봐야 한다 (역할·제시어는 판에 안 그려져 있음)
+        if (lastSpecLines.length > 0) {
+          host.sendTo(newSpec.peerId, {
+            type: 'game_msg',
+            payload: { type: SPEC_INFO_TYPE, payload: { lines: lastSpecLines } },
+            from: myPlayerId,
+            target: newSpec.peerId,
+          });
+        }
         // 기존 피어들(플레이어+기존 관전자)에게 새 관전자 알림. 게스트 gameScreen에서 이 메시지는
         // 로그/토스트 용도. ctx.players 자동 업데이트는 하지 않는다(MVP 범위 밖).
         host.send({ type: 'player_joined', player: newSpec });
@@ -937,6 +987,8 @@ export function createGameScreenAsGuestScreen(args: GameScreenAsGuestArgs): Scre
             );
           }, 900);
         },
+        // 게스트는 비밀을 모른다 — 호스트만 부르는 것이라 여긴 비워둔다
+        publishSpectatorInfo: () => {},
         onStatusUpdate: (status) => {
           // 관전자 뷰는 점수판 DOM이 없으므로 업데이트 스킵
           if (!scoreHome || !scoreAway) return;
@@ -1026,6 +1078,12 @@ export function createGameScreenAsGuestScreen(args: GameScreenAsGuestArgs): Scre
         if (msg.type !== 'game_msg') return;
         // target이 나를 향하지 않으면 무시 (호스트가 relay 단계에서 거름)
         if (msg.target && msg.target !== myPlayerId) return;
+        // 관전자 전용 비밀은 게임 모듈로 넘기지 않고 플랫폼이 그린다
+        const gm = msg.payload as { type?: string; payload?: { lines?: SpectatorLine[] } };
+        if (gm?.type === SPEC_INFO_TYPE) {
+          paintSpectatorInfo(el, gm.payload?.lines ?? []);
+          return;
+        }
         if (gameStarted && gameModule) gameModule.onPeerMessage(msg.payload);
         else pendingPayloads.push(msg.payload); // start 전 도착분 버퍼
       };

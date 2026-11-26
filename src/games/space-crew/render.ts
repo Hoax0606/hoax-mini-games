@@ -49,6 +49,15 @@ const CSS = `
 .sc-card .n{font-size:20px;line-height:1;}
 .sc-card .s{font-size:9px;font-weight:800;opacity:.75;}
 .sc-card.pickable{cursor:pointer;}
+/* 관전자용 — 여러 명 손패를 다 담아야 해서 작게 */
+.sc-card.small{width:30px;height:42px;border-radius:7px;}
+.sc-card.small .n{font-size:14px;}
+.sc-card.small .s{font-size:7px;}
+.sc-note{font-size:13px;font-weight:700;color:#5d7b76;text-align:center;padding:8px 0;}
+.sc-spec-row{display:flex;align-items:center;gap:8px;margin-bottom:5px;}
+.sc-spec-name{flex:0 0 76px;font-size:12px;font-weight:800;color:#5d7b76;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:right;}
+.sc-spec-cards{display:flex;flex-wrap:wrap;gap:3px;}
 /* 비활성 카드가 클릭을 삼키면 안 된다 — 임무 칸(.sc-task) 안에 카드가 들어있어서,
    disabled 버튼이 가운데를 덮으면 칸 자체를 못 누른다(disabled 는 이벤트를 전파하지 않는다). */
 .sc-card:disabled{pointer-events:none;}
@@ -179,6 +188,14 @@ export class ScRenderer {
   }
 
   private handHTML(s: SyncPayload): string {
+    // 관전자 — 내 손패가 없고 전원의 패가 온다. 사람별로 한 줄씩 보여준다.
+    if (s.specHands) {
+      return s.specHands.map((h) => `
+        <div class="sc-spec-row">
+          <span class="sc-spec-name">${esc(h.nickname)}</span>
+          <span class="sc-spec-cards">${h.cards.map((c) => this.cardHTML(c, 'small', '')).join('')}</span>
+        </div>`).join('');
+    }
     const myTurn = s.phase === 'play' && s.turnPeerId === this.myId;
     const playable = myTurn ? legalPlays(s.myHand, s.led) : [];
     const commMode = this.commPick === null && this.canCommunicate(s);
@@ -214,6 +231,12 @@ export class ScRenderer {
   }
 
   private actionsHTML(s: SyncPayload): string {
+    // 관전자는 버튼을 누를 수 없다 — specHands 가 오는 것 = 내가 관전 중이라는 뜻
+    if (s.specHands) {
+      if (s.phase === 'brief') return `<div class="sc-note">크루가 시작하기를 기다리는 중이에요</div>`;
+      if (s.phase === 'over') return `<div class="sc-note">다음 미션을 기다리는 중이에요</div>`;
+      return '';
+    }
     if (s.phase === 'brief') {
       return `<div class="sc-actions">
         <button class="sc-btn" data-next="1">시작</button>

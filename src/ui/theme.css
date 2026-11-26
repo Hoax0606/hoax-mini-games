@@ -4130,3 +4130,41 @@ input {
   background: var(--lavender-200);
   color: var(--text-main);
 }
+
+/* 관전자 전용 비밀 패널 — 역할·제시어처럼 판에 안 그려지는 정보.
+   채팅이 오른쪽이라 왼쪽 아래에 붙인다. 관전자 화면에만 생긴다. */
+.spec-info {
+  position: fixed;
+  left: 16px;
+  bottom: 16px;
+  z-index: 45;
+  min-width: 200px;
+  max-width: 280px;
+  padding: 11px 13px;
+  background: rgba(255, 255, 255, .72);
+  backdrop-filter: blur(16px) saturate(160%);
+  -webkit-backdrop-filter: blur(16px) saturate(160%);
+  border: 1.5px solid rgba(255, 255, 255, .8);
+  border-radius: 14px;
+  box-shadow: var(--shadow-md);
+}
+.spec-info-title {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin-bottom: 7px;
+  font-size: 11px;
+  font-weight: 800;
+  color: var(--text-muted);
+}
+.spec-info-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 2px 0;
+  font-size: 13px;
+}
+.spec-info-label { color: var(--text-muted); font-weight: 700; }
+.spec-info-value { font-weight: 900; color: var(--text-main); text-align: right; }
+.spec-info-row.is-hot .spec-info-value { color: var(--warn); }

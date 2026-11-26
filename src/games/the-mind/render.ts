@@ -118,7 +118,11 @@ export class TheMindRenderer {
       + `|${s.phase}|${s.myPeerId}`;
     if (othersKey !== this.othersKey) { this.othersKey = othersKey; this.drawOthers(s); }
 
-    const handKey = `${s.myCards.join(',')}|${s.phase}|${s.isSpectator}|${cleared}`;
+    // 관전자는 myCards 가 항상 비어 있어서 이걸로 키를 만들면 끝내 다시 안 그려졌다.
+    // 보는 내용이 전원의 손패니까 그걸로 키를 잡는다.
+    const handKey = s.isSpectator
+      ? `spec|${s.players.map((p) => p.cards.join('.')).join('/')}|${s.phase}|${cleared}`
+      : `${s.myCards.join(',')}|${s.phase}|${s.isSpectator}|${cleared}`;
     if (handKey !== this.handKey) { this.handKey = handKey; this.drawHand(s, cleared); }
 
     const me = s.players.find((p) => p.peerId === s.myPeerId) ?? null;
@@ -173,7 +177,7 @@ export class TheMindRenderer {
     this.newsEl.innerHTML = line + burned;
   }
 
-  /** 남들 — 숫자는 절대 안 보여준다. 몇 장 남았는지만 */
+  /** 남들 — 숫자는 절대 안 보여준다. 몇 장 남았는지만 (관전자만 예외) */
   private drawOthers(s: TmRenderState): void {
     const others = s.players.filter((p) => p.peerId !== s.myPeerId);
     this.othersEl.innerHTML = others.length === 0
@@ -193,7 +197,18 @@ export class TheMindRenderer {
 
   private drawHand(s: TmRenderState, cleared: boolean): void {
     if (s.isSpectator) {
-      this.handEl.innerHTML = '<div class="tm-empty">관전 중 — 카드는 안 보여요</div>';
+      // 관전자는 전원의 손패를 한눈에 본다 — 누가 나야 하는지 보이는 게 구경의 전부다
+      const rows = s.players.map((p) => {
+        const cards = p.cards.length === 0
+          ? '<span class="tm-spec-none">다 냈어요</span>'
+          : p.cards.map((c) => `<span class="tm-spec-card">${c}</span>`).join('');
+        return `
+          <div class="tm-spec-row">
+            <span class="tm-spec-name">${escapeHtml(p.nickname)}</span>
+            <span class="tm-spec-cards">${cards}</span>
+          </div>`;
+      }).join('');
+      this.handEl.innerHTML = `<div class="tm-spec">${rows}</div>`;
       return;
     }
     if (s.myCards.length === 0) {
@@ -298,6 +313,14 @@ const CSS = `
 /* 내 카드 — 누르면 낸다 */
 .tm-hand{display:flex;flex-wrap:wrap;gap:7px;justify-content:center;max-width:620px;
   min-height:54px;align-items:center;flex:0 0 auto;}
+.tm-spec{display:flex;flex-direction:column;gap:7px;width:100%;max-width:560px;}
+.tm-spec-row{display:flex;align-items:center;gap:10px;}
+.tm-spec-name{flex:0 0 92px;font-size:13px;font-weight:800;color:var(--text-muted);
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.tm-spec-cards{display:flex;flex-wrap:wrap;gap:5px;}
+.tm-spec-card{font-size:14px;font-weight:900;color:var(--accent);background:var(--bg-inset);
+  border:1.5px solid var(--border);border-radius:8px;padding:2px 8px;}
+.tm-spec-none{font-size:12px;font-weight:700;color:var(--text-muted);}
 .tm-card{font:inherit;font-size:clamp(17px, 3.4vh, 22px);font-weight:900;color:var(--accent);
   background:var(--bg-card);border:2.5px solid var(--accent);border-radius:var(--radius-md);
   min-width:52px;padding:8px 10px;cursor:pointer;box-shadow:var(--shadow-sm);

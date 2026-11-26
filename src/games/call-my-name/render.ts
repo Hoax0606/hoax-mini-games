@@ -137,11 +137,10 @@ export class CallMyNameRenderer {
   // ------------------------------------------------
 
   private drawBoard(s: CnRenderState, me: PlayerState | null): void {
-    // 내 이마 — 관전자는 맞힐 게 없으니 안내만
+    // 내 이마 — 관전자는 맞힐 게 없다. 예전엔 "보고만 있어요" 카드를 넣었는데,
+    // 정작 봐야 할 판(남들 이마 + 대화)을 아래로 밀어내기만 했다 — 그냥 비운다.
     if (s.isSpectator || !me) {
-      this.meEl.innerHTML = `<div class="cn-card cn-card-me cn-spec">
-        <div class="cn-label">관전 중</div>
-        <div class="cn-word">보고만 있어요</div></div>`;
+      this.meEl.innerHTML = '';
     } else {
       // 내 카드엔 is-turn 을 안 붙인다 — 내 차례는 위 pill 이 이미 말해주고,
       // 노란 배경을 깔면 정작 중요한 ??? 가 묻힌다

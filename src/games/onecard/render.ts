@@ -51,6 +51,8 @@ export interface RenderState {
   myPeerId: string;
   myHand: Card[];
   isSpectator: boolean;
+  /** 관전자일 때만 채워진다 — 전원 손패 */
+  specHands?: { peerId: string; nickname: string; cards: Card[] }[];
   /** 와일드 색 선택 대기 중이면 그 카드 인덱스, 아니면 -1 */
   wildPickIndex: number;
   /** 내 차례 남은 시간(ms) — 손패 위 타이머 바 */
@@ -343,11 +345,41 @@ export class OneCardRenderer {
   private drawMyHand(ctx: CanvasRenderingContext2D, state: RenderState): void {
     this.handRects = [];
     if (state.isSpectator) {
-      ctx.fillStyle = C.muted;
-      ctx.font = `700 15px ${FONT}`;
-      ctx.textAlign = 'center';
+      // 관전자는 전원 손패를 한 줄씩 본다. 카드를 크게 그리면 8명을 못 담으니
+      // 이름 + 작은 카드 라벨로 압축해 그린다.
+      const rows = state.specHands ?? [];
+      if (rows.length === 0) {
+        ctx.fillStyle = C.muted;
+        ctx.font = `700 15px ${FONT}`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText('관전 중', W / 2, HAND_Y + HAND_CARD_H / 2);
+        return;
+      }
+      const rowH = Math.min(26, (HAND_CARD_H + 18) / rows.length);
+      let y = HAND_Y - 6;
       ctx.textBaseline = 'middle';
-      ctx.fillText('관전 중', W / 2, HAND_Y + HAND_CARD_H / 2);
+      for (const r of rows) {
+        ctx.textAlign = 'right';
+        ctx.fillStyle = C.muted;
+        ctx.font = `800 12px ${FONT}`;
+        ctx.fillText(r.nickname, W / 2 - 150, y + rowH / 2);
+        ctx.textAlign = 'left';
+        let x = W / 2 - 142;
+        for (const c of r.cards) {
+          const label = cardLabel(c);
+          ctx.font = `900 12px ${FONT}`;
+          const w = ctx.measureText(label).width + 10;
+          ctx.fillStyle = CARD_COLOR[c.color] ?? '#999';
+          this.roundRect(ctx, x, y + 2, w, rowH - 6, 5);
+          ctx.fill();
+          ctx.fillStyle = '#fff';
+          ctx.fillText(label, x + 5, y + rowH / 2);
+          x += w + 4;
+          if (x > W - 30) break;
+        }
+        y += rowH;
+      }
       return;
     }
     const hand = state.myHand;

@@ -461,6 +461,11 @@ class DrawQuizGameModule implements GameModule {
 
   private beginDrawingAsHost(word: string): void {
     this.realWord = word; // 호스트 전용 실제 단어 (힌트/판정/정답공개용)
+    // 관전자는 정답을 알고 본다 — 그림만 보고 뭐가 뭔지 모르면 구경이 안 된다
+    this.ctx.publishSpectatorInfo([
+      { label: '정답', value: word, hot: true },
+      { label: '출제자', value: this.ctx.players.find((p) => p.peerId === this.game.drawerPeerId)?.nickname ?? '' },
+    ]);
     this.game.usedWords.add(word);
     this.game.phase = 'drawing';
     this.hintRevealed = false;

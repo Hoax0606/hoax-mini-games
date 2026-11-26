@@ -14,6 +14,8 @@ import {
 } from './rules';
 import {
   encodeHello, decodeHello, encodeSync, decodeSync, encodeHand, decodeHand,
+  encodeHands, decodeHands,
+  type SpecHand,
   encodePlay, decodePlay, encodeDraw, decodeDraw, encodePass, decodePass,
   decodeSurrender, encodeSurrender, encodeEnd, decodeEnd, type OneCardPublic,
 } from './netSync';
@@ -34,6 +36,8 @@ class OneCardGame implements GameModule {
   // 게스트/공용 뷰
   private pub: OneCardPublic | null = null;
   private myHand: Card[] = [];
+  /** 관전자일 때만 채워지는 전원 손패 (신 시점) */
+  private specHands: SpecHand[] = [];
   private wildPickIndex = -1;
   private lastHelloAt = 0;
 
@@ -118,6 +122,8 @@ class OneCardGame implements GameModule {
     if (sync) { this.pub = sync; return; }
     const hand = decodeHand(msg);
     if (hand) { this.myHand = hand; return; }
+    const specHands = decodeHands(msg);
+    if (specHands) { this.specHands = specHands; return; }
     const end = decodeEnd(msg);
     if (end) { this.scheduleEnd(end); return; }
   }
@@ -191,6 +197,7 @@ class OneCardGame implements GameModule {
       myPeerId: this.myPeerId,
       myHand: this.myHand,
       isSpectator: this.isSpectator,
+      specHands: this.specHands,
       wildPickIndex: this.wildPickIndex,
       turnRemainMs,
       now: renderNow,
@@ -480,6 +487,17 @@ class OneCardGame implements GameModule {
       const hand = this.hands.get(pid) ?? [];
       if (pid === this.myPeerId) this.myHand = hand;
       else this.ctx.sendToPeer(encodeHand(hand), { target: pid });
+    }
+    // 관전자는 신 시점 — 전원 손패를 보낸다
+    const specs = this.ctx.players.filter((p) => p.role === 'spectator');
+    if (specs.length > 0) {
+      const all = this.order.map((pid) => ({
+        peerId: pid,
+        nickname: this.ctx.players.find((p) => p.peerId === pid)?.nickname ?? '',
+        cards: this.hands.get(pid) ?? [],
+      }));
+      if (this.isSpectator) this.specHands = all;
+      for (const sp of specs) this.ctx.sendToPeer(encodeHands(all), { target: sp.peerId });
     }
     if (this.phase === 'playing') sound.play('pop');
     if (this.phase === 'ended') this.finishAsHost();

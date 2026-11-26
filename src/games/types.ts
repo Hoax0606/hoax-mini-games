@@ -133,6 +133,14 @@ export interface Player {
  * 플랫폼이 게임에 주입하는 컨텍스트.
  * 게임은 이걸 통해 캔버스에 그리고, 상대에게 메시지 보내고, 종료를 알린다.
  */
+/** 관전자에게만 보여줄 비밀 한 줄 (예: { label: '제시어', value: '사과' }) */
+export interface SpectatorLine {
+  label: string;
+  value: string;
+  /** 강조 — 범인/라이어처럼 "이게 핵심" 인 줄 */
+  hot?: boolean;
+}
+
 export interface GameContext {
   /** 게임이 그릴 캔버스 (플랫폼이 미리 크기 세팅 후 전달) */
   canvas: HTMLCanvasElement;
@@ -165,6 +173,17 @@ export interface GameContext {
    * 호스트만 호출 (승패는 authoritative한 호스트가 결정).
    */
   endGame(result: GameResult): void;
+
+  /**
+   * 관전자에게만 보여줄 비밀을 플랫폼에 넘긴다 (역할·제시어 등).
+   *
+   * 관전은 신 시점이라 판을 다 보여주는데, 역할·제시어처럼 화면에 안 그려지는 비밀은
+   * 게임마다 프로토콜을 고칠 수 없어서 공용 통로를 둔다.
+   * **호스트 모듈이** 비밀이 정해진 직후 한 번 부르면,
+   * 플랫폼이 관전자들에게만 뿌려주고 '관전자만 보여요' 패널로 띄운다.
+   * 게스트가 부르면 아무 일도 안 일어난다.
+   */
+  publishSpectatorInfo(lines: SpectatorLine[]): void;
 
   /**
    * 선택적: 게임이 UI 헤더(점수/상태 표시)에 스냅샷을 전달할 때 호출.

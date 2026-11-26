@@ -281,7 +281,9 @@ export function createWaitingRoomAsHostScreen(args: WaitingRoomAsHostArgs): Scre
       let gameFilter: PlayerFilter = null;
       let catFilter: CategoryFilter = null;
       /** 강퇴한 사람(닉네임). 같은 방이 살아있는 동안만 유지된다 — 방을 다시 만들면 초기화 */
-      const bannedNicknames = new Set<string>();
+      /** 자리가 꽉 찼어서 관전으로 받기로 한 사람들 (onJoinRequest → onGuestConnected 전달용) */
+  const joinedAsSpectator = new Set<string>();
+  const bannedNicknames = new Set<string>();
       /** 방금 들어온 사람 — refreshUI 가 그 행에만 입장 모션을 건다. 그리고 바로 비운다 */
       let enteringPeerId: string | null = null;
 
@@ -448,29 +450,36 @@ export function createWaitingRoomAsHostScreen(args: WaitingRoomAsHostArgs): Scre
           return { accept: false, reason: 'kicked' };
         }
         // 좌석 기준 — 관전자는 자리를 안 먹으니 구경꾼이 있어도 새 참가자를 받을 수 있다
-        if (seatedGuests() >= maxPlayers() - 1) {
+        // 자리가 꽉 찼으면 관전으로 받는다.
+        // 예전엔 그냥 거절해서, 2인 게임은 구경하러 온 사람이 문앱에서 막혐 —
+        // 관전을 고를 기회조차 없었다. 자리가 나면 대기실에서 '참가하기'를 누르면 된다.
+        const seatFull = seatedGuests() >= maxPlayers() - 1;
+        if (seatFull && guestPlayers.length >= GLOBAL_MAX_PLAYERS - 1) {
           return { accept: false, reason: 'room_full' };
         }
         if (isPrivate && !migrated && req.password !== password) {
           return { accept: false, reason: 'wrong_password' };
         }
+        if (seatFull) joinedAsSpectator.add(fromPeerId);
         // 수락 — preview에 새 게스트 포함해서 반환 (게스트가 받자마자 본인 포함된 상태)
         const newPlayer: Player = {
           peerId: fromPeerId,
           nickname: req.nickname,
           isHost: false,
-          role: 'player',
+          role: seatFull ? 'spectator' : 'player',
         };
         const preview: RoomState = {
           ...snapshotRoomState(),
           players: [hostPlayer, ...guestPlayers, newPlayer],
           guestNickname: guestPlayers[0]?.nickname ?? newPlayer.nickname,
         };
-        return { accept: true, roomState: preview };
+        return { accept: true, roomState: preview, asSpectator: seatFull };
       };
 
       host.onGuestConnected = (nickname, peerId) => {
-        const newPlayer: Player = { peerId, nickname, isHost: false, role: 'player' };
+        // 자리가 없어서 관전으로 받은 사람은 그 역할 그대로 들어온다
+        const asSpec = joinedAsSpectator.delete(peerId);
+        const newPlayer: Player = { peerId, nickname, isHost: false, role: asSpec ? 'spectator' : 'player' };
         // 같은 peerId 가 이미 있으면 중복 추가 금지 (재연결 등으로 두 번 불릴 수 있다)
         guestPlayers = guestPlayers.filter((g) => g.peerId !== peerId);
         guestPlayers.push(newPlayer);
@@ -868,6 +877,11 @@ export function createWaitingRoomAsGuestScreen(args: WaitingRoomAsGuestArgs): Sc
         }
       };
       refreshUI();
+
+      // 자리가 없어서 관전으로 들어온 경우 — 본인은 참가하려고 들어왔을 테니 알려준다
+      if (amISpectator()) {
+        showToast('자리가 차서 관전으로 들어왔어요 · 자리가 나면 참가하기를 누르세요', { kind: 'info' });
+      }
 
       glToggleBtn.addEventListener('click', () => {
         showingAll = !showingAll;

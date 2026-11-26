@@ -122,13 +122,14 @@ export function hasHidden(p: DvPlayer): boolean {
 export function maskFor(
   players: DvPlayer[],
   viewerId: string,
+  revealAll = false,
 ): { peerId: string; nickname: string; out: boolean; tiles: MaskedTile[] }[] {
   return players.map((p) => ({
     peerId: p.peerId,
     nickname: p.nickname,
     out: p.out,
     tiles: p.tiles.map((t) => ({
-      num: p.peerId === viewerId || t.revealed ? t.num : null,
+      num: revealAll || p.peerId === viewerId || t.revealed ? t.num : null,
       color: t.color,
       revealed: t.revealed,
     })),

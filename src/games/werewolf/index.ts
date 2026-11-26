@@ -382,6 +382,14 @@ class WerewolfModule implements GameModule {
       // 더미는 즉시 준비 완료 처리
       if (isDummy(p.peerId)) this.readySet.add(p.peerId);
     }
+    // 관전자는 신 시점 — 처음 받은 역할을 전부 본다.
+    // 밤에 카드가 섞여도 관전자는 "원래 누가 늑대였는지"를 알고 보는 게 재미의 전부다.
+    this.ctx.publishSpectatorInfo(players.map((p) => ({
+      label: p.nickname,
+      value: ROLE_META[this.deal.origRole[p.peerId]!].name,
+      hot: this.deal.origRole[p.peerId] === 'werewolf',
+    })));
+
     this.state.readyCount = this.readySet.size;
     this.phaseDeadline = performance.now() + DEAL_TIMEOUT_MS;
     this.sync();

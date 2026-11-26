@@ -77,6 +77,7 @@ const CSS = `
 /* 자리가 정해진 숫자 타일 — 어디 들어가는지 자리만 표시하고 확인만 받는다 */
 .dv-slot.fixed{border-style:solid;border-color:#ffc83d;background:rgba(255,200,61,.3);cursor:default;}
 /* 이미 들킨 내 타일 — 숫자는 원래 보이니까 "남도 안다" 는 걸 테두리로 알린다 */
+.dv-tile.peek{opacity:.85;border-style:dashed;}
 .dv-tile.is-open{border-color:#ff9838;box-shadow:0 0 0 2px rgba(255,152,56,.28);}
 .dv-open-mark{position:absolute;top:-8px;left:50%;transform:translateX(-50%);font-size:9px;font-weight:900;
   color:#8a4b00;background:#ffc83d;border-radius:999px;padding:1px 5px;pointer-events:none;white-space:nowrap;}
@@ -201,10 +202,12 @@ export class DvRenderer {
   private oppHTML(p: SyncPlayer, s: SyncPayload): string {
     const isTurn = p.peerId === s.turnPeerId;
     const canGuess = s.phase === 'guess' && s.turnPeerId === this.myId && !p.out;
+    // 관전자는 내 자리가 없다 — 그때만 닫힌 타일을 '엿보기'로 숨김 없이 보여준다
+    const watching = !s.players.some((x) => x.peerId === this.myId);
     const tiles = p.tiles.map((t, i) => {
       const cls = [
         'dv-tile', t.color,
-        t.revealed ? '' : 'hidden',
+        t.revealed ? '' : (watching ? 'peek' : 'hidden'),
         canGuess && !t.revealed ? 'pickable' : '',
       ].filter(Boolean).join(' ');
       const attrs = canGuess && !t.revealed

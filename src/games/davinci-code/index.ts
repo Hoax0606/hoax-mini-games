@@ -311,10 +311,13 @@ export function createDavinciCode(): GameModule {
   function syncFor(viewerId: string): SyncPayload {
     const cur = current();
     const iAmCurrent = cur?.peerId === viewerId;
+    // 관전자는 신 시점 — 닫힌 타일까지 다 보인다. 판에 안 앉은 사람이라 새어나갈 곣이 없고,
+    // 안 보여주면 구경할 게 없다(닫힌 타일 뜨어보기가 이 게임의 전부라).
+    const watching = ctx!.players.find((p) => p.peerId === viewerId)?.role === 'spectator';
     return {
       phase,
       turnPeerId: phase === 'place' ? (placeQueue[0]?.peerId ?? '') : (cur?.peerId ?? ''),
-      players: maskFor(players, viewerId),
+      players: maskFor(players, viewerId, watching),
       poolLeft: pool.length,
       // 뽑은 타일은 뽑은 사람만 본다. 남이 보면 그 턴이 통째로 무의미해진다.
       myDrawn: iAmCurrent && drawn ? { num: drawn.num, color: drawn.color } : null,

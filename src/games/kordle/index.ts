@@ -271,6 +271,8 @@ class KordleModule implements GameModule {
 
   private acceptAnswer(word: string, auto: boolean): void {
     this.answer = word;
+    // 관전자는 정답을 알고 본다 — 남이 얼마나 가까워졌는지가 보여야 구경이 된다
+    this.ctx.publishSpectatorInfo([{ label: '정답', value: word, hot: true }]);
     this.usedAnswers.add(word);
     this.pub.phase = 'guess';
     this.setwordDeadline = 0;

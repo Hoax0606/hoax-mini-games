@@ -76,6 +76,11 @@ export interface SyncPayload {
 
   /** 받는 사람의 손패. 여기만 숫자가 들어간다 */
   myHand: Card[];
+  /**
+   * 관전자에게만 채워 보내는 전원 손패 (신 시점).
+   * ⚠️ 플레이어에게는 절대 채우지 않는다 — 남의 패가 보이면 협동 게임이 무너진다.
+   */
+  specHands?: { peerId: string; nickname: string; cards: Card[] }[];
   /** 아직 아무도 안 고른 임무 + 이미 배정된 임무 전부 */
   tasks: SyncTask[];
   /** 지금 트릭에 깔린 카드들 (낸 순서) */

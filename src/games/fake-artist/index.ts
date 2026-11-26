@@ -372,6 +372,14 @@ class FakeArtistModule implements GameModule {
     this.roundAdvanceScheduled = false;
     this.resetLocalRoundFlags();
 
+    // 관전자는 신 시점 — 제시어와 가짜 화가를 알고 본다.
+    // 모르고 보면 그림만 늘어나는 화면이라 구경할 게 없다.
+    this.ctx.publishSpectatorInfo([
+      { label: '주제', value: category },
+      { label: '제시어', value: keyword },
+      { label: '가짜 화가', value: this.game.players.find((p) => p.peerId === this.fakePeerId)?.nickname ?? '', hot: true },
+    ]);
+
     for (const p of this.game.players) {
       if (p.peerId === this.myPeerId) { this.myRole = this.roleFor(p.peerId); this.myRoleRound = this.game.round; }
       else if (!isDummy(p.peerId)) this.ctx.sendToPeer(encodeRole(this.roleFor(p.peerId)), { target: p.peerId });

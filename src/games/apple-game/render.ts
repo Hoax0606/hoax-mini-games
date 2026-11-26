@@ -169,9 +169,11 @@ export class AppleRenderer {
       this.drawSelection(state.dragRect);
     }
 
-    // 관전자 오버레이 — 보드 전체를 덮고 "관전 중" 텍스트
+    // 관전자 오버레이 — 보드를 덮고 실시간 점수판을 보여준다.
+    // 사과 게임은 각자 제 보드를 따로 푸는 레이스라 남의 진행을 받지 않는다.
+    // 보드를 그대로 보여주면 아무도 안 푸는 것처럼 보여서 오히려 거짓말이 된다.
     if (state.isSpectator) {
-      this.drawSpectatorOverlay();
+      this.drawSpectatorOverlay(state);
     }
 
     // 좌측 패널만 (남은시간/점수). 우측 플레이어 목록은 제거(불필요).
@@ -183,19 +185,35 @@ export class AppleRenderer {
     }
   }
 
-  private drawSpectatorOverlay(): void {
+  private drawSpectatorOverlay(state: RenderState): void {
     const ctx = this.ctx;
-    ctx.fillStyle = 'rgba(245, 255, 253, 0.88)';
+    ctx.fillStyle = 'rgba(245, 255, 253, 0.94)';
     ctx.fillRect(BOARD_X, BOARD_Y, BOARD_PX_W, BOARD_PX_H);
     const cx = BOARD_X + BOARD_PX_W / 2;
-    const cy = BOARD_Y + BOARD_PX_H / 2;
-    ctx.fillStyle = COLORS.accent;
-    ctx.font = `900 36px ${FONT}`;
+
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillText('관전', cx, cy - 24);
-    ctx.font = `900 24px ${FONT}`;
-    ctx.fillText('관전 중', cx, cy + 14);
+    ctx.fillStyle = COLORS.accent;
+    ctx.font = `900 22px ${FONT}`;
+    ctx.fillText('관전 중', cx, BOARD_Y + 46);
+    ctx.font = `700 12px ${FONT}`;
+    ctx.fillStyle = COLORS.textMuted;
+    ctx.fillText('각자 자기 판을 푸는 게임이라 점수로 따라갑니다', cx, BOARD_Y + 70);
+
+    // 점수 높은 순으로 — 누가 앞서가는지가 구경의 전부다
+    const rows = [...state.otherPlayers].sort((a, b) => b.score - a.score);
+    let y = BOARD_Y + 112;
+    for (let i = 0; i < rows.length; i++) {
+      const r = rows[i]!;
+      ctx.textAlign = 'right';
+      ctx.font = `800 15px ${FONT}`;
+      ctx.fillStyle = i === 0 ? COLORS.accent : COLORS.textMain;
+      ctx.fillText(`${i + 1}. ${r.nickname}`, cx - 14, y);
+      ctx.textAlign = 'left';
+      ctx.font = `900 19px ${FONT}`;
+      ctx.fillText(String(r.score), cx + 14, y);
+      y += 34;
+    }
   }
 
   // ============================================

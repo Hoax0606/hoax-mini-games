@@ -46,6 +46,7 @@ export interface OneCardPublic {
 const T_HELLO = 'oc:hello';
 const T_SYNC = 'oc:sync';
 const T_HAND = 'oc:hand';
+const T_HANDS = 'oc:hands';
 const T_PLAY = 'oc:play';
 const T_DRAW = 'oc:draw';
 const T_PASS = 'oc:pass';
@@ -87,6 +88,21 @@ export function decodeHand(msg: GameMessage): Card[] | null {
   if (msg.type !== T_HAND) return null;
   const p = msg.payload as { cards?: unknown } | null;
   return p && Array.isArray(p.cards) ? (p.cards as Card[]) : null;
+}
+
+/**
+ * 관전자용 — 전원의 손패를 통째로. 관전자는 판에 안 앉으니 새어나갈 곣이 없고,
+ * 남의 손패를 못 보면 원카드는 구경할 게 없다.
+ * ⚠️ 일반 플레이어에겐 절대 보내지 않는다 — 보내면 게임이 끝난다.
+ */
+export interface SpecHand { peerId: string; nickname: string; cards: Card[] }
+export function encodeHands(hands: SpecHand[]): GameMessage {
+  return { type: T_HANDS, payload: { hands } };
+}
+export function decodeHands(msg: GameMessage): SpecHand[] | null {
+  if (msg.type !== T_HANDS) return null;
+  const p = msg.payload as { hands?: unknown } | null;
+  return p && Array.isArray(p.hands) ? (p.hands as SpecHand[]) : null;
 }
 
 // play (카드 실물 + 와일드 선택색). from = 송신자 peerId(호스트가 현재 턴 검증용)

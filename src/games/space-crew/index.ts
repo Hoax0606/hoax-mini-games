@@ -321,6 +321,11 @@ export function createSpaceCrew(): GameModule {
       commanderId,
       turnPeerId,
       myHand: hands[viewerId] ?? [],
+      // 관전자는 신 시점 — 전원 손패가 보인다. 협동 게임이라 남의 패를 모르면
+      // 어떤 판인지 가냠할 수가 없어서 구경이 안 된다.
+      specHands: ctx!.players.find((p) => p.peerId === viewerId)?.role === 'spectator'
+        ? seats.map((s2) => ({ peerId: s2.peerId, nickname: s2.nickname, cards: hands[s2.peerId] ?? [] }))
+        : undefined,
       tasks: tasks.map((t) => ({ card: t.card, ownerId: t.ownerId, order: t.order, done: t.done })),
       trick: trick.slice(),
       led,

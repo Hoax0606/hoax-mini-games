@@ -302,11 +302,12 @@ class TheMindModule implements GameModule {
       ));
       this.ctx.sendToPeer(encodeSync(this.snapshot(view)), { target: target.peerId });
     }
-    // 관전자에게는 아무 카드도 안 보여준다 — 다 보이면 훈수가 된다
-    const blind = this.players.map((p) => ({ ...p, cards: [] }));
+    // 관전자는 신 시점 — 전원의 카드가 다 보인다.
+    // 훈수가 걱정되긴 하는데, 이 게임은 게임 중 채팅이 막혀 있고(noChatInGame)
+    // 안 보여주면 구경할 거리가 아예 없는 게임이라 보여주는 쪽을 택했다.
     for (const p of this.ctx.players) {
       if (p.role !== 'spectator') continue;
-      this.ctx.sendToPeer(encodeSync(this.snapshot(blind)), { target: p.peerId });
+      this.ctx.sendToPeer(encodeSync(this.snapshot(this.players)), { target: p.peerId });
     }
   }
 

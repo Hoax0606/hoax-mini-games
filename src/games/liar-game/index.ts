@@ -324,6 +324,17 @@ class LiarGameModule implements GameModule {
     const order = [...base.slice(startIdx), ...base.slice(0, startIdx)];
     resetForRound(this.game, picked.category, order);
 
+    // 관전자는 신 시점 — 제시어와 라이어를 알고 본다 (판에는 안 그려지는 정보라 패널로)
+    this.ctx.publishSpectatorInfo([
+      { label: '주제', value: picked.category },
+      { label: '제시어', value: picked.keyword },
+      { label: '라이어', value: players.find((p) => p.peerId === this.liarPeerId)?.nickname ?? '', hot: true },
+      // 바보 모드면 라이어는 자기가 시민인 줄 안다 — 그게 이 모드의 구경포인트라 같이 보여준다
+      ...(this.mode === 'fool'
+        ? [{ label: '라이어가 본 말', value: picked.fakeKeyword }]
+        : []),
+    ]);
+
     // 역할/제시어 개별 전송 (호스트 자신 포함)
     for (const p of players) {
       if (p.peerId === this.myPeerId) {
