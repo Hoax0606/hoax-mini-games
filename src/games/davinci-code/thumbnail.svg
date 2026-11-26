@@ -49,6 +49,6 @@
   <g transform="translate(272 108) rotate(14)">
     <rect x="-11" y="-16" width="22" height="33" rx="6" fill="#ffd96b" stroke="#f5c33d" stroke-width="1.6"/>
     <text x="0" y="7" text-anchor="middle" font-family="Pretendard, system-ui, sans-serif"
-          font-size="15" font-weight="900" fill="#8a6a10">J</text>
+          font-size="20" font-weight="900" fill="#8a6a10">-</text>
   </g>
 </svg>

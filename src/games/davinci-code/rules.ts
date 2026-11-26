@@ -168,8 +168,9 @@ export function parseTurnLimit(raw: string | undefined): number {
   return Number.isFinite(n) && n > 0 ? n : 0;
 }
 
-/** 화면에 쓸 타일 글자. 조커는 J */
+/** 화면에 쓸 타일 글자. 조커는 숫자 대신 `-` — 실제 알고/다빈치 코드 타일이 그렇게 생겼다 */
+export const JOKER_LABEL = '-';
 export function tileLabel(num: number | null): string {
   if (num === null) return '';
-  return num === JOKER ? 'J' : String(num);
+  return num === JOKER ? JOKER_LABEL : String(num);
 }

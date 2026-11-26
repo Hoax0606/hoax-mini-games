@@ -2025,6 +2025,79 @@ function buildOneCardResultHTML(args: {
 
 
 // ============================================
+// 다빈치 코드 전용 결과 HTML
+// ============================================
+
+interface DavinciRankEntry { peerId: string; nickname: string; rank: number; }
+
+function parseDavinciSummary(summary: Record<string, unknown>): {
+  myPeerId: string; rank: number; totalPlayers: number; rankings: DavinciRankEntry[];
+} | null {
+  if (summary['gameId'] !== 'davinci-code') return null;
+  const myPeerId = typeof summary['myPeerId'] === 'string' ? (summary['myPeerId'] as string) : null;
+  const rank = typeof summary['rank'] === 'number' ? (summary['rank'] as number) : null;
+  const totalPlayers = typeof summary['totalPlayers'] === 'number' ? (summary['totalPlayers'] as number) : null;
+  if (!myPeerId || rank === null || totalPlayers === null) return null;
+  const raw = summary['rankings'] as unknown;
+  const rankings: DavinciRankEntry[] = Array.isArray(raw)
+    ? (raw as Partial<DavinciRankEntry>[])
+        .filter((r) => typeof r.peerId === 'string' && typeof r.nickname === 'string' && typeof r.rank === 'number')
+        .map((r) => ({ peerId: r.peerId!, nickname: r.nickname!, rank: r.rank! }))
+    : [];
+  return { myPeerId, rank, totalPlayers, rankings };
+}
+
+function buildDavinciResultHTML(args: {
+  myWinner: 'me' | 'opponent' | null;
+  rank: number; totalPlayers: number; rankings: DavinciRankEntry[];
+  myPeerId: string; isHost: boolean; isSpectator: boolean;
+}): string {
+  const { myWinner, rank, totalPlayers, rankings, myPeerId, isHost, isSpectator } = args;
+  const { emoji, title, titleClass } = isSpectator
+    ? { emoji: icon('search', { size: 56, hue: '#2a9488' }), title: '다빈치 코드 종료', titleClass: 'result-title-draw' }
+    : winnerVisuals(myWinner);
+  const actionsHTML = buildActionsHTML(isHost);
+
+  const myBlock = isSpectator ? '' : `
+    <div class="result-tetris-rank">
+      <span class="result-tetris-rank-num">${rank}</span> / ${totalPlayers}위
+    </div>
+  `;
+  // 순위는 점수가 아니라 "닫힌 타일을 끝까지 지킨 순서"다. 1등이 최후 생존자.
+  const rankingsHTML = rankings.length >= 1 ? `
+    <div class="result-tetris-rankings">
+      <div class="result-tetris-rankings-title">${icon('medal', { size: 18, hue: '#ffb12e' })} 순위 (오래 버틴 순)</div>
+      ${rankings.map((r) => {
+        const isMe = r.peerId === myPeerId;
+        const badgeClass = r.rank <= 3 ? `rank-${r.rank}` : '';
+        const tag = r.rank === 1 ? '최후 생존' : `${r.rank}등`;
+        return `
+          <div class="result-tetris-rank-row ${isMe ? 'is-me' : ''}">
+            <span class="result-tetris-rank-badge ${badgeClass}">${r.rank}</span>
+            <span class="result-tetris-rank-name">${escapeHtml(r.nickname)}</span>
+            <span class="result-apple-rank-score">${tag}</span>
+            ${isMe ? '<span class="result-tetris-rank-me-tag">나</span>' : ''}
+          </div>
+        `;
+      }).join('')}
+    </div>
+  ` : '';
+
+  return `
+    <div class="result-card result-card-tetris">
+      <div class="result-emoji">${emoji}</div>
+      <div class="result-title ${titleClass}">${title}</div>
+      ${myBlock}
+      ${rankingsHTML}
+      <div class="result-actions">
+        ${actionsHTML}
+      </div>
+    </div>
+  `;
+}
+
+
+// ============================================
 // 아발론 전용 결과 HTML
 // ============================================
 
@@ -2148,6 +2221,7 @@ export function createResultScreenAsHostScreen(args: ResultScreenAsHostArgs): Sc
       const bomb = parseBombSummary(result.summary);
       const dodge = parseDodgeSummary(result.summary);
       const onecard = parseOneCardSummary(result.summary);
+      const davinci = parseDavinciSummary(result.summary);
       const blueMarble = parseBlueMarbleSummary(result.summary);
       const avalon = parseAvalonSummary(result.summary);
       const fakeArtist = parseFakeArtistSummary(result.summary);
@@ -2174,6 +2248,12 @@ export function createResultScreenAsHostScreen(args: ResultScreenAsHostArgs): Sc
           myWinner: result.winner,
           rank: onecard.rank, totalPlayers: onecard.totalPlayers, rankings: onecard.rankings,
           myPeerId: onecard.myPeerId, isHost: true, isSpectator: false,
+        });
+      } else if (davinci) {
+        el.innerHTML = buildDavinciResultHTML({
+          myWinner: result.winner,
+          rank: davinci.rank, totalPlayers: davinci.totalPlayers, rankings: davinci.rankings,
+          myPeerId: davinci.myPeerId, isHost: true, isSpectator: false,
         });
       } else if (reflex) {
         el.innerHTML = buildReflexResultHTML({
@@ -2492,6 +2572,7 @@ export function createResultScreenAsGuestScreen(args: ResultScreenAsGuestArgs): 
       const bomb = parseBombSummary(result.summary);
       const dodge = parseDodgeSummary(result.summary);
       const onecard = parseOneCardSummary(result.summary);
+      const davinci = parseDavinciSummary(result.summary);
       const blueMarble = parseBlueMarbleSummary(result.summary);
       const avalon = parseAvalonSummary(result.summary);
       const fakeArtist = parseFakeArtistSummary(result.summary);
@@ -2526,6 +2607,13 @@ export function createResultScreenAsGuestScreen(args: ResultScreenAsGuestArgs): 
           myWinner: result.winner,
           rank: onecard.rank, totalPlayers: onecard.totalPlayers, rankings: onecard.rankings,
           myPeerId: isSpec ? myPeerIdForResult : onecard.myPeerId,
+          isHost: false, isSpectator: isSpec,
+        });
+      } else if (davinci) {
+        el.innerHTML = buildDavinciResultHTML({
+          myWinner: result.winner,
+          rank: davinci.rank, totalPlayers: davinci.totalPlayers, rankings: davinci.rankings,
+          myPeerId: isSpec ? myPeerIdForResult : davinci.myPeerId,
           isHost: false, isSpectator: isSpec,
         });
       } else if (reflex) {

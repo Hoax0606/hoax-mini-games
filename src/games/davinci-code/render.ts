@@ -9,7 +9,7 @@
  * 그래야 호스트와 게스트가 같은 화면을 보고, 화면이 판정에 끼어들지 않는다.
  */
 
-import { JOKER, tileLabel, MAX_NUM } from './rules';
+import { JOKER, JOKER_LABEL, tileLabel, MAX_NUM } from './rules';
 import type { SyncPayload, SyncPlayer } from './netSync';
 
 export interface DvCallbacks {
@@ -160,7 +160,7 @@ export class DvRenderer {
         <span class="dv-pool">남은 타일 ${s.poolLeft}장</span>
         <span class="dv-timer" id="dv-timer"></span>
       </div>
-      <div class="dv-news">${escapeText(s.news)}</div>
+      <div class="dv-news">${escapeText(this.newsFor(s))}</div>
       <div class="dv-mine">
         ${this.mineHTML(me, s)}
         ${this.actionsHTML(s)}
@@ -178,6 +178,15 @@ export class DvRenderer {
     }
 
     this.paintTimer();
+  }
+
+  /**
+   * 소식 한 줄. 호스트가 보낸 문구는 3인칭이라, 그게 "나"를 가리킬 땐 바꿔 쓴다.
+   * (내가 놓는 중인데 "방장 님이 조커를 놓는 중이에요" 라고 뜨면 남 얘기처럼 읽힌다)
+   */
+  private newsFor(s: SyncPayload): string {
+    if (s.phase === 'place' && s.turnPeerId === this.myId) return '조커를 어디에 둘지 정하세요';
+    return s.news;
   }
 
   private oppHTML(p: SyncPlayer, s: SyncPayload): string {
@@ -298,7 +307,7 @@ export class DvRenderer {
         <div class="dv-pad-title">${escapeText(who)} 님의 ${position}번째 타일은?</div>
         <div class="dv-pad-grid">
           ${nums.map((n) => `<button data-num="${n}">${n}</button>`).join('')}
-          <button data-num="${JOKER}">J</button>
+          <button data-num="${JOKER}">${JOKER_LABEL}</button>
         </div>
         <button class="dv-btn ghost dv-pad-cancel" data-cancel>취소</button>
       </div>`;
