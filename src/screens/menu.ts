@@ -29,14 +29,18 @@ export function createMenuScreen(): Screen {
       // 각 메뉴 아이콘 색 (컬러 모드 — iOS 설정처럼 항목별 파스텔 색)
       const HUE = {
         create: '#2a9488', find: '#5b9dff', games: '#a06bff',
-        stats: '#2eb872', nick: '#ff9838', settings: '#9a86c0',
+        stats: '#2eb872', settings: '#9a86c0',
       };
       el.innerHTML = `
         <div style="text-align: center;">
           <div class="logo pop-in">Hoax Minigames</div>
-          <div class="tagline">친구와 함께하는 작은 게임들 · ${escapeHtml(nickname)}</div>
 
           <div class="menu-card menu-list stagger-in">
+            <button class="menu-profile" id="btn-nickname" title="닉네임 변경">
+              <span class="menu-profile-label">닉네임</span>
+              <span class="menu-profile-name">${escapeHtml(nickname)}</span>
+              <span class="menu-profile-edit">변경</span>
+            </button>
             <button class="btn btn-secondary btn-lg btn-block" id="btn-create-room">
               ${icon('home-add', { size: 22, hue: HUE.create })}<span class="btn-label">방 만들기</span>
             </button>
@@ -48,9 +52,6 @@ export function createMenuScreen(): Screen {
             </button>
             <button class="btn btn-secondary btn-block" id="btn-stats">
               ${icon('chart', { size: 22, hue: HUE.stats })}<span class="btn-label">통계</span>
-            </button>
-            <button class="btn btn-secondary btn-block" id="btn-nickname">
-              ${icon('pen', { size: 22, hue: HUE.nick })}<span class="btn-label">닉네임 변경</span>
             </button>
             <button class="btn btn-secondary btn-block" id="btn-settings">
               ${icon('settings', { size: 22, hue: HUE.settings })}<span class="btn-label">설정</span>
@@ -76,9 +77,10 @@ export function createMenuScreen(): Screen {
         router.push(() => createStatsScreen());
       });
 
-      el.querySelector('#btn-nickname')!.addEventListener('click', () => {
+      const goNickname = (): void => {
         router.push(() => createNicknameScreen({ backToMenu: true }));
-      });
+      };
+      el.querySelector('#btn-nickname')!.addEventListener('click', goNickname);
 
       el.querySelector('#btn-settings')!.addEventListener('click', () => {
         router.push(() => createSettingsScreen());
