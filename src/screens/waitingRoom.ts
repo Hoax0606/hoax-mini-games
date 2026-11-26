@@ -38,6 +38,19 @@ import { icon } from '../ui/icons';
 // ============================================
 
 /**
+ * 방이 공개인지 비공개인지 한눈에.
+ *
+ * 예전엔 대기실만 보고선 둘을 구분할 수가 없었다. 방장은 자기가 뭐로 만들었는지
+ * 깜빡하고, 게스트는 이 방이 목록에 공개돼 있는지 알 길이 없었다.
+ * 배지는 방찾기 목록(publicRooms)과 같은 걸 쓴다 — 두 화면의 뜻이 같아야 한다.
+ */
+function roomVisibilityBadge(isPrivate: boolean): string {
+  return isPrivate
+    ? `<span class="public-room-badge is-locked room-vis">${icon('lock', { size: 13 })} 비공개</span>`
+    : `<span class="public-room-badge is-waiting room-vis">${icon('globe', { size: 13 })} 공개</span>`;
+}
+
+/**
  * 참가자 리스트 HTML — 방 정원만큼 슬롯 생성, 빈 슬롯은 점선.
  * @param enteringPeerId 방금 들어온 사람. 그 행에만 입장 모션 클래스를 붙인다.
  */
@@ -178,7 +191,10 @@ export function createWaitingRoomAsHostScreen(args: WaitingRoomAsHostArgs): Scre
                '게임 선택'은 그리드 위에 정확히 얹힌다. -->
           <div class="waiting-head">
             <div class="waiting-head-title">
-              <div class="card-title">대기실</div>
+              <div class="card-title">대기실 ${roomVisibilityBadge(isPrivate)}</div>
+              ${isPrivate && password
+                ? `<div class="room-pass">비밀번호 <b>${escapeHtml(password)}</b></div>`
+                : ''}
             </div>
             <div class="waiting-section-title waiting-head-game">
               게임 선택
@@ -637,7 +653,7 @@ export function createWaitingRoomAsGuestScreen(args: WaitingRoomAsGuestArgs): Sc
         <div class="card waiting-card">
           <div class="waiting-head">
             <div class="waiting-head-title">
-              <div class="card-title">대기실</div>
+              <div class="card-title">대기실 ${roomVisibilityBadge(roomState.isPrivate)}</div>
             </div>
             <div class="waiting-section-title waiting-head-game">방장이 고른 게임</div>
           </div>

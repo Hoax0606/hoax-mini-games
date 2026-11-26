@@ -3462,7 +3462,39 @@ input {
   mask-image: linear-gradient(to bottom, #000 calc(100% - 16px), transparent);
 }
 /* 대기실 헤더의 제목/부제는 좌측 정렬 (card-title 전역 가운데정렬 override) */
-.waiting-head-title .card-title { justify-content: flex-start; margin-bottom: 0; }
+.waiting-head-title .card-title { justify-content: flex-start; margin-bottom: 0; align-items: center; gap: 10px; }
+
+/* 공개/비공개 배지 — 방찾기 목록(.public-room-badge)과 같은 걸 쓰되,
+   card-title 이 큰 글씨라 그대로 두면 배지도 같이 커진다. 여기서만 작게 고정. */
+.card-title .room-vis {
+  font-size: 11.5px;
+  font-weight: 700;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 5px 10px;
+  flex: 0 0 auto;
+}
+/* 비밀번호 — 방장 화면에만. 친구에게 불러줘야 해서 숫자를 또렷하게 */
+.room-pass {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+  margin-top: 4px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.room-pass b {
+  font-size: 14px;
+  font-weight: 900;
+  color: var(--text-main);
+  letter-spacing: 1.5px;
+  background: var(--bg-subtle);
+  border-radius: 7px;
+  padding: 2px 9px;
+}
 
 /* 게스트 전용 — 방장이 고른 게임 한 장. 그리드 자리를 대신 쓴다.
    카드는 도감(.game-card.is-static)과 같은 룩이고, 세로로 너무 늘어나지 않게 위에 붙인다. */
