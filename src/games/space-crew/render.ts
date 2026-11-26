@@ -156,7 +156,7 @@ export class ScRenderer {
       return `<div class="sc-peer ${turn ? 'is-turn' : ''}">
         <div class="sc-peer-name">${esc(p.nickname)}${mine ? ' (나)' : ''}
           ${p.peerId === s.commanderId ? '<span class="sc-cmd">사령관</span>' : ''}</div>
-        <div class="sc-peer-sub">${p.handCount}장 · ${p.commLeft ? '통신 가능' : '통신 씀'}</div>
+        <div class="sc-peer-sub">${p.handCount}장 · ${commLabel(s, p.commLeft)}</div>
       </div>`;
     }).join('');
   }
@@ -317,6 +317,16 @@ export class ScRenderer {
       this.paint();
     });
   }
+}
+
+/**
+ * 통신 상태 문구.
+ * 통신 금지 미션에서 "통신 가능" 이라고 떠 있으면 거짓말이 된다 —
+ * 토큰을 안 썼을 뿐 쓸 수 있는 게 아니다.
+ */
+function commLabel(s: SyncPayload, left: boolean): string {
+  if (s.commBanned) return '통신 금지';
+  return left ? '통신 가능' : '통신 씀';
 }
 
 function briefText(s: SyncPayload): string {
