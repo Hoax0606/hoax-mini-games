@@ -27,6 +27,7 @@ import {
 } from './rules';
 import { RamenRenderer, potLayout, seatLayout, type MoneyPopup } from './render';
 import { decodeEnd, decodeScore, decodeClock, encodeEnd, encodeScore, encodeClock } from './netSync';
+import { encodeLive, decodeLive, encodeBoard, decodeBoard, type BoardRow } from './netSync';
 
 const FINISH_GRACE_MS = 1000;
 const CLOCK_INTERVAL_MS = 1000;
@@ -66,6 +67,11 @@ class RamenShopGame implements GameModule {
   private durationMs = 180_000;
   private startedAt = 0;
   private lastClockAt = 0;
+  /** 관전자 중계용 실시간 매출 — 호스트만 채운다 (peerId → 원) */
+  private liveScores = new Map<string, number>();
+  /** 관전자일 때 받아두는 순위표 */
+  private board: BoardRow[] = [];
+  private lastLiveAt = 0;
   /** 게스트: 호스트의 첫 시계(rs:clock)를 받아 영업 개시했는지. 그 전엔 손님·타이머 정지
    *  → 카운트다운 편차와 무관하게 호스트 시작에 맞춰 공정하게 개시. 호스트는 항상 true. */
   private clockSynced = false;
@@ -134,6 +140,19 @@ class RamenShopGame implements GameModule {
         this.startedAt = newStart;
         this.clockSynced = true; // 호스트 첫 신호 도착 → 영업 개시
       }
+      return;
+    }
+
+    // 호스트가 받는 실시간 매출 (관전자 중계용). 플레이어에겐 절대 안 뿌린다.
+    const live = decodeLive(msg);
+    if (live) {
+      if (this.isHost) this.liveScores.set(live.peerId, live.score);
+      return;
+    }
+    // 관전자가 받는 순위표
+    const board = decodeBoard(msg);
+    if (board) {
+      if (this.isSpectator) this.board = board;
       return;
     }
 
@@ -208,6 +227,24 @@ class RamenShopGame implements GameModule {
       this.ctx.sendToPeer(encodeClock(remainingMs));
     }
 
+    // 관전자에게만 실시간 순위를 보여주기 위한 중계.
+    // 각자 제 가게만 보는 게임이라 관전자가 볼 판이 없었다 — 숫자라도 따라가게.
+    if (!this.gameFinished && !this.paused && now - this.lastLiveAt > 1000) {
+      this.lastLiveAt = now;
+      const spectators = this.ctx.players.filter((p) => p.role === 'spectator');
+      if (!this.isSpectator && !this.isHost && spectators.length > 0) {
+        const host = this.ctx.players.find((p) => p.isHost);
+        if (host) this.ctx.sendToPeer(encodeLive(this.myPeerId, this.earnings), { target: host.peerId });
+      }
+      if (this.isHost && spectators.length > 0) {
+        this.liveScores.set(this.myPeerId, this.earnings);
+        const rows: BoardRow[] = this.ctx.players
+          .filter((p) => p.role !== 'spectator')
+          .map((p) => ({ peerId: p.peerId, nickname: p.nickname, score: this.liveScores.get(p.peerId) ?? 0 }));
+        for (const sp of spectators) this.ctx.sendToPeer(encodeBoard(rows), { target: sp.peerId });
+      }
+    }
+
     if (!this.gameFinished && this.clockSynced && remainingMs <= 0) {
       this.gameFinished = true;
       sound.play('tetris_topout');
@@ -227,6 +264,7 @@ class RamenShopGame implements GameModule {
       boilMs: boilTimeMs(this.upgrades),
       armedTopping: this.armedTopping,
       isSpectator: this.isSpectator,
+      board: this.board,
       gameTime,
       now,
       popups: this.popups,

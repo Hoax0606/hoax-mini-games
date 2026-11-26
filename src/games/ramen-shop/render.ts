@@ -100,6 +100,8 @@ export interface RenderState {
   boilMs: number;
   armedTopping: ToppingId | null;
   isSpectator: boolean;
+  /** 관전자일 때만 — 실시간 매출 순위표 */
+  board?: { peerId: string; nickname: string; score: number }[];
   gameTime: number;
   now: number;
   popups: MoneyPopup[];
@@ -178,11 +180,37 @@ export class RamenRenderer {
       for (let i = 0; i < state.pots.length; i++) this.drawPot(ctx, state, i);
       this.drawToppingTiles(ctx, state);
     } else {
-      ctx.fillStyle = C.text;
-      ctx.font = `800 20px ${FONT}`;
+      // 관전 — 각자 제 가게만 보는 게임이라 남의 주방은 받지 않는다.
+      // 대신 호스트가 관전자에게만 보내주는 실시간 매출로 순위를 보여준다.
+      const cx = LOGICAL_W / 2;
+      // 순위표가 가게 배경(카운터 띄)에 걸쳐 안 읽혔다 — 밝은 판을 깔고 그 위에 얹는다
+      const rowsN = (state.board ?? []).length;
+      const panelH = 64 + Math.max(1, rowsN) * 30;
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.92)';
+      this.roundRect(ctx, cx - 150, 206, 300, panelH, 16);
+      ctx.fill();
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      ctx.fillText('관전 중', LOGICAL_W / 2, 268);
+      ctx.fillStyle = C.text;
+      ctx.font = `800 18px ${FONT}`;
+      ctx.fillText('관전 중', cx, 232);
+      const rows = [...(state.board ?? [])].sort((a, b) => b.score - a.score);
+      if (rows.length === 0) {
+        ctx.font = `700 13px ${FONT}`;
+        ctx.fillText('장사가 시작되면 매출이 여기 뜨요', cx, 262);
+      } else {
+        let y = 268;
+        for (let i = 0; i < rows.length; i++) {
+          const r = rows[i]!;
+          ctx.textAlign = 'right';
+          ctx.font = `800 15px ${FONT}`;
+          ctx.fillText(`${i + 1}. ${r.nickname}`, cx - 12, y);
+          ctx.textAlign = 'left';
+          ctx.font = `900 17px ${FONT}`;
+          ctx.fillText(`${r.score.toLocaleString()}원`, cx + 12, y);
+          y += 30;
+        }
+      }
     }
     this.drawPopups(ctx, state);
     // HUD 도 논리 좌표에 그린다(모든 요소가 함께 스케일 → 해상도 달라도 안 겹침/안 잘림).

@@ -2475,7 +2475,13 @@ export function createResultScreenAsHostScreen(args: ResultScreenAsHostArgs): Sc
       //   거기서 게임을 (다시) 고르고 전원 준비 후 시작한다(즉석 시작 대신 정식 로비 흐름).
       lobbyBtn.addEventListener('click', () => {
         // 관전자 승격 + 준비 리셋한 대기 상태
-        const players = roomState.players.map((p) => ({ ...p, role: 'player' as const, ready: false }));
+        // 관전은 본인이 고르는 것이라 다음 판으로 넘어갈 때도 유지한다.
+        // 참가하고 싶으면 대기실에서 '참가하기'를 누르면 된다 (안내 토스트도 뜨다).
+        const players = roomState.players.map((p) => ({
+          ...p,
+          role: p.role === 'spectator' ? ('spectator' as const) : ('player' as const),
+          ready: false,
+        }));
         const lobbyState: RoomState = { ...roomState, players, status: 'waiting' };
         // 게스트도 대기실로 돌아가게 통지
         host.send({ type: 'return_to_lobby', roomState: lobbyState });

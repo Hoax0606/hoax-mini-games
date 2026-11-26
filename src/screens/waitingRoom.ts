@@ -878,9 +878,17 @@ export function createWaitingRoomAsGuestScreen(args: WaitingRoomAsGuestArgs): Sc
       };
       refreshUI();
 
-      // 자리가 없어서 관전으로 들어온 경우 — 본인은 참가하려고 들어왔을 테니 알려준다
+      // 관전 상태로 들어왔으면 어떻게 참가하는지 알려준다.
+      // 자리가 꽉 차서 밀려난 경우와 본인이 고른 경우가 섮여 있어서 지금 자리 상황으로 구분한다.
       if (amISpectator()) {
-        showToast('자리가 차서 관전으로 들어왔어요 · 자리가 나면 참가하기를 누르세요', { kind: 'info' });
+        const seats = getGameById(roomState.gameId)?.meta.maxPlayers ?? GLOBAL_MAX_PLAYERS;
+        const seated = roomState.players.filter((p) => p.role !== 'spectator').length;
+        showToast(
+          seated >= seats
+            ? '자리가 차서 관전으로 들어왔어요 · 자리가 나면 참가하기를 누르세요'
+            : '관전으로 보고 있어요 · 함께 하려면 참가하기를 누르세요',
+          { kind: 'info' },
+        );
       }
 
       glToggleBtn.addEventListener('click', () => {
