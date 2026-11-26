@@ -4081,3 +4081,52 @@ input {
 }
 .auto-ready input { accent-color: var(--accent); cursor: pointer; }
 .auto-ready:hover { color: var(--accent); }
+
+/* 준비 버튼 아래 보조 줄 — 자동 준비 체크 + 관전 토글 */
+.ready-extra {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 8px;
+}
+.ready-extra .auto-ready { margin-top: 0; }
+.auto-ready input:disabled { cursor: default; }
+.auto-ready:has(input:disabled) { opacity: .45; cursor: default; }
+.spectate-btn {
+  flex: 0 0 auto;
+  padding: 4px 11px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-full);
+  background: rgba(255, 255, 255, .7);
+  font-family: inherit;
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: color .15s, background .15s, border-color .15s;
+}
+.spectate-btn:hover { color: var(--accent); border-color: var(--teal-300); }
+/* 관전 중 — "지금 이 상태" 라서 채워서 보여준다 */
+.spectate-btn.is-watching {
+  background: var(--accent);
+  border-color: transparent;
+  color: #fff;
+}
+.spectate-btn.is-watching:hover { background: var(--accent-hover); color: #fff; }
+
+/* 참가자 목록 아래 관전 구역 */
+.participant-watch-title {
+  margin: 6px 2px 2px;
+  font-size: 11.5px;
+  font-weight: 800;
+  color: var(--text-muted);
+}
+.participant.participant-watcher {
+  background: var(--bg-inset);
+  border-style: dashed;
+}
+.participant-watcher .participant-badge {
+  background: var(--lavender-200);
+  color: var(--text-main);
+}

@@ -61,7 +61,11 @@ function renderParticipantsHTML(
   showKick = false,
   enteringPeerId: string | null = null,
 ): string {
-  const cells = players.map((p) => {
+  // 관전자는 자리를 차지하지 않는다 — 목록 아래쪽에 따로 모아 보여준다
+  const seated = players.filter((p) => p.role !== 'spectator');
+  const watchers = players.filter((p) => p.role === 'spectator');
+
+  const cells = seated.map((p) => {
     const badgeText = p.isHost ? '방장' : '손님';
     // 배지 색은 아래 hostCls(.participant-host / .participant-guest)가 결정한다.
     const hostCls = p.isHost ? 'participant-host' : 'participant-guest';
@@ -89,12 +93,31 @@ function renderParticipantsHTML(
     `;
   });
   // 남은 정원만큼 점선 "빈 자리" 고스트 슬롯 — 왼쪽 여백을 채워 방이 채워질 공간을 암시
-  for (let i = players.length; i < maxPlayers; i++) {
+  for (let i = seated.length; i < maxPlayers; i++) {
     cells.push(`
       <div class="participant participant-empty">
         <span class="participant-name">친구를 기다리는 중</span>
       </div>
     `);
+  }
+  if (watchers.length > 0) {
+    cells.push(`<div class="participant-watch-title">관전 ${watchers.length}명</div>`);
+    for (const p of watchers) {
+      const isMe = myPeerId !== null && p.peerId === myPeerId;
+      const nameHtml = isMe
+        ? `${escapeHtml(p.nickname)} <span class="participant-you">(나)</span>`
+        : escapeHtml(p.nickname);
+      const kickBtn = showKick && !p.isHost
+        ? `<button class="participant-kick" data-kick-peer="${escapeHtml(p.peerId)}" title="강퇴" aria-label="강퇴">×</button>`
+        : '';
+      cells.push(`
+        <div class="participant participant-watcher" data-peer="${escapeHtml(p.peerId)}">
+          <span class="participant-badge">관전</span>
+          <span class="participant-name">${nameHtml}</span>
+          ${kickBtn}
+        </div>
+      `);
+    }
   }
   return cells.join('');
 }
@@ -158,10 +181,25 @@ export function createWaitingRoomAsHostScreen(args: WaitingRoomAsHostArgs): Scre
     .map((p) => ({ ...p, role: 'player', ready: false }));
 
   // 게임이 아직 안 정해졌을 수 있음(gameId='') → 그때 정원은 전체 상한.
+  /** 실제 판에 앉는 게스트 수 (관전자 제외) */
+  const seatedGuests = (): number => guestPlayers.filter((g) => g.role !== 'spectator').length;
+  /** 관전 중인 게스트 수 */
+  const watchingGuests = (): number => guestPlayers.length - seatedGuests();
+
   const currentGame = () => getGameById(gameId);
   const maxPlayers = (): number => currentGame()?.meta.maxPlayers ?? GLOBAL_MAX_PLAYERS;
   const minPlayers = (): number => currentGame()?.meta.minPlayers ?? 2;
   const gameName = (): string => currentGame()?.meta.name ?? '게임 고르는 중';
+
+  /**
+   * 받을 수 있는 게스트 수 갱신.
+   * 관전자는 판에 안 앉으니 정원을 안 먹는다 — 2인 게임에도 구경꾼이 붙을 수 있게.
+   * 다만 전체 연결 수는 상한을 둔다(무한정 붙으면 호스트가 버틴다).
+   */
+  const recomputeAccept = (): void => {
+    const seats = Math.max(1, maxPlayers() - 1);
+    host.maxAccepted = Math.min(GLOBAL_MAX_PLAYERS - 1, seats + watchingGuests());
+  };
 
   const hostPlayer: Player = {
     peerId: host.myPeerId,
@@ -283,14 +321,16 @@ export function createWaitingRoomAsHostScreen(args: WaitingRoomAsHostArgs): Scre
       /** 참가자 리스트 / 카운터 / 게임이름 / 옵션 / 시작·게임선택 버튼 상태 동기화 */
       const refreshUI = (): void => {
         const players = [hostPlayer, ...guestPlayers];
+        // 인원·시작 조건은 판에 앉는 사람만 센다 (관전자 제외)
+        const seatedPlayers = players.filter((p) => p.role !== 'spectator');
         const max = maxPlayers();
         participantsEl.innerHTML = renderParticipantsHTML(players, max, hostPlayer.peerId, true, enteringPeerId);
-        playerCountEl.textContent = `${players.length} / ${max}명`;
+        playerCountEl.textContent = `${seatedPlayers.length} / ${max}명`;
 
         // 게임 타일 그리드 (항상 노출, 인원 초과 게임은 잠금). 재렌더 시 스크롤 위치 보존
         //   (게임 고를 때마다 innerHTML 재생성돼 스크롤이 위로 튀던 문제 방지)
         const gridScroll = gameGridEl.scrollTop;
-        gameGridEl.innerHTML = buildGameTilesHTML(players.length, gameId, {
+        gameGridEl.innerHTML = buildGameTilesHTML(seatedPlayers.length, gameId, {
           enforceMin: false,
           filter: gameFilter,
           category: catFilter,
@@ -298,7 +338,7 @@ export function createWaitingRoomAsHostScreen(args: WaitingRoomAsHostArgs): Scre
         gameGridEl.scrollTop = gridScroll;
         // 필터도 같이 갱신 — 인원이 바뀌면 '지금 방 인원' 표시가 따라가야 한다
         gameFilterEl.innerHTML =
-          buildCategoryFilterHTML(catFilter) + buildPlayerFilterHTML(gameFilter, players.length);
+          buildCategoryFilterHTML(catFilter) + buildPlayerFilterHTML(gameFilter, seatedPlayers.length);
         wireCategoryFilter(gameFilterEl, (c) => { catFilter = c; refreshUI(); });
         wirePlayerFilter(gameFilterEl, (n) => { gameFilter = n; refreshUI(); });
         // 옵션 박스는 항상 노출(통일성) — 옵션 있으면 셀렉트, 없으면 '설정 없음', 미선택이면 안내.
@@ -325,14 +365,14 @@ export function createWaitingRoomAsHostScreen(args: WaitingRoomAsHostArgs): Scre
         });
 
         // 전원 준비돼야 시작 가능(방장은 항상 준비된 것으로 취급 → 게스트만 검사).
-        const notReady = guestPlayers.filter((g) => !g.ready).length;
+        const notReady = guestPlayers.filter((g) => g.role !== 'spectator' && !g.ready).length;
         const needMin = devSolo ? 1 : minPlayers(); // AlphaTest = dev 솔로: 최소인원 무시(혼자 시작)
         if (!gameId) {
           startBtn.disabled = true;
           startBtn.textContent = '게임을 먼저 골라주세요';
-        } else if (players.length < needMin) {
+        } else if (seatedPlayers.length < needMin) {
           startBtn.disabled = true;
-          startBtn.textContent = `${needMin - players.length}명 더 필요해요`;
+          startBtn.textContent = `${needMin - seatedPlayers.length}명 더 필요해요`;
         } else if (notReady > 0) {
           startBtn.disabled = true;
           startBtn.textContent = `준비 대기 중 (${notReady}명)`;
@@ -358,7 +398,7 @@ export function createWaitingRoomAsHostScreen(args: WaitingRoomAsHostArgs): Scre
         // 게임·설정이 바뀔 때마다 준비를 풀었더니 방장이 고르는 사이 계속 다시 눌러야 했다.
         // 이제 준비는 그대로 둔다 — 바뀐 게임이 싫으면 게스트가 직접 준비를 풀면 된다.
         // 정원 좁힘 — 이후 입장은 이 게임 기준으로 막힘
-        host.maxAccepted = Math.max(1, g.meta.maxPlayers - 1);
+        recomputeAccept();
         // 전원에게 새 방 상태 통지 + 공개목록 갱신(게임이름/정원)
         host.send({ type: 'room_state', roomState: snapshotRoomState() });
         if (!migrated) updatePublicRoom(host.roomId, {
@@ -407,7 +447,8 @@ export function createWaitingRoomAsHostScreen(args: WaitingRoomAsHostArgs): Scre
         if (bannedNicknames.has(req.nickname)) {
           return { accept: false, reason: 'kicked' };
         }
-        if (guestPlayers.length >= maxPlayers() - 1) {
+        // 좌석 기준 — 관전자는 자리를 안 먹으니 구경꾼이 있어도 새 참가자를 받을 수 있다
+        if (seatedGuests() >= maxPlayers() - 1) {
           return { accept: false, reason: 'room_full' };
         }
         if (isPrivate && !migrated && req.password !== password) {
@@ -433,6 +474,7 @@ export function createWaitingRoomAsHostScreen(args: WaitingRoomAsHostArgs): Scre
         // 같은 peerId 가 이미 있으면 중복 추가 금지 (재연결 등으로 두 번 불릴 수 있다)
         guestPlayers = guestPlayers.filter((g) => g.peerId !== peerId);
         guestPlayers.push(newPlayer);
+        recomputeAccept();
 
         // 다른 기존 게스트들에게 새 게스트 입장 알림 (신규 게스트는 join_accepted로 이미 받음)
         host.send({ type: 'player_joined', player: newPlayer });
@@ -451,6 +493,7 @@ export function createWaitingRoomAsHostScreen(args: WaitingRoomAsHostArgs): Scre
       host.onGuestDisconnected = (peerId) => {
         const removed = guestPlayers.find((p) => p.peerId === peerId);
         guestPlayers = guestPlayers.filter((p) => p.peerId !== peerId);
+        recomputeAccept();
         if (removed) {
           host.send({ type: 'player_left', peerId, nickname: removed.nickname });
           host.send({ type: 'room_state', roomState: snapshotRoomState() });
@@ -493,7 +536,20 @@ export function createWaitingRoomAsHostScreen(args: WaitingRoomAsHostArgs): Scre
           }
           return;
         }
-        // 그 외 메시지(현재는 정의된 게 없음) 는 대기실에서 무시.
+        // 관전 토글: 관전으로 바꾸면 준비는 푸는다(판에 안 앉는데 준비 배지가 뜨면 이상하다).
+        // 관전자가 자리를 비우면 그만큼 더 받을 수 있게 정원도 다시 계산한다.
+        if (msg.type === 'spectate') {
+          const g = guestPlayers.find((p) => p.peerId === fromPeerId);
+          if (g) {
+            g.role = msg.spectate ? 'spectator' : 'player';
+            if (msg.spectate) g.ready = false;
+            recomputeAccept();
+            host.send({ type: 'room_state', roomState: snapshotRoomState() });
+            refreshUI();
+          }
+          return;
+        }
+        // 그 외 메시지 는 대기실에서 무시.
       };
 
       // 이모지 반응 버튼 배선 (호스트 측) — 클릭 시 자기 화면 + 모든 게스트에게 broadcast
@@ -537,7 +593,8 @@ export function createWaitingRoomAsHostScreen(args: WaitingRoomAsHostArgs): Scre
       // ---- 시작 버튼 ----
       startBtn.addEventListener('click', () => {
         const players = [hostPlayer, ...guestPlayers];
-        if (!gameId || players.length < (devSolo ? 1 : minPlayers())) return;
+        const seatedCount = players.filter((p) => p.role !== 'spectator').length;
+        if (!gameId || seatedCount < (devSolo ? 1 : minPlayers())) return;
 
         host.send({ type: 'game_start' });
 
@@ -678,9 +735,13 @@ export function createWaitingRoomAsGuestScreen(args: WaitingRoomAsGuestArgs): Sc
               <button class="btn btn-primary btn-lg btn-block" id="ready-btn" disabled>
                 방장이 게임을 고르는 중
               </button>
-              <label class="auto-ready" title="방장이 게임을 바꿔도 알아서 준비됩니다">
-                <input type="checkbox" id="auto-ready" /> 자동 준비
-              </label>
+              <div class="ready-extra">
+                <label class="auto-ready" title="방장이 게임을 바꿔도 알아서 준비됩니다">
+                  <input type="checkbox" id="auto-ready" /> 자동 준비
+                </label>
+                <button class="spectate-btn" id="spectate-btn" type="button"
+                        title="판에 안 앉고 구경만 해요">관전으로</button>
+              </div>
               <div style="margin-top: 10px;">${buildReactionBarHTML()}</div>
             </div>
 
@@ -705,6 +766,7 @@ export function createWaitingRoomAsGuestScreen(args: WaitingRoomAsGuestArgs): Sc
       const readyBtn = el.querySelector<HTMLButtonElement>('#ready-btn')!;
       const gameAllEl = el.querySelector<HTMLDivElement>('#game-all')!;
       const autoReadyEl = el.querySelector<HTMLInputElement>('#auto-ready')!;
+      const spectateBtn = el.querySelector<HTMLButtonElement>('#spectate-btn')!;
       const rightTitleEl = el.querySelector<HTMLSpanElement>('#right-title')!;
       const glToggleBtn = el.querySelector<HTMLButtonElement>('#gl-toggle-btn')!;
 
@@ -730,6 +792,10 @@ export function createWaitingRoomAsGuestScreen(args: WaitingRoomAsGuestArgs): Sc
       const amIReady = (): boolean =>
         !!roomState.players.find((p) => p.peerId === myPeerId)?.ready;
 
+      /** 관전 모드인가 — 판에 안 앉고 구경만 하는 상태 */
+      const amISpectator = (): boolean =>
+        roomState.players.find((p) => p.peerId === myPeerId)?.role === 'spectator';
+
       /** 방금 들어온 사람 — 다음 재렌더에서 그 행에만 입장 모션을 건다 */
       let enteringPeerId: string | null = null;
       /** 퇴장 모션이 끝나는 시각. 그 전에 다시 그리면 접히는 중에 행이 사라진다 */
@@ -752,7 +818,7 @@ export function createWaitingRoomAsGuestScreen(args: WaitingRoomAsGuestArgs): Sc
 
       const refreshUI = (): void => {
         const max = guestMaxPlayers();
-        const count = roomState.players.length;
+        const count = roomState.players.filter((p) => p.role !== 'spectator').length;
         participantsEl.innerHTML = renderParticipantsHTML(roomState.players, max, myPeerId, false, enteringPeerId);
         enteringPeerId = null;
         playerCountEl.textContent = `${count} / ${max}명`;
@@ -771,7 +837,16 @@ export function createWaitingRoomAsGuestScreen(args: WaitingRoomAsGuestArgs): Sc
         gameOptionsEl.querySelectorAll('select').forEach((s) => { s.disabled = true; });
 
         // 준비 버튼 — 게임이 정해지기 전엔 비활성, 정해지면 준비/준비완료 토글
-        if (!roomState.gameId) {
+        const watching = amISpectator();
+        spectateBtn.textContent = watching ? '참가하기' : '관전으로';
+        spectateBtn.classList.toggle('is-watching', watching);
+        autoReadyEl.disabled = watching;
+
+        if (watching) {
+          readyBtn.disabled = true;
+          readyBtn.className = 'btn btn-secondary btn-lg btn-block';
+          readyBtn.textContent = '관전 중이에요';
+        } else if (!roomState.gameId) {
           readyBtn.disabled = true;
           readyBtn.className = 'btn btn-secondary btn-lg btn-block';
           readyBtn.textContent = '방장이 게임을 고르는 중';
@@ -787,7 +862,7 @@ export function createWaitingRoomAsGuestScreen(args: WaitingRoomAsGuestArgs): Sc
 
         // 게임이 정해져 있고 자동 준비가 켜져 있는데 아직 안 된 상태면 바로 준비.
         // 입장 직후·방장이 게임을 고른 직후가 여기로 들어온다.
-        if (autoReady && roomState.gameId && !amIReady()) {
+        if (autoReady && !watching && roomState.gameId && !amIReady()) {
           setReady(true);
           refreshUI();
         }
@@ -810,6 +885,17 @@ export function createWaitingRoomAsGuestScreen(args: WaitingRoomAsGuestArgs): Sc
           try { localStorage.setItem(AUTO_READY_KEY, '0'); } catch { /* 저장 안 돼도 진행에는 지장 없음 */ }
         }
         setReady(next);
+        refreshUI();
+      });
+
+      spectateBtn.addEventListener('click', () => {
+        const next = !amISpectator();
+        const mine = roomState.players.find((p) => p.peerId === myPeerId);
+        if (mine) {
+          mine.role = next ? 'spectator' : 'player';
+          if (next) mine.ready = false;
+        }
+        guest.send({ type: 'spectate', spectate: next });
         refreshUI();
       });
 

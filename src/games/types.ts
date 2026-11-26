@@ -264,9 +264,19 @@ export type NetworkMessage =
   | ResumeMsg
   | KickedMsg
   | ReadyMsg
+  | SpectateMsg
   | LeaveMsg
   | ReturnToLobbyMsg
   | ChatMsg;
+
+/**
+ * 게스트 → 호스트: 대기실 '관전' 토글.
+ * 관전으로 바꾸면 인원 수에서 빠져서 2인 게임에도 구경꾼이 붙을 수 있다.
+ */
+export interface SpectateMsg {
+  type: 'spectate';
+  spectate: boolean;
+}
 
 /** 게스트 → 호스트: 대기실 '준비' 토글. 호스트가 해당 게스트의 ready 를 갱신 후 room_state broadcast. */
 export interface ReadyMsg {

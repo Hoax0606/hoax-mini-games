@@ -427,10 +427,10 @@ export function createGameScreenAsHostScreen(args: GameScreenAsHostArgs): Screen
   /** 게임 실제 정지 상태 = 보스키 || 메뉴정지(pausedBy) 중 하나라도 활성. 한 곳에서만 setPaused 호출. */
   const recomputePause = (): void => { gameModule?.setPaused?.(bossOn || pausedBy.size > 0); };
 
-  // 게임 시작 시점에 들어와 있던 플레이어들 (관전자와 구분).
-  // 게임 도중에 들어오는 사람은 전부 spectators 로. role='spectator' 마킹.
-  const activePlayers: Player[] = [...roomState.players];
-  const spectators: Player[] = [];
+  // 게임 시작 시점에 판에 앉은 사람들. 대기실에서 '관전으로' 를 고른 사람은
+  // 여기서부터 관전자로 빠진다. 게임 도중에 들어오는 사람도 전부 spectators 로.
+  const activePlayers: Player[] = roomState.players.filter((p) => p.role !== 'spectator');
+  const spectators: Player[] = roomState.players.filter((p) => p.role === 'spectator');
 
   /** 현재 방 상태 스냅샷 — 관전자에게 join_accepted 보낼 때 + player_joined broadcast 시 사용 */
   const snapshotRoomState = (): RoomState => ({
