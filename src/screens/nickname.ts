@@ -27,7 +27,6 @@ export function createNicknameScreen(options?: {
         ${backToMenu ? `<button class="back-btn" id="back-btn" title="뒤로">←</button>` : ''}
         <div class="card pop-in" style="min-width: 380px;">
           <div class="card-title">${icon('pen', { size: 24, hue: '#ff9838' })} 닉네임을 알려주세요</div>
-          <div class="card-subtitle">친구와 함께할 때 보일 이름이에요</div>
 
           <div class="form-group">
             <input

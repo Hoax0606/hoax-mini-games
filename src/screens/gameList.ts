@@ -47,7 +47,6 @@ export function createGameListScreen(): Screen {
 
         <div style="text-align: center; width: 100%; max-width: 960px;">
           <div class="screen-title">${icon('games', { size: 26, hue: '#a06bff' })} 게임 목록</div>
-          <div class="screen-subtitle">방을 만든 뒤 안에서 골라요</div>
 
           <div class="pf-wrap" id="game-filter">${buildCategoryFilterHTML(cat)}${buildPlayerFilterHTML(filter)}</div>
 

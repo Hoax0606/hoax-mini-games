@@ -31,7 +31,6 @@ export function createCreateRoomScreen(): Screen {
 
         <div class="card pop-in">
           <div class="card-title">${icon('home-add', { size: 24, hue: '#2a9488' })} 방 만들기</div>
-          <div class="card-subtitle">방을 만든 뒤 안에서 게임을 골라요</div>
 
           <div class="toggle-row">
             <span class="toggle-label">${icon('lock', { size: 18, hue: '#9a86c0' })} 비공개방 (비밀번호)</span>

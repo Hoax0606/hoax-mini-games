@@ -23,7 +23,6 @@ export function createSettingsScreen(): Screen {
 
         <div class="card pop-in">
           <div class="card-title">${icon('settings', { size: 24, hue: '#9a86c0' })} 설정</div>
-          <div class="card-subtitle">사운드와 화면을 취향대로 맞춰보세요</div>
 
           <div class="slider-row">
             <span class="slider-label">${icon('volume', { size: 18, hue: '#5b9dff' })} 마스터 볼륨</span>

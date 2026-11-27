@@ -66,7 +66,6 @@ export function createChangelogScreen(): Screen {
 
         <div style="width: 100%; max-width: 680px;">
           <div class="screen-title">${icon('list', { size: 24, hue: '#2a9488' })} 변경 로그</div>
-          <div class="screen-subtitle">새로 나온 게임과 고친 것들이에요</div>
 
           <div class="cl-list">
             ${daysHTML}
