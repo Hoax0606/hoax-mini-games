@@ -2,6 +2,7 @@ import type { Screen } from '../core/screen';
 import { router } from '../core/screen';
 import { storage } from '../core/storage';
 import type { HostSession, GuestSession, JoinRequest, JoinDecision } from '../core/peer';
+import { logNet } from '../core/peer';
 import { getGameById, GLOBAL_MAX_PLAYERS, MAX_SPECTATORS } from '../games/registry';
 import type { Player, RoomState } from '../games/types';
 import { createGameScreenAsHostScreen, createGameScreenAsGuestScreen } from './gameScreen';
@@ -796,6 +797,7 @@ export function createWaitingRoomAsGuestScreen(args: WaitingRoomAsGuestArgs): Sc
       const setReady = (next: boolean): void => {
         const mine = roomState.players.find((p) => p.peerId === myPeerId);
         if (mine) mine.ready = next;
+        else logNet(`waiting: setReady 했는데 내 항목이 없다 (${myPeerId})`);
         guest.send({ type: 'ready', ready: next });
       };
 
@@ -875,7 +877,11 @@ export function createWaitingRoomAsGuestScreen(args: WaitingRoomAsGuestArgs): Sc
         // 입장 직후·방장이 게임을 고른 직후가 여기로 들어온다.
         if (autoReady && !watching && roomState.gameId && !amIReady()) {
           setReady(true);
-          refreshUI();
+          // setReady 가 roomState 안에서 내 항목을 못 찾으면 amIReady() 는 계속 false 다.
+          // 그때도 다시 그리면 멈출 조건이 없어서 끝없이 재귀한다 — 실제로 스택이 터져
+          // 대기실이 통째로 죽었다. 값이 진짜로 바뀐 경우에만 한 번 더 그리고,
+          // 아니면 호스트가 돌려줄 room_state 를 기다린다.
+          if (amIReady()) refreshUI();
         }
       };
       refreshUI();

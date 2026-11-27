@@ -602,6 +602,10 @@ export class GuestSession {
         await this.ensureBrokerConnected(6000);
         // 호스트에 새 데이터 연결
         const conn = this.peer.connect(this.hostPeerId, { reliable: true });
+        // PeerJS 는 브로커와 끊긴 상태에서 connect 를 부르면 에러만 쏘고 undefined 를
+        // 돌려준다. 그대로 들고 가면 한참 뒤 타임아웃 자리에서 엉뚱하게 터진다.
+        // 여기서 이번 시도를 실패로 처리하면 아래 catch 가 받아서 다시 붙어본다.
+        if (!conn) throw new Error('broker disconnected');
         await waitForConnOpen(this.peer, conn, 6000);
         // 성공 — 새 conn 배선. 호스트가 유예 중이면 join_accepted 로 상태를 돌려주고,
         // 호스트가 이미 날 지웠으면 join_request 재전송으로 새로 입장된다.
