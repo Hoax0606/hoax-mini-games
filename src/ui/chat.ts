@@ -207,8 +207,14 @@ function renderMessageRow(parent: HTMLElement, msg: ChatMsg, isMe: boolean): voi
   const stream = parent.querySelector<HTMLDivElement>('#chat-stream');
   if (!stream) return;
 
+  // 같은 사람이 연달아 말하면 닉네임 줄을 생략한다 — 한 줄짜리 말을 여러 번 하면
+  // 닉네임이 매번 붙어서 화면이 금방 꽉 찼다. 말풍선만 이어 붙이면 훨씬 촘촘해진다.
+  const prev = stream.lastElementChild as HTMLElement | null;
+  const isCont = !!prev && prev.classList.contains('chat-row') && prev.dataset['nick'] === msg.nickname;
+
   const row = document.createElement('div');
-  row.className = `chat-row${isMe ? ' is-me' : ''}`;
+  row.className = `chat-row${isMe ? ' is-me' : ''}${isCont ? ' is-cont' : ''}`;
+  row.dataset['nick'] = msg.nickname;
   row.innerHTML = `
     <div class="chat-row-nick">${escapeHtml(msg.nickname)}</div>
     <div class="chat-row-bubble">${escapeHtml(msg.text)}</div>

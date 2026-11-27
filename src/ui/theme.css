@@ -2639,7 +2639,7 @@ input {
   padding: 14px;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 6px;
   background: transparent;
 }
 .chat-row {
@@ -2662,7 +2662,7 @@ input {
   color: var(--text-muted);
   font-size: 11px;
   font-weight: 600;
-  padding: 4px 2px;
+  padding: 1px 2px;
   white-space: nowrap;
 }
 .chat-row.is-system::before,
@@ -2673,6 +2673,9 @@ input {
   height: 1px;
   background: var(--border);
 }
+/* 같은 사람이 연달아 말한 줄 — 닉네임을 숨기고 위 말풍선에 바짝 붙인다 */
+.chat-row.is-cont .chat-row-nick { display: none; }
+.chat-row.is-cont { margin-top: -3px; }
 .chat-row-nick {
   font-size: 10.5px;
   font-weight: 700;
