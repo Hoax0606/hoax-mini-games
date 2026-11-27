@@ -32,6 +32,8 @@ export interface WwRenderState {
   remainMs: number;
   /** deal 페이즈: 내 카드 확인 완료 여부 */
   confirmedDeal: boolean;
+  /** 낮 토론에서 내가 '바로 투표'를 누랐나 */
+  mySkip: boolean;
   /** 밤: 내 이번 스텝 행동 제출 완료 여부 */
   actedNight: boolean;
   /** 투표 완료 여부 */
@@ -207,6 +209,9 @@ const CSS = `
 .ww-line .who{font-weight:800;color:#2f6aa8;margin-right:6px;}
 .ww-line.mine .who{color:#2a9488;}
 .ww-log-empty{color:#a99fbe;font-size:12.5px;text-align:center;margin:auto;}
+.ww-skip{margin-top:9px;background:transparent;border:1.5px solid #d8cdec;color:#7b61c9;}
+.ww-skip:hover{background:#f3ecff;}
+.ww-skip.is-on{background:#7b61c9;border-color:#7b61c9;color:#fff;}
 .ww-chat-form{display:flex;gap:8px;margin-top:10px;flex:none;}
 /* min-width:0 — 없으면 input 고유 폭 밑으로 안 줄어서 옆 전송 버튼이 패널 밖으로 밀려난다 */
 .ww-chat-input{flex:1 1 0;min-width:0;border:1px solid #e0d4f0;background:#fff;color:#43384f;
@@ -515,6 +520,7 @@ export class WerewolfRenderer {
     // 낮(채팅)은 stageKey 고정 → 재빌드 없이 로그만 증분 갱신
     if (rs.state.phase === 'day' && key === this.stageKey) {
       this.updateChatLog(rs);
+      this.updateSkip(rs);
       return;
     }
     if (key === this.stageKey) return;
@@ -848,8 +854,13 @@ export class WerewolfRenderer {
       `<div class="ww-chat"><div class="ww-log" id="ww-log"></div>` +
       `<form class="ww-chat-form" id="ww-cf" autocomplete="off">` +
       `<input class="ww-chat-input" id="ww-ci" maxlength="500" placeholder="여기서 대화하세요 (블러핑 환영!)" />` +
-      `<button class="ww-btn" type="submit">전송</button></form></div>`;
+      `<button class="ww-btn" type="submit">전송</button></form></div>` +
+      // 할 말 다 했는데 타이머만 기다리는 게 지루해서 — 전원이 누르면 바로 투표로
+      `<button class="ww-btn ww-skip" id="ww-skip" type="button"></button>`;
     this.updateChatLog(rs);
+    this.updateSkip(rs);
+    this.stageEl.querySelector<HTMLButtonElement>('#ww-skip')!
+      .addEventListener('click', () => this.cb.onReady());
     this.stageEl.querySelector<HTMLFormElement>('#ww-cf')!.addEventListener('submit', (e) => {
       e.preventDefault();
       const input = this.stageEl.querySelector<HTMLInputElement>('#ww-ci')!;
@@ -858,6 +869,18 @@ export class WerewolfRenderer {
       input.value = '';
       this.cb.onChat(text);
     });
+  }
+
+  /** '바로 투표' 버튼 — 글자만 갈아끼운다. 다시 그리면 치던 채팅이 날아간다 */
+  private updateSkip(rs: WwRenderState): void {
+    const btn = this.stageEl.querySelector<HTMLButtonElement>('#ww-skip');
+    if (!btn) return;
+    const total = rs.state.players.length;
+    const n = rs.state.skipCount;
+    btn.textContent = rs.mySkip
+      ? `기다릴게요 (${n}/${total})`
+      : `바로 투표 (${n}/${total})`;
+    btn.classList.toggle('is-on', rs.mySkip);
   }
 
   private updateChatLog(rs: WwRenderState): void {

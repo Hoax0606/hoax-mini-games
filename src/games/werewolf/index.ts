@@ -61,6 +61,8 @@ class WerewolfModule implements GameModule {
   private myOrigRole: Role | null = null;
   private memos: NightInfo[] = [];
   private confirmedDeal = false;
+  /** 내가 '바로 투표'를 누른 상태인가 (내 화면 표시용) */
+  private mySkip = false;
   private actedNight = false;
   private voted = false;
   private lastHelloAt = 0;
@@ -71,6 +73,8 @@ class WerewolfModule implements GameModule {
   private nightSteps: Role[] = [];
   private stepIdx = 0;
   private readySet = new Set<string>();
+  /** 낮 토론에서 '바로 투표'를 누른 사람들 */
+  private skipSet = new Set<string>();
   // 랜덤(자유) 모드: 호스트가 setup 페이즈에서 고르는 카드 구성
   private freeMode = false;
   private setupDeck: Role[] = [];
@@ -160,7 +164,13 @@ class WerewolfModule implements GameModule {
 
     const sync = decodeSync(msg);
     if (sync) {
-      if (!this.isHost) { this.state = sync; this.render(); }
+      if (!this.isHost) {
+        // 낮으로 넘어온 순간 내 '바로 투표' 표시를 초기화한다.
+        // 게스트는 startDay 를 안 거치니까 여기서 맞춰준다.
+        if (this.state.phase !== 'day' && sync.phase === 'day') this.mySkip = false;
+        this.state = sync;
+        this.render();
+      }
       return;
     }
 
@@ -278,6 +288,7 @@ class WerewolfModule implements GameModule {
       memos: this.memos,
       remainMs,
       confirmedDeal: this.confirmedDeal,
+      mySkip: this.mySkip,
       actedNight: this.actedNight,
       voted: this.voted,
     };
@@ -293,6 +304,14 @@ class WerewolfModule implements GameModule {
   // ============================================
 
   private doReady(): void {
+    // 낮에선 같은 버튼이 '바로 투표' 토글이다 — 한 번만 누르게 막으면 취소를 못 한다
+    if (this.state.phase === 'day') {
+      this.mySkip = !this.mySkip;
+      if (this.isHost) this.handleReady(this.myPeerId);
+      else this.ctx.sendToPeer(encodeReady(this.myPeerId));
+      this.render();
+      return;
+    }
     if (this.confirmedDeal) return;
     this.confirmedDeal = true;
     if (this.isHost) this.handleReady(this.myPeerId);
@@ -329,7 +348,7 @@ class WerewolfModule implements GameModule {
   private startSetupAsHost(players: { peerId: string; nickname: string }[]): void {
     this.setupDeck = [...setupFor(players.length)];
     this.state = {
-      phase: 'setup', players, setup: [...this.setupDeck], readyCount: 0,
+      phase: 'setup', players, setup: [...this.setupDeck], readyCount: 0, skipCount: 0,
       nightRole: null, nightStep: 0, nightTotal: 0, chatLog: [], reveal: null,
     };
     this.sync();
@@ -369,6 +388,7 @@ class WerewolfModule implements GameModule {
       players,
       setup: deck,
       readyCount: 0,
+      skipCount: 0,
       nightRole: null,
       nightStep: 0,
       nightTotal: this.nightSteps.length,
@@ -401,11 +421,28 @@ class WerewolfModule implements GameModule {
   }
 
   private handleReady(from: string): void {
+    // 낮 토론에선 같은 메시지를 '바로 투표' 토글로 쓴다.
+    // 할 말 다 했는데 타이머만 보고 있는 게 제일 지루해서.
+    if (this.state.phase === 'day') { this.toggleSkip(from); return; }
     if (this.state.phase !== 'deal') return;
     this.readySet.add(from);
     this.state.readyCount = this.readySet.size;
     this.sync();
     this.maybeStartNight();
+  }
+
+  /** 바로 투표 토글. 전원이 누르면 곧바로 투표 단계로 */
+  private toggleSkip(from: string): void {
+    if (!this.state.players.some((p) => p.peerId === from)) return;
+    if (this.skipSet.has(from)) this.skipSet.delete(from);
+    else this.skipSet.add(from);
+    this.state.skipCount = this.skipSet.size;
+    if (this.state.players.every((p) => this.skipSet.has(p.peerId))) {
+      this.startVote();
+      return;
+    }
+    this.sync();
+    this.render();
   }
 
   private maybeStartNight(): void {
@@ -621,6 +658,10 @@ class WerewolfModule implements GameModule {
   private startDay(): void {
     this.state.phase = 'day';
     this.state.nightRole = null;
+    // 봇(솔로 프리뷰용 더미)은 말을 안 하니 미리 동의해둔다 — 사람만 누르면 넘어가게
+    this.skipSet = new Set(this.state.players.filter((p) => isDummy(p.peerId)).map((p) => p.peerId));
+    this.state.skipCount = this.skipSet.size;
+    this.mySkip = false;
     this.phaseDeadline = performance.now() + this.dayMs;
     this.sync();
     this.render();
@@ -855,7 +896,7 @@ function orderPlayersHostFirst(players: Player[]): Player[] {
 }
 
 function emptyState(): PublicState {
-  return { phase: 'deal', players: [], setup: [], readyCount: 0, nightRole: null, nightStep: 0, nightTotal: 0, chatLog: [], reveal: null };
+  return { phase: 'deal', players: [], setup: [], readyCount: 0, skipCount: 0, nightRole: null, nightStep: 0, nightTotal: 0, chatLog: [], reveal: null };
 }
 
 function isDummy(peerId: string): boolean {

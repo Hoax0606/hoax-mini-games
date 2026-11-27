@@ -67,6 +67,11 @@ export interface PublicState {
   setup: Role[];
   /** deal 페이즈: 카드 확인을 마친 사람 수 (진행 표시용) */
   readyCount: number;
+  /**
+   * day 페이즈: '바로 투표'를 누른 사람 수.
+   * 전원이 누르면 남은 토론 시간을 기다리지 않고 바로 투표로 넘어간다.
+   */
+  skipCount: number;
   /** night 페이즈: 지금 행동 중인 역할 (원작 사회자가 부르는 것과 동일, 공개해도 됨). */
   nightRole: Role | null;
   /** night 진행바용: 현재 스텝(1-base) / 전체 스텝 수 */
