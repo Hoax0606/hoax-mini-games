@@ -14,7 +14,7 @@
  */
 
 import type { Tile, TileSet } from './rules';
-import { sortByColor, sortByNumber, validateSet } from './rules';
+import { sortByColor, sortByNumber, validateSet, setScore, FIRST_MELD_MIN } from './rules';
 import type { SyncPlayer } from './netSync';
 import { escapeHtml } from '../../ui/escape';
 
@@ -237,7 +237,18 @@ export class RummikubRenderer {
     const pickInfo = this.picked.length > 0
       ? `<span class="rk-pickinfo">${this.picked.length}장 고름 · 놓을 자리를 누르세요</span>`
       : '';
-    this.actionEl.innerHTML = pickInfo + `
+    // 첫 등록 전에만 — 지금 깔은 내 타일의 점수를 숫자로 보여준다.
+    // 30점을 암산으로 세고 있으면 재미가 아니라 귀찮다. 등록 후엔 안 보여준다(필요 없는 정보).
+    const me = s.players.find((p) => p.peerId === s.myPeerId);
+    let meldInfo = '';
+    if (me && !me.melded) {
+      const handIds = new Set((this.last?.myHand ?? []).map((t) => t.id));
+      const fresh = this.work.filter((set) => set.every((t) => handIds.has(t.id)));
+      const score = fresh.reduce((sum, set) => sum + setScore(set), 0);
+      const ok = score >= FIRST_MELD_MIN;
+      meldInfo = `<span class="rk-meldscore${ok ? ' is-ok' : ''}">${score} / ${FIRST_MELD_MIN}</span>`;
+    }
+    this.actionEl.innerHTML = pickInfo + meldInfo + `
       <button class="rk-btn ghost" id="rk-sort">${this.sortMode === 'color' ? '숫자순' : '색깔순'}</button>
       <button class="rk-btn ghost" id="rk-undo"${moved ? '' : ' disabled'}>되돌리기</button>
       <button class="rk-btn" id="rk-commit"${moved ? '' : ' disabled'}>턴 끝내기</button>
@@ -474,7 +485,8 @@ const CSS = `
 .rk-joker{width:26px;height:26px;display:block;}
 .rk-tile.is-movable{cursor:grab;}
 .rk-tile.is-movable:hover{transform:translateY(-2px);box-shadow:0 3px 7px rgba(0,0,0,.18);}
-.rk-tile.is-picked{outline:3px solid var(--accent);outline-offset:1px;transform:translateY(-4px);}
+.rk-tile.is-picked{outline:3px solid var(--accent);outline-offset:1px;
+  transform:translateY(-11px);box-shadow:0 7px 12px rgba(42,148,136,.35);z-index:1;}
 
 .rk-notice{flex:0 0 auto;font-size:12.5px;font-weight:700;color:var(--text-muted);
   text-align:center;}
@@ -484,6 +496,11 @@ const CSS = `
 .rk-actions{flex:0 0 auto;display:flex;gap:6px;justify-content:center;align-items:center;}
 .rk-hint{font-size:12.5px;color:var(--text-muted);}
 .rk-pickinfo{font-size:12px;font-weight:800;color:var(--accent);margin-right:4px;}
+/* 첫 등록 점수 — 30 넘기면 초록으로 바뀜다 */
+.rk-meldscore{font-size:12.5px;font-weight:900;color:var(--text-muted);
+  background:var(--bg-inset);border:1px solid var(--border-soft);
+  padding:3px 10px;border-radius:var(--radius-full);margin-right:4px;}
+.rk-meldscore.is-ok{color:var(--mint-500);border-color:var(--mint-300);background:var(--mint-100);}
 .rk-btn{font:inherit;font-weight:800;font-size:13px;color:#fff;background:var(--accent);
   border:none;border-radius:var(--radius-full);padding:8px 16px;cursor:pointer;}
 .rk-btn:hover{background:var(--accent-hover);}
