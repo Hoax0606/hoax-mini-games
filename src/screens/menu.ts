@@ -12,6 +12,7 @@ import { escapeHtml } from '../ui/escape';
 import { icon } from '../ui/icons';
 import { showBirthdayEvent } from '../ui/birthdayEvent';
 import { showNewsPopup } from '../ui/newsPopup';
+import { showToast } from '../ui/toast';
 import { unseenEntries, takeShownFlag } from '../data/changelog';
 import { createChangelogScreen } from './changelog';
 import { sound } from '../core/sound';
@@ -24,6 +25,17 @@ export function createMenuScreen(): Screen {
     render() {
       // 메뉴 진입 = 방 떠난 시점 — 채팅 히스토리 초기화 (다음 방은 빈 상태에서 시작)
       clearChatHistory();
+
+      // 새 버전이 올라온 걸 모르고 옛 탭으로 게임을 켜다 자동 새로고침된 경우.
+      // 아무 말 없이 메뉴로 돌아와 있으면 왜 튕겼는지 알 수가 없어서 한 줄 알려준다.
+      try {
+        if (sessionStorage.getItem('hoax:staleReloaded') === '1') {
+          sessionStorage.setItem('hoax:staleReloaded', 'told');
+          window.setTimeout(() => showToast('새 버전이 올라와서 새로고침했어요', { kind: 'info' }), 300);
+        }
+      } catch {
+        /* 세션 저장소를 못 쓰면 안내만 못 하는 것뿐이라 무시 */
+      }
 
       const nickname = storage.getNickname();
 

@@ -442,6 +442,32 @@ export interface GameScreenAsHostArgs {
   password: string;
 }
 
+/**
+ * 게임 코드를 못 불러온 경우를 가려낸다.
+ *
+ * 새 버전을 배포하면 게임 파일 이름(해시)이 바뀐다. 그 전에 띄워둔 탭은 옛 이름을
+ * 그대로 들고 있어서 게임을 시작하는 순간 404 가 난다. 사람 눈엔 "라이어게임만 안 켜짐"
+ * 으로 보이는데 실제로는 페이지가 낡은 것뿐이라 새로고침 한 번이면 끝난다.
+ */
+function isStaleBuild(err: unknown): boolean {
+  const m = err instanceof Error ? `${err.name} ${err.message}` : String(err);
+  return /dynamically imported module|Importing a module script failed|Failed to fetch/i.test(m);
+}
+
+/** 낡은 탭을 한 번만 자동 새로고침한다 (무한 새로고침 방지) */
+const STALE_RELOADED_KEY = 'hoax:staleReloaded';
+
+function recoverFromStaleBuild(): boolean {
+  try {
+    if (sessionStorage.getItem(STALE_RELOADED_KEY)) return false; // 이미 했는데도 실패 — 포기
+    sessionStorage.setItem(STALE_RELOADED_KEY, '1');
+  } catch {
+    /* 저장 못 하면 한 번 더 시도되는 것뿐이라 무시 */
+  }
+  window.location.reload();
+  return true;
+}
+
 export function createGameScreenAsHostScreen(args: GameScreenAsHostArgs): Screen {
   const { host, roomState, isPrivate, password } = args;
   let gameModule: GameModule | null = null;
@@ -876,6 +902,8 @@ export function createGameScreenAsHostScreen(args: GameScreenAsHostArgs): Screen
           pendingPayloads.length = 0;
         } catch (err) {
           console.error('[gameScreen/host] failed to start game', err);
+          // 배포 직후 낡은 탭이면 게임 파일을 못 찾는다 — 묻지 말고 새로고침해서 살린다
+          if (isStaleBuild(err) && recoverFromStaleBuild()) return;
           alert('게임을 시작할 수 없어요');
           router.reset(() => createMenuScreen());
         }
@@ -1208,6 +1236,8 @@ export function createGameScreenAsGuestScreen(args: GameScreenAsGuestArgs): Scre
           pendingPayloads.length = 0;
         } catch (err) {
           console.error('[gameScreen/guest] failed to start game', err);
+          // 배포 직후 낡은 탭이면 게임 파일을 못 찾는다 — 묻지 말고 새로고침해서 살린다
+          if (isStaleBuild(err) && recoverFromStaleBuild()) return;
           alert('게임을 시작할 수 없어요');
           router.reset(() => createMenuScreen());
         }
