@@ -79,7 +79,7 @@ export class RummikubRenderer {
   private dragging: number | null = null;
   /** 드래그 중 강조해 둔 드롭 대상 */
   private overEl: HTMLElement | null = null;
-  private sortMode: 'color' | 'number' = 'color';
+  private sortMode: 'color' | 'number' = loadSortMode();
   private rejectText = '';
   private rejectUntil = 0;
   private myTurnBefore = false;
@@ -231,7 +231,10 @@ export class RummikubRenderer {
       return;
     }
     if (!myTurn) {
-      this.actionEl.innerHTML = '<span class="rk-hint">내 차례를 기다리는 중…</span>';
+      // 기다리는 동안에도 손패는 정리할 수 있게 둔다 — 내 차례가 오기 전에
+      // 미리 늘어놓고 뭘 낼지 짜보는 게 이 게임에서 기다리는 시간의 전부다.
+      this.actionEl.innerHTML = '<span class="rk-hint">내 차례를 기다리는 중…</span>' + SORT_BTN(this.sortMode);
+      this.wireSort();
       return;
     }
     const moved = this.hand.length !== (this.last?.myHand.length ?? 0);
@@ -250,16 +253,12 @@ export class RummikubRenderer {
       const ok = score >= FIRST_MELD_MIN;
       meldInfo = `<span class="rk-meldscore${ok ? ' is-ok' : ''}">${score} / ${FIRST_MELD_MIN}</span>`;
     }
-    this.actionEl.innerHTML = pickInfo + meldInfo + `
-      <button class="rk-btn ghost" id="rk-sort">${this.sortMode === 'color' ? '숫자순' : '색깔순'}</button>
+    this.actionEl.innerHTML = pickInfo + meldInfo + SORT_BTN(this.sortMode) + `
       <button class="rk-btn ghost" id="rk-undo"${moved ? '' : ' disabled'}>되돌리기</button>
       <button class="rk-btn" id="rk-commit"${moved ? '' : ' disabled'}>턴 끝내기</button>
       <button class="rk-btn warn" id="rk-draw">한 장 가져오기</button>`;
 
-    this.actionEl.querySelector('#rk-sort')!.addEventListener('click', () => {
-      this.sortMode = this.sortMode === 'color' ? 'number' : 'color';
-      this.boardKey = '';
-    });
+    this.wireSort();
     this.actionEl.querySelector('#rk-undo')!.addEventListener('click', () => this.resetWork());
     this.actionEl.querySelector('#rk-commit')!.addEventListener('click', () => {
       this.cb.onCommit(this.work.filter((set) => set.length > 0));
@@ -267,6 +266,15 @@ export class RummikubRenderer {
     this.actionEl.querySelector('#rk-draw')!.addEventListener('click', () => {
       this.resetWork();
       this.cb.onDraw();
+    });
+  }
+
+  /** 정렬 버튼은 내 차례일 때도 아닐 때도 같은 자리에 있다 */
+  private wireSort(): void {
+    this.actionEl.querySelector('#rk-sort')?.addEventListener('click', () => {
+      this.sortMode = this.sortMode === 'color' ? 'number' : 'color';
+      saveSortMode(this.sortMode);
+      this.boardKey = ''; // 다음 프레임에 손패를 다시 깐다
     });
   }
 
@@ -440,6 +448,31 @@ export class RummikubRenderer {
     this.root.addEventListener('dragend', () => { this.dragging = null; this.markOver(null); });
   }
 }
+
+/**
+ * 손패를 어떤 순서로 볼지는 취향이라 판이 끝나도 들고 간다.
+ * 매판 색깔순으로 되돌아가면 숫자순으로 보는 사람은 매번 다시 눌러야 한다.
+ */
+const SORT_KEY = 'hoax:rkSort';
+
+function loadSortMode(): 'color' | 'number' {
+  try {
+    return localStorage.getItem(SORT_KEY) === 'number' ? 'number' : 'color';
+  } catch {
+    return 'color';
+  }
+}
+
+function saveSortMode(mode: 'color' | 'number'): void {
+  try {
+    localStorage.setItem(SORT_KEY, mode);
+  } catch {
+    /* 사생활 보호 모드 등 — 못 저장하면 이번 판만 유지되는 것뿐이라 무시 */
+  }
+}
+
+const SORT_BTN = (mode: 'color' | 'number'): string =>
+  `<button class="rk-btn ghost" id="rk-sort">${mode === 'color' ? '숫자순' : '색깔순'}</button>`;
 
 function tableKey(table: TileSet[]): string {
   return table.map((s) => s.map((t) => t.id).join('.')).join('|');
