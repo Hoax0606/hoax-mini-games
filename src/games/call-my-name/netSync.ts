@@ -13,7 +13,7 @@
  */
 
 import type { GameMessage, GameResult } from '../types';
-import type { FeedEntry, PlayerState } from './rules';
+import type { Round, PlayerState } from './rules';
 
 const T_HELLO = 'cn:hello';
 const T_SYNC = 'cn:sync';
@@ -23,16 +23,28 @@ const T_GUESS = 'cn:guess';
 const T_PASS = 'cn:pass';
 const T_END = 'cn:end';
 
+/**
+ * 한 차례의 진행 단계.
+ *   ask     차례인 사람이 질문을 쓰는 중
+ *   answer  나머지가 각자 한 번씩 대답하는 중 (전원 끝나거나 시간이 다 되면 다음)
+ *   decide  질문자가 정답을 말할지 넘길지 고르는 중
+ *   over    끝
+ */
+export type CnPhase = 'ask' | 'answer' | 'decide' | 'over';
+
 export interface SyncPayload {
   players: PlayerState[];
   /** 지금 차례인 사람(= 질문권을 가진 사람). 전원이 맞혔으면 null */
   turnPeerId: string | null;
   /** 주제 이름 (전원 공개). '랜덤' 으로 시작했어도 여기엔 확정된 주제가 담긴다 */
   theme: string;
-  /** 질문·대답·알림이 시간순으로 쌓인 대화 */
-  feed: FeedEntry[];
-  /** 이번 차례에 질문을 이미 했나 — 한 차례에 한 번만 물어볼 수 있다 */
-  asked: boolean;
+  phase: CnPhase;
+  /** 지난 바퀴들 + 지금 바퀴 (마지막이 지금 것). 사람별 카드는 이걸로 그린다 */
+  rounds: Round[];
+  /** 대답 제한 시간이 끝나는 시각(Date.now 기준). 0 이면 무제한 */
+  answerDeadline: number;
+  /** 한 줄 소식 (정답·퇴장 같은 알림) */
+  news: string;
 }
 
 export function encodeHello(peerId: string): GameMessage {
@@ -55,8 +67,11 @@ export function decodeSync(msg: GameMessage): SyncPayload | null {
     players: p.players as PlayerState[],
     turnPeerId: typeof p.turnPeerId === 'string' ? p.turnPeerId : null,
     theme: typeof p.theme === 'string' ? p.theme : '',
-    feed: Array.isArray(p.feed) ? (p.feed as FeedEntry[]) : [],
-    asked: p.asked === true,
+    phase: (['ask', 'answer', 'decide', 'over'] as const).includes(p.phase as CnPhase)
+      ? (p.phase as CnPhase) : 'ask',
+    rounds: Array.isArray(p.rounds) ? (p.rounds as Round[]) : [],
+    answerDeadline: typeof p.answerDeadline === 'number' ? p.answerDeadline : 0,
+    news: typeof p.news === 'string' ? p.news : '',
   };
 }
 

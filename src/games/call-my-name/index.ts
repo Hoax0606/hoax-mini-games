@@ -3,7 +3,15 @@
  *
  * 호스트 authoritative. 호스트가 단어를 나눠주고 차례와 정답을 판정한다.
  *
- * 한 차례에 질문 하나. 차례인 사람이 묻고, 나머지 전원이 대답하고, 다음 사람으로 넘어간다.
+ * 한 차례는 세 단계다.
+ *   1) ask     차례인 사람이 질문 하나를 쓴다
+ *   2) answer  나머지가 **각자 한 번씩** 대답한다 (전원 끝나거나 제한 시간이 지나면 다음)
+ *   3) decide  질문자가 정답을 말하거나 차례를 넘긴다
+ *
+ * 예전엔 대답이 자유였고 질문·대답·알림이 한 피드에 시간순으로 섞여 쌓였는데,
+ * "지금 누가 뭐라고 했더라" 를 눈으로 좇아야 해서 판이 안 읽혔다.
+ * 이제 바퀴(Round)로 묶어서 사람별 카드에 쌓는다.
+ *
  * 대답은 자유 입력이다 — 예/아니오로 가두면 "글쎄…" 가 사라져서 재미가 죽는다.
  *
  * 자기 단어를 모르는 게 게임의 전부라서, sync 는 사람마다 다르게 보낸다
@@ -13,26 +21,20 @@
 import type { GameContext, GameMessage, GameModule, GameResult, Player } from '../types';
 import {
   THEMES, parseTheme, resolveTheme, pickWords, isCorrect, nextTurn, isOver, rankSort,
-  clipFeedText, type FeedEntry, type PlayerState,
+  clipFeedText, NO_ANSWER, ROUND_KEEP, type Round, type PlayerState,
 } from './rules';
 import { CallMyNameRenderer } from './render';
 import {
   encodeHello, decodeHello, encodeSync, decodeSync,
   encodeAsk, decodeAsk, encodeAnswer, decodeAnswer,
   encodeGuess, decodeGuess, encodePass, decodePass,
-  encodeEnd, decodeEnd,
+  encodeEnd, decodeEnd, type CnPhase,
 } from './netSync';
 import { sound } from '../../core/sound';
 
 /** 게스트가 hello 를 보내고 sync 가 안 오면 재시도하는 간격 */
 const HELLO_RETRY_MS = 1_500;
 const END_DELAY_MS = 1_400;
-/**
- * 대화는 이만큼만 들고 다닌다 — sync 마다 통째로 보내니까 무한정 쌓으면 안 된다.
- * 40 에서 올렸다 — 한 판이 끝나기도 전에 앞부분이 사라져서 올려 봐도 물어봤던 걸 못 찾았다.
- * 150 이면 한 판 대화는 다 남고, sync 한 번에 실려가는 양도 10KB 안쪽이라 감당된다.
- */
-const FEED_KEEP = 150;
 /** 도배 방지 — 한 사람이 이 간격 안에 두 번 말할 수 없다 */
 const SAY_COOLDOWN_MS = 400;
 
@@ -48,13 +50,16 @@ class CallMyNameModule implements GameModule {
 
   private themeKey = 'food';
   private themeLabel = '…';
+  /** 대답 제한 시간(초). 0 이면 무제한 — 그땐 질문자가 직접 넘겨야 한다 */
+  private answerLimitSec = 30;
 
   // --- 공개 상태 (게스트는 sync 로 받아서 통째 교체) ---
   private players: PlayerState[] = [];
   private turnPeerId: string | null = null;
-  private feed: FeedEntry[] = [];
-  /** 이번 차례에 질문을 했나 — 하고 나면 정답을 말하거나 다음 사람에게 넘긴다 */
-  private asked = false;
+  private phase: CnPhase = 'ask';
+  private rounds: Round[] = [];
+  private answerDeadline = 0;
+  private news = '';
 
   private notice = '';
   private noticeUntil = 0;
@@ -78,6 +83,7 @@ class CallMyNameModule implements GameModule {
     this.isHost = ctx.role === 'host';
     this.isSpectator = ctx.isSpectator === true;
     const picked = parseTheme(ctx.roomOptions['theme']);
+    this.answerLimitSec = parseAnswerLimit(ctx.roomOptions['answerLimit']);
     if (this.isHost) {
       // 랜덤이면 여기서 주제가 확정된다. 게스트에겐 sync 로 라벨만 내려간다
       const t = resolveTheme(picked);
@@ -89,8 +95,8 @@ class CallMyNameModule implements GameModule {
     }
 
     this.renderer = new CallMyNameRenderer(ctx.canvas, {
-      onAsk: (t) => this.submitSay('ask', t),
-      onAnswer: (t) => this.submitSay('ans', t),
+      onAsk: (t) => this.submitAsk(t),
+      onAnswer: (t) => this.submitAnswer(t),
       onGuess: (w) => this.submitGuess(w),
       onPass: () => this.submitPass(),
     });
@@ -109,8 +115,8 @@ class CallMyNameModule implements GameModule {
       }));
       this.turnIdx = 0;
       this.turnPeerId = this.players[0]?.peerId ?? null;
-      this.pushSys(`주제는 ${this.themeLabel}. 차례인 사람이 물어보세요`);
-      this.broadcastSync();
+      this.news = `주제는 ${this.themeLabel}`;
+      this.openRound();
     } else {
       this.ctx.sendToPeer(encodeHello(this.myPeerId));
       this.lastHelloAt = performance.now();
@@ -137,12 +143,21 @@ class CallMyNameModule implements GameModule {
     }
     if (this.notice && now > this.noticeUntil) this.notice = '';
 
+    // 제한 시간이 끝나면 안 답한 사람은 무응답으로 두고 넘어간다.
+    // 한 명이 자리를 비워 판이 멈추는 걸 막는 장치 (전원 대답이 필수라서 필요하다).
+    if (this.isHost && this.phase === 'answer' && this.answerDeadline > 0
+        && Date.now() >= this.answerDeadline) {
+      this.closeAnswers(true);
+    }
+
     this.renderer?.render({
       players: this.players,
       turnPeerId: this.turnPeerId,
       theme: this.themeLabel,
-      feed: this.feed,
-      asked: this.asked,
+      phase: this.phase,
+      rounds: this.rounds,
+      answerDeadline: this.answerDeadline,
+      news: this.news,
       myPeerId: this.myPeerId,
       isSpectator: this.isSpectator,
       notice: this.notice,
@@ -158,19 +173,20 @@ class CallMyNameModule implements GameModule {
     return !this.isSpectator && this.turnPeerId === this.myPeerId;
   }
 
-  /**
-   * 질문/대답 보내기.
-   * 말할 자격(차례인가 아닌가)은 호스트가 다시 판정한다 — 여기 검사는 헛걸음을 줄이는 용도.
-   */
-  private submitSay(kind: 'ask' | 'ans', raw: string): void {
+  private submitAsk(raw: string): void {
     const text = clipFeedText(raw);
     if (!text) return;
-    if (kind === 'ask' && (!this.isMyTurn() || this.asked)) return;
-    if (kind === 'ans' && this.isMyTurn()) return;
-    if (this.isHost) this.handleSay(this.myPeerId, kind, text);
-    else this.ctx.sendToPeer(kind === 'ask'
-      ? encodeAsk(this.myPeerId, text)
-      : encodeAnswer(this.myPeerId, text));
+    if (!this.isMyTurn() || this.phase !== 'ask') return;
+    if (this.isHost) this.handleAsk(this.myPeerId, text);
+    else this.ctx.sendToPeer(encodeAsk(this.myPeerId, text));
+  }
+
+  private submitAnswer(raw: string): void {
+    const text = clipFeedText(raw);
+    if (!text) return;
+    if (this.isSpectator || this.phase !== 'answer') return;
+    if (this.isHost) this.handleAnswer(this.myPeerId, text);
+    else this.ctx.sendToPeer(encodeAnswer(this.myPeerId, text));
   }
 
   private submitGuess(word: string): void {
@@ -196,24 +212,45 @@ class CallMyNameModule implements GameModule {
   // 호스트 — 판정
   // ============================================
 
-  private pushFeed(e: FeedEntry): void {
-    this.feed = [...this.feed, e].slice(-FEED_KEEP);
+  /** 지금 바퀴 (= 마지막 바퀴). 아직 없으면 null */
+  private current(): Round | null {
+    return this.rounds[this.rounds.length - 1] ?? null;
   }
 
-  private pushSys(line: string): void {
-    this.pushFeed({ kind: 'sys', who: '', text: line });
+  /** 새 바퀴를 열고 질문을 기다린다 */
+  private openRound(): void {
+    const asker = this.players.find((p) => p.peerId === this.turnPeerId);
+    if (!asker) { this.finishAsHost(); return; }
+    this.phase = 'ask';
+    this.answerDeadline = 0;
+    this.rounds = [...this.rounds, {
+      no: this.rounds.length + 1,
+      askerPeerId: asker.peerId,
+      askerName: asker.nickname,
+      question: '',
+      answers: [],
+    }].slice(-ROUND_KEEP);
+    this.broadcastSync();
   }
 
   /**
-   * 질문/대답 받기 (호스트).
-   * 질문은 차례인 사람만, 대답은 그 외 전원 — 관전자는 모두의 단어를 보고 있으니 빠진다.
+   * 이번 질문에 답해야 하는 사람들.
+   * 기본은 "아직 못 맞혔고 안 나간, 질문자 아닌 사람" — 맞힌 사람은 빠진다.
+   * 다만 그런 사람이 하나도 없으면(막판에 질문자만 남은 경우) 맞힌 사람들이 대신 답한다.
+   * 안 그러면 마지막 사람은 아무 정보도 못 얻고 찍기만 해야 한다.
    */
-  private handleSay(from: string, kind: 'ask' | 'ans', raw: string): void {
-    if (this.ended) return;
+  private answererIds(askerPeerId: string): string[] {
+    const alive = this.players.filter((p) => !this.leftPeers.has(p.peerId) && p.peerId !== askerPeerId);
+    const unsolved = alive.filter((p) => !p.solved);
+    const pool = unsolved.length > 0 ? unsolved : alive;
+    return pool.map((p) => p.peerId);
+  }
+
+  private handleAsk(from: string, raw: string): void {
+    if (this.ended || this.phase !== 'ask') return;
+    if (this.turnPeerId !== from) return;
     const me = this.players.find((p) => p.peerId === from);
     if (!me || this.leftPeers.has(from)) return;
-    if (kind === 'ask' && (this.turnPeerId !== from || this.asked)) return;
-    if (kind === 'ans' && this.turnPeerId === from) return;
 
     const now = performance.now();
     if (now - (this.lastSayAt.get(from) ?? 0) < SAY_COOLDOWN_MS) return;
@@ -221,13 +258,60 @@ class CallMyNameModule implements GameModule {
 
     const text = clipFeedText(raw);
     if (!text) return;
-    if (kind === 'ask') this.asked = true;
-    this.pushFeed({ kind, who: me.nickname, text });
+    const round = this.current();
+    if (!round) return;
+
+    round.question = text;
+    round.answers = this.answererIds(from).map((peerId) => ({ peerId, text: '' }));
+    sound.play('pop');
+
+    if (round.answers.length === 0) {
+      // 답할 사람이 아무도 없다 (혼자 남음) → 바로 정답/넘기기
+      this.phase = 'decide';
+      this.answerDeadline = 0;
+    } else {
+      this.phase = 'answer';
+      this.answerDeadline = this.answerLimitSec > 0 ? Date.now() + this.answerLimitSec * 1000 : 0;
+    }
+    this.broadcastSync();
+  }
+
+  private handleAnswer(from: string, raw: string): void {
+    if (this.ended || this.phase !== 'answer') return;
+    const round = this.current();
+    if (!round) return;
+    const slot = round.answers.find((a) => a.peerId === from);
+    if (!slot || slot.text) return; // 대답 대상이 아니거나 이미 답했다
+
+    const now = performance.now();
+    if (now - (this.lastSayAt.get(from) ?? 0) < SAY_COOLDOWN_MS) return;
+    this.lastSayAt.set(from, now);
+
+    const text = clipFeedText(raw);
+    if (!text) return;
+    slot.text = text;
+    sound.play('pop');
+
+    if (round.answers.every((a) => a.text)) this.closeAnswers(false);
+    else this.broadcastSync();
+  }
+
+  /** 대답 단계를 닫고 질문자에게 공을 넘긴다. byTimeout 이면 빈 칸을 무응답으로 채운다 */
+  private closeAnswers(byTimeout: boolean): void {
+    const round = this.current();
+    if (!round) return;
+    if (byTimeout) {
+      for (const a of round.answers) if (!a.text) a.text = NO_ANSWER;
+    }
+    this.phase = 'decide';
+    this.answerDeadline = 0;
     this.broadcastSync();
   }
 
   private handleGuess(from: string, word: string): void {
     if (this.ended || this.turnPeerId !== from) return;
+    // 대답을 다 듣기 전에는 못 맞힌다 — 그게 이번 규칙의 핵심이다
+    if (this.phase !== 'decide') return;
     const me = this.players.find((p) => p.peerId === from);
     if (!me || me.solved) return;
 
@@ -235,11 +319,11 @@ class CallMyNameModule implements GameModule {
     if (isCorrect(word, me.word)) {
       me.solved = true;
       me.rank = this.nextRank++;
-      this.pushSys(`${me.nickname} 님 정답! (${me.word}) ${me.rank}등`);
+      this.news = `${me.nickname} 님 정답! (${me.word}) ${me.rank}등`;
       sound.play('tetris_tetris');
       if (isOver(this.players) || this.activeCount() === 0) { this.finishAsHost(); return; }
     } else {
-      this.pushSys(`${me.nickname} 님이 ${word} 라고 했지만 아니에요`);
+      this.news = `${me.nickname} 님이 ${word} 라고 했지만 아니에요`;
       sound.play('tetris_lock');
     }
     this.advanceTurn();
@@ -247,8 +331,9 @@ class CallMyNameModule implements GameModule {
 
   private handlePass(from: string): void {
     if (this.ended || this.turnPeerId !== from) return;
+    if (this.phase !== 'decide') return;
     const me = this.players.find((p) => p.peerId === from);
-    if (me) this.pushSys(`${me.nickname} 님이 차례를 넘겼어요`);
+    if (me) this.news = `${me.nickname} 님이 차례를 넘겼어요`;
     this.advanceTurn();
   }
 
@@ -268,13 +353,27 @@ class CallMyNameModule implements GameModule {
       if (!this.leftPeers.has(this.players[i]!.peerId)) {
         this.turnIdx = i;
         this.turnPeerId = this.players[i]!.peerId;
-        this.asked = false;
-        this.pushSys(`이제 ${this.players[i]!.nickname} 님이 물어볼 차례`);
-        this.broadcastSync();
+        this.openRound();
         return;
       }
     }
     this.finishAsHost();
+  }
+
+  private syncFor(targetPeerId: string, hideOwnWord: boolean): GameMessage {
+    const view = hideOwnWord
+      // 맞힌 뒤에는 더 가릴 이유가 없다 — 계속 지우면 자기 카드가 빈 채로 남는다
+      ? this.players.map((p) => (p.peerId === targetPeerId && !p.solved ? { ...p, word: '' } : p))
+      : this.players;
+    return encodeSync({
+      players: view,
+      turnPeerId: this.turnPeerId,
+      theme: this.themeLabel,
+      phase: this.phase,
+      rounds: this.rounds,
+      answerDeadline: this.answerDeadline,
+      news: this.news,
+    });
   }
 
   private broadcastSync(): void {
@@ -282,22 +381,12 @@ class CallMyNameModule implements GameModule {
     // 호스트 자신에겐 안 보낸다 — 원본을 들고 있고, 자기 단어는 렌더가 가린다.
     for (const target of this.players) {
       if (target.peerId === this.myPeerId) continue;
-      // 맞힌 뒤에는 더 가릴 이유가 없다 — 계속 지우면 자기 카드가 빈 채로 남는다
-      const view = this.players.map((p) => (
-        p.peerId === target.peerId && !p.solved ? { ...p, word: '' } : p
-      ));
-      this.ctx.sendToPeer(encodeSync({
-        players: view, turnPeerId: this.turnPeerId, theme: this.themeLabel,
-        feed: this.feed, asked: this.asked,
-      }), { target: target.peerId });
+      this.ctx.sendToPeer(this.syncFor(target.peerId, true), { target: target.peerId });
     }
     // 관전자에게는 전부 보여준다 (맞힐 사람이 아니라 구경꾼이다)
     for (const p of this.ctx.players) {
       if (p.role !== 'spectator') continue;
-      this.ctx.sendToPeer(encodeSync({
-        players: this.players, turnPeerId: this.turnPeerId, theme: this.themeLabel,
-        feed: this.feed, asked: this.asked,
-      }), { target: p.peerId });
+      this.ctx.sendToPeer(this.syncFor(p.peerId, false), { target: p.peerId });
     }
   }
 
@@ -305,6 +394,8 @@ class CallMyNameModule implements GameModule {
     if (this.ended) return;
     this.ended = true;
     this.turnPeerId = null;
+    this.phase = 'over';
+    this.answerDeadline = 0;
     this.broadcastSync();
 
     const ranked = [...this.players].sort(rankSort);
@@ -351,9 +442,9 @@ class CallMyNameModule implements GameModule {
       const hello = decodeHello(msg);
       if (hello) { this.broadcastSync(); return; }
       const a = decodeAsk(msg);
-      if (a) { this.handleSay(a.from, 'ask', a.text); return; }
+      if (a) { this.handleAsk(a.from, a.text); return; }
       const an = decodeAnswer(msg);
-      if (an) { this.handleSay(an.from, 'ans', an.text); return; }
+      if (an) { this.handleAnswer(an.from, an.text); return; }
       const g = decodeGuess(msg);
       if (g) { this.handleGuess(g.from, g.word); return; }
       const p = decodePass(msg);
@@ -366,8 +457,10 @@ class CallMyNameModule implements GameModule {
       this.players = sync.players;
       this.turnPeerId = sync.turnPeerId;
       this.themeLabel = sync.theme;
-      this.feed = sync.feed;
-      this.asked = sync.asked;
+      this.phase = sync.phase;
+      this.rounds = sync.rounds;
+      this.answerDeadline = sync.answerDeadline;
+      this.news = sync.news;
       this.syncedOnce = true;
       return;
     }
@@ -379,12 +472,27 @@ class CallMyNameModule implements GameModule {
     if (!this.isHost || this.ended) return;
     this.leftPeers.add(peerId);
     const p = this.players.find((x) => x.peerId === peerId);
-    if (p) this.pushSys(`${p.nickname} 님이 나갔어요`);
+    if (p) this.news = `${p.nickname} 님이 나갔어요`;
     if (this.activeCount() === 0) { this.finishAsHost(); return; }
+
+    // 나간 사람을 기다리느라 대답 단계가 안 끝나는 일이 없게, 그 칸을 무응답으로 닫는다
+    const round = this.current();
+    if (this.phase === 'answer' && round) {
+      const slot = round.answers.find((a) => a.peerId === peerId);
+      if (slot && !slot.text) slot.text = NO_ANSWER;
+      if (round.answers.every((a) => a.text)) { this.closeAnswers(false); return; }
+    }
+
     // 나간 사람 차례였으면 다음으로 넘긴다
     if (this.turnPeerId === peerId) this.advanceTurn();
     else this.broadcastSync();
   }
+}
+
+/** 방 옵션의 대답 제한 시간(초). '0' = 무제한 */
+function parseAnswerLimit(raw: string | undefined): number {
+  const n = Number(raw);
+  return Number.isFinite(n) && n >= 0 ? n : 30;
 }
 
 /** 호스트를 맨 앞에 두고 나머지는 들어온 순서 — 좌석 순서의 단일 출처 */

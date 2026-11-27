@@ -93,26 +93,41 @@ export function isCorrect(guess: string, answer: string): boolean {
 }
 
 /**
- * 화면 아래 대화 한 줄.
- *   ask = 차례인 사람의 질문 · ans = 나머지 사람들의 대답 · sys = 진행 알림
+ * 한 바퀴 = 질문 하나 + 그걸 들은 사람들의 대답.
  *
- * 대답을 양식(예/아니오)으로 가두지 않은 건 일부러다.
- * "글쎄…", "반반?" 처럼 **애매하게 답하는 게 이 게임의 묘미**라서,
- * 빠른 버튼은 거들기만 하고 결국은 자유 입력이 본체다.
+ * 예전엔 질문·대답·알림을 한 피드에 시간순으로 쌓았는데, 섞여 있으니
+ * "지금 누가 뭔라고 했더라" 를 눈으로 좋아야 했다.
+ * 이제는 라운드로 묶어서 사람별 카드에 쌓는다.
  */
-export interface FeedEntry {
-  kind: 'sys' | 'ask' | 'ans';
-  /** 말한 사람 닉네임. sys 면 빈 문자열 */
-  who: string;
+export interface AnswerSlot {
+  peerId: string;
+  /** 아직 안 답했으면 빈 문자열, 시간이 다 지나 무응답이면 NO_ANSWER */
   text: string;
 }
 
-/** 한 줄 길이 제한 — 너무 길면 화면이 무너진다 */
+/** 제한 시간 안에 안 답한 사람의 칸에 들어가는 값 */
+export const NO_ANSWER = '—';
+
+export interface Round {
+  /** 1부터 */
+  no: number;
+  askerPeerId: string;
+  askerName: string;
+  /** 질문자가 아직 안 물었으면 빈 문자열 */
+  question: string;
+  /** 이번 질문에 답해야 하는 사람들 (질문자·정답자·관전자 제외) */
+  answers: AnswerSlot[];
+}
+
+/** 한 줄 길이 제한 — 너무 길면 카드가 무너진다 */
 export const FEED_TEXT_MAX = 60;
 
 export function clipFeedText(raw: string): string {
   return raw.trim().replace(/\s+/g, ' ').slice(0, FEED_TEXT_MAX);
 }
+
+/** 로그가 무한정 커지지 않게 — sync 마다 통째로 가니까 최근 것만 든다 */
+export const ROUND_KEEP = 24;
 
 export interface PlayerState {
   peerId: string;
