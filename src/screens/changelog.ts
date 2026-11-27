@@ -2,13 +2,15 @@
  * 변경 로그 화면 — 날짜별 타임라인.
  *
  * 데이터는 `src/data/changelog.ts` 하나뿐이다 (접속 팝업과 같은 배열).
- * 여기까지 들어와서 읽었으면 다 본 걸로 치고 팝업을 끈다 —
- * 방금 읽은 내용을 다음 접속에 또 띄우면 성가시다.
+ *
+ * 이 화면은 팝업을 끄지 않는다. 한때 "여기까지 들어와 읽었으면 다 본 것" 으로
+ * 쳤는데, 로그를 구경했을 뿐인데 알림이 조용히 꺼져서 왜 안 뜨는지 알 수가 없었다.
+ * 팝업을 끄는 스위치는 팝업 안의 "다시 보지 않기" 체크 하나뿐이다.
  */
 
 import type { Screen } from '../core/screen';
 import { router } from '../core/screen';
-import { CHANGELOG, KIND_LABEL, markChangelogSeen, type ChangeEntry } from '../data/changelog';
+import { CHANGELOG, KIND_LABEL, type ChangeEntry } from '../data/changelog';
 import { escapeHtml } from '../ui/escape';
 import { icon } from '../ui/icons';
 import { buildMiniGameCardHTML } from '../ui/gameCardMini';
@@ -47,8 +49,6 @@ function buildEntryHTML(e: ChangeEntry): string {
 export function createChangelogScreen(): Screen {
   return {
     render() {
-      markChangelogSeen();
-
       const el = document.createElement('div');
       el.className = 'screen';
 
