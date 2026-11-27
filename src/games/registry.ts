@@ -32,6 +32,7 @@ import avalonThumbnail from './avalon/thumbnail.svg';
 import fakeArtistThumbnail from './fake-artist/thumbnail.svg';
 import kordleThumbnail from './kordle/thumbnail.svg';
 import callMyNameThumbnail from './call-my-name/thumbnail.svg';
+import rummikubThumbnail from './rummikub/thumbnail.svg';
 import subwayTypingThumbnail from './subway-typing/thumbnail.svg';
 import theMindThumbnail from './the-mind/thumbnail.svg';
 import davinciCodeThumbnail from './davinci-code/thumbnail.svg';
@@ -632,6 +633,34 @@ export const games: GameEntry[] = [
     load: async () => {
       const mod = await import('./call-my-name');
       return mod.createCallMyName();
+    },
+  },
+  {
+    meta: {
+      id: 'rummikub',
+      categories: ['보드게임', '두뇌'],
+      name: '루미큐브',
+      description: '숫자 타일로 같은 숫자 모음·같은 색 연속을 만들어 바닥에 내요. 남이 깔아둔 조합도 쪼개고 붙여 내 타일을 끼울 수 있어요!',
+      thumbnail: rummikubThumbnail,
+      minPlayers: 2,
+      maxPlayers: 4,
+      roomOptions: [
+        {
+          key: 'turnLimit',
+          label: '턴 제한 시간',
+          type: 'select',
+          choices: [
+            { value: '60', label: '60초' },
+            { value: '90', label: '90초' },
+            { value: '0', label: '제한 없음' },
+          ],
+          defaultValue: '60',
+        },
+      ],
+    },
+    load: async () => {
+      const mod = await import('./rummikub');
+      return mod.createRummikub();
     },
   },
   {

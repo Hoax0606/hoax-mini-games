@@ -2028,6 +2028,88 @@ function buildOneCardResultHTML(args: {
 // 다빈치 코드 전용 결과 HTML
 // ============================================
 
+interface RummikubRankEntry {
+  peerId: string; nickname: string; rank: number; left: number; penalty: number;
+}
+
+function parseRummikubSummary(summary: Record<string, unknown>): {
+  myPeerId: string; rank: number; totalPlayers: number;
+  myLeft: number; myPenalty: number; rankings: RummikubRankEntry[];
+} | null {
+  if (summary['gameId'] !== 'rummikub') return null;
+  const myPeerId = typeof summary['myPeerId'] === 'string' ? (summary['myPeerId'] as string) : null;
+  const rank = typeof summary['rank'] === 'number' ? (summary['rank'] as number) : null;
+  const totalPlayers = typeof summary['totalPlayers'] === 'number' ? (summary['totalPlayers'] as number) : null;
+  if (!myPeerId || rank === null || totalPlayers === null) return null;
+  const raw = summary['rankings'] as unknown;
+  const rankings: RummikubRankEntry[] = Array.isArray(raw)
+    ? (raw as Partial<RummikubRankEntry>[])
+        .filter((r) => typeof r.peerId === 'string' && typeof r.nickname === 'string' && typeof r.rank === 'number')
+        .map((r) => ({
+          peerId: r.peerId!, nickname: r.nickname!, rank: r.rank!,
+          left: typeof r.left === 'number' ? r.left : 0,
+          penalty: typeof r.penalty === 'number' ? r.penalty : 0,
+        }))
+    : [];
+  return {
+    myPeerId, rank, totalPlayers,
+    myLeft: typeof summary['myLeft'] === 'number' ? (summary['myLeft'] as number) : 0,
+    myPenalty: typeof summary['myPenalty'] === 'number' ? (summary['myPenalty'] as number) : 0,
+    rankings,
+  };
+}
+
+function buildRummikubResultHTML(args: {
+  myWinner: 'me' | 'opponent' | null;
+  rank: number; totalPlayers: number; myLeft: number; myPenalty: number;
+  rankings: RummikubRankEntry[]; myPeerId: string; isHost: boolean; isSpectator: boolean;
+}): string {
+  const { myWinner, rank, totalPlayers, myLeft, myPenalty, rankings, myPeerId, isHost, isSpectator } = args;
+  const { emoji, title, titleClass } = isSpectator
+    ? { emoji: icon('games', { size: 56, hue: '#2a9488' }), title: '루미큐브 종료', titleClass: 'result-title-draw' }
+    : winnerVisuals(myWinner);
+  const actionsHTML = buildActionsHTML(isHost);
+
+  const myBlock = isSpectator ? '' : `
+    <div class="result-tetris-rank">
+      <span class="result-tetris-rank-num">${rank}</span> / ${totalPlayers}위
+    </div>
+    <div class="result-tetris-stats">
+      <div class="result-tetris-stat"><span>남은 타일</span><b>${myLeft}장</b></div>
+      <div class="result-tetris-stat"><span>벌점</span><b>${myPenalty}</b></div>
+    </div>
+  `;
+  // 순위는 남은 타일 벌점이 적은 순. 다 낸 사람이 0점으로 1등이다.
+  const rankingsHTML = rankings.length >= 1 ? `
+    <div class="result-tetris-rankings">
+      <div class="result-tetris-rankings-title">${icon('medal', { size: 18, hue: '#ffb12e' })} 순위 (벌점 적은 순)</div>
+      ${rankings.map((r) => {
+        const isMe = r.peerId === myPeerId;
+        const badgeClass = r.rank <= 3 ? `rank-${r.rank}` : '';
+        const tag = r.left === 0 ? '손패 비움!' : `${r.left}장 · ${r.penalty}점`;
+        return `
+          <div class="result-tetris-rank-row ${isMe ? 'is-me' : ''}">
+            <span class="result-tetris-rank-badge ${badgeClass}">${r.rank}</span>
+            <span class="result-tetris-rank-name">${escapeHtml(r.nickname)}</span>
+            <span class="result-apple-rank-score">${tag}</span>
+            ${isMe ? '<span class="result-tetris-rank-me-tag">나</span>' : ''}
+          </div>
+        `;
+      }).join('')}
+    </div>
+  ` : '';
+
+  return `
+    <div class="result-card result-card-tetris">
+      <div class="result-emoji">${emoji}</div>
+      <div class="result-title ${titleClass}">${title}</div>
+      ${myBlock}
+      ${rankingsHTML}
+      ${actionsHTML}
+    </div>
+  `;
+}
+
 interface DavinciRankEntry { peerId: string; nickname: string; rank: number; }
 
 function parseDavinciSummary(summary: Record<string, unknown>): {
@@ -2222,6 +2304,7 @@ export function createResultScreenAsHostScreen(args: ResultScreenAsHostArgs): Sc
       const dodge = parseDodgeSummary(result.summary);
       const onecard = parseOneCardSummary(result.summary);
       const davinci = parseDavinciSummary(result.summary);
+      const rummikub = parseRummikubSummary(result.summary);
       const blueMarble = parseBlueMarbleSummary(result.summary);
       const avalon = parseAvalonSummary(result.summary);
       const fakeArtist = parseFakeArtistSummary(result.summary);
@@ -2254,6 +2337,14 @@ export function createResultScreenAsHostScreen(args: ResultScreenAsHostArgs): Sc
           myWinner: result.winner,
           rank: davinci.rank, totalPlayers: davinci.totalPlayers, rankings: davinci.rankings,
           myPeerId: davinci.myPeerId, isHost: true, isSpectator: false,
+        });
+      } else if (rummikub) {
+        el.innerHTML = buildRummikubResultHTML({
+          myWinner: result.winner,
+          rank: rummikub.rank, totalPlayers: rummikub.totalPlayers,
+          myLeft: rummikub.myLeft, myPenalty: rummikub.myPenalty,
+          rankings: rummikub.rankings, myPeerId: rummikub.myPeerId,
+          isHost: true, isSpectator: false,
         });
       } else if (reflex) {
         el.innerHTML = buildReflexResultHTML({
@@ -2579,6 +2670,7 @@ export function createResultScreenAsGuestScreen(args: ResultScreenAsGuestArgs): 
       const dodge = parseDodgeSummary(result.summary);
       const onecard = parseOneCardSummary(result.summary);
       const davinci = parseDavinciSummary(result.summary);
+      const rummikub = parseRummikubSummary(result.summary);
       const blueMarble = parseBlueMarbleSummary(result.summary);
       const avalon = parseAvalonSummary(result.summary);
       const fakeArtist = parseFakeArtistSummary(result.summary);
@@ -2620,6 +2712,15 @@ export function createResultScreenAsGuestScreen(args: ResultScreenAsGuestArgs): 
           myWinner: result.winner,
           rank: davinci.rank, totalPlayers: davinci.totalPlayers, rankings: davinci.rankings,
           myPeerId: isSpec ? myPeerIdForResult : davinci.myPeerId,
+          isHost: false, isSpectator: isSpec,
+        });
+      } else if (rummikub) {
+        el.innerHTML = buildRummikubResultHTML({
+          myWinner: result.winner,
+          rank: rummikub.rank, totalPlayers: rummikub.totalPlayers,
+          myLeft: rummikub.myLeft, myPenalty: rummikub.myPenalty,
+          rankings: rummikub.rankings,
+          myPeerId: isSpec ? myPeerIdForResult : rummikub.myPeerId,
           isHost: false, isSpectator: isSpec,
         });
       } else if (reflex) {
