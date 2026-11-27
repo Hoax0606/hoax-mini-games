@@ -176,9 +176,15 @@ function idsOf(table: TileSet[]): number[] {
   return table.flat().map((t) => t.id);
 }
 
-/** 조합 하나를 비교용 문자열로 (첫 등록 때 "기존 조합 그대로인가" 를 보려고) */
+/**
+ * 조합 하나를 비교용 문자열로 (첫 등록 때 "기존 조합 그대로인가" 를 보려고).
+ *
+ * **id 를 정렬해서** 쓴다. 놓인 순서는 비교에 넣으면 안 된다 —
+ * 같은 타일을 그대로 둔 채 순서만 바뀌어도 "테이블을 건드렸다" 고 잘못 걸렸다.
+ * 턴을 확정할 때 normalizeSet 이 조합을 다시 깔기 때문에 순서는 얼마든지 달라진다.
+ */
 function setKey(s: TileSet): string {
-  return s.map((t) => t.id).join(',');
+  return s.map((t) => t.id).sort((a, b) => a - b).join(',');
 }
 
 /**

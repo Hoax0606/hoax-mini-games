@@ -77,6 +77,8 @@ export class RummikubRenderer {
   private picked: number[] = [];
   /** 드래그 중인 타일 id */
   private dragging: number | null = null;
+  /** 드래그 중 강조해 둔 드롭 대상 */
+  private overEl: HTMLElement | null = null;
   private sortMode: 'color' | 'number' = 'color';
   private rejectText = '';
   private rejectUntil = 0;
@@ -363,6 +365,14 @@ export class RummikubRenderer {
     return null;
   }
 
+  /** 드래그 중 "여기에 놓인다" 표시. 직전 대상에서 떼고 새 대상에 붙인다 */
+  private markOver(el: HTMLElement | null): void {
+    if (this.overEl === el) return;
+    this.overEl?.classList.remove('is-over');
+    this.overEl = el;
+    el?.classList.add('is-over');
+  }
+
   private wireDropZones(): void {
     // --- 탭 → 탭 ---
     this.root.addEventListener('click', (e) => {
@@ -410,12 +420,14 @@ export class RummikubRenderer {
     this.root.addEventListener('dragover', (e) => {
       if (this.dragging === null) return;
       const t = this.targetFrom(e.target as HTMLElement);
-      if (!t) return;
+      if (!t) { this.markOver(null); return; }
       e.preventDefault(); // 여기에 놓을 수 있다는 뜻
       if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
+      this.markOver(t.el);
     });
     this.root.addEventListener('drop', (e) => {
       if (this.dragging === null) return;
+      this.markOver(null);
       const t = this.targetFrom(e.target as HTMLElement);
       if (!t) { this.dragging = null; return; }
       e.preventDefault();
@@ -425,7 +437,7 @@ export class RummikubRenderer {
       this.move(ids, t.to, at);
       this.dragging = null;
     });
-    this.root.addEventListener('dragend', () => { this.dragging = null; });
+    this.root.addEventListener('dragend', () => { this.dragging = null; this.markOver(null); });
   }
 }
 
@@ -468,19 +480,31 @@ const CSS = `
   background:var(--bg-card);border:1.5px solid var(--border-soft);}
 /* 아직 조합이 안 되는 묶음 — 이대로는 턴을 못 끝낸다 */
 .rk-set.is-bad{border-color:var(--danger);background:var(--danger-soft);}
-.rk-newset{display:flex;align-items:center;justify-content:center;min-width:104px;
-  padding:6px 12px;border:2px dashed var(--border);border-radius:var(--radius-sm);
-  font-size:11px;font-weight:700;color:var(--text-muted);}
+/* 새 조합 자리 — 작으면 눈에 안 띄어서 엉뚱하게 남의 조합 위에 떨어뜨리게 된다.
+   남는 가로폭을 다 먹게 해서 "여기가 빈 자리" 임이 바로 보이게 했다. */
+.rk-newset{display:flex;align-items:center;justify-content:center;
+  flex:1 1 220px;min-width:200px;min-height:60px;
+  padding:8px 14px;border:2px dashed var(--teal-300);border-radius:var(--radius-md);
+  background:rgba(63,179,162,.06);
+  font-size:12.5px;font-weight:800;color:var(--accent);}
+
+/* 끌고 온 타일이 지금 어디에 떨어질지 — 받는 쪽을 직접 밝힌다 */
+.rk-set.is-over,.rk-newset.is-over{border-color:var(--accent);
+  background:var(--accent-soft);box-shadow:0 0 0 3px rgba(63,179,162,.22);}
+.rk-newset:hover{border-color:var(--accent);background:rgba(63,179,162,.12);}
 
 /* 타일 */
 .rk-tile{font:inherit;font-weight:900;font-size:17px;width:34px;height:46px;flex:0 0 auto;
   display:flex;align-items:center;justify-content:center;border-radius:7px;
-  background:#fffdf6;border:1.5px solid #e4dcc8;color:#333;cursor:default;
+  background:#fffdf6;border:2px solid #e4dcc8;color:#333;cursor:default;
   box-shadow:0 1px 2px rgba(0,0,0,.12);padding:0;}
-.rk-tile.c-red{color:#d3392f;}
-.rk-tile.c-blue{color:#2563c9;}
-.rk-tile.c-black{color:#3a3a3a;}
-.rk-tile.c-orange{color:#e0790d;}
+/* 네 색 — 숫자만 칠하면 34px 타일에서 빨강/주황, 파랑/검정이 잘 안 갈린다.
+   테두리와 바탕까지 같은 계열로 물들여서 멀리서도 색 덩어리로 읽히게 했다.
+   빨강은 더 깊게, 주황은 더 노랗게 밀어 둘 사이를 벌렸다. */
+.rk-tile.c-red{color:#c62828;border-color:#e2928b;background:#fff0ee;}
+.rk-tile.c-blue{color:#1b57c0;border-color:#9ab5e8;background:#edf3fe;}
+.rk-tile.c-black{color:#26262b;border-color:#a6a6b0;background:#f1f1f4;}
+.rk-tile.c-orange{color:#d9820a;border-color:#eec472;background:#fff6e0;}
 .rk-tile.is-joker{padding:0;}
 .rk-joker{width:26px;height:26px;display:block;}
 .rk-tile.is-movable{cursor:grab;}
