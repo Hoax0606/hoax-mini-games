@@ -39,7 +39,7 @@ export function createGameListScreen(): Screen {
               <span class="game-card-players">${playersBadge(g.meta.minPlayers, g.meta.maxPlayers)}</span>
             </div>
             <div class="game-card-desc">${escapeHtml(g.meta.description)}</div>
-            <button type="button" class="help-btn" data-help="${escapeAttr(g.meta.id)}">도움말 보기</button>
+            <button type="button" class="help-btn" data-help="${escapeAttr(g.meta.id)}">${icon('question', { size: 14, hue: '#2a9488' })}도움말</button>
           </div>
         `).join('');
       };

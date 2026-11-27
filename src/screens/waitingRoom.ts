@@ -245,7 +245,7 @@ export function createWaitingRoomAsHostScreen(args: WaitingRoomAsHostArgs): Scre
             </div>
             <div class="waiting-section-title waiting-head-game">
               게임 선택
-              <button type="button" class="help-btn" id="host-help-btn" hidden>도움말</button>
+              <button type="button" class="help-btn" id="host-help-btn" hidden>${icon('question', { size: 14, hue: '#2a9488' })}도움말</button>
               <span class="pf-wrap" id="game-filter"></span>
             </div>
           </div>

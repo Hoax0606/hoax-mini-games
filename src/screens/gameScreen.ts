@@ -166,7 +166,7 @@ function buildHeaderHTML(args: {
       </div>
 
       <div class="game-room-info">
-        <button class="game-menu-btn" id="game-help-btn" title="도움말" aria-label="도움말">${icon('list', { size: 18, hue: '#2a9488' })}</button>
+        <button class="game-menu-btn" id="game-help-btn" title="도움말" aria-label="도움말">${icon('question', { size: 18, hue: '#2a9488' })}</button>
         <button class="game-menu-btn" id="game-menu-btn" title="게임 설정 (Esc)" aria-label="게임 설정">${icon('settings', { size: 18, hue: '#9a86c0' })}</button>
       </div>
     </div>

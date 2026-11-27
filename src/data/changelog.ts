@@ -41,6 +41,17 @@ export const KIND_LABEL: Record<ChangeKind, string> = {
 /** 최신이 맨 위 */
 export const CHANGELOG: ChangeEntry[] = [
   {
+    id: '2026-11-27-help',
+    date: '2026-11-27',
+    kind: 'feature',
+    title: '게임마다 도움말',
+    items: [
+      '29개 게임 전부에 규칙 도움말을 넣었어요. 목표 한 줄, 진행 순서, 알아둘 것으로 짧게 정리했어요.',
+      '게임 목록 카드, 대기실, 게임 화면 오른쪽 위 물음표 버튼 어디서든 열 수 있어요.',
+      '하는 도중에 규칙이 헷갈려도 나가지 않고 바로 볼 수 있어요.',
+    ],
+  },
+  {
     id: '2026-11-27-kraken',
     gameId: 'kraken',
     date: '2026-11-27',

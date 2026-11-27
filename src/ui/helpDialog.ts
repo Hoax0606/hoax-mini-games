@@ -77,5 +77,5 @@ export function showGameHelp(meta: GameMeta): void {
 /** 어디에나 붙이는 `?` 버튼 HTML. 누르면 호출부가 showGameHelp 를 연다 */
 export function helpButtonHTML(id: string, title = '도움말'): string {
   return `<button type="button" class="help-btn" id="${id}" title="${escapeHtml(title)}" aria-label="${escapeHtml(title)}">${
-    icon('list', { size: 15, hue: '#2a9488' })}<span>도움말</span></button>`;
+    icon('question', { size: 15, hue: '#2a9488' })}<span>도움말</span></button>`;
 }
