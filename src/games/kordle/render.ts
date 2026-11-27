@@ -174,9 +174,13 @@ export class KordleRenderer {
 
     // --- 그리드 ---
     const marks = me?.marks ?? [];
+    // 출제자·관전자는 그리드 자리에 '남들 보드'를 보므로, 남들 진행이 바뀔 때도 다시 그려야 한다.
+    // 이걸 빼먹으면 출제자 화면이 첫 상태에서 얼어붙는다.
+    const watching = amSetter || s.isSpectator;
     const gridKey = [
       pub.jamoLen, pub.round, pub.phase, marks.length, s.jamo.join(''),
       amSetter ? '1' : '0', pub.answer ?? '',
+      watching ? pub.players.map((p) => `${p.peerId}:${p.marks.length}:${p.solved}:${p.failed}`).join(',') : '',
     ].join('|');
     // 칸 수를 루트에 올려둔다 — 상단바/입력/키보드도 그리드와 같은 폭으로 맞추려고
     this.root.style.setProperty('--kd-cols', String(pub.jamoLen));
@@ -186,6 +190,11 @@ export class KordleRenderer {
     }
 
     // --- 키보드 ---
+    // 맞힐 일이 없는 사람에겐 키보드를 안 보여준다 — 눌러도 아무 일도 안 일어나는데
+    // 그대로 떠 있어서 "내가 뭐가 할 수 있나" 가 헷갈리게 했다. 출제 중엔 필요하니 그때만 보인다.
+    const hideKb = (pub.phase !== 'setword' && watching) || pub.phase === 'reveal' || pub.phase === 'ended';
+    // hidden 속성은 .kd-kb 의 display:flex 에 짐룡다 — style 로 직접 끊는다
+    this.kbEl.style.display = hideKb ? 'none' : '';
     const kbState = this.keyboardState(s.myGuesses, marks);
     const kbKey = `${pub.round}|${Object.entries(kbState).sort().join(',')}`;
     if (kbKey !== this.kbKey) {
@@ -244,6 +253,40 @@ export class KordleRenderer {
     }
   }
 
+  /**
+   * 출제자·관전자용 — 맞히는 사람들 보드를 한눈에.
+   * 글자는 모르고 색만 안다(marks). 그걸로도 "어, 저 사람 거의 다 맞추고 있네" 가 보인다.
+   */
+  private drawWatch(s: KdRenderState, amSetter: boolean): void {
+    const { pub } = s;
+    const watchers = pub.players.filter(
+      (p) => p.peerId !== pub.setterPeerId && p.peerId !== s.myPeerId,
+    );
+    if (watchers.length === 0) {
+      this.gridEl.innerHTML = `<div class="kd-grid-off">${
+        amSetter ? '맞힐 사람을 기다리는 중이에요' : '관전 중이에요'
+      }</div>`;
+      return;
+    }
+    const cols = pub.jamoLen;
+    this.gridEl.innerHTML = `
+      <div class="kd-watch-title">${amSetter ? '다들 푸는 중' : '관전 중'}</div>
+      <div class="kd-watch">${watchers.map((p) => {
+        const rows = p.marks.map((row) => `
+          <div class="kd-wrow" style="grid-template-columns:repeat(${cols},1fr)">${
+            row.map((m) => `<i class="kd-wcell kd-${m}"></i>`).join('')
+          }</div>`).join('');
+        const state = p.solved ? `<span class="kd-ok">${p.marks.length}회 만에 맞힘</span>`
+          : p.failed ? '<span class="kd-no">실패</span>'
+          : `<span class="kd-wtry">${p.marks.length}/${MAX_TRIES}</span>`;
+        return `
+          <div class="kd-wcard${p.solved ? ' is-solved' : ''}">
+            <div class="kd-wname">${escapeHtml(p.nickname)}${state}</div>
+            <div class="kd-wrows">${rows || '<div class="kd-wempty">아직 안 냈어요</div>'}</div>
+          </div>`;
+      }).join('')}</div>`;
+  }
+
   private drawGrid(s: KdRenderState, marks: Mark[][], amSetter: boolean): void {
     const { jamoLen } = s.pub;
     // 출제 중이면 그리드를 '내가 낼 단어' 미리보기로 쓴다.
@@ -259,11 +302,11 @@ export class KordleRenderer {
       this.gridEl.innerHTML = `<div class="kd-row kd-setrow">${cells.join('')}</div>`;
       return;
     }
-    // 관전자와 '맞히는 단계의 출제자' 는 자기 칸이 없다
+    // 관전자와 '맞히는 단계의 출제자' 는 자기 칸이 없다.
+    // 빈 안내문만 띄우니 내고 나서 할 게 없어 지루했다 — 남들이 즈음음거리는 걸 보여준다.
+    // 색(채점 결과)은 원래 전원에게 동기화되고 글자는 안 온다 — 그래서 색만 그린다.
     if (amSetter || s.isSpectator) {
-      this.gridEl.innerHTML = `<div class="kd-grid-off">${
-        amSetter ? '출제자는 이번 라운드를 쉬어요' : '관전 중이에요'
-      }</div>`;
+      this.drawWatch(s, amSetter);
       return;
     }
     const draftJamo = s.jamo;
@@ -468,6 +511,24 @@ const CSS = `
 .kd-cell.kd-present{background:var(--highlight);border-color:var(--highlight);color:var(--highlight-ink);}
 .kd-cell.kd-miss{background:var(--bg-subtle);border-color:var(--border-soft);color:var(--text-muted);}
 .kd-grid-off{padding:40px 16px;text-align:center;color:var(--text-muted);font-size:13px;}
+/* 출제자·관전자가 보는 남들 보드 */
+.kd-watch-title{font-size:11.5px;font-weight:800;color:var(--text-muted);text-align:center;
+  margin-bottom:7px;}
+.kd-watch{display:flex;flex-wrap:wrap;gap:9px;justify-content:center;}
+.kd-wcard{background:var(--bg-card);border:1.5px solid var(--border-soft);
+  border-radius:var(--radius-md);padding:7px 9px;min-width:104px;}
+.kd-wcard.is-solved{border-color:var(--mint-300);background:var(--mint-100);}
+.kd-wname{display:flex;align-items:center;justify-content:space-between;gap:7px;
+  font-size:11px;font-weight:800;color:var(--text-muted);margin-bottom:5px;}
+.kd-wtry{font-weight:700;opacity:.8;}
+.kd-wrows{display:flex;flex-direction:column;gap:3px;}
+.kd-wrow{display:grid;gap:3px;}
+.kd-wcell{width:11px;height:11px;border-radius:3px;background:var(--bg-subtle);
+  border:1px solid var(--border-soft);}
+.kd-wcell.kd-hit{background:var(--accent);border-color:var(--accent);}
+.kd-wcell.kd-present{background:var(--highlight);border-color:var(--highlight);}
+.kd-wcell.kd-miss{background:var(--bg-inset);border-color:var(--border-soft);}
+.kd-wempty{font-size:10.5px;color:var(--text-muted);}
 
 .kd-kb{display:flex;flex-direction:column;gap:5px;align-items:center;margin-top:8px;}
 .kd-kbrow{display:flex;gap:4px;justify-content:center;flex-wrap:nowrap;}

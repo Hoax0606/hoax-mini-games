@@ -226,6 +226,15 @@ class KordleModule implements GameModule {
     return this.seats.filter((s) => !this.leftPeers.has(s.peerId));
   }
 
+  /**
+   * 지금 라운드를 무르고 혼자 모드(랜덤 출제)로 다시 연다.
+   * 같이 하던 사람이 다 나가 혼자 남았을 때 푸른다.
+   */
+  private restartRoundSolo(): void {
+    this.pub.round -= 1; // startRound 가 다시 1 올린다
+    this.startRoundAsHost();
+  }
+
   private startRoundAsHost(): void {
     const seats = this.activeSeats();
     if (seats.length === 0) return;
@@ -280,6 +289,13 @@ class KordleModule implements GameModule {
     this.localRoundStart = this.roundStartAt;
     if (auto) this.pub.setterPeerId = null; // 자동 출제면 출제자 없음 → 전원 참가
     if (this.pub.setterPeerId === this.myPeerId) this.myWord = word;
+
+    // 맞힐 사람이 한 명도 없으면(단어 고르는 사이 다 나갔다) 라운드가 영영 안 끝난다.
+    // 출제자만 남아 키보드만 보고 있는 상황 — 혼자 모드로 다시 열어준다.
+    if (this.pub.setterPeerId !== null && this.guessers().length === 0) {
+      this.restartRoundSolo();
+      return;
+    }
     this.broadcastSync();
   }
 
@@ -578,6 +594,14 @@ class KordleModule implements GameModule {
 
     const seats = this.activeSeats();
     if (seats.length === 0) return;
+
+    // 혼자 남았는데 출제자가 정해져 있으면 눈앉 할 사람이 없거나 맞힐 사람이 없다.
+    // 그 라운드를 혼자 모드로 다시 열어 혐태에 멈추지 않게 한다.
+    if (seats.length < 2 && this.pub.setterPeerId !== null
+        && (this.pub.phase === 'setword' || this.pub.phase === 'guess')) {
+      this.restartRoundSolo();
+      return;
+    }
 
     if (this.pub.phase === 'setword' && peerId === this.pub.setterPeerId) {
       // 출제자가 나갔다 → 호스트가 대신 랜덤 출제하고 전원 참가로 돌린다
