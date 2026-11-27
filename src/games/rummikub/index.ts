@@ -18,7 +18,7 @@ import {
 } from './rules';
 import { RummikubRenderer } from './render';
 import {
-  encodeHello, decodeHello, encodeSync, decodeSync,
+  encodeHello, decodeHello, encodeSync, decodeSync, encodeWork, decodeWork,
   encodeCommit, decodeCommit, encodeDraw, decodeDraw,
   encodeReject, decodeReject, encodeEnd, decodeEnd,
   type SyncPayload, type SyncPlayer,
@@ -27,6 +27,11 @@ import { sound } from '../../core/sound';
 
 const HELLO_RETRY_MS = 1_500;
 const END_DELAY_MS = 1_600;
+/**
+ * 바닥 중계 간격(ms). 타일 하나 옮길 때마다 보내면 끌어다 놓는 동안 수십 통이 된다.
+ * 사람이 보기엔 0.2초면 충분히 "같이 보는" 느낌이고, 마지막 상태는 꼭 한 번 더 보낸다.
+ */
+const WORK_THROTTLE_MS = 200;
 
 interface Seat {
   peerId: string;
@@ -57,6 +62,11 @@ class RummikubModule implements GameModule {
   private turnDeadline = 0;
   private news = '';
 
+  // --- 바닥 중계 (턴 중인 사람 → 나머지) ---
+  private workTimer: number | null = null;
+  private pendingWork: TileSet[] | null = null;
+  private lastWorkAt = 0;
+
   private lastHelloAt = 0;
   private syncedOnce = false;
 
@@ -79,6 +89,7 @@ class RummikubModule implements GameModule {
     this.renderer = new RummikubRenderer(ctx.canvas, {
       onCommit: (table) => this.submitCommit(table),
       onDraw: () => this.submitDraw(),
+      onWorkChanged: (table) => this.queueWork(table),
     });
     sound.startBgm('menu');
 
@@ -108,6 +119,7 @@ class RummikubModule implements GameModule {
 
   destroy(): void {
     this.destroyed = true;
+    if (this.workTimer !== null) { clearTimeout(this.workTimer); this.workTimer = null; }
     if (this.rafId !== null) cancelAnimationFrame(this.rafId);
     this.renderer?.destroy();
     this.renderer = null;
@@ -155,6 +167,38 @@ class RummikubModule implements GameModule {
     if (!this.isMyTurn()) return;
     if (this.isHost) this.handleCommit(this.myPeerId, table);
     else this.ctx.sendToPeer(encodeCommit(this.myPeerId, table));
+  }
+
+  /**
+   * 바닥이 바뀌었다 — 솎아내서 중계한다.
+   * 마지막 상태를 놓치면 남 화면에 옛 모습이 남으니 꼬리(trailing)는 반드시 보낸다.
+   */
+  private queueWork(table: TileSet[]): void {
+    if (this.ended || !this.isMyTurn()) return;
+    this.pendingWork = table;
+    if (this.workTimer !== null) return; // 이미 예약됨 — 그때 최신 걸로 나간다
+    const wait = Math.max(0, WORK_THROTTLE_MS - (performance.now() - this.lastWorkAt));
+    this.workTimer = window.setTimeout(() => {
+      this.workTimer = null;
+      const t = this.pendingWork;
+      this.pendingWork = null;
+      if (!t || this.destroyed || this.ended) return;
+      this.lastWorkAt = performance.now();
+      this.pushWork(this.myPeerId, t);
+    }, wait);
+  }
+
+  /** 호스트면 나머지 전원에게, 게스트면 호스트에게 (호스트가 다시 뿌린다) */
+  private pushWork(from: string, table: TileSet[]): void {
+    if (this.destroyed || !this.ctx) return;
+    if (this.isHost) {
+      for (const p of this.ctx.players) {
+        if (p.peerId === from) continue;
+        this.ctx.sendToPeer(encodeWork(from, table), { target: p.peerId });
+      }
+    } else {
+      this.ctx.sendToPeer(encodeWork(from, table));
+    }
   }
 
   private submitDraw(): void {
@@ -344,11 +388,21 @@ class RummikubModule implements GameModule {
       if (c) { this.handleCommit(c.from, c.table); return; }
       const d = decodeDraw(msg);
       if (d) { this.handleDraw(d.from); return; }
+      const w = decodeWork(msg);
+      if (w) {
+        // 지금 차례인 사람 것만 받는다. 검증은 안 한다 — 어차피 확정은 commit 이다
+        if (w.from !== this.turnPeerId) return;
+        this.renderer?.applyPreview(w.table);
+        this.pushWork(w.from, w.table); // 나머지에게 중계
+        return;
+      }
       return;
     }
 
     const sync = decodeSync(msg);
     if (sync) { this.applySync(sync); return; }
+    const w = decodeWork(msg);
+    if (w) { if (w.from !== this.myPeerId) this.renderer?.applyPreview(w.table); return; }
     const reject = decodeReject(msg);
     if (reject) { this.renderer?.showReject(reject); return; }
     const end = decodeEnd(msg);

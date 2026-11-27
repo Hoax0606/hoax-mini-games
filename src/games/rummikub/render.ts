@@ -33,6 +33,8 @@ export interface RkRenderState {
 export interface RkCallbacks {
   onCommit(table: TileSet[]): void;
   onDraw(): void;
+  /** 내 차례에 바닥을 건드릴 때마다 — 남들에게 중계하라고 알린다 */
+  onWorkChanged(table: TileSet[]): void;
 }
 
 /**
@@ -139,6 +141,17 @@ export class RummikubRenderer {
     this.myTurnBefore = myTurn;
   }
 
+  /**
+   * 남이 자기 차례에 바닥을 만지는 중 — 받은 모습을 그대로 깐다.
+   * 검증은 안 한다(깨진 조합이면 빨갛게 보일 뿐이다). 내 차례면 무시한다.
+   */
+  applyPreview(table: TileSet[]): void {
+    const s = this.last;
+    if (!s || s.turnPeerId === s.myPeerId) return;
+    this.work = table.map((set) => set.slice());
+    this.boardKey = '';
+  }
+
   showReject(reason: string): void {
     this.rejectText = reason;
     this.rejectUntil = performance.now() + 4_000;
@@ -150,7 +163,11 @@ export class RummikubRenderer {
     this.last = s;
     // 서버 상태가 바뀌면(턴 교대/남의 커밋) 작업본을 새로 깐다.
     // 내 조작 중에는 서버가 테이블을 바꿀 일이 없어서 작업본이 날아갈 걱정은 없다.
-    if (first || !prev || tableKey(prev.table) !== tableKey(s.table)
+    // 차례가 넘어갈 때도 다시 깐다 — 앞사람이 만지다 만 중간 상태(work 중계분)가
+    // 그대로 남아 보이면 안 된다. 한 장 가져가고 끝낸 턴은 테이블이 그대로라
+    // tableKey 만으로는 못 걸러낸다.
+    if (first || !prev || prev.turnPeerId !== s.turnPeerId
+      || tableKey(prev.table) !== tableKey(s.table)
       || handKey(prev.myHand) !== handKey(s.myHand)) {
       this.work = s.table.map((set) => set.slice());
       this.hand = s.myHand.slice();
@@ -293,6 +310,14 @@ export class RummikubRenderer {
     this.hand = s.myHand.slice();
     this.picked = [];
     this.boardKey = '';
+    this.announceWork();
+  }
+
+  /** 내 차례일 때만 중계한다. 솎아내기(throttle)는 받는 쪽(index.ts)이 한다 */
+  private announceWork(): void {
+    const s = this.last;
+    if (!s || s.isSpectator || s.turnPeerId !== s.myPeerId) return;
+    this.cb.onWorkChanged(this.work.map((set) => set.slice()));
   }
 
   // ------------------------------------------------
@@ -358,6 +383,7 @@ export class RummikubRenderer {
     this.work = this.work.filter((set) => set.length > 0);
     this.picked = [];
     this.boardKey = '';
+    this.announceWork();
   }
 
   /** 드롭 지점의 x 좌표로 조합 안 삽입 위치를 구한다 */

@@ -4,10 +4,13 @@
  * 게스트 → 호스트  rk:hello / rk:commit(테이블 제안) / rk:draw(한 장 가져오기)
  * 호스트 → 게스트  rk:sync / rk:reject(퇴짜 사유) / rk:end
  *
- * 턴 중의 드래그는 **전부 로컬**이다. 중간 상태를 실시간으로 중계하지 않는다.
- *   · 실제 보드게임도 남이 손에 쥐고 고민하는 건 안 보인다
- *   · 조작 한 번에 메시지 하나씩 보내면 트래픽도, 되돌리기 처리도 지저분해진다
- * 대신 턴을 끝낼 때 **테이블 전체**를 보내고 호스트가 한 번에 검증한다.
+ * 턴 중의 조작은 `rk:work` 로 중계한다 — 남이 바닥을 어떻게 만지는지 같이 본다.
+ * 실제 테이블에서도 남이 타일 옮기는 건 다 보이고, 그걸 못 보면 자기 차례가
+ * 올 때까지 할 일이 없다. 손패는 안 보낸다(바닥에 내려놓은 것만 보인다).
+ *
+ * work 는 **제안일 뿐 검증하지 않는다.** 깨진 조합이 그대로 보일 수 있고,
+ * 되돌리면 되돌린 대로 보인다. 확정은 턴을 끝낼 때 `rk:commit` 으로
+ * 테이블 전체를 보내 호스트가 한 번에 검증한다.
  *
  * ⚠️ sync 는 사람마다 다르다. 손패는 받는 사람 것만 실물로 보내고
  *    나머지는 장수만 알려준다. 남의 패가 보이면 게임이 성립하지 않는다.
@@ -19,6 +22,7 @@ import type { Tile, TileSet } from './rules';
 const T_HELLO = 'rk:hello';
 const T_SYNC = 'rk:sync';
 const T_COMMIT = 'rk:commit';
+const T_WORK = 'rk:work';
 const T_DRAW = 'rk:draw';
 const T_REJECT = 'rk:reject';
 const T_END = 'rk:end';
@@ -83,6 +87,20 @@ export function encodeCommit(from: string, table: TileSet[]): GameMessage {
 }
 export function decodeCommit(msg: GameMessage): { from: string; table: TileSet[] } | null {
   if (msg.type !== T_COMMIT) return null;
+  const p = msg.payload as { from?: unknown; table?: unknown } | null;
+  if (!p || typeof p.from !== 'string' || !Array.isArray(p.table)) return null;
+  return { from: p.from, table: p.table as TileSet[] };
+}
+
+/**
+ * 턴 중인 사람의 바닥 상태 (중간 과정). 보내는 쪽에서 솎아내고(throttle) 보낸다.
+ * 게스트가 보내면 호스트가 나머지에게 중계한다.
+ */
+export function encodeWork(from: string, table: TileSet[]): GameMessage {
+  return { type: T_WORK, payload: { from, table } };
+}
+export function decodeWork(msg: GameMessage): { from: string; table: TileSet[] } | null {
+  if (msg.type !== T_WORK) return null;
   const p = msg.payload as { from?: unknown; table?: unknown } | null;
   if (!p || typeof p.from !== 'string' || !Array.isArray(p.table)) return null;
   return { from: p.from, table: p.table as TileSet[] };
