@@ -124,8 +124,14 @@ export class KordleRenderer {
     this.onKeyDown = (e: KeyboardEvent): void => {
       if (!this.canType()) return;
       const a = document.activeElement;
-      // 채팅 등 다른 입력창에 타이핑 중이면 가로채지 않는다
-      if (a instanceof HTMLInputElement || a instanceof HTMLTextAreaElement) return;
+      // 채팅 등 다른 입력창에 타이핑 중이면 가로채지 않는다.
+      // 다만 **비어 있는** 입력창에서의 Enter 는 돌려받는다 — 채팅을 한 번 보내고 나면
+      // 포커스가 채팅창에 남는데, 그 상태로 돌아와서 Enter 를 치면 아무 일도 안 일어나
+      // "나만 엔터가 안 먹는다" 가 된다. 빈 채팅창의 Enter 는 어차피 할 일이 없다.
+      if (a instanceof HTMLInputElement || a instanceof HTMLTextAreaElement) {
+        if (!(e.key === 'Enter' && a.value.trim() === '')) return;
+        a.blur(); // 다음 자모 입력부터는 칸으로 바로 들어가게
+      }
       if (e.ctrlKey || e.altKey || e.metaKey) return;
       if (e.key === 'Enter') { e.preventDefault(); this.cb.onSubmit(); return; }
       if (e.key === 'Backspace') { e.preventDefault(); this.cb.onBackspace(); return; }
