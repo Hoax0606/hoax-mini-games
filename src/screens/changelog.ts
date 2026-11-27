@@ -1,5 +1,5 @@
 /**
- * 변경 로그 화면 — 날짜별 타임라인.
+ * 변경 로그 화면 — 날짜별 타임라인 + 종류 필터.
  *
  * 데이터는 `src/data/changelog.ts` 하나뿐이다 (접속 팝업과 같은 배열).
  *
@@ -10,10 +10,16 @@
 
 import type { Screen } from '../core/screen';
 import { router } from '../core/screen';
-import { CHANGELOG, KIND_LABEL, type ChangeEntry } from '../data/changelog';
+import { CHANGELOG, KIND_LABEL, type ChangeEntry, type ChangeKind } from '../data/changelog';
 import { escapeHtml } from '../ui/escape';
 import { icon } from '../ui/icons';
 import { buildMiniGameCardHTML } from '../ui/gameCardMini';
+import { wireDropdown } from '../ui/gamePicker';
+
+/** null = 전체 */
+type KindFilter = ChangeKind | null;
+
+const KINDS: KindFilter[] = [null, 'game', 'feature', 'fix'];
 
 /** '2026-11-27' → { day: '11월 27일', year: '2026' } */
 function splitDate(iso: string): { day: string; year: string } {
@@ -32,6 +38,32 @@ function groupByDate(entries: ChangeEntry[]): Array<{ date: string; list: Change
   return out;
 }
 
+function countOf(kind: KindFilter): number {
+  return kind === null ? CHANGELOG.length : CHANGELOG.filter((e) => e.kind === kind).length;
+}
+
+function labelOf(kind: KindFilter): string {
+  return kind === null ? '전체' : KIND_LABEL[kind];
+}
+
+/** 게임 목록의 분류 필터와 같은 모양 (pf-dd). 옆에 개수를 붙여 뭐가 많은지 보이게 */
+function buildKindFilterHTML(selected: KindFilter): string {
+  const items = KINDS.map((k) => `
+    <button type="button" class="pf-dd-item${k === selected ? ' is-on' : ''}" data-kind="${k ?? ''}">
+      <span>${labelOf(k)}</span><i class="cl-count">${countOf(k)}</i>
+    </button>`).join('');
+  return `
+    <div class="pf-dd pf-dd-kind">
+      <button type="button" class="pf-dd-btn" aria-expanded="false" aria-haspopup="listbox">
+        ${icon('list', { size: 14, hue: '#2a9488' })}
+        <span class="pf-dd-label">종류</span>
+        <b>${labelOf(selected)}</b>
+        <span class="pf-dd-caret" aria-hidden="true"></span>
+      </button>
+      <div class="pf-dd-menu" role="listbox" hidden>${items}</div>
+    </div>`;
+}
+
 function buildEntryHTML(e: ChangeEntry): string {
   return `
     <div class="cl-entry">
@@ -46,32 +78,56 @@ function buildEntryHTML(e: ChangeEntry): string {
     </div>`;
 }
 
+function buildDaysHTML(kind: KindFilter): string {
+  const entries = kind === null ? CHANGELOG : CHANGELOG.filter((e) => e.kind === kind);
+  if (entries.length === 0) return '<div class="cl-empty">해당하는 내역이 없어요</div>';
+  return groupByDate(entries).map(({ date, list }) => {
+    const { day, year } = splitDate(date);
+    return `
+      <div class="cl-day">
+        <div class="cl-date">${day}<span class="cl-year">${year}</span></div>
+        ${list.map(buildEntryHTML).join('')}
+      </div>`;
+  }).join('');
+}
+
 export function createChangelogScreen(): Screen {
   return {
     render() {
+      let kind: KindFilter = null;
+
       const el = document.createElement('div');
       el.className = 'screen';
-
-      const daysHTML = groupByDate(CHANGELOG).map(({ date, list }) => {
-        const { day, year } = splitDate(date);
-        return `
-          <div class="cl-day">
-            <div class="cl-date">${day}<span class="cl-year">${year}</span></div>
-            ${list.map(buildEntryHTML).join('')}
-          </div>`;
-      }).join('');
-
       el.innerHTML = `
         <button class="back-btn" id="back-btn" title="뒤로">←</button>
 
         <div style="width: 100%; max-width: 680px;">
           <div class="screen-title">${icon('list', { size: 24, hue: '#2a9488' })} 변경 로그</div>
 
-          <div class="cl-list">
-            ${daysHTML}
-          </div>
+          <div class="pf-wrap" id="cl-filter">${buildKindFilterHTML(kind)}</div>
+
+          <div class="cl-list" id="cl-list">${buildDaysHTML(kind)}</div>
         </div>
       `;
+
+      const filterEl = el.querySelector<HTMLDivElement>('#cl-filter')!;
+      const listEl = el.querySelector<HTMLDivElement>('#cl-list')!;
+
+      // 게임 목록과 같은 방식 — 고를 때마다 필터 markup 을 새로 깔고 다시 배선한다.
+      // 새 markup 은 menu 가 hidden 이라 드롭다운이 자연히 닫힌다.
+      const rerender = (): void => {
+        filterEl.innerHTML = buildKindFilterHTML(kind);
+        wire();
+        listEl.innerHTML = buildDaysHTML(kind);
+      };
+      const wire = (): void => {
+        wireDropdown(filterEl.querySelector<HTMLElement>('.pf-dd-kind'), (it) => {
+          const raw = it.dataset['kind'];
+          kind = raw ? (raw as ChangeKind) : null;
+          rerender();
+        });
+      };
+      wire();
 
       el.querySelector('#back-btn')!.addEventListener('click', () => router.back());
       return el;

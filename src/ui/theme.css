@@ -4324,3 +4324,21 @@ input {
 }
 .news-never input { accent-color: var(--accent); cursor: pointer; }
 .news-never:hover { color: var(--accent); }
+
+/* 변경 로그 종류 필터 — 항목 오른쪽에 개수 */
+.cl-count {
+  font-style: normal;
+  font-size: 10.5px;
+  font-weight: 800;
+  color: var(--text-muted);
+  margin-left: auto;
+  padding-left: 10px;
+}
+.pf-dd-item.is-on .cl-count { color: inherit; opacity: .75; }
+.cl-empty {
+  padding: 28px 0;
+  text-align: center;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-muted);
+}

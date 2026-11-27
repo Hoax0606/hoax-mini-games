@@ -154,7 +154,12 @@ function wireCloser(): void {
  * 열기/닫기 + 항목 클릭 배선 — 인원·분류 드롭다운이 똑같아서 여기로 묶었다.
  * dd 가 없으면(해당 필터를 안 쓰는 화면) 조용히 넘어간다.
  */
-function wireDropdown(dd: HTMLElement | null, onPick: (item: HTMLButtonElement) => void): void {
+/**
+ * 드롭다운 한 개 배선 (열고 닫기 + 항목 클릭).
+ * 변경 로그 화면도 같은 모양의 필터를 써서 내보낸다. 쓰는 데가 아직 둘뿐이라
+ * 공용 모듈로 빼지 않고 여기 둔다 (CLAUDE.md: 추상화는 세 번째부터).
+ */
+export function wireDropdown(dd: HTMLElement | null, onPick: (item: HTMLButtonElement) => void): void {
   wireCloser();
   if (!dd) return;
   const btn = dd.querySelector<HTMLButtonElement>('.pf-dd-btn')!;
