@@ -11,6 +11,7 @@
 import { randomStartIndex } from '../_shared/turnOrder';
 import type { GameModule, GameContext, GameMessage, GameResult, Player } from '../types';
 import { sound } from '../../core/sound';
+import { focusSoon } from '../../ui/focus';
 import {
   createInitialGame, resetForRound, currentHinter, advanceHinter,
   validateHint, tallyVotes, scoreRound, finalRanking,
@@ -617,7 +618,7 @@ class LiarGameModule implements GameModule {
       if (currentHinter(g) === this.myPeerId) {
         hintForm.style.display = '';
         this.setHintEnabled(true);
-        window.setTimeout(() => this.panel?.querySelector<HTMLInputElement>('#lg-hint-input')?.focus(), 10);
+        focusSoon(this.panel?.querySelector<HTMLInputElement>('#lg-hint-input'));
       } else {
         this.showMessage('다른 사람이 설명 중이에요');
       }
@@ -628,7 +629,7 @@ class LiarGameModule implements GameModule {
       if (g.accusedPeerId === this.myPeerId) {
         // 내가 지목당한 라이어 — 추측 입력
         guessForm.style.display = '';
-        window.setTimeout(() => this.panel?.querySelector<HTMLInputElement>('#lg-guess-input')?.focus(), 10);
+        focusSoon(this.panel?.querySelector<HTMLInputElement>('#lg-guess-input'));
       } else {
         this.showMessage('라이어가 제시어를 추측하는 중');
       }

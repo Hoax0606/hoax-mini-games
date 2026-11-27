@@ -25,6 +25,7 @@
 import { randomStartIndex } from '../_shared/turnOrder';
 import type { GameModule, GameContext, GameMessage, GameResult, Player } from '../types';
 import { sound } from '../../core/sound';
+import { focusSoon } from '../../ui/focus';
 import {
   createInitialGame,
   pickNextDrawer,
@@ -1066,11 +1067,7 @@ class DrawQuizGameModule implements GameModule {
         && !amDrawer && !this.isSpectator
         && !this.game.correctThisRound.includes(this.myPeerId);
       this.guessBarEl.style.display = canGuess ? 'flex' : 'none';
-      if (canGuess) {
-        window.setTimeout(() => {
-          this.uiRoot?.querySelector<HTMLInputElement>('#dq-guess-input')?.focus();
-        }, 10);
-      }
+      if (canGuess) focusSoon(this.uiRoot?.querySelector<HTMLInputElement>('#dq-guess-input'));
     }
   }
 }

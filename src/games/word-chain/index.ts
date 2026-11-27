@@ -21,6 +21,7 @@
 import { randomStartIndex } from '../_shared/turnOrder';
 import type { GameModule, GameContext, GameMessage, GameResult, Player } from '../types';
 import { sound } from '../../core/sound';
+import { focusSoon } from '../../ui/focus';
 import {
   createInitialGame,
   validateSubmission,
@@ -517,8 +518,8 @@ class WordChainGameModule implements GameModule {
     }
 
     if (enabled) {
-      // 차례 들어오면 포커스 — UX 향상
-      window.setTimeout(() => this.inputEl?.focus(), 10);
+      // 차례 들어오면 포커스 — 단, 채팅을 치고 있으면 뺏지 않는다
+      focusSoon(this.inputEl);
     }
   }
 

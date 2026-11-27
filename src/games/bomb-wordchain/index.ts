@@ -12,6 +12,7 @@
 import { randomStartIndex } from '../_shared/turnOrder';
 import type { GameModule, GameContext, GameMessage, GameResult, Player } from '../types';
 import { sound } from '../../core/sound';
+import { focusSoon } from '../../ui/focus';
 import {
   createInitialGame, validateSubmission, applySubmission, seedFromPeers, getNextTurn,
   type WordChainGame, type PlayerIndex,
@@ -386,7 +387,7 @@ class BombWordChainModule implements GameModule {
         hint.textContent = '';
       }
     }
-    if (enabled) window.setTimeout(() => this.inputEl?.focus(), 10);
+    if (enabled) focusSoon(this.inputEl);
   }
 
   private showRejectMessage(message: string): void {
