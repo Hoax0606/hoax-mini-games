@@ -35,6 +35,18 @@ export interface RkCallbacks {
   onDraw(): void;
 }
 
+/**
+ * 조커 얼굴. 실물 루미큐브 조커는 별이 아니라 **웃는 얼굴**이다 (빨강·검정 한 장씩).
+ * stroke/fill 을 currentColor 로 두면 타일 색(c-red / c-black)을 그대로 따라간다.
+ */
+const JOKER_FACE = `<svg class="rk-joker" viewBox="0 0 24 24" aria-label="조커">
+  <circle cx="12" cy="12" r="8.6" fill="none" stroke="currentColor" stroke-width="1.9"/>
+  <circle cx="8.9" cy="9.9" r="1.35" fill="currentColor"/>
+  <circle cx="15.1" cy="9.9" r="1.35" fill="currentColor"/>
+  <path d="M7.4 13.6c1.3 2.6 7.9 2.6 9.2 0" fill="none" stroke="currentColor"
+        stroke-width="1.9" stroke-linecap="round"/>
+</svg>`;
+
 /** 타일이 어디에 있는지 — 손패인가, 테이블 몇 번째 조합인가 */
 type Spot = { kind: 'hand' } | { kind: 'set'; index: number };
 
@@ -186,7 +198,7 @@ export class RummikubRenderer {
     const cls = ['rk-tile', `c-${t.color}`, t.joker ? 'is-joker' : '',
       movable ? 'is-movable' : '', this.picked === t.id ? 'is-picked' : ''].filter(Boolean).join(' ');
     return `<button class="${cls}" data-tile="${t.id}"${movable ? ' draggable="true"' : ''}>${
-      t.joker ? '★' : t.num}</button>`;
+      t.joker ? JOKER_FACE : t.num}</button>`;
   }
 
   private drawTable(myTurn: boolean): void {
@@ -428,7 +440,8 @@ const CSS = `
 .rk-tile.c-blue{color:#2563c9;}
 .rk-tile.c-black{color:#3a3a3a;}
 .rk-tile.c-orange{color:#e0790d;}
-.rk-tile.is-joker{color:#b8860b;font-size:20px;}
+.rk-tile.is-joker{padding:0;}
+.rk-joker{width:26px;height:26px;display:block;}
 .rk-tile.is-movable{cursor:grab;}
 .rk-tile.is-movable:hover{transform:translateY(-2px);box-shadow:0 3px 7px rgba(0,0,0,.18);}
 .rk-tile.is-picked{outline:3px solid var(--accent);outline-offset:1px;transform:translateY(-4px);}

@@ -38,7 +38,12 @@
     <rect x="68" y="0" width="30" height="42" rx="7" fill="#fffdf6" stroke="#e4dcc8" stroke-width="2"/>
     <text x="83" y="30" font-family="Pretendard, system-ui, sans-serif" font-size="23" font-weight="900" fill="#e0790d" text-anchor="middle">7</text>
     <rect x="102" y="0" width="30" height="42" rx="7" fill="#fffdf6" stroke="#ffd978" stroke-width="2.4"/>
-    <text x="117" y="31" font-family="Pretendard, system-ui, sans-serif" font-size="24" font-weight="900" fill="#b8860b" text-anchor="middle">★</text>
+    <g transform="translate(117,21)" stroke="#d3392f" fill="none" stroke-width="1.9">
+      <circle cx="0" cy="0" r="9.5"/>
+      <circle cx="-3.4" cy="-2.3" r="1.5" fill="#d3392f" stroke="none"/>
+      <circle cx="3.4" cy="-2.3" r="1.5" fill="#d3392f" stroke="none"/>
+      <path d="M-5.2 2.2c1.5 2.9 8.9 2.9 10.4 0" stroke-linecap="round"/>
+    </g>
   </g>
 
   <!-- 아래: 손패 느낌으로 살짝 겹친 타일들 -->
