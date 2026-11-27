@@ -21,6 +21,7 @@ import {
 import { escapeHtml } from '../ui/escape';
 import { showReconnectOverlay, hideReconnectOverlay } from '../ui/reconnectOverlay';
 import { icon } from '../ui/icons';
+import { showGameHelp } from '../ui/helpDialog';
 
 /**
  * 대기실 — 호스트 측 / 게스트 측 factory 2종.
@@ -244,6 +245,7 @@ export function createWaitingRoomAsHostScreen(args: WaitingRoomAsHostArgs): Scre
             </div>
             <div class="waiting-section-title waiting-head-game">
               게임 선택
+              <button type="button" class="help-btn" id="host-help-btn" hidden>도움말</button>
               <span class="pf-wrap" id="game-filter"></span>
             </div>
           </div>
@@ -278,6 +280,13 @@ export function createWaitingRoomAsHostScreen(args: WaitingRoomAsHostArgs): Scre
       const gameGridEl = el.querySelector<HTMLDivElement>('#game-grid')!;
       const gameFilterEl = el.querySelector<HTMLDivElement>('#game-filter')!;
       const gameOptionsEl = el.querySelector<HTMLDivElement>('#game-options')!;
+      const hostHelpBtn = el.querySelector<HTMLButtonElement>('#host-help-btn');
+      // 도움말 — 카드가 매 렌더마다 새로 그려지므로 화면에 위임해서 한 번만 건다
+      el.addEventListener('click', (e) => {
+        if (!(e.target as HTMLElement).closest('.help-btn')) return;
+        const g = getGameById(gameId);
+        if (g) showGameHelp(g.meta);
+      });
       /** 인원수 필터. refreshUI 가 자주 도니까 바깥에 둬서 사람이 고른 값이 안 날아가게 한다 */
       let gameFilter: PlayerFilter = null;
       let catFilter: CategoryFilter = null;
@@ -346,6 +355,8 @@ export function createWaitingRoomAsHostScreen(args: WaitingRoomAsHostArgs): Scre
         wirePlayerFilter(gameFilterEl, (n) => { gameFilter = n; refreshUI(); });
         // 옵션 박스는 항상 노출(통일성) — 옵션 있으면 셀렉트, 없으면 '설정 없음', 미선택이면 안내.
         gameOptionsEl.innerHTML = buildGameOptionsHTML(gameId, roomOptions);
+        // 도움말은 고른 게임이 있을 때만. hidden 속성은 inline-flex 에 지므로 style 로 끊는다
+        if (hostHelpBtn) hostHelpBtn.style.display = gameId ? '' : 'none';
         wireGameArea();
 
         // 강퇴 버튼 배선 — 방장이 해당 게스트 연결을 끊음(onGuestDisconnected 가 정리)
@@ -775,6 +786,13 @@ export function createWaitingRoomAsGuestScreen(args: WaitingRoomAsGuestArgs): Sc
       const leaveBtn = el.querySelector<HTMLButtonElement>('#leave-btn')!;
       const gamePickedEl = el.querySelector<HTMLDivElement>('#game-picked')!;
       const gameOptionsEl = el.querySelector<HTMLDivElement>('#game-options')!;
+      const hostHelpBtn = el.querySelector<HTMLButtonElement>('#host-help-btn');
+      // 도움말 — 카드가 매 렌더마다 새로 그려지므로 화면에 위임해서 한 번만 건다
+      el.addEventListener('click', (e) => {
+        if (!(e.target as HTMLElement).closest('.help-btn')) return;
+        const g = getGameById(roomState.gameId);
+        if (g) showGameHelp(g.meta);
+      });
       const readyBtn = el.querySelector<HTMLButtonElement>('#ready-btn')!;
       const gameAllEl = el.querySelector<HTMLDivElement>('#game-all')!;
       const autoReadyEl = el.querySelector<HTMLInputElement>('#auto-ready')!;

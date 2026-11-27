@@ -26,6 +26,21 @@
 export const GAME_CATEGORIES = ['보드게임', '추리', '순발력', '두뇌', '단어', '그림'] as const;
 export type GameCategory = (typeof GAME_CATEGORIES)[number];
 
+/**
+ * 게임 도움말 — 목록·대기실·게임 중 세 군데에서 같은 내용을 꺼내 쓴다.
+ *
+ * **짧고 간략하되 빠진 규칙은 없게.** 처음 하는 사람이 이것만 읽고 한 판을 돌릴 수
+ * 있어야 한다. 반대로 전략이나 팁 늘어놓기는 금물 — 길면 아무도 안 읽는다.
+ *   · goal  : 한 줄. "뭘 하면 이기나"
+ *   · steps : 한 턴(또는 한 판)이 굴러가는 순서. 한 줄에 한 가지만
+ *   · tips  : 모르면 억울한 것만. 없으면 비워둔다
+ */
+export interface GameHelp {
+  goal: string;
+  steps: string[];
+  tips?: string[];
+}
+
 export interface GameMeta {
   /** 유일 식별자 (URL 안전한 kebab-case). 예: "air-hockey" */
   id: string;
@@ -33,6 +48,11 @@ export interface GameMeta {
   name: string;
   /** 카드 설명 (1~2줄) */
   description: string;
+  /**
+   * 도움말. 아직 안 쓴 게임은 비워둬도 되지만 **전부 채우는 게 목표다**
+   * (없으면 도움말 버튼 자리에 description 만 뜬다).
+   */
+  help?: GameHelp;
   /** 분류 — 최소 1개. 새 게임 추가 시 꼭 채울 것 */
   categories: GameCategory[];
   /**

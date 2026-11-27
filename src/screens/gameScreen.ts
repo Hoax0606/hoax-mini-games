@@ -15,6 +15,7 @@ import { sound } from '../core/sound';
 import { escapeHtml } from '../ui/escape';
 import { showReconnectOverlay, hideReconnectOverlay } from '../ui/reconnectOverlay';
 import { icon } from '../ui/icons';
+import { showGameHelp } from '../ui/helpDialog';
 import { showConfirm } from '../ui/confirm';
 
 /** 관전자 전용 비밀 패널을 실어나르는 내부 메시지 타입. 게임 모듈은 못 보고 지나간다. */
@@ -165,6 +166,7 @@ function buildHeaderHTML(args: {
       </div>
 
       <div class="game-room-info">
+        <button class="game-menu-btn" id="game-help-btn" title="도움말" aria-label="도움말">${icon('list', { size: 18, hue: '#2a9488' })}</button>
         <button class="game-menu-btn" id="game-menu-btn" title="게임 설정 (Esc)" aria-label="게임 설정">${icon('settings', { size: 18, hue: '#9a86c0' })}</button>
       </div>
     </div>
@@ -541,6 +543,7 @@ export function createGameScreenAsHostScreen(args: GameScreenAsHostArgs): Screen
       const scoreHome = el.querySelector<HTMLSpanElement>('#score-home')!;
       const scoreAway = el.querySelector<HTMLSpanElement>('#score-away')!;
       const leaveBtn = el.querySelector<HTMLButtonElement>('#leave-btn')!;
+      el.querySelector('#game-help-btn')?.addEventListener('click', () => showGameHelp(game.meta));
 
       // 점수 변화 감지용 이전 값 (호스트 시점 로컬 state)
       let lastHostScore = 0;
@@ -996,6 +999,7 @@ export function createGameScreenAsGuestScreen(args: GameScreenAsGuestArgs): Scre
       const scoreHome = el.querySelector<HTMLSpanElement>('#score-home');
       const scoreAway = el.querySelector<HTMLSpanElement>('#score-away');
       const leaveBtn = el.querySelector<HTMLButtonElement>('#leave-btn')!;
+      el.querySelector('#game-help-btn')?.addEventListener('click', () => showGameHelp(game.meta));
 
       let lastHostScore = 0;
       let lastGuestScore = 0;

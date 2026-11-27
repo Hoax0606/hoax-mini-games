@@ -252,6 +252,7 @@ export function buildPickedGameHTML(gameId: string): string {
         <span class="game-card-players">${escapeHtml(playerLabel)}</span>
       </div>
       <div class="game-card-desc">${escapeHtml(m.description)}</div>
+      <button type="button" class="help-btn" id="picked-help-btn">도움말 보기</button>
     </div>
   `;
 }

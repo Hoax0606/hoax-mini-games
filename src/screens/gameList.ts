@@ -3,6 +3,7 @@ import { router } from '../core/screen';
 import { games } from '../games/registry';
 import { escapeHtml, escapeAttr } from '../ui/escape';
 import { icon } from '../ui/icons';
+import { showGameHelp } from '../ui/helpDialog';
 import {
   buildPlayerFilterHTML, wirePlayerFilter, playableBy, type PlayerFilter,
   buildCategoryFilterHTML, wireCategoryFilter, inCategory, type CategoryFilter,
@@ -38,6 +39,7 @@ export function createGameListScreen(): Screen {
               <span class="game-card-players">${playersBadge(g.meta.minPlayers, g.meta.maxPlayers)}</span>
             </div>
             <div class="game-card-desc">${escapeHtml(g.meta.description)}</div>
+            <button type="button" class="help-btn" data-help="${escapeAttr(g.meta.id)}">도움말 보기</button>
           </div>
         `).join('');
       };
@@ -65,6 +67,14 @@ export function createGameListScreen(): Screen {
       };
       wireCategoryFilter(filterEl, (c) => { cat = c; rerender(); });
       wirePlayerFilter(filterEl, (n) => { filter = n; rerender(); });
+
+      // 카드가 필터로 다시 그려지므로 격자에 위임해서 한 번만 건다
+      gridEl.addEventListener('click', (e) => {
+        const id = (e.target as HTMLElement).closest<HTMLElement>('[data-help]')?.dataset['help'];
+        if (!id) return;
+        const g = games.find((x) => x.meta.id === id);
+        if (g) showGameHelp(g.meta);
+      });
 
       el.querySelector('#back-btn')!.addEventListener('click', () => router.back());
 
