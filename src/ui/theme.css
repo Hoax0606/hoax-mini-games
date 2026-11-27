@@ -4303,3 +4303,24 @@ input {
 .mini-game-info { min-width: 0; }
 .mini-game-name { font-size: 14.5px; font-weight: 900; color: var(--text-main); }
 .mini-game-meta { font-size: 11.5px; font-weight: 700; color: var(--text-muted); margin-top: 3px; }
+
+/* 팝업 아래 줄 — 왼쪽 "다시 보지 않기" 체크, 오른쪽 닫기 (대기실 자동 준비와 같은 모양) */
+.news-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.news-foot .btn { flex: 0 0 auto; min-width: 118px; }
+.news-never {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--text-muted);
+  cursor: pointer;
+  user-select: none;
+}
+.news-never input { accent-color: var(--accent); cursor: pointer; }
+.news-never:hover { color: var(--accent); }
