@@ -128,13 +128,19 @@ export class KordleRenderer {
       // 다만 **비어 있는** 입력창에서의 Enter 는 돌려받는다 — 채팅을 한 번 보내고 나면
       // 포커스가 채팅창에 남는데, 그 상태로 돌아와서 Enter 를 치면 아무 일도 안 일어나
       // "나만 엔터가 안 먹는다" 가 된다. 빈 채팅창의 Enter 는 어차피 할 일이 없다.
+      // 제출/지움도 자모와 똑같이 **물리 키 위치**로 본다.
+      // e.key 만 보면 한글 IME 가 켜져 있을 때 'Process' 로 와서 분기를 통째로 놓친다
+      // (자모는 e.code 라 멀쩡하고 Enter 만 안 먹는, 사람 헷갈리는 증상이 됐다).
+      const isEnter = e.code === 'Enter' || e.code === 'NumpadEnter' || e.key === 'Enter';
+      const isBack = e.code === 'Backspace' || e.key === 'Backspace';
+
       if (a instanceof HTMLInputElement || a instanceof HTMLTextAreaElement) {
-        if (!(e.key === 'Enter' && a.value.trim() === '')) return;
+        if (!(isEnter && a.value.trim() === '')) return;
         a.blur(); // 다음 자모 입력부터는 칸으로 바로 들어가게
       }
       if (e.ctrlKey || e.altKey || e.metaKey) return;
-      if (e.key === 'Enter') { e.preventDefault(); this.cb.onSubmit(); return; }
-      if (e.key === 'Backspace') { e.preventDefault(); this.cb.onBackspace(); return; }
+      if (isEnter) { e.preventDefault(); this.cb.onSubmit(); return; }
+      if (isBack) { e.preventDefault(); this.cb.onBackspace(); return; }
       const j = KEY_TO_JAMO[e.code];
       if (j) { e.preventDefault(); this.cb.onJamo(j); }
     };
