@@ -2100,6 +2100,85 @@ function buildCodenamesResultHTML(args: {
   `;
 }
 
+interface KrakenPlayer { peerId: string; nickname: string; role: 'crew' | 'pirate' }
+
+function parseKrakenSummary(summary: Record<string, unknown>): {
+  myPeerId: string; winnerRole: 'crew' | 'pirate' | null; myRole: 'crew' | 'pirate' | null;
+  players: KrakenPlayer[]; treasureFound: number; totalTreasure: number; round: number;
+} | null {
+  if (summary['gameId'] !== 'kraken') return null;
+  const myPeerId = typeof summary['myPeerId'] === 'string' ? (summary['myPeerId'] as string) : null;
+  if (!myPeerId) return null;
+  const role = (v: unknown): 'crew' | 'pirate' | null => (v === 'crew' || v === 'pirate' ? v : null);
+  const raw = summary['players'] as unknown;
+  const players: KrakenPlayer[] = Array.isArray(raw)
+    ? (raw as Partial<KrakenPlayer>[])
+        .filter((p) => typeof p.peerId === 'string' && typeof p.nickname === 'string' && role(p.role) !== null)
+        .map((p) => ({ peerId: p.peerId!, nickname: p.nickname!, role: p.role! }))
+    : [];
+  const found = summary['found'] as { treasure?: unknown } | undefined;
+  const num = (v: unknown): number => (typeof v === 'number' ? v : 0);
+  return {
+    myPeerId,
+    winnerRole: role(summary['winnerRole']),
+    myRole: role(summary['myRole']),
+    players,
+    treasureFound: num(found?.treasure),
+    totalTreasure: num(summary['totalTreasure']),
+    round: num(summary['round']),
+  };
+}
+
+/** 이 게임의 결과 화면에서 제일 궁금한 건 "누가 해적이었냐" — 역할을 진영별로 묶어 보여준다 */
+function buildKrakenResultHTML(args: {
+  myWinner: 'me' | 'opponent' | null;
+  winnerRole: 'crew' | 'pirate' | null; myRole: 'crew' | 'pirate' | null;
+  players: KrakenPlayer[]; treasureFound: number; totalTreasure: number; round: number;
+  myPeerId: string; isHost: boolean; isSpectator: boolean;
+}): string {
+  const { myWinner, winnerRole, myRole, players, treasureFound, totalTreasure, round,
+    myPeerId, isHost, isSpectator } = args;
+  const label = (r: 'crew' | 'pirate'): string => (r === 'crew' ? '탐험대' : '해적');
+  const { emoji, title, titleClass } = isSpectator || !winnerRole
+    ? {
+        emoji: icon('games', { size: 56, hue: '#2a9488' }),
+        title: winnerRole ? `${label(winnerRole)} 승리` : '승부 없이 끝났어요',
+        titleClass: 'result-title-draw',
+      }
+    : winnerVisuals(myWinner);
+  const actionsHTML = buildActionsHTML(isHost);
+
+  const myBlock = isSpectator || !myRole ? '' : `
+    <div class="result-tetris-rank">내 정체 · ${label(myRole)}</div>
+  `;
+  const roleBlock = (r: 'crew' | 'pirate'): string => {
+    const mates = players.filter((p) => p.role === r);
+    if (mates.length === 0) return '';
+    return `
+    <div class="result-tetris-rank-row ${r === winnerRole ? 'is-me' : ''}">
+      <span class="result-tetris-rank-badge ${r === winnerRole ? 'rank-1' : ''}">${label(r)}</span>
+      <span class="result-tetris-rank-name">${mates
+        .map((p) => `${escapeHtml(p.nickname)}${p.peerId === myPeerId ? ' (나)' : ''}`).join(', ')}</span>
+      <span class="result-apple-rank-score">${r === winnerRole ? '승리' : ''}</span>
+    </div>`;
+  };
+
+  return `
+    <div class="result-card result-card-tetris">
+      <div class="result-emoji">${emoji}</div>
+      <div class="result-title ${titleClass}">${title}</div>
+      ${myBlock}
+      <div class="result-tetris-rank">${round}라운드까지 · 보물 ${treasureFound}/${totalTreasure} 발견</div>
+      <div class="result-tetris-rankings">
+        <div class="result-tetris-rankings-title">${icon('medal', { size: 18, hue: '#ffb12e' })} 정체</div>
+        ${roleBlock('crew')}
+        ${roleBlock('pirate')}
+      </div>
+      ${actionsHTML}
+    </div>
+  `;
+}
+
 interface RummikubRankEntry {
   peerId: string; nickname: string; rank: number; left: number; penalty: number;
 }
@@ -2378,6 +2457,7 @@ export function createResultScreenAsHostScreen(args: ResultScreenAsHostArgs): Sc
       const davinci = parseDavinciSummary(result.summary);
       const rummikub = parseRummikubSummary(result.summary);
       const codenames = parseCodenamesSummary(result.summary);
+      const kraken = parseKrakenSummary(result.summary);
       const blueMarble = parseBlueMarbleSummary(result.summary);
       const avalon = parseAvalonSummary(result.summary);
       const fakeArtist = parseFakeArtistSummary(result.summary);
@@ -2425,6 +2505,14 @@ export function createResultScreenAsHostScreen(args: ResultScreenAsHostArgs): Sc
           winnerTeam: codenames.winnerTeam, myTeam: codenames.myTeam,
           players: codenames.players, left: codenames.left,
           myPeerId: codenames.myPeerId, isHost: true, isSpectator: false,
+        });
+      } else if (kraken) {
+        el.innerHTML = buildKrakenResultHTML({
+          myWinner: result.winner,
+          winnerRole: kraken.winnerRole, myRole: kraken.myRole,
+          players: kraken.players, treasureFound: kraken.treasureFound,
+          totalTreasure: kraken.totalTreasure, round: kraken.round,
+          myPeerId: kraken.myPeerId, isHost: true, isSpectator: false,
         });
       } else if (reflex) {
         el.innerHTML = buildReflexResultHTML({
@@ -2752,6 +2840,7 @@ export function createResultScreenAsGuestScreen(args: ResultScreenAsGuestArgs): 
       const davinci = parseDavinciSummary(result.summary);
       const rummikub = parseRummikubSummary(result.summary);
       const codenames = parseCodenamesSummary(result.summary);
+      const kraken = parseKrakenSummary(result.summary);
       const blueMarble = parseBlueMarbleSummary(result.summary);
       const avalon = parseAvalonSummary(result.summary);
       const fakeArtist = parseFakeArtistSummary(result.summary);
@@ -2810,6 +2899,15 @@ export function createResultScreenAsGuestScreen(args: ResultScreenAsGuestArgs): 
           winnerTeam: codenames.winnerTeam, myTeam: codenames.myTeam,
           players: codenames.players, left: codenames.left,
           myPeerId: isSpec ? myPeerIdForResult : codenames.myPeerId,
+          isHost: false, isSpectator: isSpec,
+        });
+      } else if (kraken) {
+        el.innerHTML = buildKrakenResultHTML({
+          myWinner: result.winner,
+          winnerRole: kraken.winnerRole, myRole: kraken.myRole,
+          players: kraken.players, treasureFound: kraken.treasureFound,
+          totalTreasure: kraken.totalTreasure, round: kraken.round,
+          myPeerId: isSpec ? myPeerIdForResult : kraken.myPeerId,
           isHost: false, isSpectator: isSpec,
         });
       } else if (reflex) {

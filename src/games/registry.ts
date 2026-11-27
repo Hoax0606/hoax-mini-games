@@ -34,6 +34,7 @@ import kordleThumbnail from './kordle/thumbnail.svg';
 import callMyNameThumbnail from './call-my-name/thumbnail.svg';
 import rummikubThumbnail from './rummikub/thumbnail.svg';
 import codenamesThumbnail from './codenames/thumbnail.svg';
+import krakenThumbnail from './kraken/thumbnail.svg';
 import subwayTypingThumbnail from './subway-typing/thumbnail.svg';
 import theMindThumbnail from './the-mind/thumbnail.svg';
 import davinciCodeThumbnail from './davinci-code/thumbnail.svg';
@@ -662,6 +663,34 @@ export const games: GameEntry[] = [
     load: async () => {
       const mod = await import('./codenames');
       return mod.createCodenames();
+    },
+  },
+  {
+    meta: {
+      id: 'kraken',
+      categories: ['보드게임', '추리'],
+      name: '노 터치 크라켄',
+      description: '탐험대와 해적으로 갈려 서로의 카드를 뒤집어요. 보물을 다 찾으면 탐험대 승, 크라켄이 깨어나거나 4라운드를 버티면 해적 승. 내 패도 섞여 있어서 입으로 속이는 게 전부예요.',
+      thumbnail: krakenThumbnail,
+      minPlayers: 3,
+      maxPlayers: 6,
+      roomOptions: [
+        {
+          key: 'turnLimit',
+          label: '턴 제한 시간',
+          type: 'select',
+          choices: [
+            { value: '60', label: '60초' },
+            { value: '120', label: '120초' },
+            { value: '0', label: '제한 없음' },
+          ],
+          defaultValue: '60',
+        },
+      ],
+    },
+    load: async () => {
+      const mod = await import('./kraken');
+      return mod.createKraken();
     },
   },
   {
