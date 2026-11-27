@@ -238,10 +238,18 @@ export class RummikubRenderer {
       return;
     }
     const moved = this.hand.length !== (this.last?.myHand.length ?? 0);
-    // 몇 장 고랐는지 보여준다 — 여러 장 모아 한 번에 옮길 수 있는 걸 모르면 안 쓴다
-    const pickInfo = this.picked.length > 0
-      ? `<span class="rk-pickinfo">${this.picked.length}장 고름 · 놓을 자리를 누르세요</span>`
-      : '';
+    // 깨진 조합이 하나라도 있으면 턴을 못 끝낸다 (테이블 전체를 검사하기 때문).
+    // 예전엔 그냥 누르게 두고 "완성되지 않은 조합이 있어요" 만 띄웠는데,
+    // 어느 조합이 문제인지 안 짚어줘서 멀쩡한 걸 새로 깔아도 계속 막히는 걸로 보였다.
+    const bad = this.work.filter((set) => !validateSet(set)).length;
+    // 몇 장 고랐는지 보여준다 — 여러 장 모아 한 번에 옮길 수 있는 걸 모르면 안 쓴다.
+    // "한 조합" 이라고 못 박는 건, 13 13 13 9 9 9 를 한꺼번에 골라 놓고 두 조합으로
+    // 갈리길 기대하다가 깨진 조합 하나를 만들어 턴이 막히는 일이 실제로 있었기 때문이다.
+    const pickInfo = bad > 0
+      ? `<span class="rk-pickinfo is-bad">빨간 조합 ${bad}개를 완성하거나 손패로 되돌려야 턴을 끝낼 수 있어요</span>`
+      : this.picked.length > 0
+        ? `<span class="rk-pickinfo">${this.picked.length}장 고름 · 누른 자리에 <b>한 조합</b>으로 들어가요</span>`
+        : '';
     // 첫 등록 전에만 — 지금 깔은 내 타일의 점수를 숫자로 보여준다.
     // 30점을 암산으로 세고 있으면 재미가 아니라 귀찮다. 등록 후엔 안 보여준다(필요 없는 정보).
     const me = s.players.find((p) => p.peerId === s.myPeerId);
@@ -255,7 +263,7 @@ export class RummikubRenderer {
     }
     this.actionEl.innerHTML = pickInfo + meldInfo + SORT_BTN(this.sortMode) + `
       <button class="rk-btn ghost" id="rk-undo"${moved ? '' : ' disabled'}>되돌리기</button>
-      <button class="rk-btn" id="rk-commit"${moved ? '' : ' disabled'}>턴 끝내기</button>
+      <button class="rk-btn" id="rk-commit"${moved && bad === 0 ? '' : ' disabled'}>턴 끝내기</button>
       <button class="rk-btn warn" id="rk-draw">한 장 가져오기</button>`;
 
     this.wireSort();
@@ -548,6 +556,7 @@ const CSS = `
 .rk-tile.is-movable.is-picked:hover{outline:3px solid var(--accent);outline-offset:1px;
   transform:translateY(-11px);box-shadow:0 7px 12px rgba(42,148,136,.35);z-index:1;}
 
+.rk-pickinfo.is-bad{color:var(--danger);}
 .rk-notice{flex:0 0 auto;font-size:12.5px;font-weight:700;color:var(--text-muted);
   text-align:center;}
 .rk-notice.is-bad{color:var(--danger);}
