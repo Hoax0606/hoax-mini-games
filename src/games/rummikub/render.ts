@@ -485,7 +485,10 @@ const CSS = `
 .rk-joker{width:26px;height:26px;display:block;}
 .rk-tile.is-movable{cursor:grab;}
 .rk-tile.is-movable:hover{transform:translateY(-2px);box-shadow:0 3px 7px rgba(0,0,0,.18);}
-.rk-tile.is-picked{outline:3px solid var(--accent);outline-offset:1px;
+/* 고른 타일. 두 번째 줄은 마우스가 그 위에 있을 때도 들린 채로 두려고 쓴다 —
+   :hover 규칙이 선택자 우선순위에서 이겨서, 막 누른 타일만 안 올라가 보였다 */
+.rk-tile.is-picked,
+.rk-tile.is-movable.is-picked:hover{outline:3px solid var(--accent);outline-offset:1px;
   transform:translateY(-11px);box-shadow:0 7px 12px rgba(42,148,136,.35);z-index:1;}
 
 .rk-notice{flex:0 0 auto;font-size:12.5px;font-weight:700;color:var(--text-muted);
