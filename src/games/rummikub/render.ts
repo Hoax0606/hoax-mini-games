@@ -79,6 +79,14 @@ export class RummikubRenderer {
   private picked: number[] = [];
   /** 드래그 중인 타일 id */
   private dragging: number | null = null;
+  /**
+   * 손패를 내가 직접 늘어놨나. 한 번이라도 손패 안에서 자리를 바꾸면 켜지고,
+   * 그 뒤로는 색깔순/숫자순 정렬을 덮어쓴다 (정렬 버튼을 누르면 다시 꺼진다).
+   */
+  private manualHand = false;
+  /** 내가 늘어놓은 순서(타일 id). 턴이 바뀌어 손패가 새로 와도 이 순서를 지킨다 */
+  private handOrder: number[] = [];
+
   /** 드래그 중 강조해 둔 드롭 대상 */
   private overEl: HTMLElement | null = null;
   private sortMode: 'color' | 'number' = loadSortMode();
@@ -132,7 +140,7 @@ export class RummikubRenderer {
     const s = this.last;
     if (!s) return;
     this.work = s.table.map((set) => set.slice());
-    this.hand = s.myHand.slice();
+    this.hand = this.restoreHandOrder(s.myHand);
     this.serverTableIds = new Set(s.table.flat().map((t) => t.id));
     this.picked = [];
     this.dragging = null;
@@ -170,7 +178,7 @@ export class RummikubRenderer {
       || tableKey(prev.table) !== tableKey(s.table)
       || handKey(prev.myHand) !== handKey(s.myHand)) {
       this.work = s.table.map((set) => set.slice());
-      this.hand = s.myHand.slice();
+      this.hand = this.restoreHandOrder(s.myHand);
       this.serverTableIds = new Set(s.table.flat().map((t) => t.id));
       this.picked = [];
       this.boardKey = '';
@@ -235,11 +243,13 @@ export class RummikubRenderer {
       <div class="rk-newset" data-set="new">${myTurn ? '여기에 놓아 새 조합' : ''}</div>`;
   }
 
-  private drawHand(myTurn: boolean): void {
-    const sorted = this.sortMode === 'color' ? sortByColor(this.hand) : sortByNumber(this.hand);
-    this.handEl.innerHTML = sorted.length === 0
+  private drawHand(_myTurn: boolean): void {
+    const shown = this.shownHand();
+    // 손패 타일은 **내 차례가 아니어도** 끌 수 있다 — 기다리는 동안 내 패를 정리하는 용도.
+    // 바닥으로 못 내보내는 건 move() 에서 막는다.
+    this.handEl.innerHTML = shown.length === 0
       ? '<div class="rk-empty">손패를 다 냈어요!</div>'
-      : sorted.map((t) => this.tileHTML(t, myTurn)).join('');
+      : shown.map((t) => this.tileHTML(t, true)).join('');
   }
 
   private drawActions(s: RkRenderState, myTurn: boolean): void {
@@ -255,6 +265,9 @@ export class RummikubRenderer {
       return;
     }
     const moved = this.hand.length !== (this.last?.myHand.length ?? 0);
+    // 되돌리기는 **뭐라도 건드렸으면** 살아 있어야 한다. 손패를 한 장도 안 냈어도
+    // 바닥 조합을 쪼개 놨으면 되돌릴 수 있어야 하는데, 손패 장수만 보고 있었다.
+    const dirty = moved || tableKey(this.work) !== tableKey(this.last?.table ?? []);
     // 깨진 조합이 하나라도 있으면 턴을 못 끝낸다 (테이블 전체를 검사하기 때문).
     // 예전엔 그냥 누르게 두고 "완성되지 않은 조합이 있어요" 만 띄웠는데,
     // 어느 조합이 문제인지 안 짚어줘서 멀쩡한 걸 새로 깔아도 계속 막히는 걸로 보였다.
@@ -279,7 +292,7 @@ export class RummikubRenderer {
       meldInfo = `<span class="rk-meldscore${ok ? ' is-ok' : ''}">${score} / ${FIRST_MELD_MIN}</span>`;
     }
     this.actionEl.innerHTML = pickInfo + meldInfo + SORT_BTN(this.sortMode) + `
-      <button class="rk-btn ghost" id="rk-undo"${moved ? '' : ' disabled'}>되돌리기</button>
+      <button class="rk-btn ghost" id="rk-undo"${dirty ? '' : ' disabled'}>되돌리기</button>
       <button class="rk-btn" id="rk-commit"${moved && bad === 0 ? '' : ' disabled'}>턴 끝내기</button>
       <button class="rk-btn warn" id="rk-draw">한 장 가져오기</button>`;
 
@@ -294,11 +307,36 @@ export class RummikubRenderer {
     });
   }
 
+  private isMyTurn(): boolean {
+    const s = this.last;
+    return !!s && !s.isSpectator && s.turnPeerId === s.myPeerId;
+  }
+
+  /** 지금 화면에 보이는 손패 순서 */
+  private shownHand(): Tile[] {
+    if (this.manualHand) return this.hand.slice();
+    return this.sortMode === 'color' ? sortByColor(this.hand) : sortByNumber(this.hand);
+  }
+
+  /** 내가 늘어놓은 순서를 기억해 둔다 — 다음 sync 에서 그대로 복원하려고 */
+  private rememberHandOrder(): void {
+    this.handOrder = this.hand.map((t) => t.id);
+  }
+
+  /** 서버에서 온 손패를 내가 늘어놓은 순서로 되돌린다. 새로 뽑은 타일은 맨 뒤 */
+  private restoreHandOrder(hand: Tile[]): Tile[] {
+    if (!this.manualHand) return hand.slice();
+    const pos = new Map(this.handOrder.map((id, i) => [id, i]));
+    return hand.slice().sort((a, b) => (pos.get(a.id) ?? Infinity) - (pos.get(b.id) ?? Infinity));
+  }
+
   /** 정렬 버튼은 내 차례일 때도 아닐 때도 같은 자리에 있다 */
   private wireSort(): void {
     this.actionEl.querySelector('#rk-sort')?.addEventListener('click', () => {
       this.sortMode = this.sortMode === 'color' ? 'number' : 'color';
       saveSortMode(this.sortMode);
+      this.manualHand = false; // 정렬을 고르면 내가 늘어놓은 순서는 버린다
+      this.handOrder = [];
       this.boardKey = ''; // 다음 프레임에 손패를 다시 깐다
     });
   }
@@ -307,7 +345,7 @@ export class RummikubRenderer {
     const s = this.last;
     if (!s) return;
     this.work = s.table.map((set) => set.slice());
-    this.hand = s.myHand.slice();
+    this.hand = this.restoreHandOrder(s.myHand);
     this.picked = [];
     this.boardKey = '';
     this.announceWork();
@@ -350,9 +388,21 @@ export class RummikubRenderer {
       return;
     }
 
-    // 기준점 — 목적지 조합에서 insertAt 자리에 있던 타일 id (끝이면 undefined)
+    // 내 차례가 아니면 손패 안에서 자리 바꾸는 것만 된다 (바닥은 못 건드린다)
+    const toHand = to !== 'new' && to.kind === 'hand';
+    if (!this.isMyTurn() && !toHand) return;
+
+    // 손패로 넣는 거면 먼저 보이는 순서대로 배열을 맞춘다.
+    // 안 그러면 화면에서 고른 자리(insertAt)가 내부 배열의 엉뚱한 칸을 가리킨다.
+    if (toHand && !this.manualHand) {
+      this.hand = this.shownHand();
+      this.manualHand = true;
+    }
+
+    // 기준점 — 목적지에서 insertAt 자리에 있던 타일 id (끝이면 undefined)
     const targetIdx = to !== 'new' && to.kind === 'set' ? to.index : -1;
-    const anchorId = targetIdx >= 0 ? this.work[targetIdx]?.[insertAt]?.id : undefined;
+    const anchorId = targetIdx >= 0 ? this.work[targetIdx]?.[insertAt]?.id
+      : toHand ? this.hand[insertAt]?.id : undefined;
 
     const moving: Tile[] = [];
     for (const id of ids) {
@@ -367,7 +417,11 @@ export class RummikubRenderer {
     if (to === 'new') {
       this.work.push(moving);
     } else if (to.kind === 'hand') {
-      this.hand.push(...moving);
+      const at = anchorId === undefined ? this.hand.length
+        : (() => { const i = this.hand.findIndex((t) => t.id === anchorId); return i < 0 ? this.hand.length : i; })();
+      this.hand.splice(at, 0, ...moving);
+      this.manualHand = true;
+      this.rememberHandOrder();
     } else {
       const set = this.work[to.index];
       if (!set) {
@@ -444,8 +498,7 @@ export class RummikubRenderer {
       if (this.picked.length === 0) return;
       const t = this.targetFrom(el);
       if (!t) return;
-      const at = t.to !== 'new' && t.to.kind === 'set'
-        ? this.insertIndexAt(t.el, (e as MouseEvent).clientX) : 0;
+      const at = t.to !== 'new' ? this.insertIndexAt(t.el, (e as MouseEvent).clientX) : 0;
       this.move(this.picked, t.to, at);
     });
 
@@ -473,8 +526,7 @@ export class RummikubRenderer {
       const t = this.targetFrom(e.target as HTMLElement);
       if (!t) { this.dragging = null; return; }
       e.preventDefault();
-      const at = t.to !== 'new' && t.to.kind === 'set'
-        ? this.insertIndexAt(t.el, e.clientX) : 0;
+      const at = t.to !== 'new' ? this.insertIndexAt(t.el, e.clientX) : 0;
       const ids = this.picked.includes(this.dragging) ? this.picked.slice() : [this.dragging];
       this.move(ids, t.to, at);
       this.dragging = null;
