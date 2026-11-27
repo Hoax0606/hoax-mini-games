@@ -215,8 +215,6 @@ export const CHANGELOG: ChangeEntry[] = [
 
 /** '다시 보지 않기' 로 기억해 둔 항목 id */
 const SEEN_KEY = 'hoax:changelogSeen';
-/** 한 번 띄웠으면 이 탭에서는 더 안 띄운다 (방에 들어갔다 메뉴로 돌아올 때마다 뜨면 성가심) */
-const SHOWN_KEY = 'hoax:changelogShown';
 
 function readSeen(): string | null {
   try {
@@ -251,13 +249,19 @@ export function unseenEntries(): ChangeEntry[] {
   return newest ? CHANGELOG.filter((e) => e.date === newest.date) : [];
 }
 
-/** 이 탭에서 팝업을 이미 띄웠는지. 띄우는 쪽이 한 번만 부를 것 */
+/**
+ * 이번에 띄운 페이지에서 팝업을 이미 보여줬는지. 띄우는 쪽이 한 번만 부를 것.
+ *
+ * 일부러 **모듈 변수**다. 방에 들어갔다 메뉴로 돌아오면 메뉴가 다시 그려지는데
+ * 그때마다 뜨면 성가셔서 막는 건데, 그건 새로고침이 아니라 화면 전환일 뿐이다.
+ * sessionStorage 에 적었더니 새로고침(F5·Shift+R)해도 그대로 남아서,
+ * 다시 보지 않기를 안 눌렀는데도 새 탭을 열기 전엔 영영 안 떴다.
+ * 모듈 변수는 새로고침하면 같이 초기화된다 — 그게 바라는 동작이다.
+ */
+let shownThisLoad = false;
+
 export function takeShownFlag(): boolean {
-  try {
-    if (sessionStorage.getItem(SHOWN_KEY)) return false;
-    sessionStorage.setItem(SHOWN_KEY, '1');
-    return true;
-  } catch {
-    return true;
-  }
+  if (shownThisLoad) return false;
+  shownThisLoad = true;
+  return true;
 }
