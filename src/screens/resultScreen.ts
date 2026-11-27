@@ -2028,6 +2028,78 @@ function buildOneCardResultHTML(args: {
 // 다빈치 코드 전용 결과 HTML
 // ============================================
 
+interface CodenamesPlayer { peerId: string; nickname: string; team: 'red' | 'blue'; spymaster: boolean }
+
+function parseCodenamesSummary(summary: Record<string, unknown>): {
+  myPeerId: string; winnerTeam: 'red' | 'blue'; myTeam: 'red' | 'blue' | null;
+  players: CodenamesPlayer[]; left: { red: number; blue: number };
+} | null {
+  if (summary['gameId'] !== 'codenames') return null;
+  const myPeerId = typeof summary['myPeerId'] === 'string' ? (summary['myPeerId'] as string) : null;
+  const winnerTeam = summary['winnerTeam'] === 'red' || summary['winnerTeam'] === 'blue'
+    ? (summary['winnerTeam'] as 'red' | 'blue') : null;
+  if (!myPeerId || !winnerTeam) return null;
+  const raw = summary['players'] as unknown;
+  const players: CodenamesPlayer[] = Array.isArray(raw)
+    ? (raw as Partial<CodenamesPlayer>[])
+        .filter((p) => typeof p.peerId === 'string' && typeof p.nickname === 'string'
+          && (p.team === 'red' || p.team === 'blue'))
+        .map((p) => ({ peerId: p.peerId!, nickname: p.nickname!, team: p.team!, spymaster: p.spymaster === true }))
+    : [];
+  const rawLeft = summary['left'] as { red?: unknown; blue?: unknown } | undefined;
+  return {
+    myPeerId, winnerTeam,
+    myTeam: summary['myTeam'] === 'red' || summary['myTeam'] === 'blue'
+      ? (summary['myTeam'] as 'red' | 'blue') : null,
+    players,
+    left: {
+      red: typeof rawLeft?.red === 'number' ? rawLeft.red : 0,
+      blue: typeof rawLeft?.blue === 'number' ? rawLeft.blue : 0,
+    },
+  };
+}
+
+function buildCodenamesResultHTML(args: {
+  myWinner: 'me' | 'opponent' | null;
+  winnerTeam: 'red' | 'blue'; myTeam: 'red' | 'blue' | null;
+  players: CodenamesPlayer[]; left: { red: number; blue: number };
+  myPeerId: string; isHost: boolean; isSpectator: boolean;
+}): string {
+  const { myWinner, winnerTeam, myTeam, players, left, myPeerId, isHost, isSpectator } = args;
+  const label = (t: 'red' | 'blue'): string => (t === 'red' ? '빨강' : '파랑');
+  const { emoji, title, titleClass } = isSpectator
+    ? { emoji: icon('games', { size: 56, hue: '#2a9488' }), title: `${label(winnerTeam)} 팀 승리`, titleClass: 'result-title-draw' }
+    : winnerVisuals(myWinner);
+  const actionsHTML = buildActionsHTML(isHost);
+
+  const myBlock = isSpectator || !myTeam ? '' : `
+    <div class="result-tetris-rank">${label(myTeam)} 팀</div>
+  `;
+  // 팀별로 묶어서 보여준다 — 누가 스파이마스터였는지가 제일 궁금하다
+  const teamBlock = (t: 'red' | 'blue'): string => `
+    <div class="result-tetris-rank-row ${t === winnerTeam ? 'is-me' : ''}">
+      <span class="result-tetris-rank-badge ${t === winnerTeam ? 'rank-1' : ''}">${label(t)}</span>
+      <span class="result-tetris-rank-name">${players.filter((p) => p.team === t)
+        .map((p) => `${escapeHtml(p.nickname)}${p.spymaster ? ' · 스파이마스터' : ''}${
+          p.peerId === myPeerId ? ' (나)' : ''}`).join(', ')}</span>
+      <span class="result-apple-rank-score">${t === winnerTeam ? '승리' : `${left[t]}장 남김`}</span>
+    </div>`;
+
+  return `
+    <div class="result-card result-card-tetris">
+      <div class="result-emoji">${emoji}</div>
+      <div class="result-title ${titleClass}">${title}</div>
+      ${myBlock}
+      <div class="result-tetris-rankings">
+        <div class="result-tetris-rankings-title">${icon('medal', { size: 18, hue: '#ffb12e' })} 팀</div>
+        ${teamBlock('red')}
+        ${teamBlock('blue')}
+      </div>
+      ${actionsHTML}
+    </div>
+  `;
+}
+
 interface RummikubRankEntry {
   peerId: string; nickname: string; rank: number; left: number; penalty: number;
 }
@@ -2305,6 +2377,7 @@ export function createResultScreenAsHostScreen(args: ResultScreenAsHostArgs): Sc
       const onecard = parseOneCardSummary(result.summary);
       const davinci = parseDavinciSummary(result.summary);
       const rummikub = parseRummikubSummary(result.summary);
+      const codenames = parseCodenamesSummary(result.summary);
       const blueMarble = parseBlueMarbleSummary(result.summary);
       const avalon = parseAvalonSummary(result.summary);
       const fakeArtist = parseFakeArtistSummary(result.summary);
@@ -2345,6 +2418,13 @@ export function createResultScreenAsHostScreen(args: ResultScreenAsHostArgs): Sc
           myLeft: rummikub.myLeft, myPenalty: rummikub.myPenalty,
           rankings: rummikub.rankings, myPeerId: rummikub.myPeerId,
           isHost: true, isSpectator: false,
+        });
+      } else if (codenames) {
+        el.innerHTML = buildCodenamesResultHTML({
+          myWinner: result.winner,
+          winnerTeam: codenames.winnerTeam, myTeam: codenames.myTeam,
+          players: codenames.players, left: codenames.left,
+          myPeerId: codenames.myPeerId, isHost: true, isSpectator: false,
         });
       } else if (reflex) {
         el.innerHTML = buildReflexResultHTML({
@@ -2671,6 +2751,7 @@ export function createResultScreenAsGuestScreen(args: ResultScreenAsGuestArgs): 
       const onecard = parseOneCardSummary(result.summary);
       const davinci = parseDavinciSummary(result.summary);
       const rummikub = parseRummikubSummary(result.summary);
+      const codenames = parseCodenamesSummary(result.summary);
       const blueMarble = parseBlueMarbleSummary(result.summary);
       const avalon = parseAvalonSummary(result.summary);
       const fakeArtist = parseFakeArtistSummary(result.summary);
@@ -2721,6 +2802,14 @@ export function createResultScreenAsGuestScreen(args: ResultScreenAsGuestArgs): 
           myLeft: rummikub.myLeft, myPenalty: rummikub.myPenalty,
           rankings: rummikub.rankings,
           myPeerId: isSpec ? myPeerIdForResult : rummikub.myPeerId,
+          isHost: false, isSpectator: isSpec,
+        });
+      } else if (codenames) {
+        el.innerHTML = buildCodenamesResultHTML({
+          myWinner: result.winner,
+          winnerTeam: codenames.winnerTeam, myTeam: codenames.myTeam,
+          players: codenames.players, left: codenames.left,
+          myPeerId: isSpec ? myPeerIdForResult : codenames.myPeerId,
           isHost: false, isSpectator: isSpec,
         });
       } else if (reflex) {

@@ -1,0 +1,64 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 200" width="320" height="200">
+  <defs>
+    <linearGradient id="cdBg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#ddf2ef"/>
+      <stop offset="1" stop-color="#fff8e1"/>
+    </linearGradient>
+    <filter id="cdShadow" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow dx="0" dy="2.5" stdDeviation="2.4" flood-color="#3a6b63" flood-opacity="0.26"/>
+    </filter>
+  </defs>
+
+  <rect x="0" y="0" width="320" height="200" rx="22" fill="url(#cdBg)"/>
+
+  <!-- 점 데코 -->
+  <circle cx="28" cy="28" r="5" fill="#c5e8e1"/>
+  <circle cx="293" cy="25" r="4" fill="#ffeeb8"/>
+  <circle cx="25" cy="173" r="4" fill="#ffeeb8"/>
+  <circle cx="295" cy="171" r="5" fill="#8ccfc6"/>
+
+  <!-- 별 데코 -->
+  <path d="M46 62l2.4 5.2 5.7.6-4.3 3.8 1.2 5.6-5-2.9-5 2.9 1.2-5.6-4.3-3.8 5.7-.6z" fill="#ffd978"/>
+  <path d="M276 132l2 4.3 4.7.5-3.5 3.1 1 4.6-4.2-2.4-4.2 2.4 1-4.6-3.5-3.1 4.7-.5z" fill="#a8ded6"/>
+
+  <!-- 중앙: 5×4 카드 격자 (팀 색이 섞여 있다) -->
+  <g filter="url(#cdShadow)" transform="translate(74,42)">
+    <!-- 1행 -->
+    <rect x="0"  y="0"  width="32" height="24" rx="5" fill="#fffdf4" stroke="#e8e0cc" stroke-width="1.6"/>
+    <rect x="36" y="0"  width="32" height="24" rx="5" fill="#d3392f"/>
+    <rect x="72" y="0"  width="32" height="24" rx="5" fill="#fffdf4" stroke="#e8e0cc" stroke-width="1.6"/>
+    <rect x="108" y="0" width="32" height="24" rx="5" fill="#2563c9"/>
+    <rect x="144" y="0" width="32" height="24" rx="5" fill="#fffdf4" stroke="#e8e0cc" stroke-width="1.6"/>
+    <!-- 2행 -->
+    <rect x="0"  y="28" width="32" height="24" rx="5" fill="#2563c9"/>
+    <rect x="36" y="28" width="32" height="24" rx="5" fill="#fffdf4" stroke="#e8e0cc" stroke-width="1.6"/>
+    <rect x="72" y="28" width="32" height="24" rx="5" fill="#b9ad92"/>
+    <rect x="108" y="28" width="32" height="24" rx="5" fill="#fffdf4" stroke="#e8e0cc" stroke-width="1.6"/>
+    <rect x="144" y="28" width="32" height="24" rx="5" fill="#d3392f"/>
+    <!-- 3행 — 가운데에 암살자 -->
+    <rect x="0"  y="56" width="32" height="24" rx="5" fill="#fffdf4" stroke="#e8e0cc" stroke-width="1.6"/>
+    <rect x="36" y="56" width="32" height="24" rx="5" fill="#2563c9"/>
+    <rect x="72" y="56" width="32" height="24" rx="5" fill="#241f29"/>
+    <rect x="108" y="56" width="32" height="24" rx="5" fill="#fffdf4" stroke="#e8e0cc" stroke-width="1.6"/>
+    <rect x="144" y="56" width="32" height="24" rx="5" fill="#fffdf4" stroke="#e8e0cc" stroke-width="1.6"/>
+    <!-- 4행 -->
+    <rect x="0"  y="84" width="32" height="24" rx="5" fill="#d3392f"/>
+    <rect x="36" y="84" width="32" height="24" rx="5" fill="#fffdf4" stroke="#e8e0cc" stroke-width="1.6"/>
+    <rect x="72" y="84" width="32" height="24" rx="5" fill="#fffdf4" stroke="#e8e0cc" stroke-width="1.6"/>
+    <rect x="108" y="84" width="32" height="24" rx="5" fill="#b9ad92"/>
+    <rect x="144" y="84" width="32" height="24" rx="5" fill="#2563c9"/>
+  </g>
+
+  <!-- 암살자 칸 위 표식 -->
+  <g transform="translate(162,110)" stroke="#fff" stroke-width="1.6" fill="none" stroke-linecap="round">
+    <path d="M-4.5 -4.5l9 9M4.5 -4.5l-9 9"/>
+  </g>
+
+  <!-- 아래: 힌트 말풍선 -->
+  <g filter="url(#cdShadow)" transform="translate(96,158)">
+    <rect x="0" y="0" width="128" height="28" rx="14" fill="#fdeaea"/>
+    <text x="48" y="19" font-family="Pretendard, system-ui, sans-serif" font-size="14" font-weight="900" fill="#b3261e" text-anchor="middle">타는것</text>
+    <circle cx="100" cy="14" r="11" fill="#ffffff" opacity="0.85"/>
+    <text x="100" y="19" font-family="Pretendard, system-ui, sans-serif" font-size="14" font-weight="900" fill="#b3261e" text-anchor="middle">2</text>
+  </g>
+</svg>

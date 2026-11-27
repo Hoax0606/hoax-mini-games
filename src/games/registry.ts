@@ -33,6 +33,7 @@ import fakeArtistThumbnail from './fake-artist/thumbnail.svg';
 import kordleThumbnail from './kordle/thumbnail.svg';
 import callMyNameThumbnail from './call-my-name/thumbnail.svg';
 import rummikubThumbnail from './rummikub/thumbnail.svg';
+import codenamesThumbnail from './codenames/thumbnail.svg';
 import subwayTypingThumbnail from './subway-typing/thumbnail.svg';
 import theMindThumbnail from './the-mind/thumbnail.svg';
 import davinciCodeThumbnail from './davinci-code/thumbnail.svg';
@@ -633,6 +634,34 @@ export const games: GameEntry[] = [
     load: async () => {
       const mod = await import('./call-my-name');
       return mod.createCallMyName();
+    },
+  },
+  {
+    meta: {
+      id: 'codenames',
+      categories: ['단어', '추리', '두뇌'],
+      name: '코드네임',
+      description: '두 팀으로 나뉘어 단어 25장에서 우리 팀 카드를 찾아요. 스파이마스터만 정답을 보고 힌트는 단어 하나! 암살자를 찍으면 그 자리에서 패배예요.',
+      thumbnail: codenamesThumbnail,
+      minPlayers: 4,
+      maxPlayers: 10,
+      roomOptions: [
+        {
+          key: 'turnLimit',
+          label: '턴 제한 시간',
+          type: 'select',
+          choices: [
+            { value: '60', label: '60초' },
+            { value: '90', label: '90초' },
+            { value: '0', label: '제한 없음' },
+          ],
+          defaultValue: '90',
+        },
+      ],
+    },
+    load: async () => {
+      const mod = await import('./codenames');
+      return mod.createCodenames();
     },
   },
   {
