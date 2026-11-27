@@ -29,6 +29,34 @@ const ROOM_CODE_ALPHABET = '23456789ABCDEFGHJKLMNPQRSTUVWXYZ'; // 32자 (헷갈�
 const PEER_ID_PREFIX = 'hoaxmg-';
 
 // ============================================
+// 연결 진단 로그
+// ============================================
+// 여러 명이 붙은 실전 방에서만 터지는 문제는 개발 장비에서 재현이 안 된다.
+// 다음에 터졌을 때 원인을 볼 수 있게 최근 이벤트를 메모리에 들고 있는다.
+// 브라우저 콘솔에서 `hoaxNet()` 을 치면 쪽 출력된다.
+const NET_LOG_MAX = 120;
+const netLog: { t: number; line: string }[] = [];
+
+export function logNet(line: string): void {
+  netLog.push({ t: Date.now(), line });
+  if (netLog.length > NET_LOG_MAX) netLog.shift();
+}
+
+declare global {
+  interface Window { hoaxNet?: () => void }
+}
+if (typeof window !== 'undefined') {
+  window.hoaxNet = (): void => {
+    const rows = netLog.map((e) => ({
+      시각: new Date(e.t).toLocaleTimeString('ko-KR', { hour12: false }),
+      내용: e.line,
+    }));
+    // eslint-disable-next-line no-console
+    console.table(rows);
+  };
+}
+
+// ============================================
 // 창 닫힘/이탈 시 자동 정리
 // ============================================
 // 탭을 닫거나 다른 페이지로 이동하면 열려있는 Peer 를 전부 destroy 한다.
@@ -134,6 +162,10 @@ export class HostSession {
    * HOST_GRACE_MS 안에 재연결 없으면 그때 진짜 나감 처리.
    */
   private pendingDisconnects = new Map<string, number>();
+  /** 방을 닫았나 — 닫은 뒤엔 재연결을 시도하지 않는다 */
+  private closed = false;
+  /** 브로커 재연결 대기 타이머 */
+  private brokerRetryTimer: number | null = null;
   /** 강퇴/자발적 퇴장 표시 — 이 peer 의 다음 close 는 유예 없이 즉시 제거 */
   private leavingPeers = new Set<string>();
   /**
@@ -174,7 +206,17 @@ export class HostSession {
     registerPeer(peer); // 창 닫힘 시 자동 정리 대상 등록
     this.peer.on('connection', (conn) => this.handleIncoming(conn));
     this.peer.on('error', (err) => {
+      const type = (err as { type?: string }).type ?? 'unknown';
+      logNet(`호스트 peer 에러: ${type} ${String(err).slice(0, 80)}`);
       console.warn('[host] peer error', err);
+    });
+    // 브로커(시그널링 서버) 소켓이 끊기면 지금까지는 그냥 놓았다.
+    // 기존 P2P 연결은 살아있지만 그 상태로는 새 사람이 방에 못 들어온다.
+    // 게스트쪽과 같이 호스트도 다시 붙는다.
+    this.peer.on('disconnected', () => {
+      if (this.closed) return;
+      logNet('호스트 브로커 끊김 → 재연결 시도');
+      this.scheduleBrokerReconnect();
     });
     // 2초마다 모든 게스트에게 ping 날림. HostSession 수명 내내 돌고 close() 에서 정리.
     this.pingIntervalId = window.setInterval(() => this.runPingSweep(), 2000);
@@ -266,10 +308,12 @@ export class HostSession {
           : { accept: false, reason: 'room_full' };
 
         if (decision.accept) {
+          logNet(`join accept: ${msg.nickname} (...${fromPeerId.slice(-6)}) total=${this.acceptedConns.size + 1}`);
           this.acceptedConns.set(fromPeerId, conn);
           safeSend(conn, { type: 'join_accepted', roomState: decision.roomState });
           this.onGuestConnected?.(msg.nickname, fromPeerId);
         } else {
+          logNet(`join reject: ${msg.nickname} - ${decision.reason}`);
           safeSend(conn, { type: 'join_rejected', reason: decision.reason });
           setTimeout(() => conn.close(), 150);
         }
@@ -302,6 +346,7 @@ export class HostSession {
         this.pendingDisconnects.delete(fromPeerId);
         this.leavingPeers.delete(fromPeerId);
         if (this.acceptedConns.get(fromPeerId) === conn) {
+          logNet(`guest gone: ...${fromPeerId.slice(-6)} left=${this.acceptedConns.size - 1}`);
           this.acceptedConns.delete(fromPeerId);
           this._pings.delete(fromPeerId);
           this._lastAckAt.delete(fromPeerId);
@@ -397,7 +442,31 @@ export class HostSession {
   }
 
   /** 방 종료 — 모든 연결 끊고 브로커에서 해제 */
+  /**
+   * 브로커 재연결 — 끊긴 동안에도 기존 P2P 연결은 살아있지만,
+   * 다시 붙어야 새 사람을 받을 수 있다. 점점 더 드물게(최대 10초) 재시도한다.
+   */
+  private scheduleBrokerReconnect(delayMs = 1000): void {
+    if (this.closed || this.peer.destroyed || this.brokerRetryTimer !== null) return;
+    this.brokerRetryTimer = window.setTimeout(() => {
+      this.brokerRetryTimer = null;
+      if (this.closed || this.peer.destroyed) return;
+      if (!this.peer.disconnected) { logNet('호스트 브로커 복구됨'); return; }
+      try {
+        this.peer.reconnect();
+      } catch {
+        /* 이미 재연결 중이거나 불가 — 다음 차시에 다시 본다 */
+      }
+      this.scheduleBrokerReconnect(Math.min(10_000, delayMs * 2));
+    }, delayMs);
+  }
+
   close(): void {
+    this.closed = true;
+    if (this.brokerRetryTimer !== null) {
+      window.clearTimeout(this.brokerRetryTimer);
+      this.brokerRetryTimer = null;
+    }
     if (this.pingIntervalId !== null) {
       window.clearInterval(this.pingIntervalId);
       this.pingIntervalId = null;
@@ -464,6 +533,7 @@ export class GuestSession {
 
     this.attachConn(conn);
     peer.on('error', (err) => {
+      logNet(`guest peer error: ${(err as { type?: string }).type ?? '?'} ${String(err).slice(0, 70)}`);
       console.warn('[guest] peer error', err);
     });
 
@@ -504,9 +574,11 @@ export class GuestSession {
     conn.on('close', () => {
       // 내가 일부러 끊은 게 아니면 = 일시적 끊김일 수 있음 → 바로 포기 말고 재연결 시도
       if (this.closedIntentionally) return;
+      logNet('guest: host conn closed -> reconnecting');
       void this.attemptReconnect();
     });
     conn.on('error', (err) => {
+      logNet(`guest conn error: ${String(err).slice(0, 70)}`);
       console.warn('[guest] conn error', err);
     });
   }
@@ -545,7 +617,10 @@ export class GuestSession {
     }
 
     this.reconnecting = false;
-    if (!this.closedIntentionally) this.onDisconnect?.();
+    if (!this.closedIntentionally) {
+      logNet('guest: reconnect failed -> disconnected');
+      this.onDisconnect?.();
+    }
   }
 
   /** 브로커 연결이 끊겨 있으면 reconnect() 후 다시 붙을 때까지 대기(폴링). */
