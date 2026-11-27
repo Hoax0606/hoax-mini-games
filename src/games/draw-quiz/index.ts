@@ -22,6 +22,7 @@
  *   채우기·지우개·투명 처리는 offscreen 누적 레이어에서 (render.ts 참고).
  */
 
+import { randomStartIndex } from '../_shared/turnOrder';
 import type { GameModule, GameContext, GameMessage, GameResult, Player } from '../types';
 import { sound } from '../../core/sound';
 import {
@@ -129,7 +130,11 @@ class DrawQuizGameModule implements GameModule {
     this.isSpectator = ctx.isSpectator === true;
 
     const playerList = ctx.players.filter((p) => p.role === 'player');
-    const ordered = orderPlayersHostFirst(playerList);
+    const hostFirst = orderPlayersHostFirst(playerList);
+    // 첫 출제자가 항상 방장이었다. 배열을 무작위로 한 번 돌려 출발점만 옮긴다
+    // (돌리기라 서로의 순서 = 시계방향은 그대로다)
+    const rot = randomStartIndex(hostFirst.length);
+    const ordered = [...hostFirst.slice(rot), ...hostFirst.slice(0, rot)];
 
     // 전체 라운드 = 1인당 그리는 횟수 × 인원. 1인당 횟수는 인원 반비례(적으면 많이).
     //   pickNextDrawer 가 한 바퀴 다 돌면 hasDrawn 리셋해 다음 바퀴로 넘어가므로,

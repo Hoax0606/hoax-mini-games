@@ -9,13 +9,14 @@
  *   - 틀린 단어는 거절만(탈락 없음, 재입력). 압박은 오직 폭탄.
  */
 
+import { randomStartIndex } from '../_shared/turnOrder';
 import type { GameModule, GameContext, GameMessage, GameResult, Player } from '../types';
 import { sound } from '../../core/sound';
 import {
   createInitialGame, validateSubmission, applySubmission, seedFromPeers, getNextTurn,
   type WordChainGame, type PlayerIndex,
 } from '../word-chain/rules';
-import { randomBombMs, startTurnFromPeers } from './rules';
+import { randomBombMs } from './rules';
 import {
   encodeHello, decodeHello,
   encodeSync, decodeSync,
@@ -77,7 +78,8 @@ class BombWordChainModule implements GameModule {
       sharedSeed,
     );
     // 랜덤 시작 플레이어 — 전원 동일 계산(공개돼도 무방)
-    this.game.currentTurn = startTurnFromPeers(peerIds, ordered.length) as PlayerIndex;
+    // 선은 무작위. 예전엔 peerId 해시라 같은 방에선 계속 같은 사람이 선이었다
+    this.game.currentTurn = randomStartIndex(ordered.length) as PlayerIndex;
 
     if (!this.isSpectator) {
       this.myIndex = this.game.players.find((p) => p.peerId === this.myPeerId)?.index ?? -1;

@@ -17,6 +17,7 @@
  *   진행/그리기 HUD 도 캔버스가 아니라 HTML(상단 바)로 옮겨 그림을 가리지 않게 했다.
  */
 
+import { randomStartIndex } from '../_shared/turnOrder';
 import type { GameModule, GameContext, GameMessage, GameResult, Player } from '../types';
 import { sound } from '../../core/sound';
 import { icon } from '../../ui/icons';
@@ -160,7 +161,7 @@ class StoryDrawGameModule implements GameModule {
       this.game = createInitialGame(players, totalTurns, durationMs);
       this.mySeat = this.game.seats.findIndex((s) => s.peerId === this.myPeerId);
       this.inited = true;
-      this.startTurnAsHost(0);
+      this.startTurnAsHost(randomStartIndex(this.game.seats.length)); // 선은 무작위
     } else {
       this.ctx.sendToPeer(encodeHello(this.myPeerId));
       this.lastHelloAt = performance.now();

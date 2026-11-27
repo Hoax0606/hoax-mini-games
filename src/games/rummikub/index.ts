@@ -10,6 +10,7 @@
  * 조작하던 건 커밋을 안 했으니 애초에 테이블에 반영된 적이 없다.
  */
 
+import { randomStartIndex } from '../_shared/turnOrder';
 import type { GameContext, GameMessage, GameModule, GameResult, Player } from '../types';
 import {
   buildDeck, shuffle, validateCommit, normalizeSet, handPenalty, START_HAND,
@@ -91,8 +92,9 @@ class RummikubModule implements GameModule {
         melded: false,
       }));
       this.pool = deck;
-      this.turnIdx = 0;
-      this.turnPeerId = this.seats[0]?.peerId ?? null;
+      // 선은 매판 무작위. 자리 순서는 그대로라 도는 방향은 같다
+      this.turnIdx = randomStartIndex(this.seats.length);
+      this.turnPeerId = this.seats[this.turnIdx]?.peerId ?? null;
       this.news = '첫 등록은 30점 이상이어야 해요';
       this.armTurn();
       this.broadcast();

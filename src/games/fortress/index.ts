@@ -11,6 +11,7 @@
  * 입력: 자기 차례에 드래그(반대 방향 발사) — 알까기/다트와 동일 규약.
  */
 
+import { randomStartIndex } from '../_shared/turnOrder';
 import type { GameModule, GameContext, GameMessage, GameResult, Player } from '../types';
 import { sound } from '../../core/sound';
 import {
@@ -234,6 +235,10 @@ class FortressGameModule implements GameModule {
       ordered.map((p) => ({ peerId: p.peerId, nickname: p.nickname })),
       seed, wind0, fortsPerPlayer, weaponMode,
     );
+    // 선은 무작위 — 호스트가 정하고 sync 로 내려보낸다
+    if (this.isHost && this.game.forts.length > 0) {
+      this.game.currentTurn = this.game.forts[randomStartIndex(this.game.forts.length)]!.id;
+    }
     this.hm = generateTerrain(this.game.seed, this.game.terrainWidth);
     this.ready = this.isHost; // 호스트는 자기 생성이라 즉시 준비. 게스트는 sync 후.
 

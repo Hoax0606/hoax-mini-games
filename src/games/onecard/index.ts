@@ -6,6 +6,7 @@
  * 호스트 본인의 플레이 입력은 네트워크를 거치지 않고 핸들러를 직접 호출한다.
  */
 
+import { randomStartIndex } from '../_shared/turnOrder';
 import type { GameContext, GameMessage, GameModule, GameResult, Player } from '../types';
 import { sound } from '../../core/sound';
 import {
@@ -298,7 +299,7 @@ class OneCardGame implements GameModule {
     }
     this.discard = first ? [first] : [{ color: 'r', kind: '0' }];
     this.activeColor = (this.discard[0]!.color as Color);
-    this.currentTurn = 0;
+    this.currentTurn = randomStartIndex(this.order.length); // 선은 매판 무작위
     this.direction = 1;
     this.finished = [];
     this.out = [];

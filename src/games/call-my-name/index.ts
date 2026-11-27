@@ -18,6 +18,7 @@
  * (받는 사람 자기 단어만 지워서). 자세한 건 netSync 주석 참고.
  */
 
+import { randomStartIndex } from '../_shared/turnOrder';
 import type { GameContext, GameMessage, GameModule, GameResult, Player } from '../types';
 import {
   THEMES, parseTheme, resolveTheme, pickWords, isCorrect, nextTurn, isOver, rankSort,
@@ -113,8 +114,9 @@ class CallMyNameModule implements GameModule {
         rank: 0,
         tries: 0,
       }));
-      this.turnIdx = 0;
-      this.turnPeerId = this.players[0]?.peerId ?? null;
+      // 선은 매판 무작위 (자리 순서는 그대로)
+      this.turnIdx = randomStartIndex(this.players.length);
+      this.turnPeerId = this.players[this.turnIdx]?.peerId ?? null;
       this.news = `주제는 ${this.themeLabel}`;
       this.openRound();
     } else {

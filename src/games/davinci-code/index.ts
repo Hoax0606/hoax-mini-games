@@ -9,6 +9,7 @@
  *    예외를 하나라도 두면 호스트만 다 보이는 상태가 되는데, 화면만 봐선 티가 안 난다.
  */
 
+import { randomStartIndex } from '../_shared/turnOrder';
 import type { GameContext, GameMessage, GameModule, GameResult, Player } from '../types';
 import {
   JOKER, buildDeck, shuffle, startHandSize, insertIndexFor, insertAt,
@@ -88,7 +89,7 @@ export function createDavinciCode(): GameModule {
     }
     pool = deck;
     turnLimit = parseTurnLimit(ctx!.roomOptions['turnLimit']);
-    turnIndex = 0;
+    turnIndex = randomStartIndex(players.length); // 선은 매판 무작위
 
     if (placeQueue.length > 0) {
       phase = 'place';

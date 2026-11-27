@@ -13,6 +13,7 @@
  * 라운드 수는 방 옵션. 0 이면 무제한이고, 방장이 '게임 끝내기' 를 눌러야 끝난다.
  */
 
+import { randomStartIndex } from '../_shared/turnOrder';
 import type { GameContext, GameMessage, GameModule, GameResult, Player } from '../types';
 import {
   MAX_TRIES, decompose, findComposition, judgeGuess, roundScore, emptyPlayerRound,
@@ -106,6 +107,8 @@ class KordleModule implements GameModule {
 
   // --- 호스트 전용 ---
   private seats: Seat[] = [];
+  /** 첫 출제자 출발점 (게임당 한 번 무작위). -1 = 아직 안 정함 */
+  private setterBase = -1;
   private leftPeers = new Set<string>();
   private answer = '';
   private rounds = new Map<string, PlayerRound>();
@@ -247,7 +250,9 @@ class KordleModule implements GameModule {
 
     // 출제자 로테이션. 혼자면 출제자 없이 랜덤 정답
     const solo = seats.length < 2;
-    const setter = solo ? null : seats[(next - 1) % seats.length]!;
+    // 첫 출제자도 무작위 — 안 그러면 항상 방장이 먼저 낸다
+    if (this.setterBase < 0) this.setterBase = randomStartIndex(seats.length);
+    const setter = solo ? null : seats[(this.setterBase + next - 1) % seats.length]!;
 
     this.pub.round = next;
     this.pub.setterPeerId = setter?.peerId ?? null;

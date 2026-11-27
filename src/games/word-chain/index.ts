@@ -18,6 +18,7 @@
  *   turnStartedAt 보정 + 입력창 disable.
  */
 
+import { randomStartIndex } from '../_shared/turnOrder';
 import type { GameModule, GameContext, GameMessage, GameResult, Player } from '../types';
 import { sound } from '../../core/sound';
 import {
@@ -93,6 +94,9 @@ class WordChainGameModule implements GameModule {
         ordered.map((p) => ({ peerId: p.peerId, nickname: p.nickname })),
         sharedSeed,
       );
+      // 선은 무작위 — 자리 순서는 그대로라 도는 방향은 같다.
+      // 게스트는 곧 오는 sync 로 맞춰진다
+      this.game.currentTurn = randomStartIndex(this.game.players.length) as typeof this.game.currentTurn;
       this.game.turnStartedAt = performance.now();
     } else {
       // 게스트도 같은 시드로 생성 → 시작 단어 일치. 이후 상태는 호스트 broadcast 로 동기화.

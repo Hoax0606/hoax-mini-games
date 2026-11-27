@@ -8,6 +8,7 @@
  * 흐름: 역할배정 → 힌트 2바퀴(타이핑) → 비밀투표 → (지목=라이어면)추측 → 결과 → 다음 라운드.
  */
 
+import { randomStartIndex } from '../_shared/turnOrder';
 import type { GameModule, GameContext, GameMessage, GameResult, Player } from '../types';
 import { sound } from '../../core/sound';
 import {
@@ -55,6 +56,8 @@ class LiarGameModule implements GameModule {
   private myRoleRound = -1;
 
   // 호스트 전용 비밀 상태
+  /** 선 출발점 (게임당 한 번 무작위로 정한다). -1 = 아직 안 정함 */
+  private firstSpeakerBase = -1;
   private realKeyword = '';
   private fakeKeyword = '';
   private liarPeerId = '';
@@ -319,8 +322,10 @@ class LiarGameModule implements GameModule {
     this.revealVotes = null;
 
     // 시작 순서 로테이션 — 라운드마다 시작 플레이어를 한 칸씩 밀어 시계방향으로 돌게.
+    // 출발점은 게임당 한 번 무작위로 뽑는다 — 안 그러면 1라운드 선이 항상 방장이다.
     const base = players.map((p) => p.peerId);
-    const startIdx = (this.game.round - 1) % base.length;
+    if (this.firstSpeakerBase < 0) this.firstSpeakerBase = randomStartIndex(base.length);
+    const startIdx = (this.firstSpeakerBase + this.game.round - 1) % base.length;
     const order = [...base.slice(startIdx), ...base.slice(0, startIdx)];
     resetForRound(this.game, picked.category, order);
 

@@ -8,6 +8,7 @@
  * 그림은 공유 — 호스트가 authoritative 로 strokes 에 쌓고 fa:sync 로 전파(턴제라 스트로크당 sync 로 충분).
  */
 
+import { randomStartIndex } from '../_shared/turnOrder';
 import type { GameModule, GameContext, GameMessage, GameResult, Player } from '../types';
 import { sound } from '../../core/sound';
 import { pickRound } from '../liar-game/words';
@@ -61,6 +62,8 @@ class FakeArtistModule implements GameModule {
   private lastActionResendAt = 0;
 
   // 호스트 전용 비밀
+  /** 선 출발점 (게임당 한 번 무작위). -1 = 아직 안 정함 */
+  private firstDrawerBase = -1;
   private realWord = '';
   private fakePeerId = '';
   private hostVotes: Record<string, string> = {};
@@ -361,7 +364,9 @@ class FakeArtistModule implements GameModule {
     this.realWord = keyword;
 
     const n = this.game.players.length;
-    const startIdx = (this.game.round - 1) % n;
+    // 선 출발점은 게임당 한 번 무작위 — 매판 방장이 먼저 그리면 재미가 없다
+    if (this.firstDrawerBase < 0) this.firstDrawerBase = randomStartIndex(n);
+    const startIdx = (this.firstDrawerBase + this.game.round - 1) % n;
     const ids = this.game.players.map((p) => p.peerId);
     const order = [...ids.slice(startIdx), ...ids.slice(0, startIdx)];
     resetForRound(this.game, category, order);

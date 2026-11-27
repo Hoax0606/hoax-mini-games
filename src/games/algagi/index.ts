@@ -16,6 +16,7 @@
  *   allAtRest → resolveTurnEnd → (게임 끝났으면) ag:end per-peer 송신.
  */
 
+import { randomStartIndex } from '../_shared/turnOrder';
 import type { GameModule, GameContext, GameMessage, GameResult, Player } from '../types';
 import { sound } from '../../core/sound';
 import {
@@ -114,6 +115,8 @@ class AlgagiGameModule implements GameModule {
       this.game = createInitialGame(
         ordered.map((p) => ({ peerId: p.peerId, nickname: p.nickname })),
       );
+      // 선은 무작위 (게스트는 곧 오는 sync 로 맞춰진다)
+      this.game.currentTurn = randomStartIndex(this.game.players.length) as typeof this.game.currentTurn;
     } else {
       // 게스트/관전자는 호스트가 ag:sync 보낼 때까지 placeholder. 호스트가 보내면 game 갱신.
       const ordered = orderPlayersHostFirst(playerList, '');
