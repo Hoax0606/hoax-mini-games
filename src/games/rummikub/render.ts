@@ -70,8 +70,11 @@ export class RummikubRenderer {
   private hand: Tile[] = [];
   /** 이번 턴 시작 시점에 테이블에 있던 타일 (손패로 되돌릴 수 없는 것들) */
   private serverTableIds = new Set<number>();
-  /** 탭으로 고른 타일 id */
-  private picked: number | null = null;
+  /**
+   * 탭으로 고른 타일들 (고른 순서 그대로).
+   * 여러 장을 고르고 한 번에 옮길 수 있다 — 조합 하나를 통째로 옮길 때 필요하다.
+   */
+  private picked: number[] = [];
   /** 드래그 중인 타일 id */
   private dragging: number | null = null;
   private sortMode: 'color' | 'number' = 'color';
@@ -127,7 +130,7 @@ export class RummikubRenderer {
     this.work = s.table.map((set) => set.slice());
     this.hand = s.myHand.slice();
     this.serverTableIds = new Set(s.table.flat().map((t) => t.id));
-    this.picked = null;
+    this.picked = [];
     this.dragging = null;
     this.boardKey = '';
     if (myTurn && !this.myTurnBefore) this.rejectText = '';
@@ -150,7 +153,7 @@ export class RummikubRenderer {
       this.work = s.table.map((set) => set.slice());
       this.hand = s.myHand.slice();
       this.serverTableIds = new Set(s.table.flat().map((t) => t.id));
-      this.picked = null;
+      this.picked = [];
       this.boardKey = '';
     }
 
@@ -160,7 +163,7 @@ export class RummikubRenderer {
     const key = [
       this.work.map((set) => set.map((t) => t.id).join('.')).join('|'),
       this.hand.map((t) => t.id).join('.'),
-      this.picked ?? '', myTurn, this.sortMode,
+      this.picked.join('.'), myTurn, this.sortMode,
     ].join('#');
     if (key !== this.boardKey) {
       this.boardKey = key;
@@ -196,7 +199,7 @@ export class RummikubRenderer {
 
   private tileHTML(t: Tile, movable: boolean): string {
     const cls = ['rk-tile', `c-${t.color}`, t.joker ? 'is-joker' : '',
-      movable ? 'is-movable' : '', this.picked === t.id ? 'is-picked' : ''].filter(Boolean).join(' ');
+      movable ? 'is-movable' : '', this.picked.includes(t.id) ? 'is-picked' : ''].filter(Boolean).join(' ');
     return `<button class="${cls}" data-tile="${t.id}"${movable ? ' draggable="true"' : ''}>${
       t.joker ? JOKER_FACE : t.num}</button>`;
   }
@@ -230,7 +233,11 @@ export class RummikubRenderer {
       return;
     }
     const moved = this.hand.length !== (this.last?.myHand.length ?? 0);
-    this.actionEl.innerHTML = `
+    // 몇 장 고랐는지 보여준다 — 여러 장 모아 한 번에 옮길 수 있는 걸 모르면 안 쓴다
+    const pickInfo = this.picked.length > 0
+      ? `<span class="rk-pickinfo">${this.picked.length}장 고름 · 놓을 자리를 누르세요</span>`
+      : '';
+    this.actionEl.innerHTML = pickInfo + `
       <button class="rk-btn ghost" id="rk-sort">${this.sortMode === 'color' ? '숫자순' : '색깔순'}</button>
       <button class="rk-btn ghost" id="rk-undo"${moved ? '' : ' disabled'}>되돌리기</button>
       <button class="rk-btn" id="rk-commit"${moved ? '' : ' disabled'}>턴 끝내기</button>
@@ -255,7 +262,7 @@ export class RummikubRenderer {
     if (!s) return;
     this.work = s.table.map((set) => set.slice());
     this.hand = s.myHand.slice();
-    this.picked = null;
+    this.picked = [];
     this.boardKey = '';
   }
 
@@ -274,36 +281,53 @@ export class RummikubRenderer {
   }
 
   /** 타일 하나를 목적지로 옮긴다. to.index === -1 이면 새 조합 */
-  private move(id: number, to: Spot | 'new', insertAt: number): void {
-    const found = this.findTile(id);
-    if (!found) return;
+  /**
+   * 고른 타일들을 목적지로 옮긴다 (고른 순서 그대로 나란히).
+   *
+   * 여러 장을 한꺼번에 옮길 때 자리 계산이 까다롭다 — 하나씩 빼내면 뒤 타일의 자리가
+   * 계속 당겨지기 때문이다. 그래서 **빼내기 전에** "이 타일 앞에 넣는다" 는 기준점을
+   * 잡아두고, 다 빼낸 뒤 그 기준점을 다시 찾아 거기에 끼운다.
+   */
+  private move(ids: number[], to: Spot | 'new', insertAt: number): void {
+    if (ids.length === 0) return;
     // 테이블에 원래 있던 타일은 손패로 못 간다 (가져가기 금지)
-    if (to !== 'new' && to.kind === 'hand' && this.serverTableIds.has(id)) {
+    if (to !== 'new' && to.kind === 'hand' && ids.some((id) => this.serverTableIds.has(id))) {
       this.showReject('테이블 타일은 손으로 가져올 수 없어요');
       return;
     }
 
-    // 먼저 빼낸다
-    if (found.from.kind === 'hand') this.hand.splice(found.pos, 1);
-    else this.work[found.from.index]!.splice(found.pos, 1);
+    // 기준점 — 목적지 조합에서 insertAt 자리에 있던 타일 id (끝이면 undefined)
+    const targetIdx = to !== 'new' && to.kind === 'set' ? to.index : -1;
+    const anchorId = targetIdx >= 0 ? this.work[targetIdx]?.[insertAt]?.id : undefined;
+
+    const moving: Tile[] = [];
+    for (const id of ids) {
+      const f = this.findTile(id);
+      if (!f) continue;
+      if (f.from.kind === 'hand') this.hand.splice(f.pos, 1);
+      else this.work[f.from.index]!.splice(f.pos, 1);
+      moving.push(f.tile);
+    }
+    if (moving.length === 0) return;
 
     if (to === 'new') {
-      this.work.push([found.tile]);
+      this.work.push(moving);
     } else if (to.kind === 'hand') {
-      this.hand.push(found.tile);
+      this.hand.push(...moving);
     } else {
       const set = this.work[to.index];
-      if (!set) { this.work.push([found.tile]); }
-      else {
-        // 같은 조합 안에서 뒤로 옮기면 빼낸 만큼 자리가 당겨진다
-        let at = insertAt;
-        if (found.from.kind === 'set' && found.from.index === to.index && found.pos < insertAt) at -= 1;
-        set.splice(Math.max(0, Math.min(set.length, at)), 0, found.tile);
+      if (!set) {
+        this.work.push(moving);
+      } else {
+        // 기준점이 같이 옮겨졌으면(= 더 이상 없음) 맨 뒤에 붙인다
+        const at = anchorId === undefined ? set.length
+          : (() => { const i = set.findIndex((t) => t.id === anchorId); return i < 0 ? set.length : i; })();
+        set.splice(at, 0, ...moving);
       }
     }
     // 빈 조합은 치운다
     this.work = this.work.filter((set) => set.length > 0);
-    this.picked = null;
+    this.picked = [];
     this.boardKey = '';
   }
 
@@ -335,22 +359,26 @@ export class RummikubRenderer {
       const tileEl = el.closest<HTMLElement>('[data-tile]');
       if (tileEl && tileEl.classList.contains('is-movable')) {
         const id = Number(tileEl.dataset['tile']);
-        if (this.picked === null) { this.picked = id; this.boardKey = ''; return; }
-        if (this.picked === id) { this.picked = null; this.boardKey = ''; return; }
-        // 고른 타일을 이 타일 자리로
-        const t = this.targetFrom(tileEl);
-        if (t && t.to !== 'new' && t.to.kind === 'set') {
-          const r = tileEl.getBoundingClientRect();
-          const setEl = tileEl.closest<HTMLElement>('[data-set]')!;
-          const at = this.insertIndexAt(setEl, r.left + 1);
-          this.move(this.picked, t.to, at);
+        // 이미 고른 타일을 다시 누르면 선택 해제 (내려온다)
+        if (this.picked.includes(id)) {
+          this.picked = this.picked.filter((x) => x !== id);
+          this.boardKey = '';
           return;
         }
-        this.picked = id;
+        // 고른 게 있고 이 타일이 테이블에 있으면 → "이 타일 앞" 이 목적지
+        const t = this.targetFrom(tileEl);
+        if (this.picked.length > 0 && t && t.to !== 'new' && t.to.kind === 'set') {
+          const setEl = tileEl.closest<HTMLElement>('[data-set]')!;
+          const r = tileEl.getBoundingClientRect();
+          this.move(this.picked, t.to, this.insertIndexAt(setEl, r.left + 1));
+          return;
+        }
+        // 그 외엔 선택에 추가 (여러 장을 모아서 한 번에 옮긴다)
+        this.picked.push(id);
         this.boardKey = '';
         return;
       }
-      if (this.picked === null) return;
+      if (this.picked.length === 0) return;
       const t = this.targetFrom(el);
       if (!t) return;
       const at = t.to !== 'new' && t.to.kind === 'set'
@@ -363,7 +391,8 @@ export class RummikubRenderer {
       const tileEl = (e.target as HTMLElement).closest<HTMLElement>('[data-tile]');
       if (!tileEl || !tileEl.classList.contains('is-movable')) { e.preventDefault(); return; }
       this.dragging = Number(tileEl.dataset['tile']);
-      this.picked = null;
+      // 고른 묶음 중 하나를 끌면 묶음째 옮긴다. 아니면 그 한 장만 (선택은 버린다)
+      if (!this.picked.includes(this.dragging)) this.picked = [];
       e.dataTransfer?.setData('text/plain', String(this.dragging));
       if (e.dataTransfer) e.dataTransfer.effectAllowed = 'move';
     });
@@ -381,7 +410,8 @@ export class RummikubRenderer {
       e.preventDefault();
       const at = t.to !== 'new' && t.to.kind === 'set'
         ? this.insertIndexAt(t.el, e.clientX) : 0;
-      this.move(this.dragging, t.to, at);
+      const ids = this.picked.includes(this.dragging) ? this.picked.slice() : [this.dragging];
+      this.move(ids, t.to, at);
       this.dragging = null;
     });
     this.root.addEventListener('dragend', () => { this.dragging = null; });
@@ -453,6 +483,7 @@ const CSS = `
 
 .rk-actions{flex:0 0 auto;display:flex;gap:6px;justify-content:center;align-items:center;}
 .rk-hint{font-size:12.5px;color:var(--text-muted);}
+.rk-pickinfo{font-size:12px;font-weight:800;color:var(--accent);margin-right:4px;}
 .rk-btn{font:inherit;font-weight:800;font-size:13px;color:#fff;background:var(--accent);
   border:none;border-radius:var(--radius-full);padding:8px 16px;cursor:pointer;}
 .rk-btn:hover{background:var(--accent-hover);}
