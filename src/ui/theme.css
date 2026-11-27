@@ -3900,9 +3900,10 @@ input {
 /* ============================================
    메뉴 — 프로스티드 카드(A안) + 컬러 아이콘
    ============================================ */
+/* 항목이 6개라 세로 620px 노트북에서 딱 맞는다 — gap/margin 을 더 키우면 넘친다 */
 .menu-card {
-  display: flex; flex-direction: column; gap: 10px;
-  width: 360px; max-width: 92vw; margin: 28px auto 0;
+  display: flex; flex-direction: column; gap: 8px;
+  width: 360px; max-width: 92vw; margin: 18px auto 0;
   background: rgba(255, 255, 255, .5);
   backdrop-filter: blur(18px) saturate(160%);
   border: 1px solid rgba(255, 255, 255, .75);
@@ -4186,3 +4187,119 @@ input {
 .spec-info-label { color: var(--text-muted); font-weight: 700; }
 .spec-info-value { font-weight: 900; color: var(--text-main); text-align: right; }
 .spec-info-row.is-hot .spec-info-value { color: var(--warn); }
+
+/* ============================================
+   새 소식 팝업 + 변경 로그
+   팝업(ui/newsPopup.ts)과 로그 화면(screens/changelog.ts)이
+   뱃지·목록 스타일을 같이 쓴다.
+   ============================================ */
+
+.news-kind {
+  flex: 0 0 auto;
+  font-size: 10.5px;
+  font-weight: 900;
+  padding: 2px 9px;
+  border-radius: var(--radius-full);
+  border: 1px solid transparent;
+  white-space: nowrap;
+}
+/* 노랑은 "새 게임" 하나에만. 제일 반가운 소식이라 여기만 튀게 둔다 */
+.news-kind.k-game    { color: var(--highlight-ink); background: var(--highlight-soft); border-color: var(--highlight); }
+.news-kind.k-fix     { color: var(--accent); background: var(--accent-soft); border-color: var(--accent-soft); }
+.news-kind.k-feature { color: var(--mint-500); background: var(--mint-100); border-color: var(--mint-200); }
+
+.news-items { margin: 0; padding-left: 17px; }
+.news-items li {
+  font-size: 13px;
+  color: var(--text-muted);
+  line-height: 1.65;
+  word-break: keep-all;
+}
+.news-items li::marker { color: var(--accent); }
+
+/* --- 접속 팝업 --- */
+.news-card { width: min(94vw, 460px); text-align: left; }
+.news-card .confirm-icon,
+.news-card .confirm-title { text-align: center; }
+.news-body {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+  margin: 14px 0 20px;
+  /* 공지가 여러 건 밀려 있어도 버튼이 화면 밖으로 안 나가게 */
+  max-height: min(46vh, 320px);
+  overflow-y: auto;
+}
+.news-entry-head { display: flex; align-items: center; gap: 7px; margin-bottom: 5px; }
+.news-entry-title { font-size: 14px; font-weight: 800; color: var(--text-main); }
+
+/* --- 변경 로그 화면: 세로 타임라인 --- */
+.cl-list { position: relative; padding-left: 26px; margin-top: 18px; }
+.cl-list::before {
+  content: "";
+  position: absolute;
+  left: 5px; top: 10px; bottom: 10px;
+  width: 2px;
+  background: var(--teal-300);   /* --border 는 배경에 묻혀서 한 단계 진하게 */
+  border-radius: 2px;
+}
+.cl-day { position: relative; margin-bottom: 22px; }
+.cl-day::before {
+  content: "";
+  position: absolute;
+  left: -26px; top: 4px;
+  width: 12px; height: 12px;
+  border-radius: 50%;
+  background: var(--accent);
+  border: 2px solid var(--bg-main);
+}
+.cl-date {
+  display: flex;
+  align-items: baseline;
+  gap: 7px;
+  font-size: 14.5px;
+  font-weight: 900;
+  color: var(--text-main);
+  margin-bottom: 9px;
+}
+.cl-year { font-size: 11px; font-weight: 700; color: var(--text-muted); }
+.cl-entry {
+  background: var(--bg-card);
+  border: 1.5px solid var(--border-soft);
+  border-radius: var(--radius-md);
+  padding: 12px 14px;
+  margin-bottom: 8px;
+}
+.cl-entry-head { display: flex; align-items: center; gap: 7px; margin-bottom: 6px; }
+.cl-entry-title { font-size: 14px; font-weight: 800; color: var(--text-main); }
+
+/* 메뉴의 "변경 로그" 버튼 오른쪽 끝에 찍히는 새 소식 점 */
+.menu-news-dot {
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  background: var(--warn);
+  flex: 0 0 auto;
+}
+
+/* 변경 로그의 작은 게임 카드 (ui/gameCardMini.ts) */
+.mini-game {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  margin: 8px 0 10px;
+  padding: 7px;
+  background: var(--bg-inset);
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius-md);
+}
+.mini-game-thumb {
+  flex: 0 0 auto;
+  width: 108px;
+  aspect-ratio: 320 / 200;   /* 썸네일 규약 viewBox 와 같은 비율 */
+  object-fit: cover;
+  border-radius: 10px;
+  display: block;
+}
+.mini-game-info { min-width: 0; }
+.mini-game-name { font-size: 14.5px; font-weight: 900; color: var(--text-main); }
+.mini-game-meta { font-size: 11.5px; font-weight: 700; color: var(--text-muted); margin-top: 3px; }

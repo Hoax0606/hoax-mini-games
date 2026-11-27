@@ -11,6 +11,9 @@ import { clearChatHistory } from '../ui/chat';
 import { escapeHtml } from '../ui/escape';
 import { icon } from '../ui/icons';
 import { showBirthdayEvent } from '../ui/birthdayEvent';
+import { showNewsPopup } from '../ui/newsPopup';
+import { unseenEntries, takeShownFlag } from '../data/changelog';
+import { createChangelogScreen } from './changelog';
 import { sound } from '../core/sound';
 
 /**
@@ -29,8 +32,10 @@ export function createMenuScreen(): Screen {
       // 각 메뉴 아이콘 색 (컬러 모드 — iOS 설정처럼 항목별 파스텔 색)
       const HUE = {
         create: '#2a9488', find: '#5b9dff', games: '#a06bff',
-        stats: '#2eb872', settings: '#9a86c0',
+        stats: '#2eb872', log: '#ffb12e', settings: '#9a86c0',
       };
+      // 아직 안 본 변경 내역이 있으면 버튼에 점을 하나 찍는다 (팝업을 그냥 닫아도 남는다)
+      const hasNews = unseenEntries().length > 0;
       el.innerHTML = `
         <div style="text-align: center;">
           <div class="logo pop-in">Hoax Minigames</div>
@@ -52,6 +57,10 @@ export function createMenuScreen(): Screen {
             </button>
             <button class="btn btn-secondary btn-block" id="btn-stats">
               ${icon('chart', { size: 22, hue: HUE.stats })}<span class="btn-label">통계</span>
+            </button>
+            <button class="btn btn-secondary btn-block" id="btn-changelog">
+              ${icon('list', { size: 22, hue: HUE.log })}<span class="btn-label">변경 로그</span>
+              ${hasNews ? '<span class="menu-news-dot" title="새 소식"></span>' : ''}
             </button>
             <button class="btn btn-secondary btn-block" id="btn-settings">
               ${icon('settings', { size: 22, hue: HUE.settings })}<span class="btn-label">설정</span>
@@ -82,6 +91,10 @@ export function createMenuScreen(): Screen {
       };
       el.querySelector('#btn-nickname')!.addEventListener('click', goNickname);
 
+      el.querySelector('#btn-changelog')!.addEventListener('click', () => {
+        router.push(() => createChangelogScreen());
+      });
+
       el.querySelector('#btn-settings')!.addEventListener('click', () => {
         router.push(() => createSettingsScreen());
       });
@@ -101,6 +114,14 @@ export function createMenuScreen(): Screen {
       } else {
         // 평소 메뉴 — 잔잔한 로비 BGM. 게임/대기실 진입 시 그쪽 BGM 으로 교체됨.
         sound.startBgm('menu');
+
+        // 새 소식 팝업 — 접속하고 메뉴가 처음 뜰 때 딱 한 번.
+        // 방에 들어갔다 메뉴로 돌아올 때마다 뜨면 성가셔서 탭 단위로 한 번만 띄운다.
+        // (생일 이벤트가 뜨는 날엔 겹치지 않게 건너뛴다)
+        const news = unseenEntries();
+        if (news.length > 0 && takeShownFlag()) {
+          window.setTimeout(() => showNewsPopup(news), 420);
+        }
       }
 
       return el;

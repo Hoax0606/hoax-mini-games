@@ -1,0 +1,258 @@
+/**
+ * 변경 로그 — 새 게임 출시 / 버그 수정 기록.
+ *
+ * 이 배열 하나를 두 곳에서 쓴다:
+ *   · 접속하면 뜨는 새 소식 팝업 (ui/newsPopup.ts)
+ *   · 메뉴의 "변경 로그" 화면 (screens/changelog.ts)
+ *
+ * ⚠️ 항목을 추가할 때
+ *   1. **맨 위에** 넣는다 (배열 순서 = 화면 순서, 최신이 위).
+ *   2. `id` 는 한 번 정하면 절대 바꾸지 않는다 — 사람들이 "다시 보지 않기" 로
+ *      기억해 둔 값이라, 바꾸면 이미 본 공지가 전부 다시 뜬다.
+ *   3. 같은 날 여러 건이면 항목을 나눠 넣어도 된다 (날짜가 겹쳐도 괜찮다).
+ */
+
+export type ChangeKind = 'game' | 'fix' | 'feature';
+
+export interface ChangeEntry {
+  /** 유일 식별자. 보통 `날짜-주제`. 한 번 정하면 바꾸지 말 것 */
+  id: string;
+  /** YYYY-MM-DD */
+  date: string;
+  kind: ChangeKind;
+  title: string;
+  /** 본문 줄들. 한 줄에 한 가지만 */
+  items: string[];
+  /**
+   * 새 게임 출시 항목이면 그 게임의 registry id.
+   * 있으면 썸네일 카드를 같이 보여준다 — 이름만 적어두면 어떤 게임인지 감이 안 온다.
+   */
+  gameId?: string;
+}
+
+export const KIND_LABEL: Record<ChangeKind, string> = {
+  game: '새 게임',
+  fix: '버그 수정',
+  feature: '새 기능',
+};
+
+/** 최신이 맨 위 */
+export const CHANGELOG: ChangeEntry[] = [
+  {
+    id: '2026-11-27-kraken',
+    gameId: 'kraken',
+    date: '2026-11-27',
+    kind: 'game',
+    title: '노 터치 크라켄 추가',
+    items: [
+      '탐험대와 해적으로 갈려 서로의 카드를 뒤집는 추리 게임이에요 (3~6인)',
+      '보물을 다 찾으면 탐험대 승, 크라켄이 깨어나거나 4라운드를 버티면 해적 승',
+      '내 카드도 어느 게 뭔지는 몰라요 — 몇 장 들었는지만 알고 입으로 속이는 게 전부예요',
+    ],
+  },
+  {
+    id: '2026-11-27-changelog',
+    date: '2026-11-27',
+    kind: 'feature',
+    title: '변경 로그와 새 소식 알림',
+    items: [
+      '새 게임이 나오거나 고친 게 생기면 접속할 때 알려드려요',
+      '메뉴의 변경 로그에서 지난 내역을 전부 볼 수 있어요',
+      '채팅 말풍선 사이를 좁히고, 같은 사람이 연달아 말하면 닉네임 줄을 생략해요',
+    ],
+  },
+  {
+    id: '2026-11-27-play',
+    date: '2026-11-27',
+    kind: 'fix',
+    title: '게임 진행 손질',
+    items: [
+      '모든 게임에서 선을 방장 고정이 아니라 무작위로 정해요',
+      '늑대인간 토론 중에 바로 투표 버튼이 생겼어요 — 다 같이 누르면 바로 투표로 넘어가요',
+      '양세찬 게임을 질문 한 번 → 전원 대답 → 정답 맞히기나 넘기기 흐름으로 정리했어요',
+      '꼬들에서 혼자 남으면 판이 멈추던 문제를 고쳤고, 출제자도 남들 푸는 걸 볼 수 있어요',
+      '연결이 끊겼을 때 방장이 중계 서버에 다시 붙도록 했어요',
+    ],
+  },
+  {
+    id: '2026-11-27-codenames',
+    gameId: 'codenames',
+    date: '2026-11-27',
+    kind: 'game',
+    title: '코드네임 추가',
+    items: [
+      '두 팀으로 나뉘어 단어 25장에서 우리 팀 카드를 찾아요 (4~10인)',
+      '스파이마스터만 정답을 보고, 힌트는 단어 하나와 숫자뿐이에요',
+      '암살자를 찍으면 그 자리에서 패배예요',
+    ],
+  },
+  {
+    id: '2026-11-27-rummikub',
+    gameId: 'rummikub',
+    date: '2026-11-27',
+    kind: 'game',
+    title: '루미큐브 추가',
+    items: [
+      '숫자 타일로 같은 숫자 모음이나 같은 색 연속을 만들어 바닥에 내요 (2~4인)',
+      '남이 깔아둔 조합도 쪼개고 붙여서 내 타일을 끼울 수 있어요',
+      '타일을 여러 장 골라 한 번에 옮길 수 있고, 첫 등록 때 합계를 보여줘요',
+    ],
+  },
+  {
+    id: '2026-11-26-spectator',
+    date: '2026-11-26',
+    kind: 'feature',
+    title: '관전 기능',
+    items: [
+      '대기실에서 관전을 고를 수 있어요. 관전자는 정원과 별개라 2인 게임에도 붙을 수 있어요',
+      '관전자는 판을 전부 신 시점으로 봐요 — 역할이나 제시어 같은 비밀까지 보여요',
+      '각자 제 판을 푸는 게임은 판 대신 실시간 순위를 보여줘요',
+      '정원이 찼을 때도 관전으로는 들어올 수 있어요',
+    ],
+  },
+  {
+    id: '2026-11-26-waiting',
+    date: '2026-11-26',
+    kind: 'feature',
+    title: '대기실 편의 기능',
+    items: [
+      '손님도 전체 게임 목록을 펼쳐 볼 수 있어요',
+      '자동 준비를 켜두면 방장이 게임을 바꿔도 알아서 준비돼요',
+      '공개방과 비공개방을 구분해서 보여줘요',
+    ],
+  },
+  {
+    id: '2026-11-26-space-crew',
+    gameId: 'space-crew',
+    date: '2026-11-26',
+    kind: 'game',
+    title: '스페이스 크루 추가',
+    items: [
+      '손패 얘기를 못 하는 채로 각자 맡은 카드를 따내는 협동 카드 게임이에요 (3~5인)',
+      '판당 딱 한 번의 통신으로 뜻을 맞춰야 해요',
+    ],
+  },
+  {
+    id: '2026-11-25-davinci',
+    gameId: 'davinci-code',
+    date: '2026-11-25',
+    kind: 'game',
+    title: '다빈치 코드 추가',
+    items: [
+      '가려진 숫자 타일을 찍어 맞히는 추리 게임이에요 (2~4인)',
+      '틀리면 내 타일이 공개되고, 전부 공개되면 탈락이에요',
+    ],
+  },
+  {
+    id: '2026-11-25-ui',
+    date: '2026-11-25',
+    kind: 'fix',
+    title: '화면 문제 수정',
+    items: [
+      '창을 줄이면 대기실 레이아웃이 무너지던 문제를 고쳤어요',
+      '방에 있을 때 브라우저 뒤로 가기로 튕기던 문제를 고쳤어요',
+      '지하철 타자에서 역을 지날 때 한글 조합이 깨지던 문제를 고쳤어요',
+      '대기실에 게임 분류 필터를 넣었어요',
+    ],
+  },
+  {
+    id: '2026-11-24-the-mind',
+    gameId: 'the-mind',
+    date: '2026-11-24',
+    kind: 'game',
+    title: '더 마인드 추가',
+    items: [
+      '말 한 마디 없이 작은 숫자부터 순서대로 내는 협동 게임이에요 (2~10인)',
+      '눈치와 침묵이 전부라 게임 중에는 채팅이 막혀요',
+    ],
+  },
+  {
+    id: '2026-11-20-call-my-name',
+    gameId: 'call-my-name',
+    date: '2026-11-20',
+    kind: 'game',
+    title: '양세찬 게임 추가',
+    items: [
+      '내 이마에 붙은 단어만 나만 못 봐요 (2~10인)',
+      '내 차례에 질문을 던지면 모두가 한 번씩 대답해줘요',
+    ],
+  },
+  {
+    id: '2026-11-20-subway',
+    gameId: 'subway-typing',
+    date: '2026-11-20',
+    kind: 'game',
+    title: '지하철 타자 추가',
+    items: [
+      '노선과 행선지를 골라 역 이름을 순서대로 빠르게 쳐서 종점까지 완주해요',
+      '한국 수도권과 일본 도쿄 노선을 고를 수 있어요',
+    ],
+  },
+  {
+    id: '2026-11-17-kordle',
+    gameId: 'kordle',
+    date: '2026-11-17',
+    kind: 'game',
+    title: '꼬들 추가',
+    items: [
+      '한국어 워들이에요. 단어를 자모로 풀어쓴 칸을 6번 안에 맞혀요',
+      '여럿이면 돌아가며 문제를 내고 시도 횟수와 시간으로 점수를 겨뤄요',
+    ],
+  },
+  {
+    id: '2026-11-17-theme',
+    date: '2026-11-17',
+    kind: 'feature',
+    title: '사이트 색을 청록과 노랑으로',
+    items: ['전체 색감을 청록 + 노랑 조합으로 바꿨어요'],
+  },
+];
+
+/** '다시 보지 않기' 로 기억해 둔 항목 id */
+const SEEN_KEY = 'hoax:changelogSeen';
+/** 한 번 띄웠으면 이 탭에서는 더 안 띄운다 (방에 들어갔다 메뉴로 돌아올 때마다 뜨면 성가심) */
+const SHOWN_KEY = 'hoax:changelogShown';
+
+function readSeen(): string | null {
+  try {
+    return localStorage.getItem(SEEN_KEY);
+  } catch {
+    return null;
+  }
+}
+
+/** 지금 항목까지 다 봤다고 기록 — 다음 추가분이 생기기 전까지 팝업이 안 뜬다 */
+export function markChangelogSeen(): void {
+  const latest = CHANGELOG[0];
+  if (!latest) return;
+  try {
+    localStorage.setItem(SEEN_KEY, latest.id);
+  } catch {
+    /* 사생활 보호 모드 등 — 못 저장하면 다음에 또 뜨는 것뿐이라 무시 */
+  }
+}
+
+/**
+ * 아직 안 본 항목들 (최신이 앞).
+ * 기억해 둔 id 를 배열에서 찾아 그 앞쪽을 돌려준다.
+ */
+export function unseenEntries(): ChangeEntry[] {
+  const seen = readSeen();
+  const idx = seen ? CHANGELOG.findIndex((e) => e.id === seen) : -1;
+  if (idx >= 0) return CHANGELOG.slice(0, idx);
+  // 처음 온 사람(또는 기록이 낡아 못 찾는 경우) — 가장 최근 날짜 묶음만 보여준다.
+  // 딱 한 건만 띄우면 같은 날 같이 올라온 새 게임 소식이 묻힌다.
+  const newest = CHANGELOG[0];
+  return newest ? CHANGELOG.filter((e) => e.date === newest.date) : [];
+}
+
+/** 이 탭에서 팝업을 이미 띄웠는지. 띄우는 쪽이 한 번만 부를 것 */
+export function takeShownFlag(): boolean {
+  try {
+    if (sessionStorage.getItem(SHOWN_KEY)) return false;
+    sessionStorage.setItem(SHOWN_KEY, '1');
+    return true;
+  } catch {
+    return true;
+  }
+}
