@@ -7,6 +7,10 @@
  *                    올라오기 전까지는 안 뜬다 (영영 안 뜨는 게 아니다).
  * ESC 나 바깥 클릭으로 닫아도 체크 상태를 그대로 따른다.
  *
+ * 머리글은 "새 소식" 으로 고정이다. 한때 내용에 맞춰 "새로운 게임이 나왔어요!" 식으로
+ * 바꿨는데, 한 묶음에 새 게임·새 기능·버그 수정이 섞여 올라오는 게 보통이라
+ * 무엇을 고르든 나머지를 가리는 말이 됐다. 종류는 항목마다 뱃지로 이미 보인다.
+ *
  * 모달 뼈대는 ui/confirm.ts 와 같은 방식(overlay + is-in/is-out).
  */
 
@@ -14,13 +18,6 @@ import { escapeHtml } from './escape';
 import { icon } from './icons';
 import { markChangelogSeen, KIND_LABEL, type ChangeEntry } from '../data/changelog';
 import { buildMiniGameCardHTML } from './gameCardMini';
-
-/** 머리글은 가장 눈에 띄는 종류를 따라간다 — 새 게임이 하나라도 있으면 그게 주인공 */
-function headline(entries: ChangeEntry[]): string {
-  if (entries.some((e) => e.kind === 'game')) return '새로운 게임이 나왔어요!';
-  if (entries.some((e) => e.kind === 'fix')) return '고친 것들이 있어요';
-  return '새로워진 점이 있어요';
-}
 
 export function showNewsPopup(entries: ChangeEntry[]): void {
   if (entries.length === 0) return;
@@ -30,7 +27,7 @@ export function showNewsPopup(entries: ChangeEntry[]): void {
   overlay.innerHTML = `
     <div class="confirm-card news-card" role="dialog" aria-modal="true">
       <div class="confirm-icon">${icon('bell', { size: 26, hue: '#ffb12e' })}</div>
-      <div class="confirm-title">${escapeHtml(headline(entries))}</div>
+      <div class="confirm-title">새 소식</div>
       <div class="news-body">
         ${entries.map((e) => `
           <div class="news-entry">
